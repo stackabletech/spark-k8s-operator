@@ -114,6 +114,7 @@ pub async fn reconcile(
 // --conf spark.kubernetes.authenticate.driver.serviceAccountName=spark \
 // --conf spark.kubernetes.authenticate.executor.serviceAccountName=spark \
 fn build_init_job(spark: &SparkApplication) -> Result<Job> {
+    // get API end-point from in-pod environment variables
     let host = env::var("KUBERNETES_SERVICE_HOST").context(ApiHostMissingSnafu)?;
     let https_port = env::var("KUBERNETES_SERVICE_PORT_HTTPS").context(ApiHttpsPortMissingSnafu)?;
 
@@ -122,7 +123,6 @@ fn build_init_job(spark: &SparkApplication) -> Result<Job> {
     let main_class = main_class(spark)?;
     let artifact = application_artifact(spark)?;
     let name = spark.name();
-    let instances = spark.spec.executor.as_ref().unwrap().instances.unwrap_or(1);
 
     let mut submit_cmd = String::new();
     submit_cmd.push_str("/stackable/spark/bin/spark-submit ");
@@ -130,11 +130,40 @@ fn build_init_job(spark: &SparkApplication) -> Result<Job> {
     submit_cmd.push_str(&*format!("--deploy-mode {mode} "));
     submit_cmd.push_str(&*format!("--name {name} "));
     submit_cmd.push_str(&*format!("--class {main_class} "));
-    submit_cmd.push_str(&*format!("--conf spark.executor.instances={instances} "));
-    submit_cmd.push_str("--conf spark.kubernetes.container.image=spark:3.2.1 ");
+    // TODO this image is built from the spark code using the supplied dockerfile and should be replaced with our own image
+    submit_cmd.push_str("--conf spark.kubernetes.container.image=spark-h33:3.2.1 ");
+
+    // optional properties
+    if let Some(executor) = spark.spec.executor.as_ref() {
+        if let Some(cores) = executor.cores {
+            submit_cmd.push_str(&*format!("--conf spark.executor.cores={cores} "));
+        }
+        if let Some(instances) = executor.instances {
+            submit_cmd.push_str(&*format!("--conf spark.executor.instances={instances} "));
+        }
+        if let Some(memory) = &executor.memory {
+            submit_cmd.push_str(&*format!("--conf spark.executor.memory={memory} "));
+        }
+    }
+    if let Some(driver) = spark.spec.driver.as_ref() {
+        if let Some(cores) = driver.cores {
+            submit_cmd.push_str(&*format!("--conf spark.driver.cores={cores} "));
+        }
+        if let Some(core_limit) = &driver.core_limit {
+            submit_cmd.push_str(&*format!(
+                "--conf spark.kubernetes.executor.limit.cores={core_limit} "
+            ));
+        }
+        if let Some(memory) = &driver.memory {
+            submit_cmd.push_str(&*format!("--conf spark.driver.memory={memory} "));
+        }
+    }
+
     submit_cmd.push_str(artifact);
 
-    let commands = vec![submit_cmd];
+    let mut commands = vec![submit_cmd];
+    // TODO temporary check: to be removed
+    commands.push(String::from("python --version"));
     tracing::info!("commands {:#?}", &commands);
 
     let version = spark_version(spark)?;

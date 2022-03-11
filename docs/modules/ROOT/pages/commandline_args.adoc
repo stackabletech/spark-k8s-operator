@@ -1,0 +1,11 @@
+
+=== product-config
+
+*Default value*: `/etc/stackable/spark-operator/config-spec/properties.yaml`
+
+*Required*: false
+
+*Multiple values:* false
+
+This file contains property definitions for the Apache Spark configuration.
+

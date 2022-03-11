@@ -1,0 +1,371 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sparkapplications.spark.stackable.tech
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  group: spark.stackable.tech
+  names:
+    categories: []
+    kind: SparkApplication
+    plural: sparkapplications
+    shortNames:
+      - sc
+    singular: sparkapplication
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns: []
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: "Auto-generated derived type for SparkApplicationSpec via `CustomResource`"
+          properties:
+            spec:
+              properties:
+                cliOverrides:
+                  additionalProperties:
+                    type: string
+                  default: {}
+                  type: object
+                config:
+                  default: {}
+                  properties:
+                    enableMonitoring:
+                      nullable: true
+                      type: boolean
+                    logDir:
+                      nullable: true
+                      type: string
+                    maxPortRetries:
+                      format: uint
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
+                    secret:
+                      nullable: true
+                      type: string
+                  type: object
+                configOverrides:
+                  additionalProperties:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  default: {}
+                  type: object
+                envOverrides:
+                  additionalProperties:
+                    type: string
+                  default: {}
+                  type: object
+                historyServers:
+                  nullable: true
+                  properties:
+                    cliOverrides:
+                      additionalProperties:
+                        type: string
+                      default: {}
+                      type: object
+                    config:
+                      default: {}
+                      properties:
+                        storePath:
+                          nullable: true
+                          type: string
+                      type: object
+                    configOverrides:
+                      additionalProperties:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      default: {}
+                      type: object
+                    envOverrides:
+                      additionalProperties:
+                        type: string
+                      default: {}
+                      type: object
+                    roleGroups:
+                      additionalProperties:
+                        properties:
+                          cliOverrides:
+                            additionalProperties:
+                              type: string
+                            default: {}
+                            type: object
+                          config:
+                            default: {}
+                            properties:
+                              storePath:
+                                nullable: true
+                                type: string
+                            type: object
+                          configOverrides:
+                            additionalProperties:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            default: {}
+                            type: object
+                          envOverrides:
+                            additionalProperties:
+                              type: string
+                            default: {}
+                            type: object
+                          replicas:
+                            format: uint16
+                            minimum: 0.0
+                            nullable: true
+                            type: integer
+                          selector:
+                            description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
+                            nullable: true
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                items:
+                                  description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values."
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector applies to.
+                                      type: string
+                                    operator:
+                                      description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist."
+                                      type: string
+                                    values:
+                                      description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch."
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                    - key
+                                    - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed."
+                                type: object
+                            type: object
+                        type: object
+                      type: object
+                  required:
+                    - roleGroups
+                  type: object
+                masters:
+                  nullable: true
+                  properties:
+                    cliOverrides:
+                      additionalProperties:
+                        type: string
+                      default: {}
+                      type: object
+                    config:
+                      default: {}
+                      type: object
+                    configOverrides:
+                      additionalProperties:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      default: {}
+                      type: object
+                    envOverrides:
+                      additionalProperties:
+                        type: string
+                      default: {}
+                      type: object
+                    roleGroups:
+                      additionalProperties:
+                        properties:
+                          cliOverrides:
+                            additionalProperties:
+                              type: string
+                            default: {}
+                            type: object
+                          config:
+                            default: {}
+                            type: object
+                          configOverrides:
+                            additionalProperties:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            default: {}
+                            type: object
+                          envOverrides:
+                            additionalProperties:
+                              type: string
+                            default: {}
+                            type: object
+                          replicas:
+                            format: uint16
+                            minimum: 0.0
+                            nullable: true
+                            type: integer
+                          selector:
+                            description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
+                            nullable: true
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                items:
+                                  description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values."
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector applies to.
+                                      type: string
+                                    operator:
+                                      description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist."
+                                      type: string
+                                    values:
+                                      description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch."
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                    - key
+                                    - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed."
+                                type: object
+                            type: object
+                        type: object
+                      type: object
+                  required:
+                    - roleGroups
+                  type: object
+                stopped:
+                  nullable: true
+                  type: boolean
+                version:
+                  nullable: true
+                  type: string
+                workers:
+                  nullable: true
+                  properties:
+                    cliOverrides:
+                      additionalProperties:
+                        type: string
+                      default: {}
+                      type: object
+                    config:
+                      default: {}
+                      properties:
+                        cores:
+                          format: uint
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
+                        memory:
+                          nullable: true
+                          type: string
+                      type: object
+                    configOverrides:
+                      additionalProperties:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      default: {}
+                      type: object
+                    envOverrides:
+                      additionalProperties:
+                        type: string
+                      default: {}
+                      type: object
+                    roleGroups:
+                      additionalProperties:
+                        properties:
+                          cliOverrides:
+                            additionalProperties:
+                              type: string
+                            default: {}
+                            type: object
+                          config:
+                            default: {}
+                            properties:
+                              cores:
+                                format: uint
+                                minimum: 0.0
+                                nullable: true
+                                type: integer
+                              memory:
+                                nullable: true
+                                type: string
+                            type: object
+                          configOverrides:
+                            additionalProperties:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            default: {}
+                            type: object
+                          envOverrides:
+                            additionalProperties:
+                              type: string
+                            default: {}
+                            type: object
+                          replicas:
+                            format: uint16
+                            minimum: 0.0
+                            nullable: true
+                            type: integer
+                          selector:
+                            description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
+                            nullable: true
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                items:
+                                  description: "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values."
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector applies to.
+                                      type: string
+                                    operator:
+                                      description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist."
+                                      type: string
+                                    values:
+                                      description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch."
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                    - key
+                                    - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed."
+                                type: object
+                            type: object
+                        type: object
+                      type: object
+                  required:
+                    - roleGroups
+                  type: object
+              type: object
+            status:
+              nullable: true
+              properties:
+                discoveryHash:
+                  description: An opaque value that changes every time a discovery detail does
+                  nullable: true
+                  type: string
+              type: object
+          required:
+            - spec
+          title: SparkApplication
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

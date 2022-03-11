@@ -1,0 +1,61 @@
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-unknown-linux-gnu" },
+    { triple = "x86_64-unknown-linux-musl" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-apple-darwin" },
+]
+
+[advisories]
+vulnerability = "warn"
+unmaintained = "allow"
+unsound = "warn"
+yanked = "warn"
+notice = "warn"
+
+[bans]
+multiple-versions = "allow"
+
+[licenses]
+unlicensed = "deny"
+copyleft = "deny"
+allow-osi-fsf-free = "neither"
+default = "deny"
+confidence-threshold = 1.0
+allow = [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "LicenseRef-ring",
+    "LicenseRef-webpki",
+    "MIT",
+    "Zlib"
+]
+
+exceptions = [
+    { name = "stackable-spark-k8s-crd", allow = ["OSL-3.0"] },
+    { name = "stackable-spark-k8s-operator", allow = ["OSL-3.0"] },
+    { name = "stackable-spark-k8s-operator-binary", allow = ["OSL-3.0"] },
+    ]
+
+[[licenses.clarify]]
+name = "ring"
+expression = "LicenseRef-ring"
+license-files = [
+    { path = "LICENSE", hash = 0xbd0eed23 },
+]
+
+[[licenses.clarify]]
+name = "webpki"
+expression = "LicenseRef-webpki"
+license-files = [
+    { path = "LICENSE", hash = 0x001c7e6c },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[sources.allow-org]
+github = ["stackabletech"]

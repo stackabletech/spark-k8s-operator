@@ -1,0 +1,8 @@
+# This file is used for chart-testing (https://github.com/helm/chart-testing)
+# The name "ct.yaml" is not very self-descriptive but it is the default that chart-testing is looking for
+---
+remote: origin
+target-branch: main
+chart-dirs:
+  - deploy/helm
+all: true

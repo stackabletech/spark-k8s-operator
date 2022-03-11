@@ -1,0 +1,9 @@
+[MESSAGES CONTROL]
+
+# These rules are for missing docstrings which doesn't matter much for most of our simple scripts
+disable=C0114,C0115,C0116
+
+[FORMAT]
+
+max-line-length=999
+indent-string='  '

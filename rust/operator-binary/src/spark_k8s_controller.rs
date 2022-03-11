@@ -124,29 +124,17 @@ fn build_init_job(spark: &SparkApplication) -> Result<Job> {
     let name = spark.name();
     let instances = spark.spec.executor.as_ref().unwrap().instances.unwrap_or(1);
 
-    // let mut commands = Vec::<String>::new();
-    // commands.push(String::from(DATE));
-    // commands.push(String::from(T));
-    // commands.push(String::from(TIME));
-    // let commands = commands.join("\");
+    let mut submit_cmd = String::new();
+    submit_cmd.push_str("/stackable/spark/bin/spark-submit ");
+    submit_cmd.push_str(&*format!("--master k8s://https://{host}:{https_port} "));
+    submit_cmd.push_str(&*format!("--deploy-mode {mode} "));
+    submit_cmd.push_str(&*format!("--name {name} "));
+    submit_cmd.push_str(&*format!("--class {main_class} "));
+    submit_cmd.push_str(&*format!("--conf spark.executor.instances={instances} "));
+    submit_cmd.push_str("--conf spark.kubernetes.container.image=spark:3.2.1 ");
+    submit_cmd.push_str(artifact);
 
-    let mut commands = vec![format!(
-        "/stackable/spark/bin/spark-submit \
-            --master k8s://https://{host}:{https_port} \
-            --deploy-mode {mode} \
-            --name {name} \
-            --class {main_class} \
-            --conf spark.executor.instances={instances} \
-            --conf spark.kubernetes.container.image=spark:3.2.1
-        "
-    )];
-
-    commands.push(format!(
-        "\
-        {artifact}
-        "
-    ));
-
+    let commands = vec![submit_cmd];
     tracing::info!("commands {:#?}", &commands);
 
     let version = spark_version(spark)?;

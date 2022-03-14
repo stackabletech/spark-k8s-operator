@@ -116,7 +116,7 @@ pub async fn reconcile(
 fn build_init_job(spark: &SparkApplication) -> Result<Job> {
     let (name, commands) = build_command(spark)?;
 
-    let version = spark_version(spark)?;
+    let version = spark.version().context(ObjectHasNoVersionSnafu)?;
     let container = ContainerBuilder::new("spark-client")
         .image(format!(
             "docker.stackable.tech/stackable/spark:{}-stackable0",
@@ -158,9 +158,11 @@ fn build_command(spark: &SparkApplication) -> Result<(String, Vec<String>)> {
     let https_port = env::var("KUBERNETES_SERVICE_PORT_HTTPS").context(ApiHttpsPortMissingSnafu)?;
 
     // mandatory properties
-    let mode = mode(spark)?;
-    let main_class = main_class(spark)?;
-    let artifact = application_artifact(spark)?;
+    let mode = spark.mode().context(ObjectHasNoDeployModeSnafu)?;
+    let main_class = spark.main_class().context(ObjectHasNoMainClassSnafu)?;
+    let artifact = spark
+        .application_artifact()
+        .context(ObjectHasNoArtifactSnafu)?;
     let name = spark.name();
 
     let mut submit_cmd = String::new();
@@ -201,7 +203,7 @@ fn build_command(spark: &SparkApplication) -> Result<(String, Vec<String>)> {
 
     submit_cmd.push_str(artifact);
 
-    let mut commands = vec![submit_cmd];
+    let commands = vec![submit_cmd];
     tracing::info!("commands {:#?}", &commands);
     Ok((name, commands))
 }
@@ -223,38 +225,6 @@ async fn wait_completed(client: &stackable_operator::client::Client, job: &Job) 
     runtime::utils::try_flatten_applied(watcher)
         .any(|res| future::ready(res.as_ref().map(|job| completed(job)).unwrap_or(false)))
         .await;
-}
-
-pub fn spark_version(spark: &SparkApplication) -> Result<&str, Error> {
-    spark
-        .spec
-        .version
-        .as_deref()
-        .context(ObjectHasNoVersionSnafu)
-}
-
-pub fn mode(spark: &SparkApplication) -> Result<&str, Error> {
-    spark
-        .spec
-        .mode
-        .as_deref()
-        .context(ObjectHasNoDeployModeSnafu)
-}
-
-pub fn main_class(spark: &SparkApplication) -> Result<&str, Error> {
-    spark
-        .spec
-        .main_class
-        .as_deref()
-        .context(ObjectHasNoMainClassSnafu)
-}
-
-pub fn application_artifact(spark: &SparkApplication) -> Result<&str, Error> {
-    spark
-        .spec
-        .main_application_file
-        .as_deref()
-        .context(ObjectHasNoArtifactSnafu)
 }
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {

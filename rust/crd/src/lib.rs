@@ -91,6 +91,22 @@ impl SparkApplication {
             .map(|common_configuration| &common_configuration.config)
             .and_then(|common_config| common_config.enable_monitoring)
     }
+
+    pub fn version(&self) -> Option<&str> {
+        self.spec.version.as_deref()
+    }
+
+    pub fn mode(&self) -> Option<&str> {
+        self.spec.mode.as_deref()
+    }
+
+    pub fn main_class(&self) -> Option<&str> {
+        self.spec.main_class.as_deref()
+    }
+
+    pub fn application_artifact(&self) -> Option<&str> {
+        self.spec.main_application_file.as_deref()
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, JsonSchema)]

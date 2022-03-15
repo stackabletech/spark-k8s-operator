@@ -1,5 +1,4 @@
 //! This module provides all required CRD definitions and additional helper methods.
-pub mod constants;
 
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
@@ -50,6 +49,32 @@ pub struct SparkApplicationSpec {
     pub stopped: Option<bool>,
 }
 
+impl SparkApplication {
+    pub fn enable_monitoring(&self) -> Option<bool> {
+        let spec: &SparkApplicationSpec = &self.spec;
+        spec.config
+            .as_ref()
+            .map(|common_configuration| &common_configuration.config)
+            .and_then(|common_config| common_config.enable_monitoring)
+    }
+
+    pub fn version(&self) -> Option<&str> {
+        self.spec.version.as_deref()
+    }
+
+    pub fn mode(&self) -> Option<&str> {
+        self.spec.mode.as_deref()
+    }
+
+    pub fn main_class(&self) -> Option<&str> {
+        self.spec.main_class.as_deref()
+    }
+
+    pub fn application_artifact(&self) -> Option<&str> {
+        self.spec.main_application_file.as_deref()
+    }
+}
+
 #[derive(Clone, Default, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SparkApplicationStatus {
@@ -75,6 +100,24 @@ pub struct DriverConfig {
     pub memory: Option<String>,
 }
 
+impl DriverConfig {
+    pub fn spark_config(&self) -> String {
+        let mut cmd = String::new();
+        if let Some(cores) = &self.cores {
+            cmd.push_str(&*format!(" --conf spark.driver.cores={cores}"));
+        }
+        if let Some(core_limit) = &self.core_limit {
+            cmd.push_str(&*format!(
+                " --conf spark.kubernetes.executor.limit.cores={core_limit}"
+            ));
+        }
+        if let Some(memory) = &self.memory {
+            cmd.push_str(&*format!(" --conf spark.driver.memory={memory}"));
+        }
+        cmd
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutorConfig {
@@ -83,29 +126,19 @@ pub struct ExecutorConfig {
     pub memory: Option<String>,
 }
 
-impl SparkApplication {
-    pub fn enable_monitoring(&self) -> Option<bool> {
-        let spec: &SparkApplicationSpec = &self.spec;
-        spec.config
-            .as_ref()
-            .map(|common_configuration| &common_configuration.config)
-            .and_then(|common_config| common_config.enable_monitoring)
-    }
-
-    pub fn version(&self) -> Option<&str> {
-        self.spec.version.as_deref()
-    }
-
-    pub fn mode(&self) -> Option<&str> {
-        self.spec.mode.as_deref()
-    }
-
-    pub fn main_class(&self) -> Option<&str> {
-        self.spec.main_class.as_deref()
-    }
-
-    pub fn application_artifact(&self) -> Option<&str> {
-        self.spec.main_application_file.as_deref()
+impl ExecutorConfig {
+    pub fn spark_config(&self) -> String {
+        let mut cmd = String::new();
+        if let Some(cores) = &self.cores {
+            cmd.push_str(&*format!(" --conf spark.executor.cores={cores}"));
+        }
+        if let Some(instances) = &self.instances {
+            cmd.push_str(&*format!(" --conf spark.executor.instances={instances}"));
+        }
+        if let Some(memory) = &&self.memory {
+            cmd.push_str(&*format!(" --conf spark.executor.memory={memory}"));
+        }
+        cmd
     }
 }
 

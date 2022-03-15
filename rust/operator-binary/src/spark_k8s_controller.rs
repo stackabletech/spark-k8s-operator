@@ -166,42 +166,24 @@ fn build_command(spark: &SparkApplication) -> Result<(String, Vec<String>)> {
     let name = spark.name();
 
     let mut submit_cmd = String::new();
-    submit_cmd.push_str("/stackable/spark/bin/spark-submit ");
-    submit_cmd.push_str(&*format!("--master k8s://https://{host}:{https_port} "));
+    submit_cmd.push_str("/stackable/spark/bin/spark-submit");
+    submit_cmd.push_str(&*format!(" --master k8s://https://{host}:{https_port}"));
     // this currently gets ignored as the pass-off to the driver pod means we are always effectively in client mode
-    submit_cmd.push_str(&*format!("--deploy-mode {mode} "));
-    submit_cmd.push_str(&*format!("--name {name} "));
-    submit_cmd.push_str(&*format!("--class {main_class} "));
+    submit_cmd.push_str(&*format!(" --deploy-mode {mode}"));
+    submit_cmd.push_str(&*format!(" --name {name}"));
+    submit_cmd.push_str(&*format!(" --class {main_class}"));
     // TODO this image is built from the spark code using the supplied dockerfile and should be replaced with our own image
-    submit_cmd.push_str("--conf spark.kubernetes.container.image=spark-h33:3.2.1 ");
+    submit_cmd.push_str(" --conf spark.kubernetes.container.image=spark-h3:3.2.1");
 
     // optional properties
     if let Some(executor) = spark.spec.executor.as_ref() {
-        if let Some(cores) = executor.cores {
-            submit_cmd.push_str(&*format!("--conf spark.executor.cores={cores} "));
-        }
-        if let Some(instances) = executor.instances {
-            submit_cmd.push_str(&*format!("--conf spark.executor.instances={instances} "));
-        }
-        if let Some(memory) = &executor.memory {
-            submit_cmd.push_str(&*format!("--conf spark.executor.memory={memory} "));
-        }
+        submit_cmd.push_str(executor.spark_config().as_ref());
     }
     if let Some(driver) = spark.spec.driver.as_ref() {
-        if let Some(cores) = driver.cores {
-            submit_cmd.push_str(&*format!("--conf spark.driver.cores={cores} "));
-        }
-        if let Some(core_limit) = &driver.core_limit {
-            submit_cmd.push_str(&*format!(
-                "--conf spark.kubernetes.executor.limit.cores={core_limit} "
-            ));
-        }
-        if let Some(memory) = &driver.memory {
-            submit_cmd.push_str(&*format!("--conf spark.driver.memory={memory} "));
-        }
+        submit_cmd.push_str(driver.spark_config().as_ref());
     }
 
-    submit_cmd.push_str(artifact);
+    submit_cmd.push_str(&*format!(" {artifact}"));
 
     let commands = vec![submit_cmd];
     tracing::info!("commands {:#?}", &commands);

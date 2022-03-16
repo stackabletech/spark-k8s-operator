@@ -90,6 +90,9 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                image:
+                  nullable: true
+                  type: string
                 mainApplicationFile:
                   nullable: true
                   type: string

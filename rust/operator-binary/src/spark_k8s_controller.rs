@@ -52,6 +52,8 @@ pub enum Error {
     ObjectHasNoMainClass,
     #[snafu(display("object defines no application artifact"))]
     ObjectHasNoArtifact,
+    #[snafu(display("object defines no pod image"))]
+    ObjectHasNoImage,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -163,17 +165,18 @@ fn build_command(spark: &SparkApplication) -> Result<(String, Vec<String>)> {
     let artifact = spark
         .application_artifact()
         .context(ObjectHasNoArtifactSnafu)?;
+    let image = spark.image().context(ObjectHasNoImageSnafu)?;
     let name = spark.name();
 
     let mut submit_cmd = String::new();
     submit_cmd.push_str("/stackable/spark/bin/spark-submit");
     submit_cmd.push_str(&*format!(" --master k8s://https://{host}:{https_port}"));
-    // this currently gets ignored as the pass-off to the driver pod means we are always effectively in client mode
     submit_cmd.push_str(&*format!(" --deploy-mode {mode}"));
     submit_cmd.push_str(&*format!(" --name {name}"));
     submit_cmd.push_str(&*format!(" --class {main_class}"));
-    // TODO this image is built from the spark code using the supplied dockerfile and should be replaced with our own image
-    submit_cmd.push_str(" --conf spark.kubernetes.container.image=spark-h3:3.2.1");
+    submit_cmd.push_str(&*format!(
+        " --conf spark.kubernetes.container.image={image}"
+    ));
 
     // optional properties
     if let Some(executor) = spark.spec.executor.as_ref() {

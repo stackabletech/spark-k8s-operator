@@ -40,6 +40,8 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main_application_file: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<DriverConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<ExecutorConfig>,
@@ -68,6 +70,10 @@ impl SparkApplication {
 
     pub fn main_class(&self) -> Option<&str> {
         self.spec.main_class.as_deref()
+    }
+
+    pub fn image(&self) -> Option<&str> {
+        self.spec.image.as_deref()
     }
 
     pub fn application_artifact(&self) -> Option<&str> {

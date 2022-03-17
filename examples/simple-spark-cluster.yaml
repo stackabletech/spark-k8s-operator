@@ -3,11 +3,11 @@ kind: SparkApplication
 metadata:
   name: spark-clustermode-001
 spec:
-  version: 3.1.1
+  version: 3.2.1-hadoop3.2
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: local:///opt/spark/examples/jars/spark-examples_2.12-3.2.1.jar
-  image: spark-h3:3.2.1
+  mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-3.2.1.jar
+  image: 3.2.1-hadoop3.2
   driver:
     cores: 1
     coreLimit: "1200m"

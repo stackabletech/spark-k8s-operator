@@ -120,10 +120,7 @@ fn build_init_job(spark: &SparkApplication) -> Result<Job> {
 
     let version = spark.version().context(ObjectHasNoVersionSnafu)?;
     let container = ContainerBuilder::new("spark-client")
-        .image(format!(
-            "docker.stackable.tech/stackable/spark:{}-stackable0",
-            version
-        ))
+        .image(qualified_image_name(version))
         .command(vec!["/bin/bash".to_string()])
         .args(vec![String::from("-c"), commands.join("; ")])
         .build();
@@ -166,6 +163,7 @@ fn build_command(spark: &SparkApplication) -> Result<(String, Vec<String>)> {
         .application_artifact()
         .context(ObjectHasNoArtifactSnafu)?;
     let image = spark.image().context(ObjectHasNoImageSnafu)?;
+    let image_full_name = qualified_image_name(image);
     let name = spark.name();
 
     let mut submit_cmd = String::new();
@@ -175,7 +173,7 @@ fn build_command(spark: &SparkApplication) -> Result<(String, Vec<String>)> {
     submit_cmd.push_str(&*format!(" --name {name}"));
     submit_cmd.push_str(&*format!(" --class {main_class}"));
     submit_cmd.push_str(&*format!(
-        " --conf spark.kubernetes.container.image={image}"
+        " --conf spark.kubernetes.container.image={image_full_name}"
     ));
 
     // optional properties
@@ -191,6 +189,13 @@ fn build_command(spark: &SparkApplication) -> Result<(String, Vec<String>)> {
     let commands = vec![submit_cmd];
     tracing::info!("commands {:#?}", &commands);
     Ok((name, commands))
+}
+
+fn qualified_image_name(version: &str) -> String {
+    format!(
+        "docker.stackable.tech/stackable/spark-k8s:{}-stackable0",
+        version
+    )
 }
 
 // Waits until the given job is completed.

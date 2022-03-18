@@ -20,7 +20,7 @@ def check_args() -> Namespace:
     """Parse the given CLI arguments"""
     parser = argparse.ArgumentParser(
         description="NY taxi trip report"
-    )   
+    )
     parser.add_argument('--input', '-i', required=True,
                         help='Input path for dataset')
     parser.add_argument('--output', '-o', required=False,
@@ -34,7 +34,8 @@ def build_report(spark: SparkSession, args: Namespace) -> DataFrame:
     input_df = spark.read.options(header=True, inferSchema=True).csv(args.input)
 
     return input_df \
-        .select( dayofweek(input_df['tpep_pickup_datetime']).alias("day_of_week"),
+        .select(
+            dayofweek(input_df['tpep_pickup_datetime']).alias("day_of_week"),
             input_df['passenger_count'],
             input_df['trip_distance'],
             input_df['total_amount'],) \
@@ -46,7 +47,6 @@ def build_report(spark: SparkSession, args: Namespace) -> DataFrame:
         .withColumnRenamed('avg(trip_distance)', 'avg_trip_distance') \
         .withColumnRenamed('sum(passenger_count)', 'total_passengers') \
         .orderBy('day_of_week')
-
 
 
 if __name__ == "__main__":
@@ -63,8 +63,8 @@ if __name__ == "__main__":
         if args.output:
             report.coalesce(1) \
                 .write \
-                    .mode('overwrite') \
-                    .options(header=True) \
-                    .csv(args.output)            
+                .mode('overwrite') \
+                .options(header=True) \
+                .csv(args.output)
     finally:
         spark.stop()

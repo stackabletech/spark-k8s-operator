@@ -3,7 +3,7 @@ use futures::{future, StreamExt};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
-use stackable_operator::k8s_openapi::api::core::v1::{PodSpec, PodTemplateSpec};
+use stackable_operator::k8s_openapi::api::core::v1::{PodSpec, PodTemplateSpec, Volume, ConfigMapVolumeSource};
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::k8s_openapi::chrono::Utc;
 use stackable_operator::kube::{runtime, ResourceExt};
@@ -13,8 +13,7 @@ use stackable_operator::{
     product_config::ProductConfigManager,
 };
 use stackable_spark_k8s_crd::{CommandStatus, SparkApplication};
-use std::env::VarError;
-use std::{env, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 const FIELD_MANAGER_SCOPE: &str = "sparkapplication";
@@ -42,18 +41,10 @@ pub enum Error {
     ApplyStatus {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("failed to detect api host"))]
-    ApiHostMissing { source: VarError },
-    #[snafu(display("failed to detect api https port"))]
-    ApiHttpsPortMissing { source: VarError },
-    #[snafu(display("object defines no deploy mode"))]
-    ObjectHasNoDeployMode,
-    #[snafu(display("object defines no main class"))]
-    ObjectHasNoMainClass,
-    #[snafu(display("object defines no application artifact"))]
-    ObjectHasNoArtifact,
-    #[snafu(display("object defines no pod image"))]
-    ObjectHasNoImage,
+    #[snafu(display("failed to build stark-submit command"))]
+    BuildCommand {
+        source: stackable_spark_k8s_crd::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -113,16 +104,15 @@ pub async fn reconcile(
     })
 }
 
-// --conf spark.kubernetes.authenticate.driver.serviceAccountName=spark \
-// --conf spark.kubernetes.authenticate.executor.serviceAccountName=spark \
 fn build_init_job(spark: &SparkApplication) -> Result<Job> {
-    let (name, commands) = build_command(spark)?;
+    let commands = spark.build_command().context(BuildCommandSnafu)?;
 
     let version = spark.version().context(ObjectHasNoVersionSnafu)?;
     let container = ContainerBuilder::new("spark-client")
         .image(qualified_image_name(version))
         .command(vec!["/bin/bash".to_string()])
-        .args(vec![String::from("-c"), commands.join("; ")])
+        .args(vec![String::from("-c"), commands.join(" ")])
+        .add_volume_mount("pod-template", "/stackable/spark/pod-templates")
         .build();
 
     let pod = PodTemplateSpec {
@@ -130,14 +120,21 @@ fn build_init_job(spark: &SparkApplication) -> Result<Job> {
         spec: Some(PodSpec {
             containers: vec![container],
             restart_policy: Some("Never".to_string()),
-            ..Default::default()
+            volumes: Some(vec![Volume {
+                name: "pod-template".to_string(),
+                config_map: Some(ConfigMapVolumeSource {
+                        name: Some(format!("{}-pod-template", spark.name())),
+                        ..ConfigMapVolumeSource::default()
+                    }),
+                ..Volume::default()
+            }]),
+            ..PodSpec::default()
         }),
     };
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()
-            .name(name)
-            .namespace("default")
+            .name_and_namespace(spark)
             .ownerreference_from_resource(spark, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .build(),
@@ -149,46 +146,6 @@ fn build_init_job(spark: &SparkApplication) -> Result<Job> {
     };
 
     Ok(job)
-}
-
-fn build_command(spark: &SparkApplication) -> Result<(String, Vec<String>)> {
-    // get API end-point from in-pod environment variables
-    let host = env::var("KUBERNETES_SERVICE_HOST").context(ApiHostMissingSnafu)?;
-    let https_port = env::var("KUBERNETES_SERVICE_PORT_HTTPS").context(ApiHttpsPortMissingSnafu)?;
-
-    // mandatory properties
-    let mode = spark.mode().context(ObjectHasNoDeployModeSnafu)?;
-    let main_class = spark.main_class().context(ObjectHasNoMainClassSnafu)?;
-    let artifact = spark
-        .application_artifact()
-        .context(ObjectHasNoArtifactSnafu)?;
-    let image = spark.image().context(ObjectHasNoImageSnafu)?;
-    let image_full_name = qualified_image_name(image);
-    let name = spark.name();
-
-    let mut submit_cmd = String::new();
-    submit_cmd.push_str("/stackable/spark/bin/spark-submit");
-    submit_cmd.push_str(&*format!(" --master k8s://https://{host}:{https_port}"));
-    submit_cmd.push_str(&*format!(" --deploy-mode {mode}"));
-    submit_cmd.push_str(&*format!(" --name {name}"));
-    submit_cmd.push_str(&*format!(" --class {main_class}"));
-    submit_cmd.push_str(&*format!(
-        " --conf spark.kubernetes.container.image={image_full_name}"
-    ));
-
-    // optional properties
-    if let Some(executor) = spark.spec.executor.as_ref() {
-        submit_cmd.push_str(executor.spark_config().as_ref());
-    }
-    if let Some(driver) = spark.spec.driver.as_ref() {
-        submit_cmd.push_str(driver.spark_config().as_ref());
-    }
-
-    submit_cmd.push_str(&*format!(" {artifact}"));
-
-    let commands = vec![submit_cmd];
-    tracing::info!("commands {:#?}", &commands);
-    Ok((name, commands))
 }
 
 fn qualified_image_name(version: &str) -> String {

@@ -2,6 +2,7 @@ apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
   name: ny-tlc-report
+  namespace: default
 spec:
   image: docker.stackable.tech/stackable/ny-tlc-report:latest
   version: 3.2.1-hadoop3.2

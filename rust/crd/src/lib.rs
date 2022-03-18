@@ -3,18 +3,33 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use snafu::Snafu;
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::{
     kube::CustomResource,
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
+use std::env::{self, VarError};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
+    #[snafu(display("failed to detect api host"))]
+    ApiHostMissing { source: VarError },
+    #[snafu(display("failed to detect api https port"))]
+    ApiHttpsPortMissing { source: VarError },
+    #[snafu(display("object defines no deploy mode"))]
+    ObjectHasNoDeployMode,
+    #[snafu(display("object defines no main class"))]
+    ObjectHasNoMainClass,
+    #[snafu(display("object defines no application artifact"))]
+    ObjectHasNoArtifact,
+    #[snafu(display("object defines no pod image"))]
+    ObjectHasNoImage,
+    #[snafu(display("object has no name"))]
+    ObjectHasNoName,
 }
 /// SparkApplicationStatus CommandStatus
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -100,6 +115,57 @@ impl SparkApplication {
     pub fn application_artifact(&self) -> Option<&str> {
         self.spec.main_application_file.as_deref()
     }
+
+    pub fn build_command(&self) -> Result<Vec<String>, Error> {
+        // get API end-point from in-pod environment variables
+        let host = env::var("KUBERNETES_SERVICE_HOST").context(ApiHostMissingSnafu)?;
+        let https_port =
+            env::var("KUBERNETES_SERVICE_PORT_HTTPS").context(ApiHttpsPortMissingSnafu)?;
+
+        // mandatory properties
+        let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
+        let main_class = self.main_class().context(ObjectHasNoMainClassSnafu)?;
+        let artifact = self
+            .application_artifact()
+            .context(ObjectHasNoArtifactSnafu)?;
+        let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
+
+        let mut submit_cmd = vec![
+            "/stackable/self/bin/spark-submit".to_string(),
+            format!("--master k8s://https://{host}:{https_port}"),
+            format!("--deploy-mode {mode}"),
+            format!("--name {name}"),
+            format!("--class {main_class}"),
+            "--conf spark.kubernetes.driver.podTemplateFile=/stackable/spark/pod-templates/driver.yml".to_string(),
+            "--conf spark.kubernetes.executor.podTemplateFile=/stackable/spark/pod-templates/executor.yml".to_string(),
+        ];
+
+        // conf arguments that are not driver or executor specific
+        if let Some(spark_conf) = self.spec.spark_conf.clone() {
+            for (key, value) in spark_conf {
+                submit_cmd.push(format!("--conf {key}={value}"));
+            }
+        }
+
+        // packages arguments
+        if let Some(deps) = self.spec.deps.clone() {
+            if let Some(packages) = deps.packages {
+                submit_cmd.push(format!("--packages {}", packages.join(",")));
+            }
+        }
+        
+        // optional properties
+        if let Some(executor) = self.spec.executor.as_ref() {
+            submit_cmd.extend(executor.spark_config());
+        }
+        if let Some(driver) = self.spec.driver.as_ref() {
+            submit_cmd.extend(driver.spark_config());
+        }
+
+        submit_cmd.push(artifact.to_string());
+
+        Ok(submit_cmd)
+    }
 }
 
 #[derive(Clone, Default, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -128,18 +194,18 @@ pub struct DriverConfig {
 }
 
 impl DriverConfig {
-    pub fn spark_config(&self) -> String {
-        let mut cmd = String::new();
+    pub fn spark_config(&self) -> Vec<String> {
+        let mut cmd = vec![];
         if let Some(cores) = &self.cores {
-            cmd.push_str(&*format!(" --conf spark.driver.cores={cores}"));
+            cmd.push(format!("--conf spark.driver.cores={cores}"));
         }
         if let Some(core_limit) = &self.core_limit {
-            cmd.push_str(&*format!(
-                " --conf spark.kubernetes.executor.limit.cores={core_limit}"
+            cmd.push(format!(
+                "--conf spark.kubernetes.executor.limit.cores={core_limit}"
             ));
         }
         if let Some(memory) = &self.memory {
-            cmd.push_str(&*format!(" --conf spark.driver.memory={memory}"));
+            cmd.push(format!("--conf spark.driver.memory={memory}"));
         }
         cmd
     }
@@ -154,16 +220,16 @@ pub struct ExecutorConfig {
 }
 
 impl ExecutorConfig {
-    pub fn spark_config(&self) -> String {
-        let mut cmd = String::new();
+    pub fn spark_config(&self) -> Vec<String> {
+        let mut cmd = vec![];
         if let Some(cores) = &self.cores {
-            cmd.push_str(&*format!(" --conf spark.executor.cores={cores}"));
+            cmd.push(format!("--conf spark.executor.cores={cores}"));
         }
         if let Some(instances) = &self.instances {
-            cmd.push_str(&*format!(" --conf spark.executor.instances={instances}"));
+            cmd.push(format!("--conf spark.executor.instances={instances}"));
         }
-        if let Some(memory) = &&self.memory {
-            cmd.push_str(&*format!(" --conf spark.executor.memory={memory}"));
+        if let Some(memory) = &self.memory {
+            cmd.push(format!("--conf spark.executor.memory={memory}"));
         }
         cmd
     }

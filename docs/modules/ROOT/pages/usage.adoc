@@ -1,0 +1,147 @@
+= Usage
+
+== Create an Apache Spark cluster
+
+If you followed the installation instructions, you should now have a Stackable Operator for Apache Spark up and running and you are ready to create your first Apache Spark cluster.
+
+The example below creates an Apache Spark 3.0.1 cluster with one master (because of `replicas: 1`), one history server and as many workers as nodes available.
+Because of `enableMonitoring: true`, all pods will be annotated for metric scraping. Metrics are retrieved from Spark's built in Prometheus Servlet.
+
+    cat <<EOF | kubectl apply -f -
+    apiVersion: spark.stackable.tech/v1alpha1
+    kind: SparkApplication
+    metadata:
+      name: simple-spark
+    spec:
+      version: "3.0.1"
+      config:
+        enableMonitoring: true
+      masters:
+        roleGroups:
+          default:
+            selector:
+              matchLabels:
+                kubernetes.io/os: linux
+            replicas: 1
+            config: {}
+      workers:
+        roleGroups:
+          2core2g:
+            selector:
+              matchLabels:
+                kubernetes.io/os: linux
+            config:
+              cores: 2
+              memory: "2g"
+      historyServers:
+        roleGroups:
+          default:
+            selector:
+              matchLabels:
+                kubernetes.io/os: linux
+            replicas: 1
+            config: {}
+    EOF
+
+== Using the Apache Spark cluster
+
+The example above sets up a https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport[NodePort] service named `simple-spark-master` that clients can use to run Spark jobs.
+
+This is how the list of services might look like:
+
+    kubectl get svc
+    NAME                                  TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)                         AGE
+    kubernetes                            ClusterIP   10.96.0.1      <none>        443/TCP                         5h38m
+    simple-spark-history-server-default   ClusterIP   None           <none>        18080/TCP                       2m54s
+    simple-spark-master                   NodePort    10.96.63.134   <none>        8080:31296/TCP,7077:32274/TCP   2m54s
+    simple-spark-master-default           ClusterIP   None           <none>        8080/TCP,7077/TCP               2m54s
+    simple-spark-slave-2core2g            ClusterIP   None           <none>        8081/TCP                        2m54s
+
+To start a Spark shell from inside the cluster you would run:
+
+    /stackable/spark/bin/spark-shell --master spark://simple-spark-master-default:7077
+
+and from outside: 
+
+    spark-shell --master spark://<node-ip>>:32274
+
+where `<node-ip>` is the IP address of the node running your master.
+
+== Monitoring
+
+The managed Spark instances are automatically configured to export Prometheus metrics. See
+xref:home::monitoring.adoc[] for more details.
+
+== Configuration & Environment Overrides
+
+The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
+
+IMPORTANT: Do not override port numbers. This will lead to faulty installations.
+
+=== Configuration Properties
+
+For a role or role group, at the same level of `config`, you can specify: `configOverrides` for the `spark-env.sh` and `spark-defaults.conf` files. For a list of possible configuration properties see: https://spark.apache.org/docs/latest/configuration.html
+
+[source,yaml]
+----
+masters:
+  roleGroups:
+    default:
+      config: [...]
+      configOverrides:
+        spark-env.sh:
+          JAVA_HOME=/some/other/java
+        spark-defaults.conf:
+          spark.driver.cores: "2"
+      replicas: 1
+----
+
+Just as for the `config`, it is possible to specify this at role level as well:
+
+[source,yaml]
+----
+masters:
+  configOverrides:
+    spark-env.sh:
+      JAVA_HOME=/some/other/java
+    spark-defaults.conf:
+      spark.driver.cores: "2"
+  roleGroups:
+    default:
+      config: [...]
+      replicas: 1
+----
+
+All override property values must be strings. The properties will be passed on without any escaping or formatting.
+
+=== Environment Variables
+
+Environment variables can be (over)written by adding them to `spark-env.sh` file as described above or by using the `envOverrides` property.
+
+For example per role group:
+
+[source,yaml]
+----
+routers:
+  roleGroups:
+    default:
+      config: {}
+      envOverrides:
+        MY_ENV_VAR: "MY_VALUE"
+      replicas: 1
+----
+
+or per role:
+
+[source,yaml]
+----
+routers:
+  envOverrides:
+    MY_ENV_VAR: "MY_VALUE"
+  roleGroups:
+    default:
+      config: {}
+      replicas: 1
+----
+
+Here too, overriding properties such as `SPARK_MASTER_PORT` will lead to broken installations.

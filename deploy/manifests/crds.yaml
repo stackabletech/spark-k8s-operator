@@ -1,0 +1,103 @@
+---
+# Source: spark-k8s-operator/crds/crds.yaml
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sparkapplications.spark.stackable.tech
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  group: spark.stackable.tech
+  names:
+    categories: []
+    kind: SparkApplication
+    plural: sparkapplications
+    shortNames:
+      - sc
+    singular: sparkapplication
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns: []
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: "Auto-generated derived type for SparkApplicationSpec via `CustomResource`"
+          properties:
+            spec:
+              description: SparkApplicationStatus CommandStatus
+              properties:
+                cliOverrides:
+                  additionalProperties:
+                    type: string
+                  default: {}
+                  type: object
+                config:
+                  default: {}
+                  properties:
+                    enableMonitoring:
+                      nullable: true
+                      type: boolean
+                    logDir:
+                      nullable: true
+                      type: string
+                    maxPortRetries:
+                      format: uint
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
+                    secret:
+                      nullable: true
+                      type: string
+                  type: object
+                configOverrides:
+                  additionalProperties:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  default: {}
+                  type: object
+                envOverrides:
+                  additionalProperties:
+                    type: string
+                  default: {}
+                  type: object
+                mainApplicationFile:
+                  nullable: true
+                  type: string
+                mainClass:
+                  nullable: true
+                  type: string
+                mode:
+                  nullable: true
+                  type: string
+                stopped:
+                  nullable: true
+                  type: boolean
+                version:
+                  nullable: true
+                  type: string
+              type: object
+            status:
+              nullable: true
+              properties:
+                finishedAt:
+                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                  format: date-time
+                  nullable: true
+                  type: string
+                startedAt:
+                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                  format: date-time
+                  nullable: true
+                  type: string
+              type: object
+          required:
+            - spec
+          title: SparkApplication
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+

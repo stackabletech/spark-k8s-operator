@@ -1,0 +1,317 @@
+---
+name: Stackable Build Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - trying
+      - "renovate/**"
+    tags:
+      - "*"
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  RUSTFLAGS: "-D warnings"
+  RUSTDOCFLAGS: "-D warnings"
+  RUST_LOG: "info"
+  PRODUCT_NAME: "spark-k8s"
+  DEV_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-dev
+  TEST_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-test
+  STABLE_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-stable
+
+jobs:
+  # Identify unused dependencies
+  run_udeps:
+    name: Run Cargo Udeps
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_BOOTSTRAP: 1
+    steps:
+      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+        with:
+          key: udeps
+      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
+        with:
+          command: install
+          args: cargo-udeps --locked
+      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
+        with:
+          command: udeps
+
+  # This job evaluates the github environment to determine why this action is running and selects the appropriate
+  # target repository for published Helm charts based on this.
+  #
+  # The following scenarios are identified:
+  #    - pull request:
+  #        condition: github.event_name == "pull_request"
+  #        repository: test
+  #
+  #    - release (aka a tag was created):
+  #         condition: github.event_name == 'create' & github.ref.startswith('refs/tags/')
+  #         repository: stable
+  #
+  #    - merge of pr to main branch:
+  #         condition: github.event_name == 'push' & github.ref == 'refs/heads/main'
+  #         repository: dev
+  #
+  # Any other scenarios will cause the publish step to be skipped, most commonly this is expected to happen for the
+  # branches that bors uses internally (staging, trying) for which the checks need to run, but we do not want artifacts
+  # to be published.
+  select_repo:
+    name: Select target repository based on action trigger
+    runs-on: ubuntu-latest
+    outputs:
+      repository: ${{ steps.selectrepo.outputs.repo }}
+    steps:
+      - id: selectrepo
+        env:
+          TRIGGER: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          if [[ $TRIGGER == "pull_request" ]]; then
+            echo "exporting test as target repo: ${{ env.TEST_REPO_HELM_URL }}"
+            echo "::set-output name=repo::${{ env.TEST_REPO_HELM_URL }}"
+          elif [[ $TRIGGER == "push" && $GITHUB_REF == "refs/heads/main" ]]; then
+            echo "exporting dev as target repo: ${{ env.DEV_REPO_HELM_URL }}"
+            echo "::set-output name=repo::${{ env.DEV_REPO_HELM_URL }}"
+          elif [[ ( $TRIGGER == "create" || $TRIGGER == "push" ) && $GITHUB_REF == refs/tags/* ]]; then
+            echo "exporting stable as target repo: ${{ env.STABLE_REPO_HELM_URL }}"
+            echo "::set-output name=repo::${{ env.STABLE_REPO_HELM_URL }}"
+          else
+            echo "Unknown trigger and ref combination encountered, skipping publish step: $TRIGGER $GITHUB_REF"
+            echo "::set-output name=repo::skip"
+          fi
+
+  run_cargodeny:
+    name: Run Cargo Deny
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        checks:
+          - advisories
+          - bans licenses sources
+
+    # Prevent sudden announcement of a new advisory from failing ci:
+    continue-on-error: ${{ matrix.checks == 'advisories' }}
+
+    steps:
+      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: EmbarkStudios/cargo-deny-action@8acbae97b5d01b0481ae14cee8fcd8f5aa9e374d # tag=v1.2.12
+        with:
+          command: check ${{ matrix.checks }}
+
+  run_rustfmt:
+    name: Run Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt
+          override: true
+      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
+        with:
+          command: fmt
+          args: --all -- --check
+
+  run_clippy:
+    name: Run Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+          override: true
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+        with:
+          key: clippy
+      - name: Run clippy action to produce annotations
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions-rs/clippy-check@b5b5f21f4797c02da247df37026fcd0a5024aa4d # renovate: tag=v1.0.7
+        if: env.GITHUB_TOKEN != null
+        with:
+          args: --all-targets -- -D warnings
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run clippy manually without annotations
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: env.GITHUB_TOKEN == null
+        run: cargo clippy --all-targets -- -D warnings
+
+  run_rustdoc:
+    name: Run RustDoc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt
+          override: true
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+        with:
+          key: doc
+      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
+        with:
+          command: doc
+          args: --document-private-items
+
+  run_tests:
+    name: Run Cargo Tests
+    needs:
+      - run_cargodeny
+      - run_clippy
+      - run_rustfmt
+      - run_rustdoc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+        with:
+          key: test
+      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
+        with:
+          command: test
+
+  # This job cleans up the CRDs, Helm charts and Kustomize manifests, followed by rebuilding them
+  # It then runs a `git diff` and fails the entire workflow, if any difference is encountered.
+  #
+  # Since CRD files are generated during the 'cargo build' process we need to run this once after
+  # removing the CRD files to ensure that the checked in versions match what the code expects.
+  #
+  # The reason for this step is, that developers are expected to check in up-to-date versions of charts
+  # and manifests, as we'd otherwise have to build these in CI and commit them back to the PR, which
+  # creates all kinds of problems.
+  # Therefor this failsafe simply aborts anything that has not had charts and manifests rebuilt before pushing.
+  check_charts:
+    name: Check if committed Helm & Kustomize Charts were up to date
+    needs:
+      - run_cargodeny
+      - run_clippy
+      - run_rustfmt
+      - run_rustdoc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - name: Set up Helm
+        uses: azure/setup-helm@a517f2ff6560563a369e16ca7c7d136b6164423f # renovate: tag=v2.0
+        with:
+          version: v3.6.2
+      - name: Set up cargo
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Set up rust-cache
+        uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+        with:
+          key: charts
+      - name: Regenerate charts
+        run: make regenerate-charts
+      - name: Check if committed charts were up to date
+        run: git diff --exit-code
+      - name: Git Diff showed uncommitted changes
+        if: ${{ failure() }}
+        uses: actions/github-script@9ac08808f993958e9de277fe43a64532a609130e # tag=v6
+        with:
+          script: |
+            core.setFailed('Committed charts were not up to date, please regenerate and re-commit!')
+
+  test_charts:
+    name: Run Chart Tests
+    needs:
+      - check_charts
+      - run_tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - name: placeholder
+        run: echo Tests will go here
+
+  tests_passed:
+    name: All tests passed
+    needs:
+      - test_charts
+      - run_udeps
+    runs-on: ubuntu-latest
+    steps:
+      - name: log
+        run: echo All tests have passed!
+
+  package_and_publish:
+    name: Package Charts, Build Docker Image and publish them
+    needs:
+      - tests_passed
+      - select_repo
+    runs-on: ubuntu-latest
+    env:
+      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+      REPO: ${{ needs.select_repo.outputs.repository }}
+    if: needs.select_repo.outputs.repository != 'skip'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions/setup-python@0ebf233433c08fb9061af664d501c3f3ff0e9e20 # tag=v3
+        if: ${{ github.event_name == 'pull_request' }}
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt
+          override: true
+      - name: Install requirements for version tool
+        if: ${{ github.event_name == 'pull_request' }}
+        run: pip install -r python/requirements.txt
+
+        # This step checks if the current run was triggered by a push to a pr (or a pr being created).
+        # If this is the case it changes the version of this project in all Cargo.toml files to include the suffix
+        # "-pr<prnumber>" so that the published artifacts can be linked to this PR.
+      - name: Update version if PR
+        if: ${{ github.event_name == 'pull_request' }}
+        run: python/cargo_version.py -m pr${{ github.event.pull_request.number }}
+
+      # Recreate charts with changed version if needed
+      - name: Clean charts
+        if: ${{ github.event_name == 'pull_request' }}
+        run: make chart-clean clean-manifests compile-chart generate-manifests
+
+      # Package and publish charts
+      - name: Package Chart
+        run: mkdir -p target/helm && helm package --destination target/helm deploy/helm/${{ env.PRODUCT_NAME }}-operator
+      - name: Build Docker image
+        if: env.NEXUS_PASSWORD != null # pragma: allowlist secret
+        run: make docker
+      - name: Publish Chart
+        if: env.NEXUS_PASSWORD != null # pragma: allowlist secret
+        run: >-
+          /usr/bin/curl
+          --fail
+          -u 'github:${{ secrets.NEXUS_PASSWORD }}'
+          --upload-file "./$(find  target/helm/ -name '*.tgz')"
+          "${{ env.REPO }}/"

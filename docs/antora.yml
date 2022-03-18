@@ -1,0 +1,5 @@
+name: spark
+version: master
+title: Stackable Operator for Apache Spark
+nav:
+  - modules/ROOT/nav.adoc

@@ -1,0 +1,18 @@
+= Stackable Operator for Apache Spark
+
+This is an operator for Kubernetes that can manage https://spark.apache.org/[Apache Spark] standalone clusters.
+
+WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fspark[Stackable] repository
+
+== Supported Versions
+
+The Stackable Operator for Apache Spark currently supports the following versions of Spark:
+
+include::partial$supported-versions.adoc[]
+
+== Getting the Docker image
+
+[source]
+----
+docker pull docker.stackable.tech/stackable/spark:<version>
+----

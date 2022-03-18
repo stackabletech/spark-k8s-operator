@@ -55,11 +55,46 @@ spec:
                     type: object
                   default: {}
                   type: object
+                driver:
+                  nullable: true
+                  properties:
+                    coreLimit:
+                      nullable: true
+                      type: string
+                    cores:
+                      format: uint
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
+                    memory:
+                      nullable: true
+                      type: string
+                  type: object
                 envOverrides:
                   additionalProperties:
                     type: string
                   default: {}
                   type: object
+                executor:
+                  nullable: true
+                  properties:
+                    cores:
+                      format: uint
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
+                    instances:
+                      format: uint
+                      minimum: 0.0
+                      nullable: true
+                      type: integer
+                    memory:
+                      nullable: true
+                      type: string
+                  type: object
+                image:
+                  nullable: true
+                  type: string
                 mainApplicationFile:
                   nullable: true
                   type: string

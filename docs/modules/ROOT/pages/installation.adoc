@@ -20,7 +20,7 @@ $ helm repo add stackable https://repo.stackable.tech/repository/helm-stable/
 Then install the Stackable Operator for Apache Spark
 [source,bash]
 ----
-$ helm install spark-operator stackable/spark-operator
+$ helm install spark-k8s-operator stackable/spark-k8s-operator
 ----
 
 Helm will deploy the operator in a Kubernetes container and apply the CRDs for the Apache Spark
@@ -32,32 +32,32 @@ This Operator is published as a Docker image:
 
 [source]
 ----
-docker.stackable.tech/stackable/spark-operator
+docker.stackable.tech/stackable/spark-k8s-operator
 ----
 
 When installing manually with Docker you will need to install the Stackable CRDs for Apache Spark
 in your Kubernetes environment. These are available on the
-https://github.com/stackabletech/spark-operator/tree/main/deploy/crd[Stackable GitHub repository]
+https://github.com/stackabletech/spark-k8s-operator/tree/main/deploy/crd[Stackable GitHub repository]
 for this operator.
 [source]
 ----
-$ kubectl apply -f SparkApplication.crd.yaml
+$ kubectl apply -f sparkapplication.crd.yaml
 ----
 
 To run it straight from Docker you can use this command:
 [source,bash]
 ----
 docker run \
-    --name spark-operator \
+    --name spark-k8s-operator \
     --network host \
     --env KUBECONFIG=/home/stackable/.kube/config \
     --mount type=bind,source="$HOME/.kube/config",target="/home/stackable/.kube/config" \
-    docker.stackable.tech/stackable/spark-operator:latest
+    docker.stackable.tech/stackable/spark-k8s-operator:latest
 ----
 
 == Building the operator from source
 
-This operator is written in Rust and is developed against the latest stable Rust release (1.57 at
+This operator is written in Rust and is developed against the latest stable Rust release (1.58 at
 the time of writing).
 
 [source]

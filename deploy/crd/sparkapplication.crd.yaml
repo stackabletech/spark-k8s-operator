@@ -53,6 +53,30 @@ spec:
                     type: object
                   default: {}
                   type: object
+                deps:
+                  nullable: true
+                  properties:
+                    excludePackages:
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    packages:
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    repositories:
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    requirements:
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                  type: object
                 driver:
                   nullable: true
                   properties:
@@ -102,6 +126,14 @@ spec:
                 mode:
                   nullable: true
                   type: string
+                pythonVersion:
+                  nullable: true
+                  type: string
+                sparkConf:
+                  additionalProperties:
+                    type: string
+                  nullable: true
+                  type: object
                 stopped:
                   nullable: true
                   type: boolean

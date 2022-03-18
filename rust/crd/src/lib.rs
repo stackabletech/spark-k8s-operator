@@ -1,5 +1,7 @@
 //! This module provides all required CRD definitions and additional helper methods.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
@@ -49,6 +51,25 @@ pub struct SparkApplicationSpec {
     pub config: Option<CommonConfiguration<CommonConfig>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spark_conf: Option<HashMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deps: Option<JobDependencies>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub python_version: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobDependencies {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirements: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packages: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repositories: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exclude_packages: Option<Vec<String>>,
 }
 
 impl SparkApplication {

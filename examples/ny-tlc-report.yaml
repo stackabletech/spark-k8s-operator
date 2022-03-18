@@ -1,0 +1,27 @@
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: ny-tlc-report
+spec:
+  image: docker.stackable.tech/stackable/ny-tlc-report:latest
+  version: 3.2.1-hadoop3.2
+  mode: cluster
+  mainApplicationFile: /stackable/spark/jobs/ny_tlc_report.py
+  pythonVersion: 3.9
+  deps:
+    requirements:
+      - tabulate==0.8.9
+    packages:
+      - org.apache.hadoop:hadoop-aws:3.2.0
+      - com.amazonaws:aws-java-sdk-s3:1.12.180
+      - com.amazonaws:aws-java-sdk-core:1.12.180
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"

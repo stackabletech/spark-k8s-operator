@@ -75,6 +75,8 @@ pub struct SparkApplicationSpec {
     pub deps: Option<JobDependencies>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub python_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub args: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -131,18 +133,16 @@ impl SparkApplication {
 
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
-        let main_class = self.main_class().context(ObjectHasNoMainClassSnafu)?;
         let artifact = self
             .application_artifact()
             .context(ObjectHasNoArtifactSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
         let mut submit_cmd = vec![
-            "/stackable/self/bin/spark-submit".to_string(),
+            "/stackable/spark/bin/spark-submit".to_string(),
             format!("--master k8s://https://{host}:{https_port}"),
             format!("--deploy-mode {mode}"),
             format!("--name {name}"),
-            format!("--class {main_class}"),
             "--conf spark.kubernetes.driver.podTemplateFile=/stackable/spark/pod-templates/driver.yml".to_string(),
             "--conf spark.kubernetes.executor.podTemplateFile=/stackable/spark/pod-templates/executor.yml".to_string(),
         ];
@@ -170,6 +170,10 @@ impl SparkApplication {
         }
 
         submit_cmd.push(artifact.to_string());
+
+        if let Some(job_args) = self.spec.args.clone() {
+            submit_cmd.extend(job_args);
+        }
 
         Ok(submit_cmd)
     }

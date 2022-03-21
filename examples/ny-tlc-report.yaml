@@ -4,11 +4,14 @@ metadata:
   name: ny-tlc-report
   namespace: default
 spec:
+  version: "1.0"
   image: docker.stackable.tech/stackable/ny-tlc-report:latest
-  version: 3.2.1-hadoop3.2
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0
   mode: cluster
   mainApplicationFile: /stackable/spark/jobs/ny_tlc_report.py
-  pythonVersion: 3.9
+  pythonVersion: "3.9"
+  args:
+    - "--input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
   deps:
     requirements:
       - tabulate==0.8.9

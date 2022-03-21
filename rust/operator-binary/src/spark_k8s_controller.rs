@@ -170,6 +170,7 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
                 .as_deref()
                 .context(ObjectHasNoSparkImageSnafu)?,
         )
+        .add_volume_mount("job-files", "/stackable/spark/jobs")
         .build();
 
     let template = PodBuilder::new()
@@ -211,11 +212,14 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
         .build_command()
         .context(BuildCommandSnafu)?;
 
-    let version = spark_application
-        .version()
-        .context(ObjectHasNoVersionSnafu)?;
     let container = ContainerBuilder::new("spark-client")
-        .image(qualified_image_name(version))
+        .image(
+            spark_application
+                .spec
+                .spark_image
+                .as_deref()
+                .context(ObjectHasNoSparkImageSnafu)?,
+        )
         .command(vec!["/bin/bash".to_string()])
         .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
         .add_volume_mount("pod-template", "/stackable/spark/pod-templates")
@@ -252,13 +256,6 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
     };
 
     Ok(job)
-}
-
-fn qualified_image_name(version: &str) -> String {
-    format!(
-        "docker.stackable.tech/stackable/spark-k8s:{}-stackable0",
-        version
-    )
 }
 
 // Waits until the given job is completed.

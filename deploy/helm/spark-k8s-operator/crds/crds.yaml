@@ -25,6 +25,11 @@ spec:
             spec:
               description: SparkApplicationStatus CommandStatus
               properties:
+                args:
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
                 cliOverrides:
                   additionalProperties:
                     type: string

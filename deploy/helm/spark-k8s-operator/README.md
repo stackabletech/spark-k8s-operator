@@ -20,8 +20,9 @@ helm install spark-k8s-operator deploy/helm/spark-k8s-operator
 
 The usage of this operator and its CRDs is described in the [documentation](https://docs.stackable.tech/spark-k8s/index.html)
 
-The operator has example requests included in the [`/examples`](https://github.com/stackabletech/spark-k8s/operator/tree/main/examples) directory.
+The operator has example requests included in the [`/examples`](https://github.com/stackabletech/spark-k8s-operator/tree/main/examples) directory.
 
 ## Links
 
 https://github.com/stackabletech/spark-k8s-operator
+

@@ -11,6 +11,7 @@ LABEL maintainer="Stackable GmbH"
 RUN microdnf update --disablerepo=* --enablerepo=ubi-8-baseos --enablerepo=ubi-8-baseos -y \
   && rm -rf /var/cache/yum \
   && microdnf install --disablerepo=* --enablerepo=ubi-8-baseos shadow-utils -y \
+  && microdnf clean all \
   && rm -rf /var/cache/yum
 
 COPY --from=builder /app/stackable-spark-k8s-operator /

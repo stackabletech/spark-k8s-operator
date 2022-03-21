@@ -255,19 +255,20 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
             containers: vec![container],
             init_containers: Some(vec![job_init_container]),
             restart_policy: Some("Never".to_string()),
-            volumes: Some(vec![Volume {
-                name: "pod-template".to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: Some(spark_application.pod_template_config_map_name()),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            },
-           Volume {
-                name: "job-files".to_string(),
-                empty_dir: Some(EmptyDirVolumeSource::default()),
-                ..Volume::default()
-            } 
+            volumes: Some(vec![
+                Volume {
+                    name: "pod-template".to_string(),
+                    config_map: Some(ConfigMapVolumeSource {
+                        name: Some(spark_application.pod_template_config_map_name()),
+                        ..ConfigMapVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                },
+                Volume {
+                    name: "job-files".to_string(),
+                    empty_dir: Some(EmptyDirVolumeSource::default()),
+                    ..Volume::default()
+                },
             ]),
             ..PodSpec::default()
         }),

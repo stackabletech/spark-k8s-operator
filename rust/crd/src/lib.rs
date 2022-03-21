@@ -5,13 +5,13 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
     kube::CustomResource,
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
 use std::env::{self, VarError};
-use stackable_operator::kube::ResourceExt;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -73,8 +73,6 @@ pub struct SparkApplicationSpec {
     pub spark_conf: Option<HashMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deps: Option<JobDependencies>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub python_version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<Vec<String>>,
 }
@@ -159,13 +157,15 @@ impl SparkApplication {
             }
         }
 
-        // packages arguments
+        // repositories and packages arguments
         if let Some(deps) = self.spec.deps.clone() {
-            if let Some(packages) = deps.packages {
-                submit_cmd.push(format!("--packages {}", packages.join(",")));
-            }
+            submit_cmd.extend(
+                deps.repositories
+                    .map(|r| format!("--repositories {}", r.join(","))),
+            );
+            submit_cmd.extend(deps.packages.map(|p| format!("--packages {}", p.join(","))));
         }
-        
+
         // optional properties
         if let Some(executor) = self.spec.executor.as_ref() {
             submit_cmd.extend(executor.spark_config());

@@ -135,9 +135,6 @@ spec:
                 mode:
                   nullable: true
                   type: string
-                pythonVersion:
-                  nullable: true
-                  type: string
                 sparkConf:
                   additionalProperties:
                     type: string

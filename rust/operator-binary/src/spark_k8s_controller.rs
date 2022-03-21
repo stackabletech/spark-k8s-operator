@@ -162,22 +162,34 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
         .add_volume_mount("job-files", "/stackable/spark/jobs")
         .build();
 
-    let spark_container = ContainerBuilder::new("spark-container")
-        .image(
-            spark_application
-                .spec
-                .spark_image
-                .as_deref()
-                .context(ObjectHasNoSparkImageSnafu)?,
-        )
+    let spark_driver_container = ContainerBuilder::new("spark-driver-container")
+        .image("dummy-overwritten-by-command-line")
         .add_volume_mount("job-files", "/stackable/spark/jobs")
         .build();
 
-    let template = PodBuilder::new()
+    let spark_executor_container = ContainerBuilder::new("spark-executor-container")
+        .image("dummy-overwritten-by-command-line")
+        .add_volume_mount("job-files", "/stackable/spark/jobs")
+        .build();
+
+    let driver_template = PodBuilder::new()
+        .metadata_default()
+        .add_init_container(job_init_container.clone())
+        .add_init_container(requirements_init_container.clone())
+        .add_container(spark_driver_container)
+        .add_volume(
+            VolumeBuilder::new("job-files")
+                .empty_dir(EmptyDirVolumeSource::default())
+                .build(),
+        )
+        .build()
+        .context(PodTemplateSnafu)?;
+
+    let executor_template = PodBuilder::new()
         .metadata_default()
         .add_init_container(job_init_container)
         .add_init_container(requirements_init_container)
-        .add_container(spark_container)
+        .add_container(spark_executor_container)
         .add_volume(
             VolumeBuilder::new("job-files")
                 .empty_dir(EmptyDirVolumeSource::default())
@@ -197,11 +209,11 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
         )
         .add_data(
             "driver.yml",
-            serde_yaml::to_string(&template).context(DriverPodTemplateSerdeSnafu)?,
+            serde_yaml::to_string(&driver_template).context(DriverPodTemplateSerdeSnafu)?,
         )
         .add_data(
             "executor.yml",
-            serde_yaml::to_string(&template).context(ExecutorPodTemplateSerdeSnafu)?,
+            serde_yaml::to_string(&executor_template).context(ExecutorPodTemplateSerdeSnafu)?,
         )
         .build()
         .context(PodTemplateConfigMapSnafu)
@@ -223,12 +235,25 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
         .command(vec!["/bin/bash".to_string()])
         .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
         .add_volume_mount("pod-template", "/stackable/spark/pod-templates")
+        .add_volume_mount("job-files", "/stackable/spark/jobs")
+        .build();
+
+    let job_init_container = ContainerBuilder::new("job-init-container")
+        .image(spark_application.image().context(ObjectHasNoImageSnafu)?)
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-c".to_string(),
+            "cp /jobs/* /stackable/spark/jobs".to_string(),
+        ])
+        .add_volume_mount("job-files", "/stackable/spark/jobs")
         .build();
 
     let pod = PodTemplateSpec {
         metadata: Some(ObjectMetaBuilder::new().name("init").build()),
         spec: Some(PodSpec {
             containers: vec![container],
+            init_containers: Some(vec![job_init_container]),
             restart_policy: Some("Never".to_string()),
             volumes: Some(vec![Volume {
                 name: "pod-template".to_string(),
@@ -237,7 +262,13 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
                     ..ConfigMapVolumeSource::default()
                 }),
                 ..Volume::default()
-            }]),
+            },
+           Volume {
+                name: "job-files".to_string(),
+                empty_dir: Some(EmptyDirVolumeSource::default()),
+                ..Volume::default()
+            } 
+            ]),
             ..PodSpec::default()
         }),
     };

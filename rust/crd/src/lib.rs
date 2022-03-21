@@ -145,6 +145,11 @@ impl SparkApplication {
             format!("--name {name}"),
             "--conf spark.kubernetes.driver.podTemplateFile=/stackable/spark/pod-templates/driver.yml".to_string(),
             "--conf spark.kubernetes.executor.podTemplateFile=/stackable/spark/pod-templates/executor.yml".to_string(),
+            "--conf spark.kubernetes.driver.podTemplateContainerName=spark-driver-container".to_string(),
+            "--conf spark.kubernetes.executor.podTemplateContainerName=spark-executor-container".to_string(),
+            format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().unwrap()), // TODO!!! handle error
+            format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().unwrap()),
+            //"--conf spark.kubernetes.file.upload.path=file://stackable/spark/jobs".to_string(),
         ];
 
         // conf arguments that are not driver or executor specific

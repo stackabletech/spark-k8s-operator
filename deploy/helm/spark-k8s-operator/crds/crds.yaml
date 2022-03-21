@@ -136,6 +136,9 @@ spec:
                     type: string
                   nullable: true
                   type: object
+                sparkImage:
+                  nullable: true
+                  type: string
                 stopped:
                   nullable: true
                   type: boolean

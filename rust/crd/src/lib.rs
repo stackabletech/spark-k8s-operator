@@ -11,6 +11,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
 };
 use std::env::{self, VarError};
+use stackable_operator::kube::ResourceExt;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -59,6 +60,8 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spark_image: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<DriverConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<ExecutorConfig>,
@@ -94,6 +97,10 @@ impl SparkApplication {
             .as_ref()
             .map(|common_configuration| &common_configuration.config)
             .and_then(|common_config| common_config.enable_monitoring)
+    }
+
+    pub fn pod_template_config_map_name(&self) -> String {
+        format!("{}-pod-template", self.name())
     }
 
     pub fn version(&self) -> Option<&str> {

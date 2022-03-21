@@ -1,9 +1,13 @@
 use crate::ListParams;
 use futures::{future, StreamExt};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::{ContainerBuilder, ObjectMetaBuilder};
+use stackable_operator::builder::{
+    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
+};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
-use stackable_operator::k8s_openapi::api::core::v1::{PodSpec, PodTemplateSpec, Volume, ConfigMapVolumeSource};
+use stackable_operator::k8s_openapi::api::core::v1::{
+    ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, PodSpec, PodTemplateSpec, Volume,
+};
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::k8s_openapi::chrono::Utc;
 use stackable_operator::kube::{runtime, ResourceExt};
@@ -45,6 +49,22 @@ pub enum Error {
     BuildCommand {
         source: stackable_spark_k8s_crd::Error,
     },
+    #[snafu(display("failed to build the pod template config map"))]
+    PodTemplateConfigMap {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("no job image specified"))]
+    ObjectHasNoImage,
+    #[snafu(display("no spark base image specified"))]
+    ObjectHasNoSparkImage,
+    #[snafu(display("invalid pod template"))]
+    PodTemplate {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("driver pod template serialization"))]
+    DriverPodTemplateSerde { source: serde_yaml::Error },
+    #[snafu(display("executor pod template serialization"))]
+    ExecutorPodTemplateSerde { source: serde_yaml::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -62,8 +82,17 @@ pub async fn reconcile(
     tracing::info!("Starting reconcile");
 
     let client = &ctx.get_ref().client;
-    let job = build_init_job(&spark)?;
+    let pod_template_config_map = build_pod_template_config_map(&spark)?;
+    client
+        .apply_patch(
+            FIELD_MANAGER_SCOPE,
+            &pod_template_config_map,
+            &pod_template_config_map,
+        )
+        .await
+        .context(ApplyApplicationSnafu)?;
 
+    let job = build_init_job(&spark)?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
         .await
@@ -104,14 +133,91 @@ pub async fn reconcile(
     })
 }
 
-fn build_init_job(spark: &SparkApplication) -> Result<Job> {
-    let commands = spark.build_command().context(BuildCommandSnafu)?;
+fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result<ConfigMap> {
+    let job_init_container = ContainerBuilder::new("job-init-container")
+        .image(spark_application.image().context(ObjectHasNoImageSnafu)?)
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-c".to_string(),
+            "cp /jobs/* /stackable/spark/jobs".to_string(),
+        ])
+        .add_volume_mount("job-files", "/stackable/spark/jobs")
+        .build();
 
-    let version = spark.version().context(ObjectHasNoVersionSnafu)?;
+    let requirements_init_container = ContainerBuilder::new("requirements-init-container")
+        .image(
+            spark_application
+                .spec
+                .spark_image
+                .as_deref()
+                .context(ObjectHasNoSparkImageSnafu)?,
+        )
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-c".to_string(),
+            "pip install --user tabulate==0.8.9".to_string(),
+        ])
+        .add_volume_mount("job-files", "/stackable/spark/jobs")
+        .build();
+
+    let spark_container = ContainerBuilder::new("spark-container")
+        .image(
+            spark_application
+                .spec
+                .spark_image
+                .as_deref()
+                .context(ObjectHasNoSparkImageSnafu)?,
+        )
+        .build();
+
+    let template = PodBuilder::new()
+        .metadata_default()
+        .add_init_container(job_init_container)
+        .add_init_container(requirements_init_container)
+        .add_container(spark_container)
+        .add_volume(
+            VolumeBuilder::new("job-files")
+                .empty_dir(EmptyDirVolumeSource::default())
+                .build(),
+        )
+        .build()
+        .context(PodTemplateSnafu)?;
+
+    ConfigMapBuilder::new()
+        .metadata(
+            ObjectMetaBuilder::new()
+                .name_and_namespace(spark_application)
+                .name(spark_application.pod_template_config_map_name())
+                .ownerreference_from_resource(spark_application, None, Some(true))
+                .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .build(),
+        )
+        .add_data(
+            "driver.yml",
+            serde_yaml::to_string(&template).context(DriverPodTemplateSerdeSnafu)?,
+        )
+        .add_data(
+            "executor.yml",
+            serde_yaml::to_string(&template).context(ExecutorPodTemplateSerdeSnafu)?,
+        )
+        .build()
+        .context(PodTemplateConfigMapSnafu)
+}
+
+fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
+    let commands = spark_application
+        .build_command()
+        .context(BuildCommandSnafu)?;
+
+    let version = spark_application
+        .version()
+        .context(ObjectHasNoVersionSnafu)?;
     let container = ContainerBuilder::new("spark-client")
         .image(qualified_image_name(version))
         .command(vec!["/bin/bash".to_string()])
-        .args(vec![String::from("-c"), commands.join(" ")])
+        .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
         .add_volume_mount("pod-template", "/stackable/spark/pod-templates")
         .build();
 
@@ -123,9 +229,9 @@ fn build_init_job(spark: &SparkApplication) -> Result<Job> {
             volumes: Some(vec![Volume {
                 name: "pod-template".to_string(),
                 config_map: Some(ConfigMapVolumeSource {
-                        name: Some(format!("{}-pod-template", spark.name())),
-                        ..ConfigMapVolumeSource::default()
-                    }),
+                    name: Some(spark_application.pod_template_config_map_name()),
+                    ..ConfigMapVolumeSource::default()
+                }),
                 ..Volume::default()
             }]),
             ..PodSpec::default()
@@ -134,8 +240,8 @@ fn build_init_job(spark: &SparkApplication) -> Result<Job> {
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(spark)
-            .ownerreference_from_resource(spark, None, Some(true))
+            .name_and_namespace(spark_application)
+            .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .build(),
         spec: Some(JobSpec {

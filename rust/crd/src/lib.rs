@@ -5,13 +5,13 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
     kube::CustomResource,
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
 use std::env::{self, VarError};
-use stackable_operator::kube::ResourceExt;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -140,6 +140,7 @@ impl SparkApplication {
 
         let mut submit_cmd = vec![
             "/stackable/spark/bin/spark-submit".to_string(),
+            "--verbose".to_string(),
             format!("--master k8s://https://{host}:{https_port}"),
             format!("--deploy-mode {mode}"),
             format!("--name {name}"),
@@ -149,7 +150,10 @@ impl SparkApplication {
             "--conf spark.kubernetes.executor.podTemplateContainerName=spark-executor-container".to_string(),
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().unwrap()), // TODO!!! handle error
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().unwrap()),
-            //"--conf spark.kubernetes.file.upload.path=file://stackable/spark/jobs".to_string(),
+            //"--conf spark.kubernetes.file.upload.path=dummy://doesnotexist".to_string(),
+            "--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem".to_string(),
+            "--conf spark.driver.extraClassPath=/stackable/.ivy2/cache".to_string(),
+            //"--conf spark.hadoop.fs.s3a.fast.upload=true".to_string(),
         ];
 
         // conf arguments that are not driver or executor specific
@@ -165,7 +169,7 @@ impl SparkApplication {
                 submit_cmd.push(format!("--packages {}", packages.join(",")));
             }
         }
-        
+
         // optional properties
         if let Some(executor) = self.spec.executor.as_ref() {
             submit_cmd.extend(executor.spark_config());

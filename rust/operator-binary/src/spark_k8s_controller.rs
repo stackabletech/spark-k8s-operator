@@ -6,7 +6,8 @@ use stackable_operator::builder::{
 };
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, PodSpec, PodTemplateSpec, Volume,
+    ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar, PodSpec, PodTemplateSpec,
+    Volume,
 };
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::k8s_openapi::chrono::Utc;
@@ -236,6 +237,11 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
         .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
         .add_volume_mount("pod-template", "/stackable/spark/pod-templates")
         .add_volume_mount("job-files", "/stackable/spark/jobs")
+        .add_env_vars(vec![EnvVar {
+            name: "SPARK_CONF_DIR".to_string(),
+            value: Some("/stackable/spark/conf".to_string()),
+            value_from: None,
+        }])
         .build();
 
     let job_init_container = ContainerBuilder::new("job-init-container")
@@ -255,19 +261,20 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
             containers: vec![container],
             init_containers: Some(vec![job_init_container]),
             restart_policy: Some("Never".to_string()),
-            volumes: Some(vec![Volume {
-                name: "pod-template".to_string(),
-                config_map: Some(ConfigMapVolumeSource {
-                    name: Some(spark_application.pod_template_config_map_name()),
-                    ..ConfigMapVolumeSource::default()
-                }),
-                ..Volume::default()
-            },
-           Volume {
-                name: "job-files".to_string(),
-                empty_dir: Some(EmptyDirVolumeSource::default()),
-                ..Volume::default()
-            } 
+            volumes: Some(vec![
+                Volume {
+                    name: "pod-template".to_string(),
+                    config_map: Some(ConfigMapVolumeSource {
+                        name: Some(spark_application.pod_template_config_map_name()),
+                        ..ConfigMapVolumeSource::default()
+                    }),
+                    ..Volume::default()
+                },
+                Volume {
+                    name: "job-files".to_string(),
+                    empty_dir: Some(EmptyDirVolumeSource::default()),
+                    ..Volume::default()
+                },
             ]),
             ..PodSpec::default()
         }),

@@ -2,21 +2,19 @@
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: ny-tlc-report
+  name: ny-tlc-report-external-dependencies
   namespace: default
 spec:
   version: "1.0"
+  image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny_tlc_report.py
   args:
     - "--input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
   deps:
-    packages:
-      - xyz:1.2.3
     requirements:
       - tabulate==0.8.9
-    tempSharedPath: s3a://xxx/yyy
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
   driver:

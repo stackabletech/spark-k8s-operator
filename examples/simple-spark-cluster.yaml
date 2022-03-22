@@ -3,7 +3,7 @@ kind: SparkApplication
 metadata:
   name: spark-clustermode-001
 spec:
-  image: 3.2.1-hadoop3.2
+  image: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0
   version: 1.0
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0
   mode: cluster

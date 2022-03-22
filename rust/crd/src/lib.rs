@@ -178,7 +178,12 @@ impl SparkApplication {
             submit_cmd.extend(driver.spark_config());
         }
 
-        submit_cmd.extend(self.spec.main_class.clone().map(|mc| format!{"--class {mc}"}));
+        submit_cmd.extend(
+            self.spec
+                .main_class
+                .clone()
+                .map(|mc| format! {"--class {mc}"}),
+        );
 
         submit_cmd.push(artifact.to_string());
 

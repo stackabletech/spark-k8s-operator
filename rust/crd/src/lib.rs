@@ -74,8 +74,6 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deps: Option<JobDependencies>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub python_version: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<Vec<String>>,
 }
 
@@ -163,11 +161,13 @@ impl SparkApplication {
             }
         }
 
-        // packages arguments
+        // repositories and packages arguments
         if let Some(deps) = self.spec.deps.clone() {
-            if let Some(packages) = deps.packages {
-                submit_cmd.push(format!("--packages {}", packages.join(",")));
-            }
+            submit_cmd.extend(
+                deps.repositories
+                    .map(|r| format!("--repositories {}", r.join(","))),
+            );
+            submit_cmd.extend(deps.packages.map(|p| format!("--packages {}", p.join(","))));
         }
 
         // optional properties

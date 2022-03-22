@@ -12,6 +12,8 @@ TAG    := $(shell git rev-parse --short HEAD)
 
 VERSION := $(shell cargo metadata --format-version 1 | jq '.packages[] | select(.name=="stackable-spark-k8s-operator") | .version')
 
+SHELL=/bin/bash -euo pipefail
+
 ## Docker related targets
 docker-build:
 	docker build --force-rm -t "docker.stackable.tech/stackable/spark-k8s-operator:${VERSION}" -f docker/Dockerfile .
@@ -36,7 +38,7 @@ chart-clean:
 	rm -rf deploy/helm/spark-k8s-operator/crds
 
 version:
-	yq eval -i '.version = ${VERSION} | .appVersion = ${VERSION}' deploy/helm/spark-k8s-operator/Chart.yaml
+	yq eval -i '.version = ${VERSION} | .appVersion = ${VERSION}' /dev/stdin < deploy/helm/spark-k8s-operator/Chart.yaml
 
 config:
 	if [ -d "deploy/config-spec/" ]; then\
@@ -46,7 +48,7 @@ config:
 
 crds:
 	mkdir -p deploy/helm/spark-k8s-operator/crds
-	cat deploy/crd/*.yaml | yq eval '.metadata.annotations["helm.sh/resource-policy"]="keep"' - > deploy/helm/spark-k8s-operator/crds/crds.yaml
+	cargo run --bin stackable-spark-k8s-operator -- crd | yq eval '.metadata.annotations["helm.sh/resource-policy"]="keep"' - > deploy/helm/spark-k8s-operator/crds/crds.yaml
 
 chart-lint: compile-chart
 	docker run -it -v $(shell pwd):/build/helm-charts -w /build/helm-charts quay.io/helmpack/chart-testing:v3.5.0  ct lint --config deploy/helm/ct.yaml
@@ -59,11 +61,4 @@ clean-manifests:
 generate-manifests: clean-manifests compile-chart
 	./scripts/generate-manifests.sh
 
-clean-crds:
-	rm -rf deploy/crd/*
-
-generate-crds:
-	touch rust/operator-binary/build.rs
-	cargo build
-
-regenerate-charts: clean-crds chart-clean clean-manifests generate-crds compile-chart generate-manifests
+regenerate-charts: chart-clean clean-manifests compile-chart generate-manifests

@@ -3,8 +3,7 @@ mod spark_k8s_controller;
 use clap::Parser;
 use futures::stream::StreamExt;
 use stackable_operator::cli::{Command, ProductOperatorRun};
-use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
-use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
+use stackable_operator::k8s_openapi::api::core::v1::ConfigMap;
 use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::runtime::controller::{Context, Controller};
 use stackable_operator::kube::CustomResourceExt;
@@ -28,7 +27,10 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&SparkApplication::crd())?,),
-        Command::Run(ProductOperatorRun { product_config }) => {
+        Command::Run(ProductOperatorRun {
+            product_config,
+            watch_namespace,
+        }) => {
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,
@@ -48,12 +50,13 @@ async fn main() -> anyhow::Result<()> {
                     .await?;
 
             Controller::new(
-                client.get_all_api::<SparkApplication>(),
+                watch_namespace.get_api::<SparkApplication>(&client),
                 ListParams::default(),
             )
-            .owns(client.get_all_api::<Service>(), ListParams::default())
-            .owns(client.get_all_api::<StatefulSet>(), ListParams::default())
-            .owns(client.get_all_api::<ConfigMap>(), ListParams::default())
+            .owns(
+                watch_namespace.get_api::<ConfigMap>(&client),
+                ListParams::default(),
+            )
             .shutdown_on_signal()
             .run(
                 spark_k8s_controller::reconcile,

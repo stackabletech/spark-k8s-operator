@@ -23,6 +23,11 @@ spec:
             spec:
               description: SparkApplicationStatus CommandStatus
               properties:
+                args:
+                  items:
+                    type: string
+                  nullable: true
+                  type: array
                 cliOverrides:
                   additionalProperties:
                     type: string
@@ -52,6 +57,30 @@ spec:
                       type: string
                     type: object
                   default: {}
+                  type: object
+                deps:
+                  nullable: true
+                  properties:
+                    excludePackages:
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    packages:
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    repositories:
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    requirements:
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
                   type: object
                 driver:
                   nullable: true
@@ -100,6 +129,14 @@ spec:
                   nullable: true
                   type: string
                 mode:
+                  nullable: true
+                  type: string
+                sparkConf:
+                  additionalProperties:
+                    type: string
+                  nullable: true
+                  type: object
+                sparkImage:
                   nullable: true
                   type: string
                 stopped:

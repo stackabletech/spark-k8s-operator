@@ -14,7 +14,7 @@ use stackable_operator::k8s_openapi::chrono::Utc;
 use stackable_operator::kube::{runtime, ResourceExt};
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::{
-    kube::runtime::controller::{Context, ReconcilerAction},
+    kube::runtime::controller::{Action, Context},
     product_config::ProductConfigManager,
 };
 use stackable_spark_k8s_crd::{CommandStatus, SparkApplication};
@@ -76,10 +76,7 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile(
-    spark: Arc<SparkApplication>,
-    ctx: Context<Ctx>,
-) -> Result<ReconcilerAction> {
+pub async fn reconcile(spark: Arc<SparkApplication>, ctx: Context<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
 
     let client = &ctx.get_ref().client;
@@ -129,9 +126,7 @@ pub async fn reconcile(
             .context(ApplyStatusSnafu)?;
     }
 
-    Ok(ReconcilerAction {
-        requeue_after: None,
-    })
+    Ok(Action::await_change())
 }
 
 fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result<ConfigMap> {
@@ -326,8 +321,6 @@ async fn wait_completed(client: &stackable_operator::client::Client, job: &Job) 
         .await;
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
-    ReconcilerAction {
-        requeue_after: Some(Duration::from_secs(5)),
-    }
+pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+    Action::requeue(Duration::from_secs(5))
 }

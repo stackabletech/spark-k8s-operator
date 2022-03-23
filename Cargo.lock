@@ -1519,7 +1519,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "strum",
+ "strum 0.23.0",
  "thiserror",
  "tokio",
  "tracing",
@@ -1552,7 +1552,7 @@ dependencies = [
  "snafu",
  "stackable-operator",
  "stackable-spark-k8s-crd",
- "strum",
+ "strum 0.24.0",
  "strum_macros",
  "tokio",
  "tracing",
@@ -1572,6 +1572,12 @@ checksum = "cae14b91c7d11c9a851d3fbc80a963198998c2a64eec840477fa92d8ce9b70bb"
 dependencies = [
  "strum_macros",
 ]
+
+[[package]]
+name = "strum"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e96acfc1b70604b8b2f1ffa4c57e59176c7dbb05d556c71ecd2f5498a1dee7f8"
 
 [[package]]
 name = "strum_macros"

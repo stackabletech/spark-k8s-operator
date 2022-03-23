@@ -167,12 +167,12 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
     let mut spark_driver_container = ContainerBuilder::new("spark-driver-container");
     spark_driver_container.image("dummy-overwritten-by-command-line");
     if job_init_container.is_some() {
-       spark_driver_container .add_volume_mount("job-files", "/stackable/spark/jobs");
+        spark_driver_container.add_volume_mount("job-files", "/stackable/spark/jobs");
     }
 
     let mut spark_executor_container = ContainerBuilder::new("spark-executor-container");
     if job_init_container.is_some() {
-       spark_executor_container .add_volume_mount("job-files", "/stackable/spark/jobs");
+        spark_executor_container.add_volume_mount("job-files", "/stackable/spark/jobs");
     }
 
     let mut driver_template = PodBuilder::new();
@@ -264,7 +264,6 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
             .add_volume_mount("job-files", "/stackable/spark/jobs")
             .build()
     });
-
 
     let pod = PodTemplateSpec {
         metadata: Some(ObjectMetaBuilder::new().name("spark-submit").build()),

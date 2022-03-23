@@ -135,16 +135,18 @@ pub async fn reconcile(
 }
 
 fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result<ConfigMap> {
-    let job_init_container = ContainerBuilder::new("job-init-container")
-        .image(spark_application.image().context(ObjectHasNoImageSnafu)?)
-        .command(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-c".to_string(),
-            "cp /jobs/* /stackable/spark/jobs".to_string(),
-        ])
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
-        .build();
+    let job_init_container = spark_application.spec.image.as_ref().map(|job_image| {
+        ContainerBuilder::new("job-init-container")
+            .image(job_image)
+            .command(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-c".to_string(),
+                "cp /jobs/* /stackable/spark/jobs".to_string(),
+            ])
+            .add_volume_mount("job-files", "/stackable/spark/jobs")
+            .build()
+    });
 
     let requirements_init_container = ContainerBuilder::new("requirements-init-container")
         .image(
@@ -160,44 +162,48 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
             "-c".to_string(),
             "pip install --user tabulate==0.8.9".to_string(),
         ])
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
         .build();
 
-    let spark_driver_container = ContainerBuilder::new("spark-driver-container")
-        .image("dummy-overwritten-by-command-line")
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
-        .build();
+    let mut spark_driver_container = ContainerBuilder::new("spark-driver-container");
+    spark_driver_container.image("dummy-overwritten-by-command-line");
+    if job_init_container.is_some() {
+       spark_driver_container .add_volume_mount("job-files", "/stackable/spark/jobs");
+    }
 
-    let spark_executor_container = ContainerBuilder::new("spark-executor-container")
-        .image("dummy-overwritten-by-command-line")
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
-        .build();
+    let mut spark_executor_container = ContainerBuilder::new("spark-executor-container");
+    if job_init_container.is_some() {
+       spark_executor_container .add_volume_mount("job-files", "/stackable/spark/jobs");
+    }
 
-    let driver_template = PodBuilder::new()
+    let mut driver_template = PodBuilder::new();
+    driver_template
         .metadata_default()
-        .add_init_container(job_init_container.clone())
         .add_init_container(requirements_init_container.clone())
-        .add_container(spark_driver_container)
-        .add_volume(
-            VolumeBuilder::new("job-files")
-                .empty_dir(EmptyDirVolumeSource::default())
-                .build(),
-        )
-        .build()
-        .context(PodTemplateSnafu)?;
+        .add_container(spark_driver_container.build());
 
-    let executor_template = PodBuilder::new()
-        .metadata_default()
-        .add_init_container(job_init_container)
-        .add_init_container(requirements_init_container)
-        .add_container(spark_executor_container)
-        .add_volume(
+    if let Some(container) = job_init_container.clone() {
+        driver_template.add_init_container(container);
+        driver_template.add_volume(
             VolumeBuilder::new("job-files")
                 .empty_dir(EmptyDirVolumeSource::default())
                 .build(),
-        )
-        .build()
-        .context(PodTemplateSnafu)?;
+        );
+    }
+
+    let mut executor_template = PodBuilder::new();
+    executor_template
+        .metadata_default()
+        .add_init_container(requirements_init_container)
+        .add_container(spark_executor_container.build());
+
+    if let Some(container) = job_init_container {
+        executor_template.add_init_container(container);
+        executor_template.add_volume(
+            VolumeBuilder::new("job-files")
+                .empty_dir(EmptyDirVolumeSource::default())
+                .build(),
+        );
+    }
 
     ConfigMapBuilder::new()
         .metadata(
@@ -210,11 +216,13 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
         )
         .add_data(
             "driver.yml",
-            serde_yaml::to_string(&driver_template).context(DriverPodTemplateSerdeSnafu)?,
+            serde_yaml::to_string(&driver_template.build().context(PodTemplateSnafu)?)
+                .context(DriverPodTemplateSerdeSnafu)?,
         )
         .add_data(
             "executor.yml",
-            serde_yaml::to_string(&executor_template).context(ExecutorPodTemplateSerdeSnafu)?,
+            serde_yaml::to_string(&executor_template.build().context(PodTemplateSnafu)?)
+                .context(ExecutorPodTemplateSerdeSnafu)?,
         )
         .build()
         .context(PodTemplateConfigMapSnafu)
@@ -225,7 +233,7 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
         .build_command()
         .context(BuildCommandSnafu)?;
 
-    let container = ContainerBuilder::new("spark-client")
+    let container = ContainerBuilder::new("spark-submit")
         .image(
             spark_application
                 .spec
@@ -244,22 +252,25 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
         }])
         .build();
 
-    let job_init_container = ContainerBuilder::new("job-init-container")
-        .image(spark_application.image().context(ObjectHasNoImageSnafu)?)
-        .command(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-c".to_string(),
-            "cp /jobs/* /stackable/spark/jobs".to_string(),
-        ])
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
-        .build();
+    let job_init_container = spark_application.spec.image.as_ref().map(|job_image| {
+        ContainerBuilder::new("job-init-container")
+            .image(job_image)
+            .command(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-c".to_string(),
+                "cp /jobs/* /stackable/spark/jobs".to_string(),
+            ])
+            .add_volume_mount("job-files", "/stackable/spark/jobs")
+            .build()
+    });
+
 
     let pod = PodTemplateSpec {
-        metadata: Some(ObjectMetaBuilder::new().name("init").build()),
+        metadata: Some(ObjectMetaBuilder::new().name("spark-submit").build()),
         spec: Some(PodSpec {
             containers: vec![container],
-            init_containers: Some(vec![job_init_container]),
+            init_containers: Some(job_init_container.into_iter().collect()),
             restart_policy: Some("Never".to_string()),
             volumes: Some(vec![
                 Volume {
@@ -288,6 +299,7 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
             .build(),
         spec: Some(JobSpec {
             template: pod,
+            ttl_seconds_after_finished: Some(600),
             ..Default::default()
         }),
         status: None,

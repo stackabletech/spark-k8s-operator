@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, Snafu};
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
@@ -11,16 +11,11 @@ use stackable_operator::{
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
-use std::env::{self, VarError};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
-    #[snafu(display("failed to detect api host"))]
-    ApiHostMissing { source: VarError },
-    #[snafu(display("failed to detect api https port"))]
-    ApiHttpsPortMissing { source: VarError },
     #[snafu(display("object defines no deploy mode"))]
     ObjectHasNoDeployMode,
     #[snafu(display("object defines no main class"))]
@@ -31,6 +26,8 @@ pub enum Error {
     ObjectHasNoImage,
     #[snafu(display("object has no name"))]
     ObjectHasNoName,
+    #[snafu(display("application has no Spark image"))]
+    NoSparkImage,
 }
 /// SparkApplicationStatus CommandStatus
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -103,16 +100,8 @@ impl SparkApplication {
         format!("{}-pod-template", self.name())
     }
 
-    pub fn version(&self) -> Option<&str> {
-        self.spec.version.as_deref()
-    }
-
     pub fn mode(&self) -> Option<&str> {
         self.spec.mode.as_deref()
-    }
-
-    pub fn main_class(&self) -> Option<&str> {
-        self.spec.main_class.as_deref()
     }
 
     pub fn image(&self) -> Option<&str> {
@@ -124,30 +113,22 @@ impl SparkApplication {
     }
 
     pub fn build_command(&self) -> Result<Vec<String>, Error> {
-        // get API end-point from in-pod environment variables
-        let host = env::var("KUBERNETES_SERVICE_HOST").context(ApiHostMissingSnafu)?;
-        let https_port =
-            env::var("KUBERNETES_SERVICE_PORT_HTTPS").context(ApiHttpsPortMissingSnafu)?;
-
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
-        let artifact = self
-            .application_artifact()
-            .context(ObjectHasNoArtifactSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
         let mut submit_cmd = vec![
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
-            format!("--master k8s://https://{host}:{https_port}"),
+            "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
             format!("--deploy-mode {mode}"),
             format!("--name {name}"),
             "--conf spark.kubernetes.driver.podTemplateFile=/stackable/spark/pod-templates/driver.yml".to_string(),
             "--conf spark.kubernetes.executor.podTemplateFile=/stackable/spark/pod-templates/executor.yml".to_string(),
             "--conf spark.kubernetes.driver.podTemplateContainerName=spark-driver-container".to_string(),
             "--conf spark.kubernetes.executor.podTemplateContainerName=spark-executor-container".to_string(),
-            format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().unwrap()), // TODO!!! handle error
-            format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().unwrap()),
+            format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
+            format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             //"--conf spark.kubernetes.file.upload.path=s3a://stackable-spark-k8s-jars/jobs".to_string(),
             //"--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem".to_string(),
             //"--conf spark.driver.extraClassPath=/stackable/.ivy2/cache".to_string(),
@@ -185,6 +166,9 @@ impl SparkApplication {
                 .map(|mc| format! {"--class {mc}"}),
         );
 
+        let artifact = self
+            .application_artifact()
+            .context(ObjectHasNoArtifactSnafu)?;
         submit_cmd.push(artifact.to_string());
 
         if let Some(job_args) = self.spec.args.clone() {

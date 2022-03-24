@@ -52,13 +52,11 @@ def build_report(spark: SparkSession, args: Namespace) -> DataFrame:
 if __name__ == "__main__":
     args = check_args()
 
-    print(dir(tabulate))
-
     spark = SparkSession.builder.appName("NY TLC Report").getOrCreate()
 
     try:
         report = build_report(spark, args)
-        report.show()
+        print(tabulate.tabulate(report.collect()))
         if args.output:
             report.coalesce(1).write.mode("overwrite").options(header=True).csv(
                 args.output

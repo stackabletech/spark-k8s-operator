@@ -302,8 +302,81 @@ spec:
         "#).unwrap();
 
         assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
-        assert_eq!("cluster", spark_application.spec.mode.unwrap_or_default());
+        assert_eq!(
+            Some("org.apache.spark.examples.SparkPi".to_string()),
+            spark_application.spec.main_class
+        );
+        assert_eq!(
+            Some("s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar".to_string()),
+            spark_application.spec.main_application_file
+        );
+        assert_eq!(
+            Some(1),
+            spark_application.spec.spark_conf.map(|m| m.keys().len())
+        );
+
+        assert!(spark_application.spec.spark_image.is_some());
+
+        assert!(spark_application.spec.mode.is_some());
         assert!(spark_application.spec.driver.is_some());
         assert!(spark_application.spec.executor.is_some());
+
+        assert!(spark_application.spec.args.is_none());
+        assert!(spark_application.spec.deps.is_none());
+        assert!(spark_application.spec.image.is_none());
+    }
+
+    #[test]
+    fn test_ny_tlc_report_image() {
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+        r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: ny-tlc-report-image
+  namespace: my-ns
+spec:
+  version: "1.0"
+  image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
+  args:
+    - "--input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
+  deps:
+    requirements:
+      - tabulate==0.8.9
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+        "#).unwrap();
+
+        assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
+        assert_eq!(
+            Some("local:///stackable/spark/jobs/ny_tlc_report.py".to_string()),
+            spark_application.spec.main_application_file
+        );
+        assert_eq!(
+            Some(1),
+            spark_application.spec.spark_conf.map(|m| m.keys().len())
+        );
+
+        assert!(spark_application.spec.image.is_some());
+        assert!(spark_application.spec.spark_image.is_some());
+        assert!(spark_application.spec.mode.is_some());
+        assert!(spark_application.spec.args.is_some());
+        assert!(spark_application.spec.deps.is_some());
+        assert!(spark_application.spec.driver.is_some());
+        assert!(spark_application.spec.executor.is_some());
+
+        assert!(spark_application.spec.main_class.is_none());
     }
 }

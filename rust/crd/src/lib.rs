@@ -267,3 +267,43 @@ pub struct CommandStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finished_at: Option<Time>,
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::SparkApplication;
+
+    #[test]
+    fn test_spark_examples_s3() {
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+        r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-examples-s3
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+  config:
+    enableMonitoring: true
+        "#).unwrap();
+
+        assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
+        assert_eq!("cluster", spark_application.spec.mode.unwrap_or_default());
+        assert!(spark_application.spec.driver.is_some());
+        assert!(spark_application.spec.executor.is_some());
+    }
+}

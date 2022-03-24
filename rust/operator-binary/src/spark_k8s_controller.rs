@@ -1,5 +1,3 @@
-use crate::ListParams;
-use futures::{future, StreamExt};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{
     ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
@@ -9,15 +7,12 @@ use stackable_operator::k8s_openapi::api::core::v1::{
     ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar, PodSpec, PodTemplateSpec,
     Volume,
 };
-use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
-use stackable_operator::k8s_openapi::chrono::Utc;
-use stackable_operator::kube::{runtime, ResourceExt};
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::{
     kube::runtime::controller::{Action, Context},
     product_config::ProductConfigManager,
 };
-use stackable_spark_k8s_crd::{CommandStatus, SparkApplication};
+use stackable_spark_k8s_crd::{SparkApplication};
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -76,11 +71,11 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile(spark: Arc<SparkApplication>, ctx: Context<Ctx>) -> Result<Action> {
+pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Context<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
 
     let client = &ctx.get_ref().client;
-    let pod_template_config_map = build_pod_template_config_map(&spark)?;
+    let pod_template_config_map = build_pod_template_config_map(&spark_application)?;
     client
         .apply_patch(
             FIELD_MANAGER_SCOPE,
@@ -90,41 +85,11 @@ pub async fn reconcile(spark: Arc<SparkApplication>, ctx: Context<Ctx>) -> Resul
         .await
         .context(ApplyApplicationSnafu)?;
 
-    let job = build_init_job(&spark)?;
+    let job = build_init_job(&spark_application)?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
         .await
         .context(ApplyApplicationSnafu)?;
-
-    if spark.status == None {
-        let started_at = Some(Time(Utc::now()));
-        client
-            .apply_patch_status(
-                FIELD_MANAGER_SCOPE,
-                &*spark,
-                &CommandStatus {
-                    started_at: started_at.to_owned(),
-                    finished_at: None,
-                },
-            )
-            .await
-            .context(ApplyStatusSnafu)?;
-
-        wait_completed(client, &job).await;
-        let finished_at = Some(Time(Utc::now()));
-
-        client
-            .apply_patch_status(
-                FIELD_MANAGER_SCOPE,
-                &*spark,
-                &CommandStatus {
-                    started_at,
-                    finished_at,
-                },
-            )
-            .await
-            .context(ApplyStatusSnafu)?;
-    }
 
     Ok(Action::await_change())
 }
@@ -300,25 +265,6 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
     };
 
     Ok(job)
-}
-
-// Waits until the given job is completed.
-async fn wait_completed(client: &stackable_operator::client::Client, job: &Job) {
-    let completed = |job: &Job| {
-        job.status
-            .as_ref()
-            .and_then(|status| status.conditions.clone())
-            .unwrap_or_default()
-            .into_iter()
-            .any(|condition| condition.type_ == "Complete" && condition.status == "True")
-    };
-
-    let lp = ListParams::default().fields(&format!("metadata.name={}", job.name()));
-    let api = client.get_api(Some(job.namespace().as_deref().unwrap_or("default")));
-    let watcher = runtime::watcher(api, lp).boxed();
-    runtime::utils::try_flatten_applied(watcher)
-        .any(|res| future::ready(res.as_ref().map(|job| completed(job)).unwrap_or(false)))
-        .await;
 }
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {

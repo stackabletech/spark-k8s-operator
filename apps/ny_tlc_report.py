@@ -15,6 +15,8 @@ from argparse import Namespace
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import dayofweek
 
+import tabulate
+
 
 def check_args() -> Namespace:
     """Parse the given CLI arguments"""
@@ -49,6 +51,8 @@ def build_report(spark: SparkSession, args: Namespace) -> DataFrame:
 
 if __name__ == "__main__":
     args = check_args()
+
+    print(dir(tabulate))
 
     spark = SparkSession.builder.appName("NY TLC Report").getOrCreate()
 

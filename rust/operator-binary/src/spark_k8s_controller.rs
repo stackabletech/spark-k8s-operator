@@ -12,7 +12,7 @@ use stackable_operator::{
     kube::runtime::controller::{Action, Context},
     product_config::ProductConfigManager,
 };
-use stackable_spark_k8s_crd::{SparkApplication};
+use stackable_spark_k8s_crd::SparkApplication;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -71,7 +71,10 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Context<Ctx>) -> Result<Action> {
+pub async fn reconcile(
+    spark_application: Arc<SparkApplication>,
+    ctx: Context<Ctx>,
+) -> Result<Action> {
     tracing::info!("Starting reconcile");
 
     let client = &ctx.get_ref().client;
@@ -108,21 +111,24 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
             .build()
     });
 
-    let requirements_init_container = ContainerBuilder::new("requirements-init-container")
-        .image(
-            spark_application
-                .spec
-                .spark_image
-                .as_deref()
-                .context(ObjectHasNoSparkImageSnafu)?,
-        )
-        .command(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-c".to_string(),
-            "pip install --user tabulate==0.8.9".to_string(),
-        ])
-        .build();
+    let spark_image = spark_application
+        .spec
+        .spark_image
+        .as_deref()
+        .context(ObjectHasNoSparkImageSnafu)?;
+
+    let requirements_init_container = spark_application.requirements().map(|req| {
+        ContainerBuilder::new("requirements-init-container")
+            .image(spark_image)
+            .command(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-c".to_string(),
+                format!("pip install --target=/stackable/spark/requirements {}", req),
+            ])
+            .add_volume_mount("requirements", "/stackable/spark/requirements")
+            .build()
+    });
 
     let mut spark_driver_container = ContainerBuilder::new("spark-driver-container");
     spark_driver_container.image("dummy-overwritten-by-command-line");
@@ -130,17 +136,41 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
         spark_driver_container.add_volume_mount("job-files", "/stackable/spark/jobs");
     }
 
+    if requirements_init_container.is_some() {
+        spark_driver_container
+            .add_volume_mount("requirements", "/stackable/spark/requirements")
+            .add_env_var(
+                "PYTHONPATH",
+                "$SPARK_HOME/python:/stackable/spark/requirements:$PYTHONPATH",
+            );
+    }
+
     let mut spark_executor_container = ContainerBuilder::new("spark-executor-container");
     if job_init_container.is_some() {
         spark_executor_container.add_volume_mount("job-files", "/stackable/spark/jobs");
+    }
+    if requirements_init_container.is_some() {
+        spark_executor_container
+            .add_volume_mount("requirements", "/stackable/spark/requirements")
+            .add_env_var(
+                "PYTHONPATH",
+                "$SPARK_HOME/python:/stackable/spark/requirements:$PYTHONPATH",
+            );
     }
 
     let mut driver_template = PodBuilder::new();
     driver_template
         .metadata_default()
-        .add_init_container(requirements_init_container.clone())
         .add_container(spark_driver_container.build());
 
+    if let Some(container) = requirements_init_container.clone() {
+        driver_template.add_init_container(container);
+        driver_template.add_volume(
+            VolumeBuilder::new("requirements")
+                .empty_dir(EmptyDirVolumeSource::default())
+                .build(),
+        );
+    }
     if let Some(container) = job_init_container.clone() {
         driver_template.add_init_container(container);
         driver_template.add_volume(
@@ -153,9 +183,16 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
     let mut executor_template = PodBuilder::new();
     executor_template
         .metadata_default()
-        .add_init_container(requirements_init_container)
         .add_container(spark_executor_container.build());
 
+    if let Some(container) = requirements_init_container {
+        executor_template.add_init_container(container);
+        executor_template.add_volume(
+            VolumeBuilder::new("requirements")
+                .empty_dir(EmptyDirVolumeSource::default())
+                .build(),
+        );
+    }
     if let Some(container) = job_init_container {
         executor_template.add_init_container(container);
         executor_template.add_volume(

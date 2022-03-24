@@ -14,6 +14,8 @@ spec:
   deps:
     requirements:
       - tabulate==0.8.9
+      - tomli==2.0.1
+      - semver==2.13.0
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
   driver:

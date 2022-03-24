@@ -112,6 +112,14 @@ impl SparkApplication {
         self.spec.main_application_file.as_deref()
     }
 
+    pub fn requirements(&self) -> Option<String> {
+        self.spec
+            .deps
+            .as_ref()
+            .and_then(|deps| deps.requirements.as_ref())
+            .map(|req| req.join(" "))
+    }
+
     pub fn build_command(&self) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
@@ -127,6 +135,7 @@ impl SparkApplication {
             "--conf spark.kubernetes.executor.podTemplateFile=/stackable/spark/pod-templates/executor.yml".to_string(),
             "--conf spark.kubernetes.driver.podTemplateContainerName=spark-driver-container".to_string(),
             "--conf spark.kubernetes.executor.podTemplateContainerName=spark-executor-container".to_string(),
+            format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             //"--conf spark.kubernetes.file.upload.path=s3a://stackable-spark-k8s-jars/jobs".to_string(),

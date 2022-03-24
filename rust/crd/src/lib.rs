@@ -1,5 +1,9 @@
 //! This module provides all required CRD definitions and additional helper methods.
 
+pub mod constants;
+
+use constants::*;
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -131,10 +135,10 @@ impl SparkApplication {
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
             format!("--deploy-mode {mode}"),
             format!("--name {name}"),
-            "--conf spark.kubernetes.driver.podTemplateFile=/stackable/spark/pod-templates/driver.yml".to_string(),
-            "--conf spark.kubernetes.executor.podTemplateFile=/stackable/spark/pod-templates/executor.yml".to_string(),
-            "--conf spark.kubernetes.driver.podTemplateContainerName=spark-driver-container".to_string(),
-            "--conf spark.kubernetes.executor.podTemplateContainerName=spark-executor-container".to_string(),
+            format!("--conf spark.kubernetes.driver.podTemplateFile={VOLUME_MOUNT_PATH_POD_TEMPLATES}/driver.yml"),
+            format!("--conf spark.kubernetes.executor.podTemplateFile={VOLUME_MOUNT_PATH_POD_TEMPLATES}/executor.yml"),
+            format!("--conf spark.kubernetes.driver.podTemplateContainerName={CONTAINER_NAME_DRIVER}"),
+            format!("--conf spark.kubernetes.executor.podTemplateContainerName={CONTAINER_NAME_EXECUTOR}"),
             format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),

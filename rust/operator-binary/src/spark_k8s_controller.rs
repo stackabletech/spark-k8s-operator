@@ -12,6 +12,7 @@ use stackable_operator::{
     kube::runtime::controller::{Action, Context},
     product_config::ProductConfigManager,
 };
+use stackable_spark_k8s_crd::constants::*;
 use stackable_spark_k8s_crd::SparkApplication;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -99,15 +100,15 @@ pub async fn reconcile(
 
 fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result<ConfigMap> {
     let job_init_container = spark_application.spec.image.as_ref().map(|job_image| {
-        ContainerBuilder::new("job-init-container")
+        ContainerBuilder::new(CONTAINER_NAME_JOB)
             .image(job_image)
             .command(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
                 "-c".to_string(),
-                "cp /jobs/* /stackable/spark/jobs".to_string(),
+                format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"),
             ])
-            .add_volume_mount("job-files", "/stackable/spark/jobs")
+            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
             .build()
     });
 
@@ -118,43 +119,44 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
         .context(ObjectHasNoSparkImageSnafu)?;
 
     let requirements_init_container = spark_application.requirements().map(|req| {
-        ContainerBuilder::new("requirements-init-container")
+        ContainerBuilder::new(CONTAINER_NAME_REQ)
             .image(spark_image)
             .command(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
                 "-c".to_string(),
-                format!("pip install --target=/stackable/spark/requirements {}", req),
+                format!("pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"),
             ])
-            .add_volume_mount("requirements", "/stackable/spark/requirements")
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
             .build()
     });
 
-    let mut spark_driver_container = ContainerBuilder::new("spark-driver-container");
-    spark_driver_container.image("dummy-overwritten-by-command-line");
+    let mut spark_driver_container = ContainerBuilder::new(CONTAINER_NAME_DRIVER);
+    spark_driver_container.image(CONTAINER_IMAGE_NAME_DRIVER);
     if job_init_container.is_some() {
-        spark_driver_container.add_volume_mount("job-files", "/stackable/spark/jobs");
+        spark_driver_container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
     }
 
     if requirements_init_container.is_some() {
         spark_driver_container
-            .add_volume_mount("requirements", "/stackable/spark/requirements")
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
             .add_env_var(
                 "PYTHONPATH",
-                "$SPARK_HOME/python:/stackable/spark/requirements:$PYTHONPATH",
+                format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
             );
     }
 
-    let mut spark_executor_container = ContainerBuilder::new("spark-executor-container");
+    let mut spark_executor_container = ContainerBuilder::new(CONTAINER_NAME_EXECUTOR);
+    spark_executor_container.image(CONTAINER_IMAGE_NAME_EXECUTOR);
     if job_init_container.is_some() {
-        spark_executor_container.add_volume_mount("job-files", "/stackable/spark/jobs");
+        spark_executor_container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
     }
     if requirements_init_container.is_some() {
         spark_executor_container
-            .add_volume_mount("requirements", "/stackable/spark/requirements")
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
             .add_env_var(
                 "PYTHONPATH",
-                "$SPARK_HOME/python:/stackable/spark/requirements:$PYTHONPATH",
+                format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
             );
     }
 
@@ -166,7 +168,7 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
     if let Some(container) = requirements_init_container.clone() {
         driver_template.add_init_container(container);
         driver_template.add_volume(
-            VolumeBuilder::new("requirements")
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
                 .empty_dir(EmptyDirVolumeSource::default())
                 .build(),
         );
@@ -174,7 +176,7 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
     if let Some(container) = job_init_container.clone() {
         driver_template.add_init_container(container);
         driver_template.add_volume(
-            VolumeBuilder::new("job-files")
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
                 .empty_dir(EmptyDirVolumeSource::default())
                 .build(),
         );
@@ -188,7 +190,7 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
     if let Some(container) = requirements_init_container {
         executor_template.add_init_container(container);
         executor_template.add_volume(
-            VolumeBuilder::new("requirements")
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
                 .empty_dir(EmptyDirVolumeSource::default())
                 .build(),
         );
@@ -196,7 +198,7 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
     if let Some(container) = job_init_container {
         executor_template.add_init_container(container);
         executor_template.add_volume(
-            VolumeBuilder::new("job-files")
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
                 .empty_dir(EmptyDirVolumeSource::default())
                 .build(),
         );
@@ -240,8 +242,11 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
         )
         .command(vec!["/bin/bash".to_string()])
         .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
-        .add_volume_mount("pod-template", "/stackable/spark/pod-templates")
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
+        .add_volume_mount(
+            VOLUME_MOUNT_NAME_POD_TEMPLATES,
+            VOLUME_MOUNT_PATH_POD_TEMPLATES,
+        )
+        .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
         .add_env_vars(vec![EnvVar {
             name: "SPARK_CONF_DIR".to_string(),
             value: Some("/stackable/spark/conf".to_string()),
@@ -250,15 +255,15 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
         .build();
 
     let job_init_container = spark_application.spec.image.as_ref().map(|job_image| {
-        ContainerBuilder::new("job-init-container")
+        ContainerBuilder::new(CONTAINER_NAME_JOB)
             .image(job_image)
             .command(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
                 "-c".to_string(),
-                "cp /jobs/* /stackable/spark/jobs".to_string(),
+                format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"),
             ])
-            .add_volume_mount("job-files", "/stackable/spark/jobs")
+            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
             .build()
     });
 
@@ -270,7 +275,7 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
             restart_policy: Some("Never".to_string()),
             volumes: Some(vec![
                 Volume {
-                    name: "pod-template".to_string(),
+                    name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),
                     config_map: Some(ConfigMapVolumeSource {
                         name: Some(spark_application.pod_template_config_map_name()),
                         ..ConfigMapVolumeSource::default()
@@ -278,7 +283,7 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
                     ..Volume::default()
                 },
                 Volume {
-                    name: "job-files".to_string(),
+                    name: String::from(VOLUME_MOUNT_NAME_JOB),
                     empty_dir: Some(EmptyDirVolumeSource::default()),
                     ..Volume::default()
                 },

@@ -19,6 +19,7 @@ env:
   RUSTFLAGS: "-D warnings"
   RUSTDOCFLAGS: "-D warnings"
   RUST_LOG: "info"
+  OPERATOR_NAME: "spark-k8s-operator"
   PRODUCT_NAME: "spark-k8s"
   DEV_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-dev
   TEST_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-test
@@ -321,7 +322,7 @@ jobs:
 
       # Package and publish charts
       - name: Package Chart
-        run: mkdir -p target/helm && helm package --destination target/helm deploy/helm/${{ env.PRODUCT_NAME }}-operator
+        run: mkdir -p target/helm && helm package --destination target/helm deploy/helm/${{ env.OPERATOR_NAME }}
       - name: Build Docker image
         if: env.NEXUS_PASSWORD != null # pragma: allowlist secret
         run: make docker

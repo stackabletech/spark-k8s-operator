@@ -15,6 +15,8 @@ from argparse import Namespace
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import dayofweek
 
+import tabulate
+
 
 def check_args() -> Namespace:
     """Parse the given CLI arguments"""
@@ -54,7 +56,7 @@ if __name__ == "__main__":
 
     try:
         report = build_report(spark, args)
-        report.show()
+        print(tabulate.tabulate(report.collect()))
         if args.output:
             report.coalesce(1).write.mode("overwrite").options(header=True).csv(
                 args.output

@@ -1,9 +1,13 @@
 //! This module provides all required CRD definitions and additional helper methods.
 
+pub mod constants;
+
+use constants::*;
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, Snafu};
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::{
@@ -11,16 +15,11 @@ use stackable_operator::{
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
-use std::env::{self, VarError};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
-    #[snafu(display("failed to detect api host"))]
-    ApiHostMissing { source: VarError },
-    #[snafu(display("failed to detect api https port"))]
-    ApiHttpsPortMissing { source: VarError },
     #[snafu(display("object defines no deploy mode"))]
     ObjectHasNoDeployMode,
     #[snafu(display("object defines no main class"))]
@@ -31,6 +30,8 @@ pub enum Error {
     ObjectHasNoImage,
     #[snafu(display("object has no name"))]
     ObjectHasNoName,
+    #[snafu(display("application has no Spark image"))]
+    NoSparkImage,
 }
 /// SparkApplicationStatus CommandStatus
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -103,16 +104,8 @@ impl SparkApplication {
         format!("{}-pod-template", self.name())
     }
 
-    pub fn version(&self) -> Option<&str> {
-        self.spec.version.as_deref()
-    }
-
     pub fn mode(&self) -> Option<&str> {
         self.spec.mode.as_deref()
-    }
-
-    pub fn main_class(&self) -> Option<&str> {
-        self.spec.main_class.as_deref()
     }
 
     pub fn image(&self) -> Option<&str> {
@@ -123,31 +116,32 @@ impl SparkApplication {
         self.spec.main_application_file.as_deref()
     }
 
-    pub fn build_command(&self) -> Result<Vec<String>, Error> {
-        // get API end-point from in-pod environment variables
-        let host = env::var("KUBERNETES_SERVICE_HOST").context(ApiHostMissingSnafu)?;
-        let https_port =
-            env::var("KUBERNETES_SERVICE_PORT_HTTPS").context(ApiHttpsPortMissingSnafu)?;
+    pub fn requirements(&self) -> Option<String> {
+        self.spec
+            .deps
+            .as_ref()
+            .and_then(|deps| deps.requirements.as_ref())
+            .map(|req| req.join(" "))
+    }
 
+    pub fn build_command(&self) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
-        let artifact = self
-            .application_artifact()
-            .context(ObjectHasNoArtifactSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
         let mut submit_cmd = vec![
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
-            format!("--master k8s://https://{host}:{https_port}"),
+            "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
             format!("--deploy-mode {mode}"),
             format!("--name {name}"),
-            "--conf spark.kubernetes.driver.podTemplateFile=/stackable/spark/pod-templates/driver.yml".to_string(),
-            "--conf spark.kubernetes.executor.podTemplateFile=/stackable/spark/pod-templates/executor.yml".to_string(),
-            "--conf spark.kubernetes.driver.podTemplateContainerName=spark-driver-container".to_string(),
-            "--conf spark.kubernetes.executor.podTemplateContainerName=spark-executor-container".to_string(),
-            format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().unwrap()), // TODO!!! handle error
-            format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().unwrap()),
+            format!("--conf spark.kubernetes.driver.podTemplateFile={VOLUME_MOUNT_PATH_POD_TEMPLATES}/driver.yml"),
+            format!("--conf spark.kubernetes.executor.podTemplateFile={VOLUME_MOUNT_PATH_POD_TEMPLATES}/executor.yml"),
+            format!("--conf spark.kubernetes.driver.podTemplateContainerName={CONTAINER_NAME_DRIVER}"),
+            format!("--conf spark.kubernetes.executor.podTemplateContainerName={CONTAINER_NAME_EXECUTOR}"),
+            format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
+            format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
+            format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             //"--conf spark.kubernetes.file.upload.path=s3a://stackable-spark-k8s-jars/jobs".to_string(),
             //"--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem".to_string(),
             //"--conf spark.driver.extraClassPath=/stackable/.ivy2/cache".to_string(),
@@ -185,6 +179,9 @@ impl SparkApplication {
                 .map(|mc| format! {"--class {mc}"}),
         );
 
+        let artifact = self
+            .application_artifact()
+            .context(ObjectHasNoArtifactSnafu)?;
         submit_cmd.push(artifact.to_string());
 
         if let Some(job_args) = self.spec.args.clone() {
@@ -269,4 +266,170 @@ pub struct CommandStatus {
     pub started_at: Option<Time>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finished_at: Option<Time>,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::SparkApplication;
+
+    #[test]
+    fn test_spark_examples_s3() {
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+        r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-examples-s3
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+  config:
+    enableMonitoring: true
+        "#).unwrap();
+
+        assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
+        assert_eq!(
+            Some("org.apache.spark.examples.SparkPi".to_string()),
+            spark_application.spec.main_class
+        );
+        assert_eq!(
+            Some("s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar".to_string()),
+            spark_application.spec.main_application_file
+        );
+        assert_eq!(
+            Some(1),
+            spark_application.spec.spark_conf.map(|m| m.keys().len())
+        );
+
+        assert!(spark_application.spec.spark_image.is_some());
+
+        assert!(spark_application.spec.mode.is_some());
+        assert!(spark_application.spec.driver.is_some());
+        assert!(spark_application.spec.executor.is_some());
+
+        assert!(spark_application.spec.args.is_none());
+        assert!(spark_application.spec.deps.is_none());
+        assert!(spark_application.spec.image.is_none());
+    }
+
+    #[test]
+    fn test_ny_tlc_report_image() {
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+        r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: ny-tlc-report-image
+  namespace: my-ns
+spec:
+  version: "1.0"
+  image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
+  args:
+    - "--input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
+  deps:
+    requirements:
+      - tabulate==0.8.9
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+        "#).unwrap();
+
+        assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
+        assert_eq!(
+            Some("local:///stackable/spark/jobs/ny_tlc_report.py".to_string()),
+            spark_application.spec.main_application_file
+        );
+        assert_eq!(
+            Some(1),
+            spark_application.spec.spark_conf.map(|m| m.keys().len())
+        );
+
+        assert!(spark_application.spec.image.is_some());
+        assert!(spark_application.spec.spark_image.is_some());
+        assert!(spark_application.spec.mode.is_some());
+        assert!(spark_application.spec.args.is_some());
+        assert!(spark_application.spec.deps.is_some());
+        assert!(spark_application.spec.driver.is_some());
+        assert!(spark_application.spec.executor.is_some());
+
+        assert!(spark_application.spec.main_class.is_none());
+    }
+
+    #[test]
+    fn test_ny_tlc_report_external_dependencies() {
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+        r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: ny-tlc-report-external-dependencies
+  namespace: default
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  mode: cluster
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny_tlc_report.py
+  args:
+    - "--input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
+  deps:
+    requirements:
+      - tabulate==0.8.9
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+        "#).unwrap();
+
+        assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
+        assert_eq!(
+            Some("s3a://stackable-spark-k8s-jars/jobs/ny_tlc_report.py".to_string()),
+            spark_application.spec.main_application_file
+        );
+        assert_eq!(
+            Some(1),
+            spark_application.spec.spark_conf.map(|m| m.keys().len())
+        );
+
+        assert!(spark_application.spec.spark_image.is_some());
+        assert!(spark_application.spec.mode.is_some());
+        assert!(spark_application.spec.args.is_some());
+        assert!(spark_application.spec.deps.is_some());
+        assert!(spark_application.spec.driver.is_some());
+        assert!(spark_application.spec.executor.is_some());
+
+        assert!(spark_application.spec.main_class.is_none());
+        assert!(spark_application.spec.image.is_none());
+    }
 }

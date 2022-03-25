@@ -1,23 +1,19 @@
-use crate::ListParams;
-use futures::{future, StreamExt};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{
     ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
 };
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    ConfigMap, ConfigMapVolumeSource, EmptyDirVolumeSource, EnvVar, PodSpec, PodTemplateSpec,
-    Volume,
+    ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
+    PodTemplateSpec, Volume,
 };
-use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
-use stackable_operator::k8s_openapi::chrono::Utc;
-use stackable_operator::kube::{runtime, ResourceExt};
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::{
-    kube::runtime::controller::{Context, ReconcilerAction},
+    kube::runtime::controller::{Action, Context},
     product_config::ProductConfigManager,
 };
-use stackable_spark_k8s_crd::{CommandStatus, SparkApplication};
+use stackable_spark_k8s_crd::constants::*;
+use stackable_spark_k8s_crd::SparkApplication;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -77,13 +73,20 @@ impl ReconcilerError for Error {
 }
 
 pub async fn reconcile(
-    spark: Arc<SparkApplication>,
+    spark_application: Arc<SparkApplication>,
     ctx: Context<Ctx>,
-) -> Result<ReconcilerAction> {
+) -> Result<Action> {
     tracing::info!("Starting reconcile");
 
     let client = &ctx.get_ref().client;
-    let pod_template_config_map = build_pod_template_config_map(&spark)?;
+
+    let spark_image = spark_application
+        .spec
+        .spark_image
+        .as_deref()
+        .context(ObjectHasNoSparkImageSnafu)?;
+
+    let pod_template_config_map = pod_template_config_map(&spark_application, spark_image)?;
     client
         .apply_patch(
             FIELD_MANAGER_SCOPE,
@@ -93,111 +96,97 @@ pub async fn reconcile(
         .await
         .context(ApplyApplicationSnafu)?;
 
-    let job = build_init_job(&spark)?;
+    let job = spark_job(&spark_application, spark_image)?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
         .await
         .context(ApplyApplicationSnafu)?;
 
-    if spark.status == None {
-        let started_at = Some(Time(Utc::now()));
-        client
-            .apply_patch_status(
-                FIELD_MANAGER_SCOPE,
-                &*spark,
-                &CommandStatus {
-                    started_at: started_at.to_owned(),
-                    finished_at: None,
-                },
-            )
-            .await
-            .context(ApplyStatusSnafu)?;
-
-        wait_completed(client, &job).await;
-        let finished_at = Some(Time(Utc::now()));
-
-        client
-            .apply_patch_status(
-                FIELD_MANAGER_SCOPE,
-                &*spark,
-                &CommandStatus {
-                    started_at,
-                    finished_at,
-                },
-            )
-            .await
-            .context(ApplyStatusSnafu)?;
-    }
-
-    Ok(ReconcilerAction {
-        requeue_after: None,
-    })
+    Ok(Action::await_change())
 }
 
-fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result<ConfigMap> {
-    let job_init_container = ContainerBuilder::new("job-init-container")
-        .image(spark_application.image().context(ObjectHasNoImageSnafu)?)
-        .command(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-c".to_string(),
-            "cp /jobs/* /stackable/spark/jobs".to_string(),
-        ])
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
-        .build();
+fn pod_template(
+    container_name: &str,
+    job_container: &Option<Container>,
+    requirements_container: &Option<Container>,
+) -> Result<Pod> {
+    let mut container = ContainerBuilder::new(container_name);
 
-    let requirements_init_container = ContainerBuilder::new("requirements-init-container")
-        .image(
-            spark_application
-                .spec
-                .spark_image
-                .as_deref()
-                .context(ObjectHasNoSparkImageSnafu)?,
-        )
-        .command(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-c".to_string(),
-            "pip install --user tabulate==0.8.9".to_string(),
-        ])
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
-        .build();
+    if job_container.is_some() {
+        container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
+    }
 
-    let spark_driver_container = ContainerBuilder::new("spark-driver-container")
-        .image("dummy-overwritten-by-command-line")
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
-        .build();
+    if requirements_container.is_some() {
+        container
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+            .add_env_var(
+                "PYTHONPATH",
+                format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
+            );
+    }
 
-    let spark_executor_container = ContainerBuilder::new("spark-executor-container")
-        .image("dummy-overwritten-by-command-line")
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
-        .build();
+    let mut template = PodBuilder::new();
+    template.metadata_default().add_container(container.build());
 
-    let driver_template = PodBuilder::new()
-        .metadata_default()
-        .add_init_container(job_init_container.clone())
-        .add_init_container(requirements_init_container.clone())
-        .add_container(spark_driver_container)
-        .add_volume(
-            VolumeBuilder::new("job-files")
+    if let Some(container) = requirements_container.clone() {
+        template.add_init_container(container);
+        template.add_volume(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
                 .empty_dir(EmptyDirVolumeSource::default())
                 .build(),
-        )
-        .build()
-        .context(PodTemplateSnafu)?;
-
-    let executor_template = PodBuilder::new()
-        .metadata_default()
-        .add_init_container(job_init_container)
-        .add_init_container(requirements_init_container)
-        .add_container(spark_executor_container)
-        .add_volume(
-            VolumeBuilder::new("job-files")
+        );
+    }
+    if let Some(container) = job_container.clone() {
+        template.add_init_container(container);
+        template.add_volume(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
                 .empty_dir(EmptyDirVolumeSource::default())
                 .build(),
-        )
-        .build()
-        .context(PodTemplateSnafu)?;
+        );
+    }
+    template.build().context(PodTemplateSnafu)
+}
+
+fn pod_template_config_map(
+    spark_application: &SparkApplication,
+    spark_image: &str,
+) -> Result<ConfigMap> {
+    let job_container = spark_application.spec.image.as_ref().map(|job_image| {
+        ContainerBuilder::new(CONTAINER_NAME_JOB)
+            .image(job_image)
+            .command(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-c".to_string(),
+                format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"),
+            ])
+            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
+            .build()
+    });
+
+    let requirements_container = spark_application.requirements().map(|req| {
+        ContainerBuilder::new(CONTAINER_NAME_REQ)
+            .image(spark_image)
+            .command(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-c".to_string(),
+                format!("pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"),
+            ])
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+            .build()
+    });
+
+    let driver_template = pod_template(
+        CONTAINER_NAME_DRIVER,
+        &job_container,
+        &requirements_container,
+    )?;
+    let executor_template = pod_template(
+        CONTAINER_NAME_EXECUTOR,
+        &job_container,
+        &requirements_container,
+    )?;
 
     ConfigMapBuilder::new()
         .metadata(
@@ -220,23 +209,20 @@ fn build_pod_template_config_map(spark_application: &SparkApplication) -> Result
         .context(PodTemplateConfigMapSnafu)
 }
 
-fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
+fn spark_job(spark_application: &SparkApplication, spark_image: &str) -> Result<Job> {
     let commands = spark_application
         .build_command()
         .context(BuildCommandSnafu)?;
 
-    let container = ContainerBuilder::new("spark-client")
-        .image(
-            spark_application
-                .spec
-                .spark_image
-                .as_deref()
-                .context(ObjectHasNoSparkImageSnafu)?,
-        )
+    let container = ContainerBuilder::new("spark-submit")
+        .image(spark_image)
         .command(vec!["/bin/bash".to_string()])
         .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
-        .add_volume_mount("pod-template", "/stackable/spark/pod-templates")
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
+        .add_volume_mount(
+            VOLUME_MOUNT_NAME_POD_TEMPLATES,
+            VOLUME_MOUNT_PATH_POD_TEMPLATES,
+        )
+        .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
         .add_env_vars(vec![EnvVar {
             name: "SPARK_CONF_DIR".to_string(),
             value: Some("/stackable/spark/conf".to_string()),
@@ -244,26 +230,28 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
         }])
         .build();
 
-    let job_init_container = ContainerBuilder::new("job-init-container")
-        .image(spark_application.image().context(ObjectHasNoImageSnafu)?)
-        .command(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-c".to_string(),
-            "cp /jobs/* /stackable/spark/jobs".to_string(),
-        ])
-        .add_volume_mount("job-files", "/stackable/spark/jobs")
-        .build();
+    let job_init_container = spark_application.spec.image.as_ref().map(|job_image| {
+        ContainerBuilder::new(CONTAINER_NAME_JOB)
+            .image(job_image)
+            .command(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-c".to_string(),
+                format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"),
+            ])
+            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
+            .build()
+    });
 
     let pod = PodTemplateSpec {
-        metadata: Some(ObjectMetaBuilder::new().name("init").build()),
+        metadata: Some(ObjectMetaBuilder::new().name("spark-submit").build()),
         spec: Some(PodSpec {
             containers: vec![container],
-            init_containers: Some(vec![job_init_container]),
+            init_containers: Some(job_init_container.into_iter().collect()),
             restart_policy: Some("Never".to_string()),
             volumes: Some(vec![
                 Volume {
-                    name: "pod-template".to_string(),
+                    name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),
                     config_map: Some(ConfigMapVolumeSource {
                         name: Some(spark_application.pod_template_config_map_name()),
                         ..ConfigMapVolumeSource::default()
@@ -271,7 +259,7 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
                     ..Volume::default()
                 },
                 Volume {
-                    name: "job-files".to_string(),
+                    name: String::from(VOLUME_MOUNT_NAME_JOB),
                     empty_dir: Some(EmptyDirVolumeSource::default()),
                     ..Volume::default()
                 },
@@ -288,6 +276,7 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
             .build(),
         spec: Some(JobSpec {
             template: pod,
+            ttl_seconds_after_finished: Some(600),
             ..Default::default()
         }),
         status: None,
@@ -296,27 +285,120 @@ fn build_init_job(spark_application: &SparkApplication) -> Result<Job> {
     Ok(job)
 }
 
-// Waits until the given job is completed.
-async fn wait_completed(client: &stackable_operator::client::Client, job: &Job) {
-    let completed = |job: &Job| {
-        job.status
-            .as_ref()
-            .and_then(|status| status.conditions.clone())
-            .unwrap_or_default()
-            .into_iter()
-            .any(|condition| condition.type_ == "Complete" && condition.status == "True")
-    };
-
-    let lp = ListParams::default().fields(&format!("metadata.name={}", job.name()));
-    let api = client.get_api(Some(job.namespace().as_deref().unwrap_or("default")));
-    let watcher = runtime::watcher(api, lp).boxed();
-    runtime::utils::try_flatten_applied(watcher)
-        .any(|res| future::ready(res.as_ref().map(|job| completed(job)).unwrap_or(false)))
-        .await;
+pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+    Action::requeue(Duration::from_secs(5))
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> ReconcilerAction {
-    ReconcilerAction {
-        requeue_after: Some(Duration::from_secs(5)),
+#[cfg(test)]
+mod tests {
+    use crate::spark_k8s_controller::pod_template_config_map;
+    use crate::spark_k8s_controller::spark_job;
+    use crate::SparkApplication;
+
+    #[test]
+    fn test_pod_config_map() {
+        // N.B. have to include the uid explicitly here in the test (other than letting it be generated)
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+        r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-examples-s3
+  namespace: default
+  uid: "b4952dc3-d670-11e5-8cd0-68f728db1985"
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+  config:
+    enableMonitoring: true
+        "#).unwrap();
+
+        let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
+        let pod_template_config_map =
+            pod_template_config_map(&spark_application, spark_image).unwrap();
+
+        assert!(&pod_template_config_map.binary_data.is_none());
+        assert_eq!(
+            Some(2),
+            pod_template_config_map.clone().data.map(|d| d.keys().len())
+        );
+        assert_eq!(
+            Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
+            pod_template_config_map
+                .metadata
+                .owner_references
+                .map(|r| r[0].uid.to_string())
+        );
+    }
+
+    #[test]
+    fn test_job() {
+        // N.B. uid provided explicitly as in previous test
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+            r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-examples-s3
+  namespace: default
+  uid: "b4952dc3-d670-11e5-8cd0-68f728db1985"
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+            "#).unwrap();
+
+        let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
+        let job = spark_job(&spark_application, spark_image).unwrap();
+        let job_containers = &job
+            .clone()
+            .spec
+            .expect("no job spec found!")
+            .template
+            .spec
+            .expect("no template spec found!")
+            .containers;
+        assert_eq!(1, job_containers.len());
+
+        let job_args = &job_containers[0].args.clone().expect("no job args found!");
+        assert_eq!(3, job_args.len());
+        let spark_submit_cmd = &job_args[2];
+
+        assert_eq!(
+            Some("s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar"),
+            spark_submit_cmd.split_whitespace().rev().next()
+        );
+
+        assert_eq!(
+            Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
+            job.metadata.owner_references.map(|r| r[0].uid.to_string())
+        );
     }
 }

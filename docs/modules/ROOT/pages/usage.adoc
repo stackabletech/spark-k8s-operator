@@ -44,6 +44,4 @@ Environment variables can be (over)written by adding them to `spark-env.sh` file
 
 === Development
 
-export KUBERNETES_SERVICE_PORT_HTTPS=443
-export KUBERNETES_SERVICE_HOST=10.96.0.1
 kubectl create clusterrolebinding spark-role --clusterrole=edit  --serviceaccount=default:default

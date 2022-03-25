@@ -3,6 +3,7 @@
 pub mod constants;
 
 use constants::*;
+use stackable_operator::k8s_openapi::api::core::v1::{Volume, VolumeMount};
 
 use std::collections::HashMap;
 
@@ -76,6 +77,8 @@ pub struct SparkApplicationSpec {
     pub deps: Option<JobDependencies>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volumes: Option<Vec<Volume>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -122,6 +125,31 @@ impl SparkApplication {
             .as_ref()
             .and_then(|deps| deps.requirements.as_ref())
             .map(|req| req.join(" "))
+    }
+
+    pub fn volumes(&self) -> Vec<Volume> {
+        let tmp = self.spec.volumes.as_ref();
+        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
+    }
+
+    pub fn executor_volume_mounts(&self) -> Vec<VolumeMount> {
+        let tmp = self
+            .spec
+            .executor
+            .as_ref()
+            .and_then(|executor_conf| executor_conf.volume_mounts.clone());
+
+        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
+    }
+
+    pub fn driver_volume_mounts(&self) -> Vec<VolumeMount> {
+        let tmp = self
+            .spec
+            .driver
+            .as_ref()
+            .and_then(|driver_conf| driver_conf.volume_mounts.clone());
+
+        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
     }
 
     pub fn build_command(&self) -> Result<Vec<String>, Error> {
@@ -209,12 +237,14 @@ pub struct CommonConfig {
     pub enable_monitoring: Option<bool>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DriverConfig {
     pub cores: Option<usize>,
     pub core_limit: Option<String>,
     pub memory: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volume_mounts: Option<Vec<VolumeMount>>,
 }
 
 impl DriverConfig {
@@ -235,12 +265,14 @@ impl DriverConfig {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutorConfig {
     pub cores: Option<usize>,
     pub instances: Option<usize>,
     pub memory: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volume_mounts: Option<Vec<VolumeMount>>,
 }
 
 impl ExecutorConfig {

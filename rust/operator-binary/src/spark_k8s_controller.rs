@@ -86,7 +86,33 @@ pub async fn reconcile(
         .as_deref()
         .context(ObjectHasNoSparkImageSnafu)?;
 
-    let pod_template_config_map = pod_template_config_map(&spark_application, spark_image)?;
+    let job_container = spark_application.spec.image.as_ref().map(|job_image| {
+        ContainerBuilder::new(CONTAINER_NAME_JOB)
+            .image(job_image)
+            .command(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-c".to_string(),
+                format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"),
+            ])
+            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
+            .build()
+    });
+
+    let requirements_container = spark_application.requirements().map(|req| {
+        ContainerBuilder::new(CONTAINER_NAME_REQ)
+            .image(spark_image)
+            .command(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-c".to_string(),
+                format!("pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"),
+            ])
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+            .build()
+    });
+
+    let pod_template_config_map = pod_template_config_map(&spark_application, &job_container, &requirements_container)?;
     client
         .apply_patch(
             FIELD_MANAGER_SCOPE,
@@ -96,7 +122,7 @@ pub async fn reconcile(
         .await
         .context(ApplyApplicationSnafu)?;
 
-    let job = spark_job(&spark_application, spark_image)?;
+    let job = spark_job(&spark_application, spark_image, &job_container)?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
         .await
@@ -149,43 +175,18 @@ fn pod_template(
 
 fn pod_template_config_map(
     spark_application: &SparkApplication,
-    spark_image: &str,
+    job_container: &Option<Container>,
+    requirements_container: &Option<Container>,
 ) -> Result<ConfigMap> {
-    let job_container = spark_application.spec.image.as_ref().map(|job_image| {
-        ContainerBuilder::new(CONTAINER_NAME_JOB)
-            .image(job_image)
-            .command(vec![
-                "/bin/bash".to_string(),
-                "-x".to_string(),
-                "-c".to_string(),
-                format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"),
-            ])
-            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
-            .build()
-    });
-
-    let requirements_container = spark_application.requirements().map(|req| {
-        ContainerBuilder::new(CONTAINER_NAME_REQ)
-            .image(spark_image)
-            .command(vec![
-                "/bin/bash".to_string(),
-                "-x".to_string(),
-                "-c".to_string(),
-                format!("pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"),
-            ])
-            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
-            .build()
-    });
-
     let driver_template = pod_template(
         CONTAINER_NAME_DRIVER,
-        &job_container,
-        &requirements_container,
+        job_container,
+        requirements_container,
     )?;
     let executor_template = pod_template(
         CONTAINER_NAME_EXECUTOR,
-        &job_container,
-        &requirements_container,
+        job_container,
+        requirements_container,
     )?;
 
     ConfigMapBuilder::new()
@@ -209,13 +210,13 @@ fn pod_template_config_map(
         .context(PodTemplateConfigMapSnafu)
 }
 
-fn spark_job(spark_application: &SparkApplication, spark_image: &str) -> Result<Job> {
+fn spark_job(spark_application: &SparkApplication, spark_image: &str, job_container: &Option<Container>) -> Result<Job> {
     let commands = spark_application
         .build_command()
         .context(BuildCommandSnafu)?;
 
-    let container = ContainerBuilder::new("spark-submit")
-        .image(spark_image)
+    let mut container = ContainerBuilder::new("spark-submit");
+    container.image(spark_image)
         .command(vec!["/bin/bash".to_string()])
         .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
         .add_volume_mount(
@@ -227,27 +228,13 @@ fn spark_job(spark_application: &SparkApplication, spark_image: &str) -> Result<
             name: "SPARK_CONF_DIR".to_string(),
             value: Some("/stackable/spark/conf".to_string()),
             value_from: None,
-        }])
-        .build();
-
-    let job_init_container = spark_application.spec.image.as_ref().map(|job_image| {
-        ContainerBuilder::new(CONTAINER_NAME_JOB)
-            .image(job_image)
-            .command(vec![
-                "/bin/bash".to_string(),
-                "-x".to_string(),
-                "-c".to_string(),
-                format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"),
-            ])
-            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
-            .build()
-    });
+        }]);
 
     let pod = PodTemplateSpec {
         metadata: Some(ObjectMetaBuilder::new().name("spark-submit").build()),
         spec: Some(PodSpec {
-            containers: vec![container],
-            init_containers: Some(job_init_container.into_iter().collect()),
+            containers: vec![container.build()],
+            init_containers: job_container.as_ref().map(|c| vec![c.clone()]),
             restart_policy: Some("Never".to_string()),
             volumes: Some(vec![
                 Volume {

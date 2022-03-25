@@ -344,9 +344,8 @@ spec:
     enableMonitoring: true
         "#).unwrap();
 
-        let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
         let pod_template_config_map =
-            pod_template_config_map(&spark_application, spark_image).unwrap();
+            pod_template_config_map(&spark_application, &None, &None).unwrap();
 
         assert!(&pod_template_config_map.binary_data.is_none());
         assert_eq!(
@@ -393,7 +392,7 @@ spec:
             "#).unwrap();
 
         let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
-        let job = spark_job(&spark_application, spark_image).unwrap();
+        let job = spark_job(&spark_application, spark_image, &None).unwrap();
         let job_containers = &job
             .clone()
             .spec

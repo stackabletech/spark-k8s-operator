@@ -329,7 +329,7 @@ spec:
 
         let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
         let pod_template_config_map =
-            pod_template_config_map(&spark_application, &spark_image).unwrap();
+            pod_template_config_map(&spark_application, spark_image).unwrap();
 
         assert!(&pod_template_config_map.binary_data.is_none());
         assert_eq!(
@@ -339,7 +339,6 @@ spec:
         assert_eq!(
             Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
             pod_template_config_map
-                .clone()
                 .metadata
                 .owner_references
                 .map(|r| r[0].uid.to_string())
@@ -399,10 +398,7 @@ spec:
 
         assert_eq!(
             Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
-            job.clone()
-                .metadata
-                .owner_references
-                .map(|r| r[0].uid.to_string())
+            job.metadata.owner_references.map(|r| r[0].uid.to_string())
         );
     }
 }

@@ -292,6 +292,7 @@ pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
 #[cfg(test)]
 mod tests {
     use crate::spark_k8s_controller::pod_template_config_map;
+    use crate::spark_k8s_controller::spark_job;
     use crate::SparkApplication;
 
     #[test]
@@ -305,7 +306,7 @@ kind: SparkApplication
 metadata:
   name: spark-examples-s3
   namespace: default
-  uid: b4952dc3-d670-11e5-8cd0-68f728db1985
+  uid: "b4952dc3-d670-11e5-8cd0-68f728db1985"
 spec:
   version: "1.0"
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
@@ -329,7 +330,6 @@ spec:
         let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
         let pod_template_config_map =
             pod_template_config_map(&spark_application, &spark_image).unwrap();
-        println!("{:#?}", &pod_template_config_map);
 
         assert!(&pod_template_config_map.binary_data.is_none());
         assert_eq!(
@@ -340,6 +340,66 @@ spec:
             Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
             pod_template_config_map
                 .clone()
+                .metadata
+                .owner_references
+                .map(|r| r[0].uid.to_string())
+        );
+    }
+
+    #[test]
+    fn test_job() {
+        // N.B. uid provided explicitly as in previous test
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+            r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-examples-s3
+  namespace: default
+  uid: "b4952dc3-d670-11e5-8cd0-68f728db1985"
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+            "#).unwrap();
+
+        let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
+        let job = spark_job(&spark_application, spark_image).unwrap();
+        let job_containers = &job
+            .clone()
+            .spec
+            .expect("no job spec found!")
+            .template
+            .spec
+            .expect("no template spec found!")
+            .containers;
+        assert_eq!(1, job_containers.len());
+
+        let job_args = &job_containers[0].args.clone().expect("no job args found!");
+        assert_eq!(3, job_args.len());
+        let spark_submit_cmd = &job_args[2];
+
+        assert_eq!(
+            Some("s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar"),
+            spark_submit_cmd.split_whitespace().rev().next()
+        );
+
+        assert_eq!(
+            Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
+            job.clone()
                 .metadata
                 .owner_references
                 .map(|r| r[0].uid.to_string())

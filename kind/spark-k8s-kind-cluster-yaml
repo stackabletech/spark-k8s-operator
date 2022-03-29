@@ -13,6 +13,9 @@ nodes:
       nodeRegistration:
         kubeletExtraArgs:
           node-labels: node=1,
+  extraMounts:
+    - hostPath: /tmp/kind-shared-volume
+      containerPath: /kind-shared-volume
 - role: worker
   kubeadmConfigPatches:
     - |
@@ -20,6 +23,9 @@ nodes:
       nodeRegistration:
         kubeletExtraArgs:
           node-labels: node=2
+  extraMounts:
+    - hostPath: /tmp/kind-shared-volume
+      containerPath: /kind-shared-volume
 - role: worker
   kubeadmConfigPatches:
     - |
@@ -27,4 +33,7 @@ nodes:
       nodeRegistration:
         kubeletExtraArgs:
           node-labels: node=3
+  extraMounts:
+    - hostPath: /tmp/kind-shared-volume
+      containerPath: /kind-shared-volume
 

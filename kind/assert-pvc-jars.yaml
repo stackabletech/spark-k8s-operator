@@ -16,10 +16,10 @@ spec:
         image: docker.stackable.tech/stackable/tools:0.2.0-stackable0
         env:
           - name: DEST_DIR
-            value: "/stackable/spark/dependencies/jars"
+            value: "/dependencies/jars"
         command: ['bash', '-x', '-c', 'ls -ltr $DEST_DIR']
         securityContext:
           runAsUser: 0
         volumeMounts:
           - name: job-deps
-            mountPath: /stackable/spark/dependencies
+            mountPath: /dependencies

@@ -1,15 +1,17 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::{
-    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
-};
-use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
-use stackable_operator::k8s_openapi::api::core::v1::{
-    ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
-    PodTemplateSpec, Volume,
-};
-use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::{
+    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
+    k8s_openapi::{
+        api::batch::v1::{Job, JobSpec},
+        api::core::v1::{
+            ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod,
+            PodSpec, PodTemplateSpec, ServiceAccount, Volume,
+        },
+        api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
+        Resource,
+    },
     kube::runtime::controller::{Action, Context},
+    logging::controller::ReconcilerError,
     product_config::ProductConfigManager,
 };
 use stackable_spark_k8s_crd::constants::*;
@@ -18,6 +20,7 @@ use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 const FIELD_MANAGER_SCOPE: &str = "sparkapplication";
+const SPARK_CLUSTER_ROLE: &str = "spark-driver-edit-role";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -32,6 +35,14 @@ pub enum Error {
     ObjectHasNoVersion,
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to apply role ServiceAccount"))]
+    ApplyServiceAccount {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to apply global RoleBinding"))]
+    ApplyRoleBinding {
         source: stackable_operator::error::Error,
     },
     #[snafu(display("failed to apply Job"))]
@@ -80,6 +91,16 @@ pub async fn reconcile(
 
     let client = &ctx.get_ref().client;
 
+    let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &serviceaccount, &serviceaccount)
+        .await
+        .context(ApplyServiceAccountSnafu)?;
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &rolebinding, &rolebinding)
+        .await
+        .context(ApplyRoleBindingSnafu)?;
+
     let spark_image = spark_application
         .spec
         .spark_image
@@ -96,7 +117,7 @@ pub async fn reconcile(
         .await
         .context(ApplyApplicationSnafu)?;
 
-    let job = spark_job(&spark_application, spark_image)?;
+    let job = spark_job(&spark_application, spark_image, &serviceaccount)?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
         .await
@@ -209,9 +230,13 @@ fn pod_template_config_map(
         .context(PodTemplateConfigMapSnafu)
 }
 
-fn spark_job(spark_application: &SparkApplication, spark_image: &str) -> Result<Job> {
+fn spark_job(
+    spark_application: &SparkApplication,
+    spark_image: &str,
+    serviceaccount: &ServiceAccount,
+) -> Result<Job> {
     let commands = spark_application
-        .build_command()
+        .build_command(&serviceaccount.metadata.name.as_ref().unwrap())
         .context(BuildCommandSnafu)?;
 
     let container = ContainerBuilder::new("spark-submit")
@@ -249,6 +274,7 @@ fn spark_job(spark_application: &SparkApplication, spark_image: &str) -> Result<
             containers: vec![container],
             init_containers: Some(job_init_container.into_iter().collect()),
             restart_policy: Some("Never".to_string()),
+            service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(vec![
                 Volume {
                     name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),
@@ -285,8 +311,66 @@ fn spark_job(spark_application: &SparkApplication, spark_image: &str) -> Result<
     Ok(job)
 }
 
+fn build_spark_role_serviceaccount(
+    spark_app: &SparkApplication,
+) -> Result<(ServiceAccount, RoleBinding)> {
+    let sa_name = spark_app.metadata.name.as_ref().unwrap().to_string();
+    let sa = ServiceAccount {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(spark_app)
+            .name(&sa_name)
+            .ownerreference_from_resource(spark_app, None, Some(true))
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .with_recommended_labels(
+                spark_app,
+                APP_NAME,
+                spark_version(spark_app)?,
+                "TODO",
+                "global",
+            )
+            .build(),
+        ..ServiceAccount::default()
+    };
+    let binding_name = &sa_name;
+    let binding = RoleBinding {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(spark_app)
+            .name(binding_name)
+            .ownerreference_from_resource(spark_app, None, Some(true))
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .with_recommended_labels(
+                spark_app,
+                APP_NAME,
+                spark_version(spark_app)?,
+                "TODO",
+                "global",
+            )
+            .build(),
+        role_ref: RoleRef {
+            api_group: ClusterRole::GROUP.to_string(),
+            kind: ClusterRole::KIND.to_string(),
+            name: SPARK_CLUSTER_ROLE.to_string(),
+        },
+        subjects: Some(vec![Subject {
+            api_group: Some(ServiceAccount::GROUP.to_string()),
+            kind: ServiceAccount::KIND.to_string(),
+            name: sa_name,
+            namespace: sa.metadata.namespace.clone(),
+        }]),
+    };
+    Ok((sa, binding))
+}
+
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
+}
+
+pub fn spark_version(spark_app: &SparkApplication) -> Result<&str> {
+    spark_app
+        .spec
+        .version
+        .as_deref()
+        .context(ObjectHasNoVersionSnafu)
 }
 
 #[cfg(test)]

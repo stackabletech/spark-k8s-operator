@@ -124,7 +124,7 @@ impl SparkApplication {
             .map(|req| req.join(" "))
     }
 
-    pub fn build_command(&self) -> Result<Vec<String>, Error> {
+    pub fn build_command(&self, serviceaccount_name: &str) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
@@ -142,6 +142,7 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
+            format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
             //"--conf spark.kubernetes.file.upload.path=s3a://stackable-spark-k8s-jars/jobs".to_string(),
             //"--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem".to_string(),
             //"--conf spark.driver.extraClassPath=/stackable/.ivy2/cache".to_string(),

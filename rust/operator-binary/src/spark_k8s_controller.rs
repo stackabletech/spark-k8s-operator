@@ -375,7 +375,7 @@ pub fn spark_version(spark_app: &SparkApplication) -> Result<&str> {
 
 #[cfg(test)]
 mod tests {
-    use crate::spark_k8s_controller::pod_template_config_map;
+    use crate::spark_k8s_controller::{build_spark_role_serviceaccount, pod_template_config_map};
     use crate::spark_k8s_controller::spark_job;
     use crate::SparkApplication;
 
@@ -459,8 +459,9 @@ spec:
     memory: "512m"
             "#).unwrap();
 
+        let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application).unwrap();
         let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
-        let job = spark_job(&spark_application, spark_image).unwrap();
+        let job = spark_job(&spark_application, spark_image, &serviceaccount).unwrap();
         let job_containers = &job
             .clone()
             .spec

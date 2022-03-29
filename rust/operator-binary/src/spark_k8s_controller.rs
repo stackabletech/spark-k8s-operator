@@ -236,7 +236,7 @@ fn spark_job(
     serviceaccount: &ServiceAccount,
 ) -> Result<Job> {
     let commands = spark_application
-        .build_command(&serviceaccount.metadata.name.as_ref().unwrap())
+        .build_command(serviceaccount.metadata.name.as_ref().unwrap())
         .context(BuildCommandSnafu)?;
 
     let container = ContainerBuilder::new("spark-submit")

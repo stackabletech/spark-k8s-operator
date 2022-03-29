@@ -6,7 +6,7 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-stackable0.4.0
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny_tlc_report.py
   args:
@@ -16,11 +16,23 @@ spec:
       - tabulate==0.8.9
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+    "spark.driver.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    "spark.executor.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+  volumes:
+    - name: job-deps
+      persistentVolumeClaim:
+        claimName: pvc-ksv
   driver:
     cores: 1
     coreLimit: "1200m"
     memory: "512m"
+    volumeMounts:
+      - name: job-deps
+        mountPath: /dependencies
   executor:
     cores: 1
     instances: 3
     memory: "512m"
+    volumeMounts:
+      - name: job-deps
+        mountPath: /dependencies

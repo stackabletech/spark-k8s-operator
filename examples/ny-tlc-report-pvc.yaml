@@ -2,7 +2,7 @@
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: ny-tlc-report-external-dependencies
+  name: ny-tlc-report-pvc
   namespace: default
 spec:
   version: "1.0"

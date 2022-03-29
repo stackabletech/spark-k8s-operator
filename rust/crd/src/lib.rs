@@ -3,7 +3,7 @@
 pub mod constants;
 
 use constants::*;
-use stackable_operator::k8s_openapi::api::core::v1::{Volume, VolumeMount};
+use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, Volume, VolumeMount};
 
 use std::collections::HashMap;
 
@@ -79,6 +79,8 @@ pub struct SparkApplicationSpec {
     pub args: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volumes: Option<Vec<Volume>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env: Option<Vec<EnvVar>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -125,6 +127,11 @@ impl SparkApplication {
             .as_ref()
             .and_then(|deps| deps.requirements.as_ref())
             .map(|req| req.join(" "))
+    }
+
+    pub fn env(&self) -> Vec<EnvVar> {
+        let tmp = self.spec.env.as_ref();
+        tmp.iter().flat_map(|e| e.iter()).cloned().collect()
     }
 
     pub fn volumes(&self) -> Vec<Volume> {

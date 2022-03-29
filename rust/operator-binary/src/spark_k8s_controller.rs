@@ -138,9 +138,12 @@ fn pod_template(
     requirements_container: &Option<Container>,
     volumes: &[Volume],
     volume_mounts: &[VolumeMount],
+    env: &[EnvVar],
 ) -> Result<Pod> {
     let mut container = ContainerBuilder::new(container_name);
-    container.add_volume_mounts(volume_mounts.to_vec());
+    container
+        .add_volume_mounts(volume_mounts.to_vec())
+        .add_env_vars(env.to_vec());
     if job_container.is_some() {
         container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
     }
@@ -192,6 +195,7 @@ fn pod_template_config_map(
         requirements_container,
         volumes.as_ref(),
         spark_application.driver_volume_mounts().as_ref(),
+        spark_application.env().as_ref(),
     )?;
     let executor_template = pod_template(
         CONTAINER_NAME_EXECUTOR,
@@ -199,6 +203,7 @@ fn pod_template_config_map(
         requirements_container,
         volumes.as_ref(),
         spark_application.executor_volume_mounts().as_ref(),
+        spark_application.env().as_ref(),
     )?;
 
     ConfigMapBuilder::new()
@@ -251,6 +256,8 @@ fn spark_job(
         .command(vec!["/bin/bash".to_string()])
         .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
         .add_volume_mounts(volume_mounts)
+        .add_env_vars(spark_application.env())
+        // TODO: move this to the image
         .add_env_vars(vec![EnvVar {
             name: "SPARK_CONF_DIR".to_string(),
             value: Some("/stackable/spark/conf".to_string()),

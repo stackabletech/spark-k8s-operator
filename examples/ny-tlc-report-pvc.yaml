@@ -8,18 +8,21 @@ spec:
   version: "1.0"
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-stackable0.4.0
   mode: cluster
-  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny_tlc_report.py
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.0-SNAPSHOT.jar
+  mainClass: org.example.App
   volumes:
     - name: job-deps
       persistentVolumeClaim:
         claimName: pvc-ksv
   args:
-    - "--input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
-  deps:
-    requirements:
-      - tabulate==0.8.9
+    - "s3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv"
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+    "spark.driver.extraClassPath" : "/stackable/spark/dependencies/jars/hadoop-aws-3.2.0.jar:/stackable/spark/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    "spark.executor.extraClassPath" : "/stackable/spark/dependencies/jars/hadoop-aws-3.2.0.jar:/stackable/spark/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+  env:
+    - name: SPARK_CLASSPATH
+      value: "/stackable/spark/dependencies/jars/hadoop-aws-3.2.0.jar:/stackable/spark/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
   driver:
     cores: 1
     coreLimit: "1200m"

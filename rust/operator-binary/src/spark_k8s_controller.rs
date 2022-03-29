@@ -459,7 +459,7 @@ spec:
     memory: "512m"
             "#).unwrap();
 
-        let (serviceaccount, rolebinding) =
+        let (serviceaccount, _rolebinding) =
             build_spark_role_serviceaccount(&spark_application).unwrap();
         let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
         let job = spark_job(&spark_application, spark_image, &serviceaccount).unwrap();

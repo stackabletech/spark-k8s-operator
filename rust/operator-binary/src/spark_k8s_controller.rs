@@ -5,7 +5,7 @@ use stackable_operator::builder::{
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
     ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
-    PodTemplateSpec, Volume,
+    PodTemplateSpec, Volume, VolumeMount,
 };
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::{
@@ -86,71 +86,6 @@ pub async fn reconcile(
         .as_deref()
         .context(ObjectHasNoSparkImageSnafu)?;
 
-    let pod_template_config_map = pod_template_config_map(&spark_application, spark_image)?;
-    client
-        .apply_patch(
-            FIELD_MANAGER_SCOPE,
-            &pod_template_config_map,
-            &pod_template_config_map,
-        )
-        .await
-        .context(ApplyApplicationSnafu)?;
-
-    let job = spark_job(&spark_application, spark_image)?;
-    client
-        .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
-        .await
-        .context(ApplyApplicationSnafu)?;
-
-    Ok(Action::await_change())
-}
-
-fn pod_template(
-    container_name: &str,
-    job_container: &Option<Container>,
-    requirements_container: &Option<Container>,
-) -> Result<Pod> {
-    let mut container = ContainerBuilder::new(container_name);
-
-    if job_container.is_some() {
-        container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
-    }
-
-    if requirements_container.is_some() {
-        container
-            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
-            .add_env_var(
-                "PYTHONPATH",
-                format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
-            );
-    }
-
-    let mut template = PodBuilder::new();
-    template.metadata_default().add_container(container.build());
-
-    if let Some(container) = requirements_container.clone() {
-        template.add_init_container(container);
-        template.add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
-                .empty_dir(EmptyDirVolumeSource::default())
-                .build(),
-        );
-    }
-    if let Some(container) = job_container.clone() {
-        template.add_init_container(container);
-        template.add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
-                .empty_dir(EmptyDirVolumeSource::default())
-                .build(),
-        );
-    }
-    template.build().context(PodTemplateSnafu)
-}
-
-fn pod_template_config_map(
-    spark_application: &SparkApplication,
-    spark_image: &str,
-) -> Result<ConfigMap> {
     let job_container = spark_application.spec.image.as_ref().map(|job_image| {
         ContainerBuilder::new(CONTAINER_NAME_JOB)
             .image(job_image)
@@ -177,15 +112,98 @@ fn pod_template_config_map(
             .build()
     });
 
+    let pod_template_config_map =
+        pod_template_config_map(&spark_application, &job_container, &requirements_container)?;
+    client
+        .apply_patch(
+            FIELD_MANAGER_SCOPE,
+            &pod_template_config_map,
+            &pod_template_config_map,
+        )
+        .await
+        .context(ApplyApplicationSnafu)?;
+
+    let job = spark_job(&spark_application, spark_image, &job_container)?;
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
+        .await
+        .context(ApplyApplicationSnafu)?;
+
+    Ok(Action::await_change())
+}
+
+fn pod_template(
+    container_name: &str,
+    job_container: &Option<Container>,
+    requirements_container: &Option<Container>,
+    volumes: &[Volume],
+    volume_mounts: &[VolumeMount],
+    env: &[EnvVar],
+) -> Result<Pod> {
+    let mut container = ContainerBuilder::new(container_name);
+    container
+        .add_volume_mounts(volume_mounts.to_vec())
+        .add_env_vars(env.to_vec());
+    if job_container.is_some() {
+        container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
+    }
+
+    if requirements_container.is_some() {
+        container
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+            .add_env_var(
+                "PYTHONPATH",
+                format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
+            );
+    }
+
+    let mut template = PodBuilder::new();
+    template
+        .metadata_default()
+        .add_container(container.build())
+        .add_volumes(volumes.to_vec());
+
+    if let Some(container) = requirements_container.clone() {
+        template.add_init_container(container);
+        template.add_volume(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
+                .empty_dir(EmptyDirVolumeSource::default())
+                .build(),
+        );
+    }
+    if let Some(container) = job_container.clone() {
+        template.add_init_container(container);
+        template.add_volume(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
+                .empty_dir(EmptyDirVolumeSource::default())
+                .build(),
+        );
+    }
+    template.build().context(PodTemplateSnafu)
+}
+
+fn pod_template_config_map(
+    spark_application: &SparkApplication,
+    job_container: &Option<Container>,
+    requirements_container: &Option<Container>,
+) -> Result<ConfigMap> {
+    let volumes = spark_application.volumes();
+
     let driver_template = pod_template(
         CONTAINER_NAME_DRIVER,
-        &job_container,
-        &requirements_container,
+        job_container,
+        requirements_container,
+        volumes.as_ref(),
+        spark_application.driver_volume_mounts().as_ref(),
+        spark_application.env().as_ref(),
     )?;
     let executor_template = pod_template(
         CONTAINER_NAME_EXECUTOR,
-        &job_container,
-        &requirements_container,
+        job_container,
+        requirements_container,
+        volumes.as_ref(),
+        spark_application.executor_volume_mounts().as_ref(),
+        spark_application.env().as_ref(),
     )?;
 
     ConfigMapBuilder::new()
@@ -209,61 +227,67 @@ fn pod_template_config_map(
         .context(PodTemplateConfigMapSnafu)
 }
 
-fn spark_job(spark_application: &SparkApplication, spark_image: &str) -> Result<Job> {
+fn spark_job(
+    spark_application: &SparkApplication,
+    spark_image: &str,
+    job_container: &Option<Container>,
+) -> Result<Job> {
+    let mut volume_mounts = vec![VolumeMount {
+        name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
+        mount_path: VOLUME_MOUNT_PATH_POD_TEMPLATES.into(),
+        ..VolumeMount::default()
+    }];
+    volume_mounts.extend(spark_application.driver_volume_mounts());
+    if job_container.is_some() {
+        volume_mounts.push(VolumeMount {
+            name: VOLUME_MOUNT_NAME_JOB.into(),
+            mount_path: VOLUME_MOUNT_PATH_JOB.into(),
+            ..VolumeMount::default()
+        })
+    }
+
     let commands = spark_application
         .build_command()
         .context(BuildCommandSnafu)?;
 
-    let container = ContainerBuilder::new("spark-submit")
+    let mut container = ContainerBuilder::new("spark-submit");
+    container
         .image(spark_image)
         .command(vec!["/bin/bash".to_string()])
         .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
-        .add_volume_mount(
-            VOLUME_MOUNT_NAME_POD_TEMPLATES,
-            VOLUME_MOUNT_PATH_POD_TEMPLATES,
-        )
-        .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
+        .add_volume_mounts(volume_mounts)
+        .add_env_vars(spark_application.env())
+        // TODO: move this to the image
         .add_env_vars(vec![EnvVar {
             name: "SPARK_CONF_DIR".to_string(),
             value: Some("/stackable/spark/conf".to_string()),
             value_from: None,
-        }])
-        .build();
+        }]);
 
-    let job_init_container = spark_application.spec.image.as_ref().map(|job_image| {
-        ContainerBuilder::new(CONTAINER_NAME_JOB)
-            .image(job_image)
-            .command(vec![
-                "/bin/bash".to_string(),
-                "-x".to_string(),
-                "-c".to_string(),
-                format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"),
-            ])
-            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
-            .build()
-    });
+    let mut volumes = vec![Volume {
+        name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),
+        config_map: Some(ConfigMapVolumeSource {
+            name: Some(spark_application.pod_template_config_map_name()),
+            ..ConfigMapVolumeSource::default()
+        }),
+        ..Volume::default()
+    }];
+    volumes.extend(spark_application.volumes());
+    if job_container.is_some() {
+        volumes.push(Volume {
+            name: String::from(VOLUME_MOUNT_NAME_JOB),
+            empty_dir: Some(EmptyDirVolumeSource::default()),
+            ..Volume::default()
+        })
+    }
 
     let pod = PodTemplateSpec {
         metadata: Some(ObjectMetaBuilder::new().name("spark-submit").build()),
         spec: Some(PodSpec {
-            containers: vec![container],
-            init_containers: Some(job_init_container.into_iter().collect()),
+            containers: vec![container.build()],
+            init_containers: job_container.as_ref().map(|c| vec![c.clone()]),
             restart_policy: Some("Never".to_string()),
-            volumes: Some(vec![
-                Volume {
-                    name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),
-                    config_map: Some(ConfigMapVolumeSource {
-                        name: Some(spark_application.pod_template_config_map_name()),
-                        ..ConfigMapVolumeSource::default()
-                    }),
-                    ..Volume::default()
-                },
-                Volume {
-                    name: String::from(VOLUME_MOUNT_NAME_JOB),
-                    empty_dir: Some(EmptyDirVolumeSource::default()),
-                    ..Volume::default()
-                },
-            ]),
+            volumes: Some(volumes),
             ..PodSpec::default()
         }),
     };
@@ -327,9 +351,8 @@ spec:
     enableMonitoring: true
         "#).unwrap();
 
-        let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
         let pod_template_config_map =
-            pod_template_config_map(&spark_application, spark_image).unwrap();
+            pod_template_config_map(&spark_application, &None, &None).unwrap();
 
         assert!(&pod_template_config_map.binary_data.is_none());
         assert_eq!(
@@ -376,7 +399,7 @@ spec:
             "#).unwrap();
 
         let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
-        let job = spark_job(&spark_application, spark_image).unwrap();
+        let job = spark_job(&spark_application, spark_image, &None).unwrap();
         let job_containers = &job
             .clone()
             .spec

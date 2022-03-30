@@ -1,0 +1,25 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: assert-pvc-jars
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: job-deps
+          persistentVolumeClaim:
+            claimName: pvc-ksv
+      containers:
+        - name: assert-pvc-jars
+          image: docker.stackable.tech/stackable/tools:0.2.0-stackable0
+          env:
+            - name: DEST_DIR
+              value: "/dependencies/jars"
+          command: ["bash", "-x", "-c", "ls -ltr $DEST_DIR"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: job-deps
+              mountPath: /dependencies

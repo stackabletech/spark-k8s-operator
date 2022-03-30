@@ -9,8 +9,8 @@ rules:
     resources: ["pods", "services", "configmaps"]
     verbs: ["get", "list", "watch", "create", "delete"]
   - apiGroups:
-    - ""
+      - ""
     resources:
-    - persistentvolumeclaims
+      - persistentvolumeclaims
     verbs:
-    - "*"
+      - "*"

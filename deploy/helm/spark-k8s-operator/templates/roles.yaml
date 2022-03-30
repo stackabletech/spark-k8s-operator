@@ -13,6 +13,12 @@ rules:
       - watch
   - apiGroups:
       - ""
+      resources:
+      - persistentvolumeclaims
+      verbs:
+      - "*"
+  - apiGroups:
+      - ""
     resources:
       - pods
       - configmaps

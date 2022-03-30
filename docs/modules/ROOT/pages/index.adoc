@@ -6,7 +6,7 @@ WARNING: This operator only works with images from the https://repo.stackable.te
 
 == Supported Versions
 
-The Stackable Operator for Apache Spark currently supports the following versions of Spark:
+The Stackable Operator for Apache Spark on Kubernetes currently supports the following versions of Spark:
 
 include::partial$supported-versions.adoc[]
 

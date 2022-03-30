@@ -13,9 +13,9 @@ rules:
       - watch
   - apiGroups:
       - ""
-      resources:
+    resources:
       - persistentvolumeclaims
-      verbs:
+    verbs:
       - "*"
   - apiGroups:
       - ""

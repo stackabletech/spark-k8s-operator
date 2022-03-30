@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- ServiceAccount, ClusterRole and RoleBinding for Spark driver ([#39])
 - Initial commit
 
-### Changed
-
+[#39]: https://github.com/stackabletech/spark-k8s-operator/pull/39

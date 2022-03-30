@@ -342,6 +342,10 @@ fn spark_job(
     Ok(job)
 }
 
+/// For a given SparkApplication, we create a ServiceAccount with a RoleBinding to the ClusterRole
+/// that allows the driver to create pods etc.
+/// Both objects have an owner reference to the SparkApplication, as well as the same name as the app.
+/// They are deleted when the job is deleted.
 fn build_spark_role_serviceaccount(
     spark_app: &SparkApplication,
 ) -> Result<(ServiceAccount, RoleBinding)> {

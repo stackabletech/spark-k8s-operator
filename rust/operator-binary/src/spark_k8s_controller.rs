@@ -237,6 +237,7 @@ fn pod_template_config_map(
                 .name(spark_application.pod_template_config_map_name())
                 .ownerreference_from_resource(spark_application, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .with_labels(spark_application.recommended_labels())
                 .build(),
         )
         .add_data(
@@ -307,7 +308,12 @@ fn spark_job(
     }
 
     let pod = PodTemplateSpec {
-        metadata: Some(ObjectMetaBuilder::new().name("spark-submit").build()),
+        metadata: Some(
+            ObjectMetaBuilder::new()
+                .name("spark-submit")
+                .with_labels(spark_application.recommended_labels())
+                .build(),
+        ),
         spec: Some(PodSpec {
             containers: vec![container.build()],
             init_containers: job_container.as_ref().map(|c| vec![c.clone()]),
@@ -323,6 +329,7 @@ fn spark_job(
             .name_and_namespace(spark_application)
             .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .with_labels(spark_application.recommended_labels())
             .build(),
         spec: Some(JobSpec {
             template: pod,
@@ -345,13 +352,7 @@ fn build_spark_role_serviceaccount(
             .name(&sa_name)
             .ownerreference_from_resource(spark_app, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(
-                spark_app,
-                APP_NAME,
-                spark_version(spark_app)?,
-                "TODO",
-                "global",
-            )
+            .with_labels(spark_app.recommended_labels())
             .build(),
         ..ServiceAccount::default()
     };
@@ -362,13 +363,7 @@ fn build_spark_role_serviceaccount(
             .name(binding_name)
             .ownerreference_from_resource(spark_app, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(
-                spark_app,
-                APP_NAME,
-                spark_version(spark_app)?,
-                "TODO",
-                "global",
-            )
+            .with_labels(spark_app.recommended_labels())
             .build(),
         role_ref: RoleRef {
             api_group: ClusterRole::GROUP.to_string(),
@@ -387,14 +382,6 @@ fn build_spark_role_serviceaccount(
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
-}
-
-pub fn spark_version(spark_app: &SparkApplication) -> Result<&str> {
-    spark_app
-        .spec
-        .version
-        .as_deref()
-        .context(ObjectHasNoVersionSnafu)
 }
 
 #[cfg(test)]

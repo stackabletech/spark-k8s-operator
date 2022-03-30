@@ -5,11 +5,11 @@ use stackable_operator::builder::{
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
     ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
-    PodTemplateSpec, Volume, VolumeMount, ServiceAccount,
+    PodTemplateSpec, ServiceAccount, Volume, VolumeMount,
 };
+use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
-use stackable_operator::k8s_openapi::api::rbac::v1::{RoleBinding, RoleRef, ClusterRole, Subject};
-use stackable_operator::kube::runtime::controller::{Context, Action};
+use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_spark_k8s_crd::constants::*;

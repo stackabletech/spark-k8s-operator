@@ -1,0 +1,39 @@
+---
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraMounts:
+    - hostPath: /tmp/kind-shared-volume
+      containerPath: /kind-shared-volume
+- role: worker
+  kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: node=1,
+  extraMounts:
+    - hostPath: /tmp/kind-shared-volume
+      containerPath: /kind-shared-volume
+- role: worker
+  kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: node=2
+  extraMounts:
+    - hostPath: /tmp/kind-shared-volume
+      containerPath: /kind-shared-volume
+- role: worker
+  kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: node=3
+  extraMounts:
+    - hostPath: /tmp/kind-shared-volume
+      containerPath: /kind-shared-volume
+

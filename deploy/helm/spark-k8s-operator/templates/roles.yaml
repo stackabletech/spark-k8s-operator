@@ -16,7 +16,7 @@ rules:
     resources:
       - persistentvolumeclaims
     verbs:
-      - "*"
+      - list
   - apiGroups:
       - ""
     resources:

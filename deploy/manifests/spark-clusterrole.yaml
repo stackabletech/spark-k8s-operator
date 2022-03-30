@@ -13,4 +13,4 @@ rules:
     resources:
       - persistentvolumeclaims
     verbs:
-      - "*"
+      - list

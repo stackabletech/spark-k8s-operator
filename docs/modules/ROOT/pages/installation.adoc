@@ -57,7 +57,7 @@ docker run \
 
 == Building the operator from source
 
-This operator is written in Rust and is developed against the latest stable Rust release (1.58 at
+This operator is written in Rust and is developed against the latest stable Rust release (1.59 at
 the time of writing).
 
 [source]
@@ -65,3 +65,11 @@ the time of writing).
 cargo run -- crd | kubectl apply -f -
 cargo run -- run
 ----
+
+== Additional/Optional components
+
+The above describes the installation of the operator alone and is sufficient for spark jobs that do not require any external dependencies. In practice, this is often not the case and spark- and/or job-dependencies will be required. These can be made available in different ways - e.g. by including them in the spark images used by `spark-submit`, reading them external repositories or by using local external storage such as Kuberentes persistent volumes. This last option requires the following:
+
+include::external_storage.adoc[]
+
+include::rbac.adoc[]

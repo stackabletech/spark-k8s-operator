@@ -3,7 +3,9 @@
 pub mod constants;
 
 use constants::*;
-use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount};
+use stackable_operator::k8s_openapi::api::core::v1::{
+    EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount,
+};
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -148,8 +150,16 @@ impl SparkApplication {
         let tmp = self.spec.env.as_ref();
         let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
         if let Some(s3) = self.spec.s3.as_ref() {
-            e.push(env_var_from_secret("AWS_ACCCESS_KEY_ID", &s3.credentials_secret, "acessKeyId"));
-            e.push(env_var_from_secret("AWS_SECRET_ACCESS_KEY", &s3.credentials_secret, "secretAccessKey"));
+            e.push(env_var_from_secret(
+                "AWS_ACCCESS_KEY_ID",
+                &s3.credentials_secret,
+                "acessKeyId",
+            ));
+            e.push(env_var_from_secret(
+                "AWS_SECRET_ACCESS_KEY",
+                &s3.credentials_secret,
+                "secretAccessKey",
+            ));
         }
         e
     }
@@ -215,7 +225,6 @@ impl SparkApplication {
             //"--conf spark.driver.extraClassPath=/stackable/.ivy2/cache".to_string(),
             //"--conf spark.hadoop.fs.s3a.fast.upload=true".to_string(),
         ];
-
 
         if let Some(endpoint) = self.spec.s3.as_ref().and_then(|s3| s3.endpoint.as_ref()) {
             submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));

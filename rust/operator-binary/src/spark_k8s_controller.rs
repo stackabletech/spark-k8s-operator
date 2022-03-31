@@ -3,10 +3,7 @@ use stackable_operator::builder::{
     ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
 };
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
-use stackable_operator::k8s_openapi::api::core::v1::{
-    ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
-    PodTemplateSpec, Volume, VolumeMount,
-};
+use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec, PodTemplateSpec, Volume, VolumeMount};
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::{
     kube::runtime::controller::{Action, Context},

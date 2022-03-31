@@ -42,4 +42,3 @@ spec:
           volumeMounts:
             - name: job-deps # <3>
               mountPath: /stackable/spark/dependencies
-

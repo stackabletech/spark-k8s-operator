@@ -45,3 +45,8 @@ Environment variables can be (over)written by adding them to `spark-env.sh` file
 === Development
 
 kubectl create clusterrolebinding spark-role --clusterrole=edit  --serviceaccount=default:default
+
+
+== Examples
+
+== CRD argument coverage

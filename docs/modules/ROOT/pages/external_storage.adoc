@@ -1,0 +1,25 @@
+=== Overview
+
+The spark-on-kubernetes operator builds and executes a `spark-submit` job. This is run as a job against a spark-compatible image specified in the `SparkApplication` custom resource .yaml (by "spark-compatible" we mean that the image must contain or have classpath-access to whatever libraries, configuration files and environments - e.g. python - that are needed for the job). Images are available from the Stackable repository but can also be provided by the user.
+
+This job calls the standard spark `entrypoint.sh` script that 
+
+- does some processing of the `spark-submit` command (such as writing command line arguments to a `spark.properties` that is local to the driver/executors, and switching from cluster to client mode)
+- creates a driver image
+- which in turn creates, executes and cleans up executor images
+
+The templates used for the driver and executor pods are based on definitions derived internally by the operator from the `SparkApplication` CR.
+
+image::spark-k8s.png[Job Flow]
+
+A `spark-submit` job may have resources external to spark. These can either be baked into the job image (which is inflexible) or made available to the job at runtime. The spark-k8s operator supports two ways of doing this:
+
+==== S3 Buckets
+
+A spark job can access and download resources from an s3 bucket, and these are uploaded by spark before the driver is launched (see https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management[here] for more details). However spark needs certain libraries to be able to access a s3 bucket in the first place. If these are not provided in the spark image, they can be made available in a shared location that is local to kubernetes, a so-called https://kubernetes.io/docs/concepts/storage/persistent-volumes/[Persistent Volume].
+
+The example `SparkApplication` files illustrate how job class files and arguments can be accessed from an s3 bucket.
+
+The next section describes how to use a persistent volume with `SparkApplication` jobs.
+
+==== Persistent Volumes

@@ -70,6 +70,14 @@ cargo run -- run
 
 The above describes the installation of the operator alone and is sufficient for spark jobs that do not require any external dependencies. In practice, this is often not the case and spark- and/or job-dependencies will be required. These can be made available in different ways - e.g. by including them in the spark images used by `spark-submit`, reading them external repositories or by using local external storage such as Kuberentes persistent volumes. This last option requires the following:
 
+== External Storage
+
 include::external_storage.adoc[]
 
+== Role-based Access Control (RBAC)
+
 include::rbac.adoc[]
+
+== Examples
+
+The examples provided with the operator code show different ways of combining these elements.

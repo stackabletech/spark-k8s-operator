@@ -14,12 +14,51 @@ image::spark-k8s.png[Job Flow]
 
 A `spark-submit` job may have resources external to spark. These can either be baked into the job image (which is inflexible) or made available to the job at runtime. The spark-k8s operator supports two ways of doing this:
 
-==== S3 Buckets
+=== S3 Buckets
 
-A spark job can access and download resources from an s3 bucket, and these are uploaded by spark before the driver is launched (see https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management[here] for more details). However spark needs certain libraries to be able to access a s3 bucket in the first place. If these are not provided in the spark image, they can be made available in a shared location that is local to kubernetes, a so-called https://kubernetes.io/docs/concepts/storage/persistent-volumes/[Persistent Volume].
+A spark job can access and use resources stored externally in HDFS, HTTP or S3 locations. These then need to be "re-uploaded" by spark to S3 (or HDFS) before the driver is launched (see https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management[here] for more details), so that they can be used by the executors (spark will download these to each pod). However spark needs certain libraries to be able to access a s3 bucket in the first place. If these are not provided in the spark image, they can be made available in a shared location that is local to kubernetes, a so-called https://kubernetes.io/docs/concepts/storage/persistent-volumes/[Persistent Volume]. The s3-upload path is specified by the configuration property `spark.kubernetes.file.upload.path`: this and other settings (such as s3 credentials) are transparent to the spark-k8s operator as they can be passed via `--conf` arguments.
 
 The example `SparkApplication` files illustrate how job class files and arguments can be accessed from an s3 bucket.
 
+So we have two possibilities:
+
+- specify a) an external location from where dependencies are copied and b) an interim external upload path for these same dependencies for spark to use
+- load dependencies to a Persistent Volume and have each pod access them via a volume mount
+
+Regarding this second option:
+
+- the volume mount can be used by multiple pods as it is read only
+- a volume mount is internal to kubernetes with no external dependency and is thus inherently more secure 
+- the persistent volume and its claims are provided by the user
+
 The next section describes how to use a persistent volume with `SparkApplication` jobs.
 
-==== Persistent Volumes
+=== Persistent Volumes
+
+A `PersistentVolume` can be defined like this:
+
+[source]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-ksv
+spec:
+  storageClassName: standard
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 2Gi
+  hostPath:
+    path: /host-location
+
+i.e. it provides a link for Kubernetes between some storage external to kubernetes (in this case a path on the host; others are listed https://kubernetes.io/docs/concepts/storage/persistent-volumes/#types-of-persistent-volumes[here]) and a resource within the kubernetes cluster. This is done on a cluster basis: i.e. the PV is not tied to a pod or namespace.
+
+The user of a pod then https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/[defines] a PersistenceVolumeClaim: this is a request to use this storage, which **is** linked to a pod and thereby a namespace:
+
+[source,yaml]
+----
+include::examples$example-pvc.yaml[]
+----
+<1> Reference to `PersistenceVolume`
+<2> The 

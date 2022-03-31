@@ -1,0 +1,45 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-ksv # <1>
+spec:
+  storageClassName: standard
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 2Gi
+  hostPath:
+    path: /host-location
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-ksv # <2>
+spec:
+  volumeName: pv-ksv # <1>
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: aws-deps
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: job-deps # <3>
+          persistentVolumeClaim:
+            claimName: pvc-ksv # <2>
+      containers:
+        - name: aws-deps
+          ...
+          volumeMounts:
+            - name: job-deps # <3>
+              mountPath: /stackable/spark/dependencies
+

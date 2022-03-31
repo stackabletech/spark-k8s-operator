@@ -5,12 +5,13 @@ pub mod constants;
 use constants::*;
 use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, Volume, VolumeMount};
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::kube::ResourceExt;
+use stackable_operator::labels;
 use stackable_operator::{
     kube::CustomResource,
     role_utils::CommonConfiguration,
@@ -117,6 +118,10 @@ impl SparkApplication {
         self.spec.image.as_deref()
     }
 
+    pub fn version(&self) -> Option<&str> {
+        self.spec.version.as_deref()
+    }
+
     pub fn application_artifact(&self) -> Option<&str> {
         self.spec.main_application_file.as_deref()
     }
@@ -159,7 +164,19 @@ impl SparkApplication {
         tmp.iter().flat_map(|v| v.iter()).cloned().collect()
     }
 
-    pub fn build_command(&self) -> Result<Vec<String>, Error> {
+    pub fn recommended_labels(&self) -> BTreeMap<String, String> {
+        let mut ls = labels::build_common_labels_for_all_managed_resources(APP_NAME, &self.name());
+        if let Some(version) = self.version() {
+            ls.insert(labels::APP_VERSION_LABEL.to_string(), version.to_string());
+        }
+        ls.insert(
+            labels::APP_MANAGED_BY_LABEL.to_string(),
+            format!("{}-operator", APP_NAME),
+        );
+        ls
+    }
+
+    pub fn build_command(&self, serviceaccount_name: &str) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
@@ -177,6 +194,7 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
+            format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
             //"--conf spark.kubernetes.file.upload.path=s3a://stackable-spark-k8s-jars/jobs".to_string(),
             //"--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem".to_string(),
             //"--conf spark.driver.extraClassPath=/stackable/.ivy2/cache".to_string(),

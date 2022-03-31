@@ -1,3 +1,5 @@
+pub const APP_NAME: &str = "spark-k8s";
+
 pub const VOLUME_MOUNT_NAME_POD_TEMPLATES: &str = "pod-template";
 pub const VOLUME_MOUNT_PATH_POD_TEMPLATES: &str = "/stackable/spark/pod-templates";
 

@@ -14,6 +14,12 @@ rules:
   - apiGroups:
       - ""
     resources:
+      - persistentvolumeclaims
+    verbs:
+      - list
+  - apiGroups:
+      - ""
+    resources:
       - pods
       - configmaps
       - secrets
@@ -75,17 +81,17 @@ rules:
     verbs:
       - create
   - apiGroups:
-      - {{ include "operator.name" . }}.stackable.tech
+      - spark.stackable.tech
     resources:
-      - {{ include "operator.name" . }}clusters
+      - sparkapplications
     verbs:
       - get
       - list
       - patch
       - watch
   - apiGroups:
-      - {{ include "operator.name" . }}.stackable.tech
+      - spark.stackable.tech
     resources:
-      - {{ include "operator.name" . }}clusters/status
+      - sparkapplications/status
     verbs:
       - patch

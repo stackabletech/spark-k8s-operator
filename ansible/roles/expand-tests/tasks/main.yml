@@ -1,0 +1,85 @@
+---
+#- name: Delete target dir for tests if it exists
+#  file:
+#    path: "{{ work_dir }}/tests"
+#    state: absent
+
+- name: Create target dir for tests
+  file:
+    path: "{{ work_dir }}/tests"
+    state: directory
+
+#- name: Create test scenarios from dimensions file
+#  ansible.builtin.script: /home/sliebau/IdeaProjects/stackable/spark-k8s-operator/ansible/roles/expand-tests/files/generate_tests.py -i {{ test_dir }}/test-definition.yaml -o {{ work_dir }}/dimensions.yaml
+
+- name: Read test scenario definitions
+  include_vars:
+    file: "{{ work_dir }}/dimensions.yaml"
+    name: testdefinition
+
+- name: Create kuttl-test.yaml
+  template:
+      src: "{{ test_dir}}/kuttl-test.yaml.j2"
+      mode: "preserve"
+      dest: "{{ work_dir }}/kuttl-test.yaml"
+
+- name: Build test cases for scenarios
+  block:
+    - name: Create test case folder
+      file:
+        path: "{{ work_dir }}/tests/"
+
+- name: Find template files
+  find:
+    paths: "{{ template_dir }}/"
+    patterns: "*.j2"
+    file_type: file
+    hidden: true
+    use_regex: false
+    recurse: true
+  register: files_j2
+
+- name: Find regular files that need no templating
+  find:
+    paths: "{{ template_dir }}/"
+    excludes: "*.j2"
+    file_type: file
+    hidden: true
+    use_regex: false
+    recurse: true
+  register: files_normal
+
+- name: Template test cases for all dimensions
+  file:
+    path: "{{ work_dir }}/{{ item }}"
+    state: "directory"
+
+
+- name: Ensure directories exist
+  file:
+    path: "{{ item.path | replace(template_dir, work_dir) | dirname }}"
+    state: directory
+  with_items:
+    - "{{ files_j2.files }}"
+    - "{{ files_normal.files }}"
+  register: directory_result
+
+- name: Copy templates files
+  template:
+    src: "{{ item.path }}"
+    mode: "preserve"
+    dest: "{{ item.path | replace(template_dir, work_dir) | regex_replace('.j2$', '') }}"
+    variable_start_string: "{["
+    variable_end_string: "}]"
+    block_start_string: "{[%"
+    block_end_string: "%}]"
+  with_items: "{{ files_j2.files }}"
+  register: template_result
+
+- name: Copy normal files to temp directory
+  copy:
+    src: "{{ item.path }}"
+    mode: "preserve"
+    dest: "{{ item.path | replace(template_dir, work_dir) }}"
+  with_items: "{{ files_normal.files }}"
+  register: file_result

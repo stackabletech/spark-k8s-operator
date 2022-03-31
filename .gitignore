@@ -1,5 +1,6 @@
 debug/
 target/
+test-work/
 **/*.rs.bk
 
 .idea/

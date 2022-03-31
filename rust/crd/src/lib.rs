@@ -151,14 +151,14 @@ impl SparkApplication {
         let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
         if let Some(s3) = self.spec.s3.as_ref() {
             e.push(env_var_from_secret(
-                "AWS_ACCCESS_KEY_ID",
+                ENV_AWS_ACCESS_KEY_ID,
                 &s3.credentials_secret,
-                "acessKeyId",
+                ACCESS_KEY_ID,
             ));
             e.push(env_var_from_secret(
-                "AWS_SECRET_ACCESS_KEY",
+                ENV_AWS_SECRET_ACCESS_KEY,
                 &s3.credentials_secret,
-                "secretAccessKey",
+                SECRET_ACCESS_KEY,
             ));
         }
         e

@@ -38,7 +38,6 @@ spec:
             claimName: pvc-ksv # <2>
       containers:
         - name: aws-deps
-          ...
           volumeMounts:
             - name: job-deps # <3>
               mountPath: /stackable/spark/dependencies

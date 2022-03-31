@@ -3,18 +3,22 @@ use stackable_operator::builder::{
     ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
 };
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
-use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec, PodTemplateSpec, Volume, VolumeMount};
-use stackable_operator::logging::controller::ReconcilerError;
-use stackable_operator::{
-    kube::runtime::controller::{Action, Context},
-    product_config::ProductConfigManager,
+use stackable_operator::k8s_openapi::api::core::v1::{
+    ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
+    PodTemplateSpec, ServiceAccount, Volume, VolumeMount,
 };
+use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
+use stackable_operator::k8s_openapi::Resource;
+use stackable_operator::kube::runtime::controller::{Action, Context};
+use stackable_operator::logging::controller::ReconcilerError;
+use stackable_operator::product_config::ProductConfigManager;
 use stackable_spark_k8s_crd::constants::*;
 use stackable_spark_k8s_crd::SparkApplication;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 const FIELD_MANAGER_SCOPE: &str = "sparkapplication";
+const SPARK_CLUSTER_ROLE: &str = "spark-driver-edit-role";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -29,6 +33,14 @@ pub enum Error {
     ObjectHasNoVersion,
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to apply role ServiceAccount"))]
+    ApplyServiceAccount {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to apply global RoleBinding"))]
+    ApplyRoleBinding {
         source: stackable_operator::error::Error,
     },
     #[snafu(display("failed to apply Job"))]
@@ -77,6 +89,16 @@ pub async fn reconcile(
 
     let client = &ctx.get_ref().client;
 
+    let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &serviceaccount, &serviceaccount)
+        .await
+        .context(ApplyServiceAccountSnafu)?;
+    client
+        .apply_patch(FIELD_MANAGER_SCOPE, &rolebinding, &rolebinding)
+        .await
+        .context(ApplyRoleBindingSnafu)?;
+
     let spark_image = spark_application
         .spec
         .spark_image
@@ -120,7 +142,12 @@ pub async fn reconcile(
         .await
         .context(ApplyApplicationSnafu)?;
 
-    let job = spark_job(&spark_application, spark_image, &job_container)?;
+    let job = spark_job(
+        &spark_application,
+        spark_image,
+        &serviceaccount,
+        &job_container,
+    )?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
         .await
@@ -210,6 +237,7 @@ fn pod_template_config_map(
                 .name(spark_application.pod_template_config_map_name())
                 .ownerreference_from_resource(spark_application, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .with_labels(spark_application.recommended_labels())
                 .build(),
         )
         .add_data(
@@ -227,6 +255,7 @@ fn pod_template_config_map(
 fn spark_job(
     spark_application: &SparkApplication,
     spark_image: &str,
+    serviceaccount: &ServiceAccount,
     job_container: &Option<Container>,
 ) -> Result<Job> {
     let mut volume_mounts = vec![VolumeMount {
@@ -244,7 +273,7 @@ fn spark_job(
     }
 
     let commands = spark_application
-        .build_command()
+        .build_command(serviceaccount.metadata.name.as_ref().unwrap())
         .context(BuildCommandSnafu)?;
 
     let mut container = ContainerBuilder::new("spark-submit");
@@ -279,11 +308,17 @@ fn spark_job(
     }
 
     let pod = PodTemplateSpec {
-        metadata: Some(ObjectMetaBuilder::new().name("spark-submit").build()),
+        metadata: Some(
+            ObjectMetaBuilder::new()
+                .name("spark-submit")
+                .with_labels(spark_application.recommended_labels())
+                .build(),
+        ),
         spec: Some(PodSpec {
             containers: vec![container.build()],
             init_containers: job_container.as_ref().map(|c| vec![c.clone()]),
             restart_policy: Some("Never".to_string()),
+            service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
             ..PodSpec::default()
         }),
@@ -294,6 +329,7 @@ fn spark_job(
             .name_and_namespace(spark_application)
             .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .with_labels(spark_application.recommended_labels())
             .build(),
         spec: Some(JobSpec {
             template: pod,
@@ -306,14 +342,56 @@ fn spark_job(
     Ok(job)
 }
 
+/// For a given SparkApplication, we create a ServiceAccount with a RoleBinding to the ClusterRole
+/// that allows the driver to create pods etc.
+/// Both objects have an owner reference to the SparkApplication, as well as the same name as the app.
+/// They are deleted when the job is deleted.
+fn build_spark_role_serviceaccount(
+    spark_app: &SparkApplication,
+) -> Result<(ServiceAccount, RoleBinding)> {
+    let sa_name = spark_app.metadata.name.as_ref().unwrap().to_string();
+    let sa = ServiceAccount {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(spark_app)
+            .name(&sa_name)
+            .ownerreference_from_resource(spark_app, None, Some(true))
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .with_labels(spark_app.recommended_labels())
+            .build(),
+        ..ServiceAccount::default()
+    };
+    let binding_name = &sa_name;
+    let binding = RoleBinding {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(spark_app)
+            .name(binding_name)
+            .ownerreference_from_resource(spark_app, None, Some(true))
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .with_labels(spark_app.recommended_labels())
+            .build(),
+        role_ref: RoleRef {
+            api_group: ClusterRole::GROUP.to_string(),
+            kind: ClusterRole::KIND.to_string(),
+            name: SPARK_CLUSTER_ROLE.to_string(),
+        },
+        subjects: Some(vec![Subject {
+            api_group: Some(ServiceAccount::GROUP.to_string()),
+            kind: ServiceAccount::KIND.to_string(),
+            name: sa_name,
+            namespace: sa.metadata.namespace.clone(),
+        }]),
+    };
+    Ok((sa, binding))
+}
+
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::spark_k8s_controller::pod_template_config_map;
     use crate::spark_k8s_controller::spark_job;
+    use crate::spark_k8s_controller::{build_spark_role_serviceaccount, pod_template_config_map};
     use crate::SparkApplication;
 
     #[test]
@@ -395,8 +473,10 @@ spec:
     memory: "512m"
             "#).unwrap();
 
+        let (serviceaccount, _rolebinding) =
+            build_spark_role_serviceaccount(&spark_application).unwrap();
         let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
-        let job = spark_job(&spark_application, spark_image, &None).unwrap();
+        let job = spark_job(&spark_application, spark_image, &serviceaccount, &None).unwrap();
         let job_containers = &job
             .clone()
             .spec

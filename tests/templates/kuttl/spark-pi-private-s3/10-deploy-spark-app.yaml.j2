@@ -9,16 +9,18 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
+  s3:
+    credentialsSecret: minio-credentials
+    endpoint: http://test-minio:9000/
   volumes:
     - name: spark-pi-deps
       persistentVolumeClaim:
         claimName: spark-pi-pvc
   sparkConf:
-    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    spark.hadoop.fs.s3a.endpoint: "http://test-minio:9000/"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
     spark.hadoop.fs.s3a.path.style.access: "true"
-    spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-{{ test_scenario['values']['hadoop'] }}.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
-    spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-{{ test_scenario['values']['hadoop'] }}.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
   driver:
     cores: 1
     coreLimit: "1200m"

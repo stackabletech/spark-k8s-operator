@@ -1,0 +1,13 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+metadata:
+  name: spark-pi-deps-job
+timeout: 300
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spark-pi-deps-job
+status:
+  succeeded: 1

@@ -1,0 +1,50 @@
+- name: Create test scenario folders
+  file:
+    path: "{{ work_dir }}/tests/{{ test_scenario.testcase }}/{{ test_scenario.name }}"
+    state: directory
+  with_items: "{{ testdefinition.tests }}"
+
+- name: Find template files
+  find:
+    paths: "{{ template_dir }}/kuttl/{{ test_scenario.testcase }}"
+    patterns: "*.j2"
+    file_type: file
+    hidden: true
+    use_regex: false
+    recurse: true
+  register: files_j2
+
+- name: Find regular files that need no templating
+  find:
+    paths: "{{ template_dir }}/kuttl/{{ test_scenario.testcase }}"
+    excludes: "*.j2"
+    file_type: file
+    hidden: true
+    use_regex: false
+    recurse: true
+  register: files_normal
+
+- name: Ensure directories exist
+  file:
+    path: "{{ item.path | replace(template_dir +'/kuttl/' + test_scenario.testcase, work_dir + '/tests/' + test_scenario.testcase + '/' + test_scenario.name) | dirname }}"
+    state: directory
+  with_items:
+    - "{{ files_j2.files }}"
+    - "{{ files_normal.files }}"
+  register: directory_result
+
+- name: Copy templates files
+  template:
+    src: "{{ item.path }}"
+    mode: "preserve"
+    dest: "{{ item.path | replace(template_dir +'/kuttl/' + test_scenario.testcase, work_dir + '/tests/' + test_scenario.testcase + '/' + test_scenario.name) | regex_replace('.j2$', '') }}"
+  with_items: "{{ files_j2.files }}"
+  register: template_result
+
+- name: Copy normal files to temp directory
+  copy:
+    src: "{{ item.path }}"
+    mode: "preserve"
+    dest: "{{ item.path | replace(template_dir +'/kuttl/' + test_scenario.testcase, work_dir + '/tests/' + test_scenario.testcase + '/' + test_scenario.name) }}"
+  with_items: "{{ files_normal.files }}"
+  register: file_result

@@ -1,4 +1,1 @@
 ---
-work_dir: "/home/sliebau/IdeaProjects/stackable/spark-k8s-operator/test-work"
-test_dir: "/home/sliebau/IdeaProjects/stackable/spark-k8s-operator/tests"
-template_dir: "{{ test_dir }}/templates"

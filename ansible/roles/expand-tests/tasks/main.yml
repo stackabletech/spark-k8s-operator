@@ -10,7 +10,7 @@
     state: directory
 
 - name: Create test scenarios from dimensions file
-  ansible.builtin.script: /home/sliebau/IdeaProjects/stackable/spark-k8s-operator/ansible/roles/expand-tests/files/generate_tests.py -i {{ test_dir }}/test-definition.yaml -o {{ work_dir }}/dimensions.yaml
+  ansible.builtin.script: generate_tests.py -i {{ test_dir }}/test-definition.yaml -o {{ work_dir }}/dimensions.yaml
 
 - name: Read test definitions
   include_vars:

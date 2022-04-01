@@ -2,7 +2,7 @@
 
 import argparse
 from argparse import Namespace
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import itertools
 import logging
 import sys
@@ -19,9 +19,6 @@ class TestCase:
         self.name = "_".join(
             "-".join([x, self.values.get(x)]) for x in self.values.keys()
         )
-
-    def to_dict(self) -> dict:
-        return {"name": self.name, "testcase": self.testcase, "values": self.values}
 
 
 def check_args() -> Namespace:
@@ -62,7 +59,7 @@ def check_args() -> Namespace:
 def main() -> int:
     args = check_args()
     result = []
-    with open(args.input) as stream:
+    with open(args.input, encoding="utf8") as stream:
         input_dimensions = yaml.safe_load(stream)
 
         for test_case in input_dimensions["tests"]:
@@ -79,8 +76,8 @@ def main() -> int:
                     TestCase(testcase=test_case["name"], values=dict(materialized_case))
                 )
 
-        with open(args.output, "w") as outstream:
-            outputstruct = {"tests": [r.to_dict() for r in result]}
+        with open(args.output, "w", encoding="utf8") as outstream:
+            outputstruct = {"tests": [asdict(r) for r in result]}
             logging.debug(f"Got the following output: {outputstruct}")
             yaml.dump(outputstruct, outstream)
 

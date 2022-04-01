@@ -7,6 +7,6 @@ commands:
       --namespace $NAMESPACE
       --set mode=standalone
       --set replicas=1
-      --set persistence.enabled=false 
+      --set persistence.enabled=false
       --set buckets[0].name=my-bucket,buckets[0].policy=public
       --repo https://charts.min.io/ minio

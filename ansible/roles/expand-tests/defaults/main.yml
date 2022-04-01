@@ -1,4 +1,0 @@
----
-work_dir: "../test-work"
-test_dir: "../tests"
-template_dir: "{{ test_dir }}/templates"

@@ -1,15 +1,12 @@
 ---
-# Source: spark-k8s-operator/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: spark-k8s-operator-deployment
   labels:
-    helm.sh/chart: spark-k8s-operator-0.1.0-nightly
     app.kubernetes.io/name: spark-k8s-operator
     app.kubernetes.io/instance: spark-k8s-operator
     app.kubernetes.io/version: "0.1.0-nightly"
-    app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
   strategy:
@@ -25,16 +22,13 @@ spec:
         app.kubernetes.io/instance: spark-k8s-operator
     spec:
       serviceAccountName: spark-k8s-operator-serviceaccount
-      securityContext:
-        {}
+      securityContext: {}
       containers:
         - name: spark-k8s-operator
-          securityContext:
-            {}
+          securityContext: {}
           image: "docker.stackable.tech/stackable/spark-k8s-operator:0.1.0-nightly"
           imagePullPolicy: IfNotPresent
-          resources:
-            {}
+          resources: {}
           volumeMounts:
             - mountPath: /etc/stackable/spark-k8s-operator/config-spec
               name: config-spec

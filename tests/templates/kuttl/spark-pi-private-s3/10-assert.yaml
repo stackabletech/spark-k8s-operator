@@ -1,0 +1,14 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+metadata:
+  name: spark-pi
+timeout: 300
+---
+# The Job starting the whole process
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spark-pi
+status:
+  succeeded: 1

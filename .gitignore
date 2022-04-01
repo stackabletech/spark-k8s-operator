@@ -2,6 +2,7 @@ tests/ansible/roles/
 tests/_work/
 debug/
 target/
+test-work/
 **/*.rs.bk
 
 .idea/

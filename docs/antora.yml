@@ -1,5 +1,5 @@
-name: spark
+name: spark-k8s
 version: master
-title: Stackable Operator for Apache Spark
+title: Stackable Operator for Apache Spark on Kubernetes
 nav:
   - modules/ROOT/nav.adoc

@@ -58,7 +58,7 @@ The user of a pod then https://kubernetes.io/docs/tasks/configure-pod-container/
 
 [source,yaml]
 ----
-include::examples$example-pvc.yaml[]
+include::example$example-pvc.yaml[]
 ----
 <1> Reference to a `PersistentVolume`, defining some cluster-reachable storage
 <2> The `PersistentVolumeClaim` that references the PV by name

@@ -4,7 +4,7 @@
 
 If you followed the installation instructions, you should now have a Stackable Operator for Apache Spark up and running and you are ready to create your first Apache Spark kubernetes cluster.
 
-The example below creates a job running on Apache Spark 3.2.1, using the spark-on-kubernetes paradigm described in the spark documentation.
+The example below creates a job running on Apache Spark 3.2.1, using the spark-on-kubernetes paradigm described in the spark documentation. The application file is itself part of the spark distribution and `local` refers to the path on the driver/executors; there are no external dependencies.
 
     cat <<EOF | kubectl apply -f -
     apiVersion: spark.stackable.tech/v1alpha1
@@ -43,5 +43,56 @@ All override property values must be strings. The properties will be passed on w
 Environment variables can be (over)written by adding them to `spark-env.sh` file as described above or by using the `envOverrides` property.
 
 == Examples
+
+The following examples have the following `spec` fields in common:
+
+- `version`: 
+- `sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
+- `mode`: only `cluster` is currently supported
+- `mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
+- `args`: these are the arguments passed directly to the application. In this case it is the input path for part of the public New York taxi dataset.
+- `sparkConf`: these list spark configuration settings that are passed directly to `spark-submit` and which are best defined explicitly by the user. Since the `SparkApplication` "knows" that there is an external dependency (the s3 bucket where the data and/or the application is located) and how that dependency should be treated (i.e. what type of credential checks are required, if any), it is better to have these things declared together.
+- `volumes`: refers to any volumes needed by the `SparkApplication`, in this case an underlying `PersistentVoulmeClaim`.
+- `driver`: driver-specific settings, including any volume mounts.
+- `executor`: executor-specific settings, including any volume mounts.
+
+Job-specific settings are annotated below.
+
+=== Pyspark: externally located artifact and dataset 
+
+[source,yaml]
+----
+include::example$example-sparkapp-external-dependencies.yaml[]
+----
+
+<1> Job python artifact (external)
+<2> Job argument (external)
+<3> List of python job requirements: these will be installed in the pods via `pip`
+<4> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in s3)
+<5> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
+<6> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
+
+=== Pyspark: externally located dataset, artifact available via PVC/volume mount
+
+[source,yaml]
+----
+include::example$example-sparkapp-image.yaml[]
+----
+
+<1> Job image: this contains the job artifact that will retrieved from the volume mount backed by the PVC
+<2> Job python artifact (local)
+<3> Job argument (external)
+<4> List of python job requirements: these will be installed in the pods via `pip`
+<5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in s3)
+<6> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
+<7> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
+
+=== JVM (Scala): externally located artifact and dataset 
+
+[source,yaml]
+----
+include::example$example-sparkapp-pvc.yaml[]
+----
+
 
 == CRD argument coverage

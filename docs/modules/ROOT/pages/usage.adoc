@@ -42,11 +42,6 @@ All override property values must be strings. The properties will be passed on w
 
 Environment variables can be (over)written by adding them to `spark-env.sh` file as described above or by using the `envOverrides` property.
 
-=== Development
-
-kubectl create clusterrolebinding spark-role --clusterrole=edit  --serviceaccount=default:default
-
-
 == Examples
 
 == CRD argument coverage

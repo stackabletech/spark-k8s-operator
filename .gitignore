@@ -1,4 +1,5 @@
-ansible/roles/
+tests/ansible/roles/
+tests/_work/
 debug/
 target/
 test-work/

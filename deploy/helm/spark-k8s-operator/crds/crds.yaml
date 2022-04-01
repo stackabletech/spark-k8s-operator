@@ -265,6 +265,17 @@ spec:
                 mode:
                   nullable: true
                   type: string
+                s3:
+                  nullable: true
+                  properties:
+                    credentialsSecret:
+                      type: string
+                    endpoint:
+                      nullable: true
+                      type: string
+                  required:
+                    - credentialsSecret
+                  type: object
                 sparkConf:
                   additionalProperties:
                     type: string

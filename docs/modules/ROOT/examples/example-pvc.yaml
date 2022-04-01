@@ -10,7 +10,7 @@ spec:
   capacity:
     storage: 2Gi
   hostPath:
-    path: /host-location
+    path: /some-host-location
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -39,5 +39,5 @@ spec:
       containers:
         - name: aws-deps
           volumeMounts:
-            - name: job-deps # <3>
+            - name: job-deps # <4>
               mountPath: /stackable/spark/dependencies

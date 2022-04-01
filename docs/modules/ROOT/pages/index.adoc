@@ -8,7 +8,7 @@ WARNING: This operator only works with images from the https://repo.stackable.te
 
 The Stackable Operator for Apache Spark on Kubernetes currently supports the following versions of Spark:
 
-include::partials$supported-versions.adoc[]
+include::partial$supported-versions.adoc[]
 
 == Getting the Docker image
 

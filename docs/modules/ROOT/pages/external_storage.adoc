@@ -62,5 +62,5 @@ include::examples$example-pvc.yaml[]
 ----
 <1> Reference to a `PersistentVolume`, defining some cluster-reachable storage
 <2> The `PersistentVolumeClaim` that references the PV by name
-<3> Defines a volume backed by the PVC, local to the Custom Resource
-<4> Defines the volume mount that is used by the Custom Resource
+<3> Defines a `Volume` backed by the PVC, local to the Custom Resource
+<4> Defines the `VolumeMount` that is used by the Custom Resource

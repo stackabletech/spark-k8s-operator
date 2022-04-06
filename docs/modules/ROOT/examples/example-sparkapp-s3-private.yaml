@@ -1,37 +1,36 @@
----
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: spark-pi
+  name: example-sparkapp-s3-private
 spec:
   version: "1.0"
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
   mode: cluster
-  mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: s3a://my-bucket/spark-examples_2.12-3.2.1.jar
-  s3:
-    credentialsSecret: minio-credentials
+  mainApplicationFile: s3a://my-bucket/spark-examples_2.12-3.2.1.jar # <1>
+  mainClass: org.apache.spark.examples.SparkPi # <2>
+  s3: # <3>
+    credentialsSecret: minio-credentials  # <4>
     endpoint: http://test-minio:9000/
-  volumes:
-    - name: spark-pi-deps
-      persistentVolumeClaim:
-        claimName: spark-pi-pvc
-  sparkConf:
-    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+  sparkConf: # <5>
+    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" # <6>
     spark.hadoop.fs.s3a.path.style.access: "true"
     spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
     spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+  volumes:
+    - name: spark-pi-deps # <7>
+      persistentVolumeClaim:
+        claimName: spark-pi-pvc
   driver:
     cores: 1
     coreLimit: "1200m"
     memory: "512m"
     volumeMounts:
       - name: spark-pi-deps
-        mountPath: /dependencies
+        mountPath: /dependencies # <8>
   executor:
     cores: 1
     instances: 3
     memory: "512m"
     volumeMounts:
       - name: spark-pi-deps
-        mountPath: /dependencies
+        mountPath: /dependencies # <8>

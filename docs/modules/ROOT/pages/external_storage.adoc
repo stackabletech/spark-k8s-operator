@@ -12,7 +12,7 @@ The templates used for the driver and executor pods are based on definitions der
 
 image::spark-k8s.png[Job Flow]
 
-A `spark-submit` job may have resources external to spark. These can either be baked into the job image (which is inflexible) or made available to the job at runtime. The spark-k8s operator supports two ways of doing this:
+A `spark-submit` job may have resources external to spark. These can either be baked into the job image (which is inflexible) or made available to the job at runtime. The spark-k8s operator supports two ways of doing this, described below.
 
 === S3 Buckets
 
@@ -37,7 +37,7 @@ The next section describes how to use a persistent volume with `SparkApplication
 
 A `PersistentVolume` can be defined like this:
 
-[source]
+[source,yaml]
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -54,13 +54,13 @@ spec:
 
 i.e. it provides a link for Kubernetes between some storage external to kubernetes (in this case a path on the host; others are listed https://kubernetes.io/docs/concepts/storage/persistent-volumes/#types-of-persistent-volumes[here]) and a resource within the kubernetes cluster. This is done on a cluster basis: i.e. the PV is not tied to a pod or namespace.
 
-The user of a pod then https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/[defines] a PersistenceVolumeClaim: this is a request to use this storage, which **is** linked to a pod and thereby a namespace:
+The user of a pod then https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/[defines] a `PersistenceVolumeClaim`: this is a request to use this storage, which **is** linked to a pod and thereby a namespace:
 
 [source,yaml]
 ----
 include::example$example-pvc.yaml[]
 ----
 <1> Reference to a `PersistentVolume`, defining some cluster-reachable storage
-<2> The `PersistentVolumeClaim` that references the PV by name
+<2> The name of the `PersistentVolumeClaim` that references the PV
 <3> Defines a `Volume` backed by the PVC, local to the Custom Resource
 <4> Defines the `VolumeMount` that is used by the Custom Resource

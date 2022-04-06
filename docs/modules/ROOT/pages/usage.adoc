@@ -29,28 +29,15 @@ The example below creates a job running on Apache Spark 3.2.1, using the spark-o
         enableMonitoring: true
     EOF
 
-
-== Configuration & Environment Overrides
-
-The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
-
-=== Configuration Properties
-
-All override property values must be strings. The properties will be passed on without any escaping or formatting.
-
-=== Environment Variables
-
-Environment variables can be (over)written by adding them to `spark-env.sh` file as described above or by using the `envOverrides` property.
-
 == Examples
 
 The following examples have the following `spec` fields in common:
 
-- `version`: 
+- `version`: the current version is "1.0"
 - `sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
 - `mode`: only `cluster` is currently supported
 - `mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
-- `args`: these are the arguments passed directly to the application. In this case it is the input path for part of the public New York taxi dataset.
+- `args`: these are the arguments passed directly to the application. In the examples below it is e.g. the input path for part of the public New York taxi dataset.
 - `sparkConf`: these list spark configuration settings that are passed directly to `spark-submit` and which are best defined explicitly by the user. Since the `SparkApplication` "knows" that there is an external dependency (the s3 bucket where the data and/or the application is located) and how that dependency should be treated (i.e. what type of credential checks are required, if any), it is better to have these things declared together.
 - `volumes`: refers to any volumes needed by the `SparkApplication`, in this case an underlying `PersistentVoulmeClaim`.
 - `driver`: driver-specific settings, including any volume mounts.
@@ -140,10 +127,10 @@ Below are listed the CRD fields that can be defined by the user:
 | `cluster` or `client`. Currently only `cluster` is supported
 
 |`spec.image`
-|
+|User-supplied image containing spark-job dependencies that will be copied to the specified volume mount
 
 |`spec.sparkImage`
-| Spark image which will be deployed to driver and executor pods: must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0`
+| Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0`
 
 |`spec.mainApplicationFile`
 |The actual application file that will be called by `spark-submit`
@@ -191,7 +178,7 @@ Below are listed the CRD fields that can be defined by the user:
 |Total cores for all executors
 
 |`spec.driver.memory`
-|Specified for the driver
+|Specified memory for the driver
 
 |`spec.driver.volumeMounts`
 |A list of mounted volumes for the driver

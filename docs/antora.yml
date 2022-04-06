@@ -1,3 +1,4 @@
+---
 name: spark-k8s
 version: master
 title: Stackable Operator for Apache Spark on Kubernetes

@@ -1,39 +1,71 @@
 === Overview
 
-The spark-on-kubernetes operator builds and executes a `spark-submit` job. This is run as a job against a spark-compatible image specified in the `SparkApplication` custom resource .yaml (by "spark-compatible" we mean that the image must contain or have classpath-access to whatever libraries, configuration files and environments - e.g. python - that are needed for the job). Images are available from the Stackable repository but can also be provided by the user.
-
-This job calls the standard spark `entrypoint.sh` script that 
-
-- does some processing of the `spark-submit` command (such as writing command line arguments to a `spark.properties` that is local to the driver/executors, and switching from cluster to client mode)
-- creates a driver image
-- which in turn creates, executes and cleans up executor images
-
-The templates used for the driver and executor pods are based on definitions derived internally by the operator from the `SparkApplication` CR.
+The Stackable Spark-on-Kubernetes operator enables users to run Apache Spark workloads in a Kubernetes cluster easily by eliminating the requirement of having a local Spark installation. For this purpose, Stackble provides ready made Docker images with recent versions of Apache Spark and Python - for PySpark jobs - that provide the basis for running those workloads. Users of the Stackable Spark-on-Kubernetes operator can run their workloads on any recent Kubernetes cluster by applying a `SparkApplication` custom resource in which the job code, job dependencies, input and output data locations can be specified. The Stackable operator translates the user's `SparkApplication` manifest into a Kubernetes `Job` object and handles control to the Apache Spark scheduler for Kubernetes to construct the necessary driver and executor `Pods`.
 
 image::spark-k8s.png[Job Flow]
 
-A `spark-submit` job may have resources external to spark. These can either be baked into the job image (which is inflexible) or made available to the job at runtime. The spark-k8s operator supports two ways of doing this, described below.
+When the job is finished, the `Pods` are terminated and the Kubernetes `Job` is completed.
 
-=== S3 Buckets
+The base images provided by Stackable contain only minimum of components to run Spark workloads. This is done mostly for performance and compatilbility reasons. Many Spark workloads build on top of third party libraries and frameworks and thus depend on additional packages that are not included in the Stackable images. This guide explains how users can provision their Spark jobs with additional dependencies.
 
-A spark job can access and use resources stored externally in HDFS, HTTP or S3 locations. These then need to be "re-uploaded" by spark to S3 (or HDFS) before the driver is launched (see https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management[here] for more details), so that they can be used by the executors (spark will download these to each pod). However spark needs certain libraries to be able to access a s3 bucket in the first place. If these are not provided in the spark image, they can be made available in a shared location that is local to kubernetes, a so-called https://kubernetes.io/docs/concepts/storage/persistent-volumes/[Persistent Volume]. The s3-upload path is specified by the configuration property `spark.kubernetes.file.upload.path`: this and other settings (such as s3 credentials) are transparent to the spark-k8s operator as they can be passed via `--conf` arguments.
 
-The example `SparkApplication` files illustrate how job class files and arguments can be accessed from an s3 bucket.
+=== Dependency provisioning
 
-So we have two possibilities:
+There are multiple ways to submit Apache Spark jobs with external dependencies. Each has it's own advantages and disadvantages and the choice of one over the other depends on existing technical and managerial constraints.
 
-- specify a) an external location from where dependencies are copied and b) an interim external upload path for these same dependencies for spark to use
-- load dependencies to a Persistent Volume and have each pod access them via a volume mount
+To provision job depencies in their workloads, users have to construct their `SparkApplication` with one of the following dependency specification:
 
-Regarding this second option:
+- Hardened or encapsulated job images
+- Condensed or lightweight job images
+- Dependency volumes
+- Spark native package coordinates and Python requirements
 
-- the volume mount can be used by multiple pods as it is read only
-- a volume mount is internal to kubernetes with no external dependency and is thus inherently more secure 
-- the persistent volume and its claims are provided by the user
+The following table provides a high level overview of the relevant aspects of each method.
 
-The next section describes how to use a persistent volume with `SparkApplication` jobs.
+|===
+|Dependency specification |Job image size |Reproduciblity |Dev-op cost
 
-=== Persistent Volumes
+|Encapsulated job images
+|Large
+|Guaranteed
+|Medium to High
+
+|Lightweight job images
+|Small or Medium
+|Not guaranteed
+|Medium to High
+
+|Dependency volumes
+|Small
+|Guaranteed
+|Small to Medium
+
+|Spark and Python packages
+|Small
+|Not guranteed
+|Small
+|===
+
+==== Hardened or encapsulated job images
+
+With this method, users submit a `SparkApplication` for which the `sparkImage` refers to a Docker image containing Apache Spark it's self, the job code and dependencies required by the job. It is recommended the users base their image on of Stakable images to ensure compatibility with the Stackable operator.
+
+Since all packages required to run the Spark job are bundled in the image, the size of this image tends to get very large while at the same time guaranteeing reproducibility between submissions.
+
+Example:
+
+[source, yaml]
+----
+include::example$example-encapsulated.yaml[]
+----
+<1> Name of the encapsulated image.
+<2> Name of the Spark job to run.
+
+==== Condensed or lightweight job images
+
+TODO
+
+==== Dependency volumes
 
 A `PersistentVolume` can be defined like this:
 
@@ -64,3 +96,10 @@ include::example$example-pvc.yaml[]
 <2> The name of the `PersistentVolumeClaim` that references the PV
 <3> Defines a `Volume` backed by the PVC, local to the Custom Resource
 <4> Defines the `VolumeMount` that is used by the Custom Resource
+
+==== Spark native package coordinates and Python requirements
+
+TODO
+
+=== Persistent Volumes
+

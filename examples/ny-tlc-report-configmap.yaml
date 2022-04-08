@@ -1,0 +1,43 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-props
+data:
+  inline-spark.properties: |
+    spark.hadoop.fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider
+    spark.driver.extraClassPath: /dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar
+    spark.executor.extraClassPath: /dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: ny-tlc-report-configmap
+  namespace: default
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
+  mode: cluster
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.0-SNAPSHOT.jar
+  mainClass: org.example.App
+  sparkPropsConfigMapName: spark-props
+  volumes:
+    - name: job-deps
+      persistentVolumeClaim:
+        claimName: pvc-ksv
+  args:
+    - "'s3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+    volumeMounts:
+      - name: job-deps
+        mountPath: /dependencies
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+    volumeMounts:
+      - name: job-deps
+        mountPath: /dependencies

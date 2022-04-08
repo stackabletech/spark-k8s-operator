@@ -21,3 +21,5 @@ pub const ENV_AWS_ACCESS_KEY_ID: &str = "AWS_ACCESS_KEY_ID";
 pub const ENV_AWS_SECRET_ACCESS_KEY: &str = "AWS_SECRET_ACCESS_KEY";
 pub const ACCESS_KEY_ID: &str = "accessKeyId";
 pub const SECRET_ACCESS_KEY: &str = "secretAccessKey";
+
+pub const SPARK_PROPS_INLINE: &str = "inline-spark.properties";

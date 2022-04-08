@@ -86,6 +86,8 @@ pub struct SparkApplicationSpec {
     pub volumes: Option<Vec<Volume>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<EnvVar>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spark_props_config_map_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -201,7 +203,11 @@ impl SparkApplication {
         ls
     }
 
-    pub fn build_command(&self, serviceaccount_name: &str) -> Result<Vec<String>, Error> {
+    pub fn build_command(
+        &self,
+        serviceaccount_name: &str,
+        spark_inline_properties: &Option<String>,
+    ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
@@ -230,6 +236,14 @@ impl SparkApplication {
         if let Some(spark_conf) = self.spec.spark_conf.clone() {
             for (key, value) in spark_conf {
                 submit_cmd.push(format!("--conf {key}={value}"));
+            }
+        }
+        // these could also be available via a ConfigMap
+        if let Some(spark_props) = spark_inline_properties {
+            if let Ok(properties) = serde_yaml::from_str::<HashMap<String, String>>(spark_props) {
+                for (key, value) in properties {
+                    submit_cmd.push(format!("--conf {key}={value}"));
+                }
             }
         }
 

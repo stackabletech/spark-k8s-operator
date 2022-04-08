@@ -2,6 +2,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{
     ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
 };
+use stackable_operator::client::Client;
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
     ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
@@ -10,6 +11,7 @@ use stackable_operator::k8s_openapi::api::core::v1::{
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
 use stackable_operator::kube::runtime::controller::{Action, Context};
+use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_spark_k8s_crd::constants::*;
@@ -71,6 +73,17 @@ pub enum Error {
     DriverPodTemplateSerde { source: serde_yaml::Error },
     #[snafu(display("executor pod template serialization"))]
     ExecutorPodTemplateSerde { source: serde_yaml::Error },
+    #[snafu(display("no spark-props specified"))]
+    NoSparkProps {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("Failed to get spark properties string from config map {}", config_map))]
+    GetSparkPropsStringConfigMap {
+        source: stackable_operator::error::Error,
+        config_map: ObjectRef<ConfigMap>,
+    },
+    #[snafu(display("Failed to get spark properties string from config map "))]
+    MissingSparkPropsString,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -142,11 +155,14 @@ pub async fn reconcile(
         .await
         .context(ApplyApplicationSnafu)?;
 
+    let spark_inline_properties = get_inline_spark_properties(&spark_application, client).await?;
+
     let job = spark_job(
         &spark_application,
         spark_image,
         &serviceaccount,
         &job_container,
+        &spark_inline_properties,
     )?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
@@ -154,6 +170,58 @@ pub async fn reconcile(
         .context(ApplyApplicationSnafu)?;
 
     Ok(Action::await_change())
+}
+
+async fn get_inline_spark_properties(
+    spark_application: &SparkApplication,
+    client: &Client,
+) -> Result<Option<String>> {
+    if let Some(spark_props_cm_name) = spark_application.spec.spark_props_config_map_name.as_ref() {
+        let namespace = spark_application
+            .metadata
+            .namespace
+            .as_deref()
+            .unwrap_or("default");
+
+        let spark_props_cm_exists = client
+            .exists::<ConfigMap>(spark_props_cm_name, Some(namespace))
+            .await
+            .context(NoSparkPropsSnafu)?;
+
+        if spark_props_cm_exists {
+            let cm_values = get_value_from_config_map(
+                client,
+                namespace,
+                spark_props_cm_name,
+                SPARK_PROPS_INLINE,
+            )
+            .await;
+            let result = match cm_values {
+                Ok(properties) => Some(properties),
+                _ => None,
+            };
+            return Ok(result);
+        };
+    };
+    Ok(None)
+}
+
+async fn get_value_from_config_map(
+    client: &Client,
+    namespace: &str,
+    spark_props_cm_name: &str,
+    key: &str,
+) -> Result<String> {
+    client
+        .get::<ConfigMap>(spark_props_cm_name, Some(namespace))
+        .await
+        .context(GetSparkPropsStringConfigMapSnafu {
+            config_map: ObjectRef::<ConfigMap>::new(spark_props_cm_name).within(namespace),
+        })?
+        .data
+        .as_ref()
+        .and_then(|m| m.get(key).cloned())
+        .context(MissingSparkPropsStringSnafu)
 }
 
 fn pod_template(
@@ -257,6 +325,7 @@ fn spark_job(
     spark_image: &str,
     serviceaccount: &ServiceAccount,
     job_container: &Option<Container>,
+    spark_inline_properties: &Option<String>,
 ) -> Result<Job> {
     let mut volume_mounts = vec![VolumeMount {
         name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
@@ -273,7 +342,10 @@ fn spark_job(
     }
 
     let commands = spark_application
-        .build_command(serviceaccount.metadata.name.as_ref().unwrap())
+        .build_command(
+            serviceaccount.metadata.name.as_ref().unwrap(),
+            spark_inline_properties,
+        )
         .context(BuildCommandSnafu)?;
 
     let mut container = ContainerBuilder::new("spark-submit");
@@ -393,6 +465,7 @@ mod tests {
     use crate::spark_k8s_controller::spark_job;
     use crate::spark_k8s_controller::{build_spark_role_serviceaccount, pod_template_config_map};
     use crate::SparkApplication;
+    use std::collections::HashMap;
 
     #[test]
     fn test_pod_config_map() {
@@ -476,7 +549,14 @@ spec:
         let (serviceaccount, _rolebinding) =
             build_spark_role_serviceaccount(&spark_application).unwrap();
         let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
-        let job = spark_job(&spark_application, spark_image, &serviceaccount, &None).unwrap();
+        let job = spark_job(
+            &spark_application,
+            spark_image,
+            &serviceaccount,
+            &None,
+            &None,
+        )
+        .unwrap();
         let job_containers = &job
             .clone()
             .spec
@@ -500,5 +580,17 @@ spec:
             Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
             job.metadata.owner_references.map(|r| r[0].uid.to_string())
         );
+    }
+
+    #[test]
+    fn test_cast() {
+        let properties = serde_yaml::from_str::<HashMap<String, String>>(
+            r#"
+    spark.hadoop.fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider
+    spark.driver.extraClassPath: /dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar
+    spark.executor.extraClassPath: /dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar
+        "#,
+        );
+        assert_eq!(3, properties.unwrap().len());
     }
 }

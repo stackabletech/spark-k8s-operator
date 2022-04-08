@@ -16,7 +16,6 @@ There are multiple ways to submit Apache Spark jobs with external dependencies. 
 To provision job depencies in their workloads, users have to construct their `SparkApplication` with one of the following dependency specification:
 
 - Hardened or encapsulated job images
-- Condensed or lightweight job images
 - Dependency volumes
 - Spark native package coordinates and Python requirements
 
@@ -28,11 +27,6 @@ The following table provides a high level overview of the relevant aspects of ea
 |Encapsulated job images
 |Large
 |Guaranteed
-|Medium to High
-
-|Lightweight job images
-|Small or Medium
-|Not guaranteed
 |Medium to High
 
 |Dependency volumes
@@ -61,32 +55,23 @@ include::example$example-encapsulated.yaml[]
 <1> Name of the encapsulated image.
 <2> Name of the Spark job to run.
 
-==== Condensed or lightweight job images
-
-TODO
-
 ==== Dependency volumes
 
-A `PersistentVolume` can be defined like this:
+With this method, the user provisions the job dependencies from a `PersistentVolume` as shown in this example:
 
 [source,yaml]
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: pv-ksv
-spec:
-  storageClassName: standard
-  accessModes:
-    - ReadWriteOnce
-  capacity:
-    storage: 2Gi
-  hostPath:
-    path: /host-location
+----
+include::example$example-sparkapp-pvc.yaml[]
+----
+<1> Job artifact located on S3.
+<2> Job main class
+<3> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in s3, accessed without credentials)
+<4> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
+<5> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
-i.e. it provides a link for Kubernetes between some storage external to kubernetes (in this case a path on the host; others are listed https://kubernetes.io/docs/concepts/storage/persistent-volumes/#types-of-persistent-volumes[here]) and a resource within the kubernetes cluster. This is done on a cluster basis: i.e. the PV is not tied to a pod or namespace.
+NOTE: The Spark operator has no control over the contents of the dependency volume. It is the responsibility of the user to make sure all required dependencies are installed in the correct versions.
 
-The user of a pod then https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/[defines] a `PersistenceVolumeClaim`: this is a request to use this storage, which **is** linked to a pod and thereby a namespace:
+A `PersistentVolumeClaim` and the associated `PersistentVolume` can be defined like this:
 
 [source,yaml]
 ----
@@ -97,9 +82,34 @@ include::example$example-pvc.yaml[]
 <3> Defines a `Volume` backed by the PVC, local to the Custom Resource
 <4> Defines the `VolumeMount` that is used by the Custom Resource
 
+
 ==== Spark native package coordinates and Python requirements
 
-TODO
+The last and most flexible way to provision dependencies to use the built-in `spark-submit` support for Maven package coordinates.
 
-=== Persistent Volumes
+These can be specified by adding the following section to the `SparkApplication` manifest file:
 
+[source,yaml]
+----
+spec:
+  deps:
+    repositories:
+      - https://repository.example.com/prod
+    packages:
+      - com.example:some-package:1.0.0
+    excludePackages:
+      - com.example:other-package
+----
+
+These directly translate to the spark-submit parameters `--packages`, `--exclude-packages`, and `--repositories`.
+
+When submitting PySpark jobs, users can specify `pip` requirements that are installed before the driver and executor pods are created.
+
+Here is an example:
+
+[source,yaml]
+----
+include::example$example-sparkapp-external-dependencies.yaml[]
+----
+
+Note the section `requirements`. Also note that in this case, a `sparkImage` that bundles Python has to be provisioned.

@@ -1,0 +1,23 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio-mc
+  labels:
+    app: minio-mc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio-mc
+  template:
+    metadata:
+      labels:
+        app: minio-mc
+    spec:
+      containers:
+        - name: minio-mc
+          image: bitnami/minio:2022-debian-10
+          command: ["/bin/sh"]
+          stdin: true
+          tty: true

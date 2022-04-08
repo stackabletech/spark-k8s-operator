@@ -1,5 +1,4 @@
 ---
-# Source: spark-k8s-operator/templates/configmap.yaml
 apiVersion: v1
 data:
   properties.yaml: |
@@ -22,7 +21,7 @@ data:
               - "1024kb"
               - "500m"
               - "1g"
-  
+
     properties:
       - property: &sparkWorkerCores
           propertyNames:
@@ -37,7 +36,7 @@ data:
               required: false
           asOfVersion: "0.6.2"
           description: "Total number of cores to allow Spark jobs to use on the machine (default: all available cores)"
-  
+
       - property: &sparkWorkerMemory
           propertyNames:
             - name: "SPARK_WORKER_MEMORY"
@@ -52,7 +51,7 @@ data:
               required: false
           asOfVersion: "0.6.2"
           description: "Total amount of memory to allow Spark jobs to use on the machine, e.g. 1000M, 2G (default: total memory minus 1 GB); note that each job's individual memory is configured using SPARK_MEM."
-  
+
       - property: &sparkDaemonMemory
           propertyNames:
             - name: "SPARK_DAEMON_MEMORY"
@@ -77,7 +76,7 @@ data:
               required: false
           asOfVersion: "0.6.2"
           description: "Memory to allocate to the Spark master and worker daemons themselves (default: 512m/1g)"
-  
+
       - property: &sparkEventLogEnabled
           propertyNames:
             - name: "spark.eventLog.enabled"
@@ -101,7 +100,7 @@ data:
               required: false
           asOfVersion: "1.0.0"
           description: "Whether to log Spark events, useful for reconstructing the Web UI after the application has finished."
-  
+
       - property: &sparkEventLogDir
           propertyNames:
             - name: "spark.eventLog.dir"
@@ -127,7 +126,7 @@ data:
             - property: *sparkEventLogEnabled
               value: "true"
           description: "Base directory in which Spark events are logged, if spark.eventLog.enabled is true. Within this base directory, Spark creates a sub-directory for each application, and logs the events specific to the application in this directory. Users may want to set this to a unified location like an HDFS directory so history files can be read by the history server."
-  
+
       - property: &sparkHistoryLogDirectory
           propertyNames:
             - name: "spark.history.fs.logDirectory"
@@ -151,7 +150,7 @@ data:
               value: "true"
           asOfVersion: "1.1.0"
           description: "For the filesystem history provider, the URL to the directory containing application event logs to load. This can be a local file://path, an HDFS path hdfs://namenode/shared/spark-logs or that of an alternative filesystem supported by the Hadoop APIs."
-  
+
       - property: &sparkHistoryStorePath
           propertyNames:
             - name: "spark.history.store.path"
@@ -166,7 +165,7 @@ data:
               required: false
           asOfVersion: "2.3.0"
           description: "Local directory where to cache application history data. If set, the history server will store application data on disk instead of keeping it in memory. The data written to disk will be re-used in the event of a history server restart."
-  
+
       - property: &sparkAuthenticate
           propertyNames:
             - name: "spark.authenticate"
@@ -190,7 +189,7 @@ data:
               required: false
           asOfVersion: "1.0.0"
           description: "Whether Spark authenticates its internal connections."
-  
+
       - property: &sparkAuthenticateSecret
           propertyNames:
             - name: "spark.authenticate.secret"
@@ -215,7 +214,7 @@ data:
             - property: *sparkAuthenticate
               value: "true"
           description: "The secret key used in the authentication. SPARK_AUTHENTICATE must be set to true."
-  
+
       - property: &sparkPortMaxRetries
           propertyNames:
             - name: "spark.port.maxRetries"
@@ -239,7 +238,7 @@ data:
               required: true
           asOfVersion: "1.1.1"
           description: "Maximum number of retries when binding to a port before giving up. When a port is given a specific value (non 0), each subsequent retry will increment the port used in the previous attempt by 1 before retrying. This essentially allows it to try a range of ports from the start port specified to port + maxRetries."
-  
+
       - property: &sparkNoDaemonize
           propertyNames:
             - name: "SPARK_NO_DAEMONIZE"
@@ -259,7 +258,7 @@ data:
               required: true
           asOfVersion: "2.0.0"
           description: "Run spark processes in foreground if true. Useful for systemd (default: false)"
-  
+
       - property: &sparkConfDir
           propertyNames:
             - name: "SPARK_CONF_DIR"
@@ -283,8 +282,6 @@ kind: ConfigMap
 metadata:
   name: spark-k8s-operator-configmap
   labels:
-    helm.sh/chart: spark-k8s-operator-0.1.0-nightly
     app.kubernetes.io/name: spark-k8s-operator
     app.kubernetes.io/instance: spark-k8s-operator
     app.kubernetes.io/version: "0.1.0-nightly"
-    app.kubernetes.io/managed-by: Helm

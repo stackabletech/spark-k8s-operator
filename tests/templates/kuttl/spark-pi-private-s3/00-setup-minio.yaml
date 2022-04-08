@@ -1,0 +1,13 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >-
+      helm install test-minio
+      --namespace $NAMESPACE
+      --set mode=standalone
+      --set replicas=1
+      --set persistence.enabled=false
+      --set buckets[0].name=my-bucket,buckets[0].policy=none
+      --set users[0].accessKey=minioAccessKey,users[0].secretKey=minioSecretKey,users[0].policy=readwrite
+      --repo https://charts.min.io/ minio

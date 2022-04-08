@@ -1,0 +1,35 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: list-jars-job
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: job-deps
+          persistentVolumeClaim:
+            claimName: spark-pi-pvc
+      containers:
+        - name: aws-deps
+          image: docker.stackable.tech/stackable/tools:0.2.0-stackable0
+          env:
+            - name: DEST_DIR
+              value: "/dependencies/jars"
+            - name: AWS
+              value: "1.11.375"
+            - name: HADOOP
+              value: "3.2"
+          command:
+            [
+              "bash",
+              "-x",
+              "-o",
+              "pipefail",
+              "-c",
+              "stat ${DEST_DIR}/hadoop-aws-${HADOOP}.0.jar && stat ${DEST_DIR}/aws-java-sdk-bundle-${AWS}.jar",
+            ]
+          volumeMounts:
+            - name: job-deps
+              mountPath: /dependencies

@@ -44,15 +44,7 @@ kubectl create clusterrolebinding spark-role --clusterrole=spark-driver-edit-rol
 
 == Additional/Optional components
 
-The above describes the installation of the operator alone and is sufficient for spark jobs that do not require any external dependencies. In practice, this is often not the case and spark- and/or job-dependencies will be required. These can be made available in different ways - e.g. by including them in the spark images used by `spark-submit`, reading them external repositories or by using local external storage such as Kuberentes persistent volumes. This last option requires the following:
-
-== Job Dependencies
-
-include::job_dependencies.adoc[]
-
-== Role-based Access Control (RBAC)
-
-include::rbac.adoc[]
+The above describes the installation of the operator alone and is sufficient for spark jobs that do not require any external dependencies. In practice, this is often not the case and spark- and/or job-dependencies will be required. These can be made available in different ways - e.g. by including them in the spark images used by `spark-submit`, reading them external repositories or by using local external storage such as Kuberentes persistent volumes. See the <<job_dependencies.adoc#,Job Dependencies>> page for detailed information.
 
 == Examples
 

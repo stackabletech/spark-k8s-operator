@@ -217,4 +217,4 @@ include::job_dependencies.adoc[]
 
 Guide to RBAC configuration
 
-include::job_dependencies.adoc[]
+include::rbac.adoc[]

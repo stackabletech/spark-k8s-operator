@@ -51,6 +51,19 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                configMapMounts:
+                  items:
+                    properties:
+                      name:
+                        type: string
+                      path:
+                        type: string
+                    required:
+                      - name
+                      - path
+                    type: object
+                  nullable: true
+                  type: array
                 configOverrides:
                   additionalProperties:
                     additionalProperties:
@@ -280,9 +293,6 @@ spec:
                   nullable: true
                   type: object
                 sparkImage:
-                  nullable: true
-                  type: string
-                sparkPropsConfigMapName:
                   nullable: true
                   type: string
                 stopped:

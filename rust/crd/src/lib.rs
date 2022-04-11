@@ -87,7 +87,7 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<EnvVar>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_props_config_map_name: Option<String>,
+    pub config_map_mounts: Option<Vec<ConfigMapMount>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -110,6 +110,15 @@ pub struct S3 {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
 }
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigMapMount {
+    pub name: String,
+    pub path: String,
+}
+
+impl ConfigMapMount {}
 
 impl SparkApplication {
     pub fn enable_monitoring(&self) -> Option<bool> {
@@ -171,6 +180,12 @@ impl SparkApplication {
         tmp.iter().flat_map(|v| v.iter()).cloned().collect()
     }
 
+    pub fn config_map_mounts(&self) -> Vec<ConfigMapMount> {
+        let tmp = self.spec.config_map_mounts.as_ref();
+
+        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
+    }
+
     pub fn executor_volume_mounts(&self) -> Vec<VolumeMount> {
         let tmp = self
             .spec
@@ -203,11 +218,7 @@ impl SparkApplication {
         ls
     }
 
-    pub fn build_command(
-        &self,
-        serviceaccount_name: &str,
-        spark_inline_properties: &Option<String>,
-    ) -> Result<Vec<String>, Error> {
+    pub fn build_command(&self, serviceaccount_name: &str) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
@@ -236,14 +247,6 @@ impl SparkApplication {
         if let Some(spark_conf) = self.spec.spark_conf.clone() {
             for (key, value) in spark_conf {
                 submit_cmd.push(format!("--conf {key}={value}"));
-            }
-        }
-        // these could also be available via a ConfigMap
-        if let Some(spark_props) = spark_inline_properties {
-            if let Ok(properties) = serde_yaml::from_str::<BTreeMap<String, String>>(spark_props) {
-                for (key, value) in properties {
-                    submit_cmd.push(format!("--conf {key}={value}"));
-                }
             }
         }
 

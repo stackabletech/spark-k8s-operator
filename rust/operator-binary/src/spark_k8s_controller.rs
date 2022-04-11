@@ -16,6 +16,7 @@ use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_spark_k8s_crd::constants::*;
 use stackable_spark_k8s_crd::SparkApplication;
+use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -144,8 +145,14 @@ pub async fn reconcile(
             .build()
     });
 
-    let pod_template_config_map =
-        pod_template_config_map(&spark_application, &job_container, &requirements_container)?;
+    let job_config_maps = get_job_config_maps(&spark_application, client).await?;
+
+    let pod_template_config_map = pod_template_config_map(
+        &spark_application,
+        &job_container,
+        &requirements_container,
+        job_config_maps,
+    )?;
     client
         .apply_patch(
             FIELD_MANAGER_SCOPE,
@@ -155,14 +162,11 @@ pub async fn reconcile(
         .await
         .context(ApplyApplicationSnafu)?;
 
-    let spark_inline_properties = get_inline_spark_properties(&spark_application, client).await?;
-
     let job = spark_job(
         &spark_application,
         spark_image,
         &serviceaccount,
         &job_container,
-        &spark_inline_properties,
     )?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
@@ -172,56 +176,27 @@ pub async fn reconcile(
     Ok(Action::await_change())
 }
 
-async fn get_inline_spark_properties(
+async fn get_job_config_maps(
     spark_application: &SparkApplication,
     client: &Client,
-) -> Result<Option<String>> {
-    if let Some(spark_props_cm_name) = spark_application.spec.spark_props_config_map_name.as_ref() {
-        let namespace = spark_application
-            .metadata
-            .namespace
-            .as_deref()
-            .unwrap_or("default");
+) -> Result<Option<BTreeMap<String, ConfigMap>>> {
+    let namespace = spark_application
+        .metadata
+        .namespace
+        .as_deref()
+        .unwrap_or("default");
 
-        let spark_props_cm_exists = client
-            .exists::<ConfigMap>(spark_props_cm_name, Some(namespace))
+    let mut config_maps = BTreeMap::<String, ConfigMap>::new();
+    for config_map_mount in spark_application.config_map_mounts() {
+        let config_map = client
+            .get::<ConfigMap>(&config_map_mount.name, Some(namespace))
             .await
-            .context(NoSparkPropsSnafu)?;
-
-        if spark_props_cm_exists {
-            let cm_values = get_value_from_config_map(
-                client,
-                namespace,
-                spark_props_cm_name,
-                SPARK_PROPS_INLINE,
-            )
-            .await;
-            let result = match cm_values {
-                Ok(properties) => Some(properties),
-                _ => None,
-            };
-            return Ok(result);
-        };
-    };
-    Ok(None)
-}
-
-async fn get_value_from_config_map(
-    client: &Client,
-    namespace: &str,
-    spark_props_cm_name: &str,
-    key: &str,
-) -> Result<String> {
-    client
-        .get::<ConfigMap>(spark_props_cm_name, Some(namespace))
-        .await
-        .context(GetSparkPropsStringConfigMapSnafu {
-            config_map: ObjectRef::<ConfigMap>::new(spark_props_cm_name).within(namespace),
-        })?
-        .data
-        .as_ref()
-        .and_then(|m| m.get(key).cloned())
-        .context(MissingSparkPropsStringSnafu)
+            .context(GetSparkPropsStringConfigMapSnafu {
+                config_map: ObjectRef::<ConfigMap>::new(&config_map_mount.name).within(namespace),
+            })?;
+        config_maps.insert(config_map_mount.path, config_map);
+    }
+    Ok(Some(config_maps))
 }
 
 fn pod_template(
@@ -278,8 +253,12 @@ fn pod_template_config_map(
     spark_application: &SparkApplication,
     job_container: &Option<Container>,
     requirements_container: &Option<Container>,
+    job_config_maps: Option<BTreeMap<String, ConfigMap>>,
 ) -> Result<ConfigMap> {
     let volumes = spark_application.volumes();
+
+    //println!("configMaps {:#?}", &spark_application.config_map_mounts());
+    println!("configMaps {:?}", &job_config_maps);
 
     let driver_template = pod_template(
         CONTAINER_NAME_DRIVER,
@@ -298,7 +277,8 @@ fn pod_template_config_map(
         spark_application.env().as_ref(),
     )?;
 
-    ConfigMapBuilder::new()
+    let mut builder = ConfigMapBuilder::new();
+    builder
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(spark_application)
@@ -315,9 +295,17 @@ fn pod_template_config_map(
         .add_data(
             "executor.yml",
             serde_yaml::to_string(&executor_template).context(ExecutorPodTemplateSerdeSnafu)?,
-        )
-        .build()
-        .context(PodTemplateConfigMapSnafu)
+        );
+
+    if let Some(config_maps) = job_config_maps {
+        for (_, cmap) in config_maps {
+            for (key, value) in cmap.data.unwrap() {
+                builder.add_data(&key, value);
+            }
+        }
+    }
+
+    builder.build().context(PodTemplateConfigMapSnafu)
 }
 
 fn spark_job(
@@ -325,7 +313,6 @@ fn spark_job(
     spark_image: &str,
     serviceaccount: &ServiceAccount,
     job_container: &Option<Container>,
-    spark_inline_properties: &Option<String>,
 ) -> Result<Job> {
     let mut volume_mounts = vec![VolumeMount {
         name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
@@ -342,10 +329,7 @@ fn spark_job(
     }
 
     let commands = spark_application
-        .build_command(
-            serviceaccount.metadata.name.as_ref().unwrap(),
-            spark_inline_properties,
-        )
+        .build_command(serviceaccount.metadata.name.as_ref().unwrap())
         .context(BuildCommandSnafu)?;
 
     let mut container = ContainerBuilder::new("spark-submit");
@@ -500,7 +484,7 @@ spec:
         "#).unwrap();
 
         let pod_template_config_map =
-            pod_template_config_map(&spark_application, &None, &None).unwrap();
+            pod_template_config_map(&spark_application, &None, &None, None).unwrap();
 
         assert!(&pod_template_config_map.binary_data.is_none());
         assert_eq!(
@@ -553,7 +537,6 @@ spec:
             &spark_application,
             spark_image,
             &serviceaccount,
-            &None,
             &None,
         )
         .unwrap();

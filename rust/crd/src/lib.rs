@@ -240,7 +240,7 @@ impl SparkApplication {
         }
         // these could also be available via a ConfigMap
         if let Some(spark_props) = spark_inline_properties {
-            if let Ok(properties) = serde_yaml::from_str::<HashMap<String, String>>(spark_props) {
+            if let Ok(properties) = serde_yaml::from_str::<BTreeMap<String, String>>(spark_props) {
                 for (key, value) in properties {
                     submit_cmd.push(format!("--conf {key}={value}"));
                 }

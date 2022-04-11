@@ -11,7 +11,7 @@ spec:
   mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
   s3:
     credentialsSecret: minio-credentials
-    endpoint: http://test-minio:9000/
+    configMapName: minio-bucket
   volumes:
     - name: spark-pi-deps
       persistentVolumeClaim:

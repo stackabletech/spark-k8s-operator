@@ -3,9 +3,7 @@
 pub mod constants;
 
 use constants::*;
-use stackable_operator::k8s_openapi::api::core::v1::{
-    EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount,
-};
+use stackable_operator::k8s_openapi::api::core::v1::{ConfigMapKeySelector, EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount};
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -104,9 +102,8 @@ pub struct JobDependencies {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct S3 {
+    pub config_map_name: String,
     pub credentials_secret: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub endpoint: Option<String>,
 }
 
 impl SparkApplication {
@@ -153,12 +150,27 @@ impl SparkApplication {
             e.push(env_var_from_secret(
                 ENV_AWS_ACCESS_KEY_ID,
                 &s3.credentials_secret,
-                ACCESS_KEY_ID,
+                ENV_AWS_ACCESS_KEY_ID,
             ));
             e.push(env_var_from_secret(
                 ENV_AWS_SECRET_ACCESS_KEY,
                 &s3.credentials_secret,
-                SECRET_ACCESS_KEY,
+                ENV_AWS_SECRET_ACCESS_KEY,
+            ));
+            e.push(env_var_from_config_map(
+                ENV_BUCKET_HOST,
+                &s3.config_map_name,
+                ENV_BUCKET_HOST,
+            ));
+            e.push(env_var_from_config_map(
+                ENV_BUCKET_PORT,
+                &s3.config_map_name,
+                ENV_BUCKET_PORT,
+            ));
+            e.push(env_var_from_config_map(
+                ENV_BUCKET_NAME,
+                &s3.config_map_name,
+                ENV_BUCKET_NAME,
             ));
         }
         e
@@ -222,8 +234,8 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
         ];
 
-        if let Some(endpoint) = self.spec.s3.as_ref().and_then(|s3| s3.endpoint.as_ref()) {
-            submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
+        if let Some(_) = self.spec.s3 {
+            submit_cmd.push("--conf spark.hadoop.fs.s3a.endpoint=http://${BUCKET_HOST}:${BUCKET_PORT}/".to_string());
         }
 
         // conf arguments that are not driver or executor specific
@@ -357,6 +369,21 @@ fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar
             secret_key_ref: Some(SecretKeySelector {
                 name: Some(String::from(secret)),
                 key: String::from(secret_key),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
+fn env_var_from_config_map(var_name: &str, config_map: &str, config_map_key: &str) -> EnvVar {
+    EnvVar {
+        name: String::from(var_name),
+        value_from: Some(EnvVarSource {
+            config_map_key_ref: Some(ConfigMapKeySelector {
+                name: Some(String::from(config_map)),
+                key: String::from(config_map_key),
                 ..Default::default()
             }),
             ..Default::default()

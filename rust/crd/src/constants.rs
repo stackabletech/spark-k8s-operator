@@ -19,5 +19,6 @@ pub const CONTAINER_NAME_EXECUTOR: &str = "spark-executor";
 
 pub const ENV_AWS_ACCESS_KEY_ID: &str = "AWS_ACCESS_KEY_ID";
 pub const ENV_AWS_SECRET_ACCESS_KEY: &str = "AWS_SECRET_ACCESS_KEY";
-pub const ACCESS_KEY_ID: &str = "accessKeyId";
-pub const SECRET_ACCESS_KEY: &str = "secretAccessKey";
+pub const ENV_BUCKET_HOST: &str = "BUCKET_HOST";
+pub const ENV_BUCKET_PORT: &str = "BUCKET_PORT";
+pub const ENV_BUCKET_NAME: &str = "BUCKET_NAME";

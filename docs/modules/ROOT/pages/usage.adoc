@@ -205,3 +205,16 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.executor.volumeMounts.mountPath`
 |Volume mount path
 |===
+
+
+== Job dependencies
+
+Guide to job dependency provisioning
+
+include::job_dependencies.adoc[]
+
+== RBAC
+
+Guide to RBAC configuration
+
+include::job_dependencies.adoc[]

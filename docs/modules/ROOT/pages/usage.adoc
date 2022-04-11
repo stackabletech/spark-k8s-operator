@@ -25,8 +25,6 @@ The example below creates a job running on Apache Spark 3.2.1, using the spark-o
         cores: 1
         instances: 3
         memory: "512m"
-      config:
-        enableMonitoring: true
     EOF
 
 == Examples
@@ -81,8 +79,8 @@ include::example$example-sparkapp-image.yaml[]
 include::example$example-sparkapp-pvc.yaml[]
 ----
 
-<1> Job python artifact (local)
-<2> Artifact class
+<1> Job artifact located on S3.
+<2> Job main class
 <3> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in s3, accessed without credentials)
 <4> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
 <5> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
@@ -207,3 +205,4 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.executor.volumeMounts.mountPath`
 |Volume mount path
 |===
+

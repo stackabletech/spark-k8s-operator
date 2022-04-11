@@ -4,79 +4,47 @@ There are three ways to run the Spark Operator:
 
 1. Helm managed Docker container deployment on Kubernetes
 
-2. As a Docker container
-
-3. Build from source.
+2. Build from source
 
 == Helm
 
 Helm allows you to download and deploy Stackable operators on Kubernetes and is by far the easiest
 installation method. First ensure that you have installed the Stackable Operators Helm repository:
+
 [source,bash]
 ----
-$ helm repo add stackable https://repo.stackable.tech/repository/helm-stable/
+helm repo add stackable https://repo.stackable.tech/repository/helm-stable/
 ----
 
 Then install the Stackable Operator for Apache Spark
 [source,bash]
 ----
-$ helm install spark-k8s-operator stackable/spark-k8s-operator
+helm install spark-k8s-operator stackable/spark-k8s-operator
 ----
 
 Helm will deploy the operator in a Kubernetes container and apply the CRDs for the Apache Spark
 service. You are now ready to deploy Apache Spark in Kubernetes.
 
-== Docker
-
-This Operator is published as a Docker image:
-
-[source]
-----
-docker.stackable.tech/stackable/spark-k8s-operator
-----
-
-When installing manually with Docker you will need to install the Stackable CRDs for Apache Spark
-in your Kubernetes environment. These are available on the
-https://github.com/stackabletech/spark-k8s-operator/tree/main/deploy/crd[Stackable GitHub repository]
-for this operator.
-[source]
-----
-$ kubectl apply -f sparkapplication.crd.yaml
-----
-
-To run it straight from Docker you can use this command:
-[source,bash]
-----
-docker run \
-    --name spark-k8s-operator \
-    --network host \
-    --env KUBECONFIG=/home/stackable/.kube/config \
-    --mount type=bind,source="$HOME/.kube/config",target="/home/stackable/.kube/config" \
-    docker.stackable.tech/stackable/spark-k8s-operator:latest
-----
-
 == Building the operator from source
 
-This operator is written in Rust and is developed against the latest stable Rust release (1.59 at
-the time of writing).
+This operator is written in Rust and is developed against a recent stable Rust release.
 
-[source]
+[source,bash]
 ----
 cargo run -- crd | kubectl apply -f -
 cargo run -- run
 ----
 
+To run it from your local machine - usually for development purposes - you need to create a `ClusterRoleBinding` :
+
+[source,bash]
+----
+kubectl create clusterrolebinding spark-role --clusterrole=spark-driver-edit-role  --serviceaccount=default:default
+----
+
 == Additional/Optional components
 
-The above describes the installation of the operator alone and is sufficient for spark jobs that do not require any external dependencies. In practice, this is often not the case and spark- and/or job-dependencies will be required. These can be made available in different ways - e.g. by including them in the spark images used by `spark-submit`, reading them external repositories or by using local external storage such as Kuberentes persistent volumes. This last option requires the following:
-
-== External Storage
-
-include::external_storage.adoc[]
-
-== Role-based Access Control (RBAC)
-
-include::rbac.adoc[]
+The above describes the installation of the operator alone and is sufficient for spark jobs that do not require any external dependencies. In practice, this is often not the case and spark- and/or job-dependencies will be required. These can be made available in different ways - e.g. by including them in the spark images used by `spark-submit`, reading them external repositories or by using local external storage such as Kuberentes persistent volumes. See the <<job_dependencies.adoc#,Job Dependencies>> page for detailed information.
 
 == Examples
 

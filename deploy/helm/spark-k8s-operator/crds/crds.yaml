@@ -268,13 +268,13 @@ spec:
                 s3:
                   nullable: true
                   properties:
-                    credentialsSecret:
+                    configMapName:
                       type: string
-                    endpoint:
-                      nullable: true
+                    credentialsSecretName:
                       type: string
                   required:
-                    - credentialsSecret
+                    - configMapName
+                    - credentialsSecretName
                   type: object
                 sparkConf:
                   additionalProperties:

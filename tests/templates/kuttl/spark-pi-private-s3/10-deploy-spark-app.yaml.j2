@@ -10,8 +10,8 @@ spec:
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
   s3:
-    credentialsSecret: minio-credentials
     configMapName: minio-bucket
+    credentialsSecretName: minio-credentials
   volumes:
     - name: spark-pi-deps
       persistentVolumeClaim:

@@ -268,11 +268,11 @@ spec:
                   properties:
                     configMapName:
                       type: string
-                    credentialsSecret:
+                    credentialsSecretName:
                       type: string
                   required:
                     - configMapName
-                    - credentialsSecret
+                    - credentialsSecretName
                   type: object
                 sparkConf:
                   additionalProperties:

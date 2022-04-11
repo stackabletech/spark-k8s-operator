@@ -31,15 +31,18 @@ The example below creates a job running on Apache Spark 3.2.1, using the spark-o
 
 The following examples have the following `spec` fields in common:
 
-- `version`: the current version is "1.0"
-- `sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
-- `mode`: only `cluster` is currently supported
-- `mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
-- `args`: these are the arguments passed directly to the application. In the examples below it is e.g. the input path for part of the public New York taxi dataset.
-- `sparkConf`: these list spark configuration settings that are passed directly to `spark-submit` and which are best defined explicitly by the user. Since the `SparkApplication` "knows" that there is an external dependency (the s3 bucket where the data and/or the application is located) and how that dependency should be treated (i.e. what type of credential checks are required, if any), it is better to have these things declared together.
-- `volumes`: refers to any volumes needed by the `SparkApplication`, in this case an underlying `PersistentVoulmeClaim`.
-- `driver`: driver-specific settings, including any volume mounts.
-- `executor`: executor-specific settings, including any volume mounts.
+* `version`: the current version is "1.0"
+* `sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
+* `mode`: only `cluster` is currently supported
+* `mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
+* `args`: these are the arguments passed directly to the application. In the examples below it is e.g. the input path for part of the public New York taxi dataset.
+* `sparkConf`: these list spark configuration settings that are passed directly to `spark-submit` and which are best defined explicitly by the user. Since the `SparkApplication` "knows" that there is an external dependency (the s3 bucket where the data and/or the application is located) and how that dependency should be treated (i.e. what type of credential checks are required, if any), it is better to have these things declared together.
+* `volumes`: refers to any volumes needed by the `SparkApplication`, in this case an underlying `PersistentVoulmeClaim`.
+* `s3`: configuration to connect to an S3 bucket.
+** `configMapName`: the name of a config map containing the keys `BUCKET_HOST`, `BUCKET_PORT` and `BUCKET_NAME`.
+** `credentialsSecretName`: the name of a secret containing the keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+* `driver`: driver-specific settings, including any volume mounts.
+* `executor`: executor-specific settings, including any volume mounts.
 
 Job-specific settings are annotated below.
 

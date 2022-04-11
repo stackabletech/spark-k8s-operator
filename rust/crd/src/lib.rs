@@ -3,7 +3,9 @@
 pub mod constants;
 
 use constants::*;
-use stackable_operator::k8s_openapi::api::core::v1::{ConfigMapKeySelector, EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount};
+use stackable_operator::k8s_openapi::api::core::v1::{
+    ConfigMapKeySelector, EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount,
+};
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -103,7 +105,7 @@ pub struct JobDependencies {
 #[serde(rename_all = "camelCase")]
 pub struct S3 {
     pub config_map_name: String,
-    pub credentials_secret: String,
+    pub credentials_secret_name: String,
 }
 
 impl SparkApplication {
@@ -149,12 +151,12 @@ impl SparkApplication {
         if let Some(s3) = self.spec.s3.as_ref() {
             e.push(env_var_from_secret(
                 ENV_AWS_ACCESS_KEY_ID,
-                &s3.credentials_secret,
+                &s3.credentials_secret_name,
                 ENV_AWS_ACCESS_KEY_ID,
             ));
             e.push(env_var_from_secret(
                 ENV_AWS_SECRET_ACCESS_KEY,
-                &s3.credentials_secret,
+                &s3.credentials_secret_name,
                 ENV_AWS_SECRET_ACCESS_KEY,
             ));
             e.push(env_var_from_config_map(
@@ -234,8 +236,11 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
         ];
 
-        if let Some(_) = self.spec.s3 {
-            submit_cmd.push("--conf spark.hadoop.fs.s3a.endpoint=http://${BUCKET_HOST}:${BUCKET_PORT}/".to_string());
+        if self.spec.s3.is_some() {
+            submit_cmd.push(
+                "--conf spark.hadoop.fs.s3a.endpoint=http://${BUCKET_HOST}:${BUCKET_PORT}/"
+                    .to_string(),
+            );
         }
 
         // conf arguments that are not driver or executor specific

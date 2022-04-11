@@ -465,7 +465,7 @@ mod tests {
     use crate::spark_k8s_controller::spark_job;
     use crate::spark_k8s_controller::{build_spark_role_serviceaccount, pod_template_config_map};
     use crate::SparkApplication;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_pod_config_map() {
@@ -584,7 +584,7 @@ spec:
 
     #[test]
     fn test_cast() {
-        let properties = serde_yaml::from_str::<HashMap<String, String>>(
+        let properties = serde_yaml::from_str::<BTreeMap<String, String>>(
             r#"
     spark.hadoop.fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider
     spark.driver.extraClassPath: /dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar

@@ -8,7 +8,7 @@ spec:
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0 # <1>
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: /stackable/spark/lib/spark-examples_2.12-3.2.1.jar # <2>
+  mainApplicationFile: /stackable/spark/examples/jars/spark-examples_2.12-3.2.1.jar # <2>
   driver:
     cores: 1
     coreLimit: "1200m"

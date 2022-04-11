@@ -8,14 +8,14 @@ image::spark-k8s.png[Job Flow]
 
 When the job is finished, the `Pods` are terminated and the Kubernetes `Job` is completed.
 
-The base images provided by Stackable contain only minimum of components to run Spark workloads. This is done mostly for performance and compatilbility reasons. Many Spark workloads build on top of third party libraries and frameworks and thus depend on additional packages that are not included in the Stackable images. This guide explains how users can provision their Spark jobs with additional dependencies.
+The base images provided by Stackable contain only the minimum of components to run Spark workloads. This is done mostly for performance and compatibility reasons. Many Spark workloads build on top of third party libraries and frameworks and thus depend on additional packages that are not included in the Stackable images. This guide explains how users can provision their Spark jobs with additional dependencies.
 
 
 == Dependency provisioning
 
-There are multiple ways to submit Apache Spark jobs with external dependencies. Each has it's own advantages and disadvantages and the choice of one over the other depends on existing technical and managerial constraints.
+There are multiple ways to submit Apache Spark jobs with external dependencies. Each has its own advantages and disadvantages and the choice of one over the other depends on existing technical and managerial constraints.
 
-To provision job depencies in their workloads, users have to construct their `SparkApplication` with one of the following dependency specification:
+To provision job dependencies in their workloads, users have to construct their `SparkApplication` with one of the following dependency specifications:
 
 - Hardened or encapsulated job images
 - Dependency volumes
@@ -44,7 +44,7 @@ The following table provides a high level overview of the relevant aspects of ea
 
 === Hardened or encapsulated job images
 
-With this method, users submit a `SparkApplication` for which the `sparkImage` refers to a Docker image containing Apache Spark it's self, the job code and dependencies required by the job. It is recommended the users base their image on of Stakable images to ensure compatibility with the Stackable operator.
+With this method, users submit a `SparkApplication` for which the `sparkImage` refers to a Docker image containing Apache Spark itself, the job code and dependencies required by the job. It is recommended the users base their image on one of the Stackable images to ensure compatibility with the Stackable operator.
 
 Since all packages required to run the Spark job are bundled in the image, the size of this image tends to get very large while at the same time guaranteeing reproducibility between submissions.
 
@@ -87,7 +87,7 @@ include::example$example-pvc.yaml[]
 
 === Spark native package coordinates and Python requirements
 
-The last and most flexible way to provision dependencies to use the built-in `spark-submit` support for Maven package coordinates.
+The last and most flexible way to provision dependencies is to use the built-in `spark-submit` support for Maven package coordinates.
 
 These can be specified by adding the following section to the `SparkApplication` manifest file:
 

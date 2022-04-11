@@ -1,4 +1,6 @@
-=== Overview
+= RBAC
+
+== Overview
 
 The https://spark.apache.org/docs/latest/running-on-kubernetes.html#rbac[Spark-Kubernetes RBAC documentation] describes what is needed for `spark-submit` jobs to run successfully: minimally a role/cluster-role to allow the driver pod to create and manage executor pods.
 

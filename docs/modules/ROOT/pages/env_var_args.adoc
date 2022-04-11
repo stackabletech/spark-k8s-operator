@@ -1,0 +1,56 @@
+
+=== PRODUCT_CONFIG
+
+*Default value*: `/etc/stackable/spark-k8s-operator/config-spec/properties.yaml`
+
+*Required*: false
+
+*Multiple values:* false
+
+[source]
+----
+export PRODUCT_CONFIG=/foo/bar/properties.yaml
+stackable-spark-k8s-operator run
+----
+
+or via docker:
+
+----
+docker run \
+    --name spark-k8s-operator \
+    --network host \
+    --env KUBECONFIG=/home/stackable/.kube/config \
+    --env PRODUCT_CONFIG=/my/product/config.yaml \
+    --mount type=bind,source="$HOME/.kube/config",target="/home/stackable/.kube/config" \
+    docker.stackable.tech/stackable/spark-k8s-operator:latest
+----
+
+=== WATCH_NAMESPACE
+
+*Default value*: All namespaces
+
+*Required*: false
+
+*Multiple values:* false
+
+The operator will **only** watch for resources in the provided namespace `test`:
+
+[source]
+----
+export WATCH_NAMESPACE=test
+stackable-spark-k8s-operator run
+----
+
+or via docker:
+
+[source]
+----
+docker run \
+--name spark-k8s-operator \
+--network host \
+--env KUBECONFIG=/home/stackable/.kube/config \
+--env WATCH_NAMESPACE=test \
+--mount type=bind,source="$HOME/.kube/config",target="/home/stackable/.kube/config" \
+docker.stackable.tech/stackable/spark-k8s-operator:latest
+----
+

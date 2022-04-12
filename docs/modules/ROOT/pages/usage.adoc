@@ -38,9 +38,6 @@ The following examples have the following `spec` fields in common:
 * `args`: these are the arguments passed directly to the application. In the examples below it is e.g. the input path for part of the public New York taxi dataset.
 * `sparkConf`: these list spark configuration settings that are passed directly to `spark-submit` and which are best defined explicitly by the user. Since the `SparkApplication` "knows" that there is an external dependency (the s3 bucket where the data and/or the application is located) and how that dependency should be treated (i.e. what type of credential checks are required, if any), it is better to have these things declared together.
 * `volumes`: refers to any volumes needed by the `SparkApplication`, in this case an underlying `PersistentVoulmeClaim`.
-* `s3`: configuration to connect to an S3 bucket.
-** `configMapName`: the name of a config map containing the keys `BUCKET_HOST`, `BUCKET_PORT` and `BUCKET_NAME`.
-** `credentialsSecretName`: the name of a secret containing the keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
 * `driver`: driver-specific settings, including any volume mounts.
 * `executor`: executor-specific settings, including any volume mounts.
 
@@ -97,8 +94,7 @@ include::example$example-sparkapp-s3-private.yaml[]
 
 <1> Job python artifact (local)
 <2> Artifact class
-<3> S3 section, specifying the existing secret and S3 end-point ( in this case, Min-IO)
-<4> Credentials secret
+<3> S3 section, specifying the existing secret and config map
 <5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources...
 <6> ...in this case, in s3, accessed with the credentials defined in the secret
 <7> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
@@ -142,11 +138,11 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.args`
 |Arguments passed directly to the job artifact
 
-|`spec.s3.credentialsSecret`
-|Name of the credentials secret for S3 access
+|`spec.s3.configMapName`
+|Config map containing the keys `BUCKET_HOST`, `BUCKET_PORT` and `BUCKET_NAME`
 
-|`spec.s3.endpoint`
-|S3 endpoint
+|`spec.s3.credentialsSecretName`
+|Secret containing the keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
 
 |`spec.sparkConf`
 |A map of key/value strings that will be passed directly to `spark-submit`

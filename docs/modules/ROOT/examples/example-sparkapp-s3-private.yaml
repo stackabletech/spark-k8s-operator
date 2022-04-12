@@ -1,4 +1,23 @@
 ---
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-credentials
+stringData:
+  AWS_ACCESS_KEY_ID: minioAccessKey
+  AWS_SECRET_ACCESS_KEY: minioSecretKey
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-bucket
+data:
+  BUCKET_HOST: "test-minio"
+  BUCKET_PORT: "9000"
+  BUCKET_NAME: "my-bucket"
+
+---
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
@@ -9,16 +28,16 @@ spec:
   mode: cluster
   mainApplicationFile: s3a://my-bucket/spark-examples_2.12-3.2.1.jar # <1>
   mainClass: org.apache.spark.examples.SparkPi # <2>
-  s3: # <3>
-    credentialsSecret: minio-credentials  # <4>
-    endpoint: http://test-minio:9000/
-  sparkConf: # <5>
-    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" # <6>
+  s3:  # <3>
+    configMapName: minio-bucket
+    credentialsSecretName: minio-credentials
+  sparkConf: # <4>
+    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" # <5>
     spark.hadoop.fs.s3a.path.style.access: "true"
     spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
     spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
   volumes:
-    - name: spark-pi-deps # <7>
+    - name: spark-pi-deps # <6>
       persistentVolumeClaim:
         claimName: spark-pi-pvc
   driver:
@@ -27,11 +46,11 @@ spec:
     memory: "512m"
     volumeMounts:
       - name: spark-pi-deps
-        mountPath: /dependencies # <8>
+        mountPath: /dependencies # <7>
   executor:
     cores: 1
     instances: 3
     memory: "512m"
     volumeMounts:
       - name: spark-pi-deps
-        mountPath: /dependencies # <8>
+        mountPath: /dependencies # <7>

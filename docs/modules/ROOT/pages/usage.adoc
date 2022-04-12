@@ -92,15 +92,31 @@ include::example$example-sparkapp-pvc.yaml[]
 include::example$example-sparkapp-s3-private.yaml[]
 ----
 
-<1> Job python artifact (local)
+<1> Job python artifact (located in S3)
 <2> Artifact class
-<3> S3 section, specifying the existing secret and S3 end-point ( in this case, Min-IO)
+<3> S3 section, specifying the existing secret and S3 end-point (in this case, MinIO)
 <4> Credentials secret
 <5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources...
 <6> ...in this case, in s3, accessed with the credentials defined in the secret
 <7> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
 <8> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
+=== JVM (Scala): externally located artifact accessed with job arguments provided via configuration map
+
+[source,yaml]
+----
+include::example$example-configmap.yaml[]
+----
+[source,yaml]
+----
+include::example$example-sparkapp-configmap.yaml[]
+----
+<1> Name of the configuration map
+<2> Argument required by the job
+<3> Job scala artifact that requires an input argument
+<4> The expected job argument, accessed via the mounted configuration map file
+<5> The name of the configuration map that will be mounted to the driver/executor
+<6> The mount location of the configuration map (this will contain a file `/arguments/job-args.txt`)
 
 == CRD argument coverage
 
@@ -187,6 +203,12 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.driver.volumeMounts.mountPath`
 |Volume mount path
 
+|`spec.driver.configMapMounts.configMapName`
+|Name of configuration map to be mounted in the driver
+
+|`spec.driver.configMapMounts.path`
+|Mount path of the configuration map in the driver
+
 |`spec.executor.cores`
 |Number of cores for each executor
 
@@ -204,5 +226,11 @@ Below are listed the CRD fields that can be defined by the user:
 
 |`spec.executor.volumeMounts.mountPath`
 |Volume mount path
+
+|`spec.executor.configMapMounts.configMapName`
+|Name of configuration map to be mounted in the executor
+
+|`spec.executor.configMapMounts.path`
+|Mount path of the configuration map in the executor
 |===
 

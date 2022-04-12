@@ -1,0 +1,8 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm-job-arguments # <1>
+data:
+  job-args.txt: |
+    s3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv # <2>

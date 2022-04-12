@@ -105,7 +105,7 @@ pub async fn reconcile(
         .as_deref()
         .context(ObjectHasNoSparkImageSnafu)?;
 
-    let job_container = spark_application.spec.image.as_ref().map(|job_image| {
+    let job_init_container = spark_application.spec.image.as_ref().map(|job_image| {
         ContainerBuilder::new(CONTAINER_NAME_JOB)
             .image(job_image)
             .command(vec![
@@ -131,8 +131,11 @@ pub async fn reconcile(
             .build()
     });
 
-    let pod_template_config_map =
-        pod_template_config_map(&spark_application, &job_container, &requirements_container)?;
+    let pod_template_config_map = pod_template_config_map(
+        &spark_application,
+        &job_init_container,
+        &requirements_container,
+    )?;
     client
         .apply_patch(
             FIELD_MANAGER_SCOPE,
@@ -146,7 +149,7 @@ pub async fn reconcile(
         &spark_application,
         spark_image,
         &serviceaccount,
-        &job_container,
+        &job_init_container,
     )?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
@@ -156,6 +159,9 @@ pub async fn reconcile(
     Ok(Action::await_change())
 }
 
+/// This function is used to build the Pod templates for the driver and executor pod.
+/// The `job_container` is the optional container containing the actual job code of the user,
+/// which gets copied to the executors.
 fn pod_template(
     container_name: &str,
     job_container: &Option<Container>,
@@ -164,14 +170,16 @@ fn pod_template(
     volume_mounts: &[VolumeMount],
     env: &[EnvVar],
 ) -> Result<Pod> {
+    // The actual "main" container
     let mut container = ContainerBuilder::new(container_name);
     container
         .add_volume_mounts(volume_mounts.to_vec())
         .add_env_vars(env.to_vec());
+
+    // add volume mounts from init containers if they exist
     if job_container.is_some() {
         container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
     }
-
     if requirements_container.is_some() {
         container
             .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
@@ -187,6 +195,7 @@ fn pod_template(
         .add_container(container.build())
         .add_volumes(volumes.to_vec());
 
+    // add init containers if they exist
     if let Some(container) = requirements_container.clone() {
         template.add_init_container(container);
         template.add_volume(
@@ -203,9 +212,12 @@ fn pod_template(
                 .build(),
         );
     }
+
     template.build().context(PodTemplateSnafu)
 }
 
+/// Takes the SparkApplication and the optional requirements and job containers and generates a
+/// configmap with PodTemplates for the driver and executor.
 fn pod_template_config_map(
     spark_application: &SparkApplication,
     job_container: &Option<Container>,
@@ -252,6 +264,9 @@ fn pod_template_config_map(
         .context(PodTemplateConfigMapSnafu)
 }
 
+/// spark_job refers to our spark submit job, which in turn will create the driver etc. The job_container
+/// in the arguments is the optional container containing the user job code. It will be copied to the executors
+/// if present.
 fn spark_job(
     spark_application: &SparkApplication,
     spark_image: &str,

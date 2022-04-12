@@ -10,7 +10,6 @@ use stackable_operator::k8s_openapi::api::core::v1::{
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
 use stackable_operator::kube::runtime::controller::{Action, Context};
-use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_spark_k8s_crd::constants::*;
@@ -73,17 +72,6 @@ pub enum Error {
     DriverPodTemplateSerde { source: serde_yaml::Error },
     #[snafu(display("executor pod template serialization"))]
     ExecutorPodTemplateSerde { source: serde_yaml::Error },
-    #[snafu(display("no spark-props specified"))]
-    NoSparkProps {
-        source: stackable_operator::error::Error,
-    },
-    #[snafu(display("Failed to get spark properties string from config map {}", config_map))]
-    GetSparkPropsStringConfigMap {
-        source: stackable_operator::error::Error,
-        config_map: ObjectRef<ConfigMap>,
-    },
-    #[snafu(display("Failed to get spark properties string from config map "))]
-    MissingSparkPropsString,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -253,8 +241,7 @@ fn pod_template_config_map(
         spark_application.executor_config_map_mounts(),
     )?;
 
-    let mut builder = ConfigMapBuilder::new();
-    builder
+    ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(spark_application)
@@ -296,16 +283,6 @@ fn spark_job(
         })
     }
 
-    let mut volumes = vec![Volume {
-        name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),
-        config_map: Some(ConfigMapVolumeSource {
-            name: Some(spark_application.pod_template_config_map_name()),
-            ..ConfigMapVolumeSource::default()
-        }),
-        ..Volume::default()
-    }];
-    volumes.extend(spark_application.volumes());
-
     let commands = spark_application
         .build_command(serviceaccount.metadata.name.as_ref().unwrap())
         .context(BuildCommandSnafu)?;
@@ -323,6 +300,16 @@ fn spark_job(
             value: Some("/stackable/spark/conf".to_string()),
             value_from: None,
         }]);
+
+    let mut volumes = vec![Volume {
+        name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),
+        config_map: Some(ConfigMapVolumeSource {
+            name: Some(spark_application.pod_template_config_map_name()),
+            ..ConfigMapVolumeSource::default()
+        }),
+        ..Volume::default()
+    }];
+    volumes.extend(spark_application.volumes());
 
     if job_container.is_some() {
         volumes.push(Volume {

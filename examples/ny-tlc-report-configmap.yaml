@@ -2,20 +2,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: job-args
+  name: cm-job-arguments
 data:
   job-args.txt: |
-    "'s3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: job-conf
-data:
-  job-conf.properties: |
-    "spark.driver.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    "spark.executor.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    s3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv
 ---
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
@@ -26,23 +16,21 @@ spec:
   version: "1.0"
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
   mode: cluster
-  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.0-SNAPSHOT.jar
-  mainClass: org.example.App
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.1.0.jar
+  mainClass: tech.stackable.demo.spark.NYTLCReport 
   volumes:
     - name: job-deps
       persistentVolumeClaim:
         claimName: pvc-ksv
   args:
-    - "'s3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
+    - "--input /arguments/job-args.txt"
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
     "spark.driver.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
     "spark.executor.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
   configMapMounts:
-    - name: job-args
-      path: job-args
-    - name: job-conf
-      path: job-conf
+  - configMapName: cm-job-arguments
+    path: /arguments
   driver:
     cores: 1
     coreLimit: "1200m"

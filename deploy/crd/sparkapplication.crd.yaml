@@ -54,12 +54,12 @@ spec:
                 configMapMounts:
                   items:
                     properties:
-                      name:
+                      configMapName:
                         type: string
                       path:
                         type: string
                     required:
-                      - name
+                      - configMapName
                       - path
                     type: object
                   nullable: true

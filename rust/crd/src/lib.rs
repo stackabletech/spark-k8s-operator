@@ -114,7 +114,7 @@ pub struct S3 {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigMapMount {
-    pub name: String,
+    pub config_map_name: String,
     pub path: String,
 }
 

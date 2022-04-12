@@ -53,19 +53,6 @@ spec:
                       nullable: true
                       type: string
                   type: object
-                configMapMounts:
-                  items:
-                    properties:
-                      configMapName:
-                        type: string
-                      path:
-                        type: string
-                    required:
-                      - configMapName
-                      - path
-                    type: object
-                  nullable: true
-                  type: array
                 configOverrides:
                   additionalProperties:
                     additionalProperties:

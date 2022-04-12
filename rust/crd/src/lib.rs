@@ -86,8 +86,6 @@ pub struct SparkApplicationSpec {
     pub volumes: Option<Vec<Volume>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<EnvVar>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config_map_mounts: Option<Vec<ConfigMapMount>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]

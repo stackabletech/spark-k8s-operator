@@ -8,6 +8,7 @@ use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::runtime::controller::{Context, Controller};
 use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::logging::controller::report_controller_reconciled;
+use stackable_operator::logging::TracingTarget;
 use stackable_spark_k8s_crd::SparkApplication;
 
 mod built_info {
@@ -23,13 +24,18 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    stackable_operator::logging::initialize_logging("SPARK_K8S_OPERATOR_LOG");
+    stackable_operator::logging::initialize_logging(
+        "SPARK_K8S_OPERATOR_LOG",
+        "spark-k8s",
+        TracingTarget::default(),
+    );
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&SparkApplication::crd())?,),
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
+            tracing_target: _,
         }) => {
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,

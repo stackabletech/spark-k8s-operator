@@ -176,27 +176,13 @@ fn pod_template(
     volumes: &[Volume],
     volume_mounts: &[VolumeMount],
     env: &[EnvVar],
-    job_config_maps: &[ConfigMapMount],
+    config_map_mounts: Vec<ConfigMapMount>,
 ) -> Result<Pod> {
     let mut volumes = volumes.to_vec();
     let mut volume_mounts = volume_mounts.to_vec();
 
-    // add the volume mount in the job container
-    for config_map_mount in job_config_maps {
-        volume_mounts.push(VolumeMount {
-            name: config_map_mount.config_map_name.clone(),
-            mount_path: config_map_mount.path.clone(),
-            ..VolumeMount::default()
-        });
-        volumes.push(Volume {
-            name: config_map_mount.config_map_name.clone(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(config_map_mount.config_map_name.clone()),
-                ..ConfigMapVolumeSource::default()
-            }),
-            ..Volume::default()
-        })
-    }
+    // add the volumes/volume mounts for the configMaps in the template
+    apply_configmap_mounts(config_map_mounts, &mut volume_mounts, &mut volumes);
 
     let mut container = ContainerBuilder::new(container_name);
     container
@@ -255,7 +241,7 @@ fn pod_template_config_map(
         volumes.as_ref(),
         spark_application.driver_volume_mounts().as_ref(),
         spark_application.env().as_ref(),
-        spark_application.config_map_mounts().as_ref(),
+        spark_application.config_map_mounts(),
     )?;
     let executor_template = pod_template(
         CONTAINER_NAME_EXECUTOR,
@@ -264,7 +250,7 @@ fn pod_template_config_map(
         volumes.as_ref(),
         spark_application.executor_volume_mounts().as_ref(),
         spark_application.env().as_ref(),
-        spark_application.config_map_mounts().as_ref(),
+        spark_application.config_map_mounts(),
     )?;
 
     let mut builder = ConfigMapBuilder::new();
@@ -320,22 +306,12 @@ fn spark_job(
     }];
     volumes.extend(spark_application.volumes());
 
-    // add the volume mount in the job container
-    for config_map_mount in spark_application.config_map_mounts() {
-        volume_mounts.push(VolumeMount {
-            name: config_map_mount.config_map_name.clone(),
-            mount_path: config_map_mount.path.clone(),
-            ..VolumeMount::default()
-        });
-        volumes.push(Volume {
-            name: config_map_mount.config_map_name.clone(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(config_map_mount.config_map_name),
-                ..ConfigMapVolumeSource::default()
-            }),
-            ..Volume::default()
-        })
-    }
+    // add the volumes/volume mounts for the configMaps in the job container
+    apply_configmap_mounts(
+        spark_application.config_map_mounts(),
+        &mut volume_mounts,
+        &mut volumes,
+    );
 
     let commands = spark_application
         .build_command(serviceaccount.metadata.name.as_ref().unwrap())
@@ -396,6 +372,31 @@ fn spark_job(
     };
 
     Ok(job)
+}
+
+/// Where ConfigMaps are referenced in the custom resource we assume name-matching and look up the
+/// ConfigMap, adding a VolumeMount and a Volume for each one. Each ConfigMap will be mounted to
+/// the path specified by the ConfigMapMount.
+fn apply_configmap_mounts(
+    config_map_mounts: Vec<ConfigMapMount>,
+    volume_mounts: &mut Vec<VolumeMount>,
+    volumes: &mut Vec<Volume>,
+) {
+    for config_map_mount in config_map_mounts {
+        volume_mounts.push(VolumeMount {
+            name: config_map_mount.config_map_name.clone(),
+            mount_path: config_map_mount.path.clone(),
+            ..VolumeMount::default()
+        });
+        volumes.push(Volume {
+            name: config_map_mount.config_map_name.clone(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(config_map_mount.config_map_name),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        })
+    }
 }
 
 /// For a given SparkApplication, we create a ServiceAccount with a RoleBinding to the ClusterRole

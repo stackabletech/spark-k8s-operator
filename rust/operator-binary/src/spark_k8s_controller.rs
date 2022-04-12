@@ -241,7 +241,7 @@ fn pod_template_config_map(
         volumes.as_ref(),
         spark_application.driver_volume_mounts().as_ref(),
         spark_application.env().as_ref(),
-        spark_application.config_map_mounts(),
+        spark_application.driver_config_map_mounts(),
     )?;
     let executor_template = pod_template(
         CONTAINER_NAME_EXECUTOR,
@@ -250,7 +250,7 @@ fn pod_template_config_map(
         volumes.as_ref(),
         spark_application.executor_volume_mounts().as_ref(),
         spark_application.env().as_ref(),
-        spark_application.config_map_mounts(),
+        spark_application.executor_config_map_mounts(),
     )?;
 
     let mut builder = ConfigMapBuilder::new();
@@ -305,13 +305,6 @@ fn spark_job(
         ..Volume::default()
     }];
     volumes.extend(spark_application.volumes());
-
-    // add the volumes/volume mounts for the configMaps in the job container
-    apply_configmap_mounts(
-        spark_application.config_map_mounts(),
-        &mut volume_mounts,
-        &mut volumes,
-    );
 
     let commands = spark_application
         .build_command(serviceaccount.metadata.name.as_ref().unwrap())

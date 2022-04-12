@@ -100,6 +100,19 @@ spec:
                 driver:
                   nullable: true
                   properties:
+                    configMapMounts:
+                      items:
+                        properties:
+                          configMapName:
+                            type: string
+                          path:
+                            type: string
+                        required:
+                          - configMapName
+                          - path
+                        type: object
+                      nullable: true
+                      type: array
                     coreLimit:
                       nullable: true
                       type: string
@@ -224,6 +237,19 @@ spec:
                 executor:
                   nullable: true
                   properties:
+                    configMapMounts:
+                      items:
+                        properties:
+                          configMapName:
+                            type: string
+                          path:
+                            type: string
+                        required:
+                          - configMapName
+                          - path
+                        type: object
+                      nullable: true
+                      type: array
                     cores:
                       format: uint
                       minimum: 0.0

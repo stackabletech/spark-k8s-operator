@@ -21,6 +21,9 @@ spec:
     - name: spark-ny-deps
       persistentVolumeClaim:
         claimName: spark-ny-pvc
+    - name: cm-job-arguments
+      configMap:
+        name: cm-job-arguments
   args:
     - "--input /arguments/job-args.txt"
   sparkConf:
@@ -36,7 +39,6 @@ spec:
     volumeMounts:
       - name: spark-ny-deps
         mountPath: /dependencies
-    configMapMounts:
       - name: cm-job-arguments
         mountPath: /arguments
   executor:
@@ -46,6 +48,5 @@ spec:
     volumeMounts:
       - name: spark-ny-deps
         mountPath: /dependencies
-    configMapMounts:
       - name: cm-job-arguments
         mountPath: /arguments

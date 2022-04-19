@@ -163,13 +163,9 @@ fn pod_template(
     volumes: &[Volume],
     volume_mounts: &[VolumeMount],
     env: &[EnvVar],
-    config_map_mounts: Vec<VolumeMount>,
 ) -> Result<Pod> {
-    let mut volumes = volumes.to_vec();
-    let mut volume_mounts = volume_mounts.to_vec();
-
-    // add the volumes/volume mounts for the configMaps in the template
-    apply_configmap_mounts(config_map_mounts, &mut volume_mounts, &mut volumes);
+    let volumes = volumes.to_vec();
+    let volume_mounts = volume_mounts.to_vec();
 
     let mut container = ContainerBuilder::new(container_name);
     container
@@ -228,7 +224,6 @@ fn pod_template_config_map(
         volumes.as_ref(),
         spark_application.driver_volume_mounts().as_ref(),
         spark_application.env().as_ref(),
-        spark_application.driver_config_map_mounts(),
     )?;
     let executor_template = pod_template(
         CONTAINER_NAME_EXECUTOR,
@@ -237,7 +232,6 @@ fn pod_template_config_map(
         volumes.as_ref(),
         spark_application.executor_volume_mounts().as_ref(),
         spark_application.env().as_ref(),
-        spark_application.executor_config_map_mounts(),
     )?;
 
     ConfigMapBuilder::new()
@@ -351,31 +345,6 @@ fn spark_job(
     };
 
     Ok(job)
-}
-
-/// Where ConfigMaps are referenced in the custom resource we assume name-matching and look up the
-/// ConfigMap, adding a VolumeMount and a Volume for each one. Each ConfigMap will be mounted to
-/// the specified path.
-fn apply_configmap_mounts(
-    config_map_mounts: Vec<VolumeMount>,
-    volume_mounts: &mut Vec<VolumeMount>,
-    volumes: &mut Vec<Volume>,
-) {
-    for config_map_mount in config_map_mounts {
-        volume_mounts.push(VolumeMount {
-            name: config_map_mount.name.clone(),
-            mount_path: config_map_mount.mount_path.clone(),
-            ..VolumeMount::default()
-        });
-        volumes.push(Volume {
-            name: config_map_mount.name.clone(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(config_map_mount.name),
-                ..ConfigMapVolumeSource::default()
-            }),
-            ..Volume::default()
-        })
-    }
 }
 
 /// For a given SparkApplication, we create a ServiceAccount with a RoleBinding to the ClusterRole

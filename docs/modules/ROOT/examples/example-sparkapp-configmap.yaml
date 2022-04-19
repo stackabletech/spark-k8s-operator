@@ -14,8 +14,11 @@ spec:
     - name: job-deps
       persistentVolumeClaim:
         claimName: pvc-ksv
+    - name: cm-job-arguments
+      configMap:
+        name: cm-job-arguments # <4>
   args:
-    - "--input /arguments/job-args.txt" # <4>
+    - "--input /arguments/job-args.txt" # <5>
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
     "spark.driver.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
@@ -27,9 +30,8 @@ spec:
     volumeMounts:
       - name: job-deps
         mountPath: /dependencies
-    configMapMounts:
-      - name: cm-job-arguments # <5>
-        mountPath: /arguments  # <6>
+      - name: cm-job-arguments # <6>
+        mountPath: /arguments  # <7>
   executor:
     cores: 1
     instances: 3
@@ -37,6 +39,5 @@ spec:
     volumeMounts:
       - name: job-deps
         mountPath: /dependencies
-    configMapMounts:
-      - name: cm-job-arguments # <5>
-        mountPath: /arguments # <6>
+      - name: cm-job-arguments # <6>
+        mountPath: /arguments # <7>

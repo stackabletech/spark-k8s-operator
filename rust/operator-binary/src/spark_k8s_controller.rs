@@ -164,10 +164,14 @@ fn pod_template(
     volume_mounts: &[VolumeMount],
     env: &[EnvVar],
 ) -> Result<Pod> {
+    let volumes = volumes.to_vec();
+    let volume_mounts = volume_mounts.to_vec();
+
     let mut container = ContainerBuilder::new(container_name);
     container
-        .add_volume_mounts(volume_mounts.to_vec())
+        .add_volume_mounts(volume_mounts)
         .add_env_vars(env.to_vec());
+
     if job_container.is_some() {
         container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
     }
@@ -185,7 +189,7 @@ fn pod_template(
     template
         .metadata_default()
         .add_container(container.build())
-        .add_volumes(volumes.to_vec());
+        .add_volumes(volumes);
 
     if let Some(container) = requirements_container.clone() {
         template.add_init_container(container);
@@ -299,6 +303,7 @@ fn spark_job(
         ..Volume::default()
     }];
     volumes.extend(spark_application.volumes());
+
     if job_container.is_some() {
         volumes.push(Volume {
             name: String::from(VOLUME_MOUNT_NAME_JOB),
@@ -393,6 +398,7 @@ mod tests {
     use crate::spark_k8s_controller::spark_job;
     use crate::spark_k8s_controller::{build_spark_role_serviceaccount, pod_template_config_map};
     use crate::SparkApplication;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_pod_config_map() {
@@ -500,5 +506,17 @@ spec:
             Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
             job.metadata.owner_references.map(|r| r[0].uid.to_string())
         );
+    }
+
+    #[test]
+    fn test_cast() {
+        let properties = serde_yaml::from_str::<BTreeMap<String, String>>(
+            r#"
+    spark.hadoop.fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider
+    spark.driver.extraClassPath: /dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar
+    spark.executor.extraClassPath: /dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar
+        "#,
+        );
+        assert_eq!(3, properties.unwrap().len());
     }
 }

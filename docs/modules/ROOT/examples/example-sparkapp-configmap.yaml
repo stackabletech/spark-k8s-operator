@@ -1,0 +1,43 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: ny-tlc-report-configmap
+  namespace: default
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
+  mode: cluster
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.1.0.jar # <3>
+  mainClass: tech.stackable.demo.spark.NYTLCReport
+  volumes:
+    - name: job-deps
+      persistentVolumeClaim:
+        claimName: pvc-ksv
+    - name: cm-job-arguments
+      configMap:
+        name: cm-job-arguments # <4>
+  args:
+    - "--input /arguments/job-args.txt" # <5>
+  sparkConf:
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+    "spark.driver.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    "spark.executor.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+    volumeMounts:
+      - name: job-deps
+        mountPath: /dependencies
+      - name: cm-job-arguments # <6>
+        mountPath: /arguments  # <7>
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+    volumeMounts:
+      - name: job-deps
+        mountPath: /dependencies
+      - name: cm-job-arguments # <6>
+        mountPath: /arguments # <7>

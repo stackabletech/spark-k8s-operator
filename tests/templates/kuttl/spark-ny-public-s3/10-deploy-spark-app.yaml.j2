@@ -1,0 +1,52 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm-job-arguments
+data:
+  job-args.txt: |
+    s3a://my-bucket/yellow_tripdata_2021-07.csv
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-ny-cm
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-hadoop{{ test_scenario['values']['hadoop'][:-2] }}-stackable{{ test_scenario['values']['stackable'] }}
+  mode: cluster
+  mainClass: tech.stackable.demo.spark.NYTLCReport
+  mainApplicationFile: s3a://my-bucket/ny-tlc-report-1.1.0.jar
+  volumes:
+    - name: spark-ny-deps
+      persistentVolumeClaim:
+        claimName: spark-ny-pvc
+    - name: cm-job-arguments
+      configMap:
+        name: cm-job-arguments
+  args:
+    - "--input /arguments/job-args.txt"
+  sparkConf:
+    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+    spark.hadoop.fs.s3a.endpoint: "http://test-minio:9000/"
+    spark.hadoop.fs.s3a.path.style.access: "true"
+    spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-{{ test_scenario['values']['hadoop'] }}.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-{{ test_scenario['values']['hadoop'] }}.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+    volumeMounts:
+      - name: spark-ny-deps
+        mountPath: /dependencies
+      - name: cm-job-arguments
+        mountPath: /arguments
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+    volumeMounts:
+      - name: spark-ny-deps
+        mountPath: /dependencies
+      - name: cm-job-arguments
+        mountPath: /arguments

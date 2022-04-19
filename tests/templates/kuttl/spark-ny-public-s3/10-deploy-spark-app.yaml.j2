@@ -37,8 +37,8 @@ spec:
       - name: spark-ny-deps
         mountPath: /dependencies
     configMapMounts:
-      - configMapName: cm-job-arguments
-        path: /arguments
+      - name: cm-job-arguments
+        mountPath: /arguments
   executor:
     cores: 1
     instances: 3
@@ -47,5 +47,5 @@ spec:
       - name: spark-ny-deps
         mountPath: /dependencies
     configMapMounts:
-      - configMapName: cm-job-arguments
-        path: /arguments
+      - name: cm-job-arguments
+        mountPath: /arguments

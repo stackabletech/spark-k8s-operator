@@ -169,7 +169,7 @@ impl SparkApplication {
         tmp.iter().flat_map(|v| v.iter()).cloned().collect()
     }
 
-    pub fn executor_config_map_mounts(&self) -> Vec<ConfigMapMount> {
+    pub fn executor_config_map_mounts(&self) -> Vec<VolumeMount> {
         let tmp = self
             .spec
             .executor
@@ -179,7 +179,7 @@ impl SparkApplication {
         tmp.iter().flat_map(|v| v.iter()).cloned().collect()
     }
 
-    pub fn driver_config_map_mounts(&self) -> Vec<ConfigMapMount> {
+    pub fn driver_config_map_mounts(&self) -> Vec<VolumeMount> {
         let tmp = self
             .spec
             .driver
@@ -309,13 +309,6 @@ pub struct CommonConfig {
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ConfigMapMount {
-    pub config_map_name: String,
-    pub path: String,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DriverConfig {
     pub cores: Option<usize>,
     pub core_limit: Option<String>,
@@ -323,7 +316,7 @@ pub struct DriverConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config_map_mounts: Option<Vec<ConfigMapMount>>,
+    pub config_map_mounts: Option<Vec<VolumeMount>>,
 }
 
 impl DriverConfig {
@@ -353,7 +346,7 @@ pub struct ExecutorConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config_map_mounts: Option<Vec<ConfigMapMount>>,
+    pub config_map_mounts: Option<Vec<VolumeMount>>,
 }
 
 impl ExecutorConfig {

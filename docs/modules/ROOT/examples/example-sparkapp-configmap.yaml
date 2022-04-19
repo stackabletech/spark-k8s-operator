@@ -28,8 +28,8 @@ spec:
       - name: job-deps
         mountPath: /dependencies
     configMapMounts:
-      - configMapName: cm-job-arguments # <5>
-        path: /arguments  # <6>
+      - name: cm-job-arguments # <5>
+        mountPath: /arguments  # <6>
   executor:
     cores: 1
     instances: 3
@@ -38,5 +38,5 @@ spec:
       - name: job-deps
         mountPath: /dependencies
     configMapMounts:
-      - configMapName: cm-job-arguments # <5>
-        path: /arguments # <6>
+      - name: cm-job-arguments # <5>
+        mountPath: /arguments # <6>

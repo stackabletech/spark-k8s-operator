@@ -13,7 +13,6 @@ use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_spark_k8s_crd::constants::*;
-use stackable_spark_k8s_crd::ConfigMapMount;
 use stackable_spark_k8s_crd::SparkApplication;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -164,7 +163,7 @@ fn pod_template(
     volumes: &[Volume],
     volume_mounts: &[VolumeMount],
     env: &[EnvVar],
-    config_map_mounts: Vec<ConfigMapMount>,
+    config_map_mounts: Vec<VolumeMount>,
 ) -> Result<Pod> {
     let mut volumes = volumes.to_vec();
     let mut volume_mounts = volume_mounts.to_vec();
@@ -356,22 +355,22 @@ fn spark_job(
 
 /// Where ConfigMaps are referenced in the custom resource we assume name-matching and look up the
 /// ConfigMap, adding a VolumeMount and a Volume for each one. Each ConfigMap will be mounted to
-/// the path specified by the ConfigMapMount.
+/// the specified path.
 fn apply_configmap_mounts(
-    config_map_mounts: Vec<ConfigMapMount>,
+    config_map_mounts: Vec<VolumeMount>,
     volume_mounts: &mut Vec<VolumeMount>,
     volumes: &mut Vec<Volume>,
 ) {
     for config_map_mount in config_map_mounts {
         volume_mounts.push(VolumeMount {
-            name: config_map_mount.config_map_name.clone(),
-            mount_path: config_map_mount.path.clone(),
+            name: config_map_mount.name.clone(),
+            mount_path: config_map_mount.mount_path.clone(),
             ..VolumeMount::default()
         });
         volumes.push(Volume {
-            name: config_map_mount.config_map_name.clone(),
+            name: config_map_mount.name.clone(),
             config_map: Some(ConfigMapVolumeSource {
-                name: Some(config_map_mount.config_map_name),
+                name: Some(config_map_mount.name),
                 ..ConfigMapVolumeSource::default()
             }),
             ..Volume::default()

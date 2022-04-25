@@ -5,21 +5,32 @@
 FROM docker.stackable.tech/stackable/ubi8-rust-builder AS builder
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal AS operator
-LABEL maintainer="Stackable GmbH"
+
+ARG VERSION
+ARG RELEASE="1"
+
+LABEL name="Stackable Operator for Apache Spark-on-Kubernetes" \
+  maintainer="info@stackable.de" \
+  vendor="Stackable GmbH" \
+  version="${VERSION}" \
+  release="${RELEASE}" \
+  summary="Deploy and manage Apache Spark-on-Kubernetes clusters." \
+  description="Deploy and manage Apache Spark-on-Kubernetes clusters."
 
 # Update image
-RUN microdnf update --disablerepo=* --enablerepo=ubi-8-baseos --enablerepo=ubi-8-baseos -y \
-  && rm -rf /var/cache/yum \
-  && microdnf install --disablerepo=* --enablerepo=ubi-8-baseos shadow-utils -y \
-  && microdnf clean all \
-  && rm -rf /var/cache/yum
+RUN microdnf install -y yum \
+  && yum -y update-minimal --security --sec-severity=Important --sec-severity=Critical \
+  && yum clean all \
+  && microdnf clean all
+
+COPY LICENSE /licenses/LICENSE
 
 COPY --from=builder /app/stackable-spark-k8s-operator /
 COPY deploy/config-spec/properties.yaml /etc/stackable/spark-k8s-operator/config-spec/properties.yaml
 
 RUN groupadd -g 1000 stackable && adduser -u 1000 -g stackable -c 'Stackable Operator' stackable
 
-USER 1000:1000
+USER stackable:stackable
 
 ENTRYPOINT ["/stackable-spark-k8s-operator"]
 CMD ["run"]

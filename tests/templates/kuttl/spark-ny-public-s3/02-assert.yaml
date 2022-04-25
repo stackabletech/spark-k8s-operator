@@ -3,7 +3,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 metadata:
   name: spark-ny-deps-job
-timeout: 300
+timeout: 900
 ---
 apiVersion: batch/v1
 kind: Job

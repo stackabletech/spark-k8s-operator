@@ -1,0 +1,19 @@
+---
+apiVersion: t2.stackable.tech/v1
+kind: Infra
+template: hcloud-centos-8
+metadata:
+  name: spark-operator-integration-tests
+  description: "Cluster for Spark K8s Operator Integration Tests (Hetzner Cloud / CentOS 8)"
+domain: stackable.test
+publicKeys: []
+spec:
+  location: "hel1"
+  k8sVersion: "$K8S_VERSION"
+  wireguard: false
+  versions:
+    _-operator: NIGHTLY
+    spark-k8s-operator: "$SPARK_K8S_OPERATOR_VERSION"
+  nodes:
+    main:
+      numberOfNodes: 3

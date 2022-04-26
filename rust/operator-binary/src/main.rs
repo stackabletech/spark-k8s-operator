@@ -23,14 +23,19 @@ struct Opts {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    stackable_operator::logging::initialize_logging("SPARK_K8S_OPERATOR_LOG");
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => println!("{}", serde_yaml::to_string(&SparkApplication::crd())?,),
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
+            tracing_target,
         }) => {
+            stackable_operator::logging::initialize_logging(
+                "SPARK_K8S_OPERATOR_LOG",
+                "spark-k8s",
+                tracing_target,
+            );
             stackable_operator::utils::print_startup_string(
                 built_info::PKG_DESCRIPTION,
                 built_info::PKG_VERSION,

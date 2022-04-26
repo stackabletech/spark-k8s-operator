@@ -3,7 +3,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 metadata:
   name: minio
-timeout: 300
+timeout: 900
 ---
 apiVersion: v1
 kind: Service

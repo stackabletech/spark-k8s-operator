@@ -30,6 +30,5 @@ spec:
       containers:
         - name: minio-mc
           image: bitnami/minio:2022-debian-10
-          command: ["/bin/sh"]
           stdin: true
           tty: true

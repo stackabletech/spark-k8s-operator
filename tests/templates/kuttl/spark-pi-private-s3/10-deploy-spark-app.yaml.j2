@@ -9,9 +9,13 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
-  s3:
-    credentialsSecret: minio-credentials
-    endpoint: http://test-minio:9000/
+  s3bucket:
+    inline:
+      bucketName: my-bucket
+      connection:
+        inline:
+          host: test-minio
+          port: 9000
   volumes:
     - name: spark-pi-deps
       persistentVolumeClaim:

@@ -96,7 +96,7 @@ pub async fn reconcile(
 
     let s3bucket = match spark_application.spec.s3bucket.as_ref() {
         Some(s3bd) => s3bd
-            .resolve(client, spark_application.metadata.namespace.clone())
+            .resolve(client, spark_application.metadata.namespace.as_deref())
             .await
             .context(S3BucketSnafu)
             .ok(),

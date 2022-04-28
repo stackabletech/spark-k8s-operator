@@ -266,6 +266,7 @@ spec:
                   nullable: true
                   type: string
                 s3bucket:
+                  description: Operators are expected to define fields for this type in order to work with S3 buckets.
                   nullable: true
                   oneOf:
                     - required:
@@ -274,11 +275,13 @@ spec:
                         - reference
                   properties:
                     inline:
+                      description: S3 bucket specification containing only the bucket name and an inlined or referenced connection specification.
                       properties:
                         bucketName:
                           nullable: true
                           type: string
                         connection:
+                          description: "S3 connection definition used by [S3BucketSpec]"
                           nullable: true
                           oneOf:
                             - required:
@@ -287,6 +290,7 @@ spec:
                                 - reference
                           properties:
                             inline:
+                              description: S3 connection definition as CRD.
                               properties:
                                 host:
                                   nullable: true

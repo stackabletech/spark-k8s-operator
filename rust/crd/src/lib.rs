@@ -199,7 +199,7 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
         ];
 
-        if let Some(endpoint) = s3bucket.and_then(|s3| s3.host()) {
+        if let Some(endpoint) = s3bucket.and_then(|s3| s3.endpoint()) {
             submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
         }
 

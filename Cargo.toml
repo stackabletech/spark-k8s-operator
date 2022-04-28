@@ -3,6 +3,3 @@
 members = [
     "rust/crd", "rust/operator-binary"
 ]
-
-[patch."https://github.com/stackabletech/operator-rs.git"]
-stackable-operator = { path = "../operator-rs" }

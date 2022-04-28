@@ -266,16 +266,97 @@ spec:
                 mode:
                   nullable: true
                   type: string
-                s3:
+                s3bucket:
                   nullable: true
+                  oneOf:
+                    - required:
+                        - inline
+                    - required:
+                        - reference
                   properties:
-                    credentialsSecret:
+                    inline:
+                      properties:
+                        bucketName:
+                          nullable: true
+                          type: string
+                        connection:
+                          nullable: true
+                          oneOf:
+                            - required:
+                                - inline
+                            - required:
+                                - reference
+                          properties:
+                            inline:
+                              properties:
+                                host:
+                                  nullable: true
+                                  type: string
+                                port:
+                                  format: uint16
+                                  minimum: 0.0
+                                  nullable: true
+                                  type: integer
+                                secretClass:
+                                  nullable: true
+                                  type: string
+                                tls:
+                                  nullable: true
+                                  properties:
+                                    verification:
+                                      description: The verification method used to verify the certificates of the server and/or the client
+                                      oneOf:
+                                        - required:
+                                            - none
+                                        - required:
+                                            - server
+                                        - required:
+                                            - mutual
+                                      properties:
+                                        mutual:
+                                          description: Use TLS and ca certificate to verify the server and the client
+                                          properties:
+                                            certSecretClass:
+                                              description: "[SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html) which will provide ca.crt, tls.crt and tls.key"
+                                              type: string
+                                          required:
+                                            - certSecretClass
+                                          type: object
+                                        none:
+                                          description: "Use TLS but don't verify certificates"
+                                          type: object
+                                        server:
+                                          description: Use TLS and ca certificate to verify the server
+                                          properties:
+                                            caCert:
+                                              description: Ca cert to verify the server
+                                              oneOf:
+                                                - required:
+                                                    - webPki
+                                                - required:
+                                                    - secretClass
+                                              properties:
+                                                secretClass:
+                                                  description: "Name of the SecretClass which will provide the ca cert. Note that a SecretClass does not need to have a key but can also work with just a ca cert. So if you got provided with a ca cert but don't have access to the key you can still use this method."
+                                                  type: string
+                                                webPki:
+                                                  description: Use TLS and the ca certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
+                                                  type: object
+                                              type: object
+                                          required:
+                                            - caCert
+                                          type: object
+                                      type: object
+                                  required:
+                                    - verification
+                                  type: object
+                              type: object
+                            reference:
+                              type: string
+                          type: object
+                      type: object
+                    reference:
                       type: string
-                    endpoint:
-                      nullable: true
-                      type: string
-                  required:
-                    - credentialsSecret
                   type: object
                 sparkConf:
                   additionalProperties:

@@ -3,9 +3,8 @@
 pub mod constants;
 
 use constants::*;
-use stackable_operator::k8s_openapi::api::core::v1::{
-    EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount,
-};
+use stackable_operator::commons::s3::{InlinedS3BucketSpec, S3BucketDef};
+use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, Volume, VolumeMount};
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -79,7 +78,7 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deps: Option<JobDependencies>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3: Option<S3>,
+    pub s3bucket: Option<S3BucketDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -99,14 +98,6 @@ pub struct JobDependencies {
     pub repositories: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclude_packages: Option<Vec<String>>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct S3 {
-    pub credentials_secret: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub endpoint: Option<String>,
 }
 
 impl SparkApplication {
@@ -146,24 +137,6 @@ impl SparkApplication {
             .map(|req| req.join(" "))
     }
 
-    pub fn env(&self) -> Vec<EnvVar> {
-        let tmp = self.spec.env.as_ref();
-        let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
-        if let Some(s3) = self.spec.s3.as_ref() {
-            e.push(env_var_from_secret(
-                ENV_AWS_ACCESS_KEY_ID,
-                &s3.credentials_secret,
-                ACCESS_KEY_ID,
-            ));
-            e.push(env_var_from_secret(
-                ENV_AWS_SECRET_ACCESS_KEY,
-                &s3.credentials_secret,
-                SECRET_ACCESS_KEY,
-            ));
-        }
-        e
-    }
-
     pub fn volumes(&self) -> Vec<Volume> {
         let tmp = self.spec.volumes.as_ref();
         tmp.iter().flat_map(|v| v.iter()).cloned().collect()
@@ -201,7 +174,11 @@ impl SparkApplication {
         ls
     }
 
-    pub fn build_command(&self, serviceaccount_name: &str) -> Result<Vec<String>, Error> {
+    pub fn build_command(
+        &self,
+        serviceaccount_name: &str,
+        s3bucket: Option<InlinedS3BucketSpec>,
+    ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
@@ -222,7 +199,7 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
         ];
 
-        if let Some(endpoint) = self.spec.s3.as_ref().and_then(|s3| s3.endpoint.as_ref()) {
+        if let Some(endpoint) = s3bucket.and_then(|s3| s3.host()) {
             submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
         }
 
@@ -348,21 +325,6 @@ pub struct CommandStatus {
     pub started_at: Option<Time>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finished_at: Option<Time>,
-}
-
-fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
-    EnvVar {
-        name: String::from(var_name),
-        value_from: Some(EnvVarSource {
-            secret_key_ref: Some(SecretKeySelector {
-                name: Some(String::from(secret)),
-                key: String::from(secret_key),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
 }
 
 #[cfg(test)]

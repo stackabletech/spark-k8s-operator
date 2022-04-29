@@ -33,7 +33,7 @@ jobs:
     env:
       RUSTC_BOOTSTRAP: 1
     steps:
-      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -41,7 +41,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
         with:
           key: udeps
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -109,10 +109,10 @@ jobs:
     continue-on-error: ${{ matrix.checks == 'advisories' }}
 
     steps:
-      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: EmbarkStudios/cargo-deny-action@8acbae97b5d01b0481ae14cee8fcd8f5aa9e374d # tag=v1.2.12
+      - uses: EmbarkStudios/cargo-deny-action@ccfac4e084d1dedad50125be4550f87a21ba181e # tag=v1.2.15
         with:
           command: check ${{ matrix.checks }}
 
@@ -120,7 +120,7 @@ jobs:
     name: Run Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -138,7 +138,7 @@ jobs:
     name: Run Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -147,7 +147,7 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
-      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
         with:
           key: clippy
       - name: Run clippy action to produce annotations
@@ -168,7 +168,7 @@ jobs:
     name: Run RustDoc
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -177,7 +177,7 @@ jobs:
           toolchain: stable
           components: rustfmt
           override: true
-      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
         with:
           key: doc
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -194,7 +194,7 @@ jobs:
       - run_rustdoc
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -202,7 +202,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
         with:
           key: test
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -229,11 +229,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
       - name: Set up Helm
-        uses: azure/setup-helm@a517f2ff6560563a369e16ca7c7d136b6164423f # renovate: tag=v2.0
+        uses: azure/setup-helm@217bf70cbd2e930ba2e81ba7e1de2f7faecc42ba # tag=v2.1
         with:
           version: v3.6.2
       - name: Set up cargo
@@ -243,7 +243,7 @@ jobs:
           toolchain: stable
           override: true
       - name: Set up rust-cache
-        uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # renovate: tag=v1.3.0
+        uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
         with:
           key: charts
       - name: Regenerate charts
@@ -265,7 +265,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
       - name: placeholder
@@ -293,10 +293,10 @@ jobs:
     if: needs.select_repo.outputs.repository != 'skip'
     steps:
       - name: Checkout
-        uses: actions/checkout@a12a3943b4bdde767164f792f33f40b04645d846 # tag=v3.0.0
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: actions/setup-python@0ebf233433c08fb9061af664d501c3f3ff0e9e20 # tag=v3
+      - uses: actions/setup-python@98f2ad02fd48d057ee3b4d4f66525b231c3e52b6 # tag=v3
         if: ${{ github.event_name == 'pull_request' }}
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:

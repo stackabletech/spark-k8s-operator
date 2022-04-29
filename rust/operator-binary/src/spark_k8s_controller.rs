@@ -2,11 +2,11 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{
     ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
 };
-use stackable_operator::commons::s3::InlinedS3BucketSpec;
+
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, EnvVarSource, Pod,
-    PodSpec, PodTemplateSpec, SecretKeySelector, ServiceAccount, Volume, VolumeMount,
+    ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
+    PodTemplateSpec, ServiceAccount, Volume, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
@@ -145,7 +145,7 @@ pub async fn reconcile(
             .build()
     });
 
-    let env_vars = env(&spark_application, &s3bucket);
+    let env_vars = spark_application.env(&s3bucket);
     let pod_template_config_map = pod_template_config_map(
         &spark_application,
         &job_container,
@@ -162,7 +162,7 @@ pub async fn reconcile(
         .context(ApplyApplicationSnafu)?;
 
     let job_commands = spark_application
-        .build_command(serviceaccount.metadata.name.as_ref().unwrap(), s3bucket)
+        .build_command(serviceaccount.metadata.name.as_ref().unwrap(), &s3bucket)
         .context(BuildCommandSnafu)?;
 
     let job = spark_job(
@@ -179,44 +179,6 @@ pub async fn reconcile(
         .context(ApplyApplicationSnafu)?;
 
     Ok(Action::await_change())
-}
-
-pub fn env(
-    spark_application: &SparkApplication,
-    s3bucket: &Option<InlinedS3BucketSpec>,
-) -> Vec<EnvVar> {
-    let tmp = spark_application.spec.env.as_ref();
-    let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
-    if let Some(s3) = s3bucket {
-        if let Some(secret) = s3.secret_class() {
-            e.push(env_var_from_secret(
-                ENV_AWS_ACCESS_KEY_ID,
-                secret.as_ref(),
-                ACCESS_KEY_ID,
-            ));
-            e.push(env_var_from_secret(
-                ENV_AWS_SECRET_ACCESS_KEY,
-                secret.as_ref(),
-                SECRET_ACCESS_KEY,
-            ));
-        }
-    }
-    e
-}
-
-fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
-    EnvVar {
-        name: String::from(var_name),
-        value_from: Some(EnvVarSource {
-            secret_key_ref: Some(SecretKeySelector {
-                name: Some(String::from(secret)),
-                key: String::from(secret_key),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
 }
 
 fn pod_template(

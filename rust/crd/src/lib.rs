@@ -4,12 +4,15 @@ pub mod constants;
 
 use constants::*;
 use stackable_operator::commons::s3::{InlinedS3BucketSpec, S3BucketDef};
-use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, Volume, VolumeMount};
+use stackable_operator::k8s_openapi::api::core::v1::{
+    EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount,
+};
 
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
+use stackable_operator::commons::s3::S3ConnectionImplementation;
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels;
@@ -177,7 +180,7 @@ impl SparkApplication {
     pub fn build_command(
         &self,
         serviceaccount_name: &str,
-        s3bucket: Option<InlinedS3BucketSpec>,
+        s3bucket: &Option<InlinedS3BucketSpec>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
@@ -199,8 +202,22 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
         ];
 
-        if let Some(endpoint) = s3bucket.and_then(|s3| s3.endpoint()) {
+        // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
+        // for possible S3 related properties
+        if let Some(endpoint) = s3bucket
+            .as_ref()
+            .and_then(|s3| s3.endpoint(&S3ConnectionImplementation::S3a))
+        {
             submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
+        }
+        if s3bucket.as_ref().and_then(|s3| s3.secret_class()).is_some() {
+            // We don't use the secret at all here, instead we assume the Self::env() has been
+            // called and this environment variables are availables.
+            submit_cmd
+                .push("--conf spark.hadoop.fs.s3a.access.key=$ENV_AWS_ACCESS_KEY_ID".to_owned());
+            submit_cmd.push(
+                "--conf spark.hadoop.fs.s3a.secret.key=$ENV_AWS_SECRET_ACCESS_KEY".to_owned(),
+            );
         }
 
         // conf arguments that are not driver or executor specific
@@ -244,6 +261,41 @@ impl SparkApplication {
         }
 
         Ok(submit_cmd)
+    }
+
+    pub fn env(&self, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<EnvVar> {
+        let tmp = self.spec.env.as_ref();
+        let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
+        if let Some(s3) = s3bucket {
+            if let Some(secret) = s3.secret_class() {
+                e.push(Self::env_var_from_secret(
+                    ENV_AWS_ACCESS_KEY_ID,
+                    secret.as_ref(),
+                    ACCESS_KEY_ID,
+                ));
+                e.push(Self::env_var_from_secret(
+                    ENV_AWS_SECRET_ACCESS_KEY,
+                    secret.as_ref(),
+                    SECRET_ACCESS_KEY,
+                ));
+            }
+        }
+        e
+    }
+
+    fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
+        EnvVar {
+            name: String::from(var_name),
+            value_from: Some(EnvVarSource {
+                secret_key_ref: Some(SecretKeySelector {
+                    name: Some(String::from(secret)),
+                    key: String::from(secret_key),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
     }
 }
 

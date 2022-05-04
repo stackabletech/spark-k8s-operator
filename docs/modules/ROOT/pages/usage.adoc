@@ -123,7 +123,7 @@ include::example$example-sparkapp-configmap.yaml[]
 
 You can specify S3 connection details directly inside the `SparkApplication` specification or by refering to an external `S3Bucket` custom resource.
 
-To specify S3 connection details directly as part of the Spark application resource you add an inline bucket configuration as shown below.
+To specify S3 connection details directly as part of the `SparkApplication` resource you add an inline bucket configuration as shown below.
 
 [source,yaml]
 ----

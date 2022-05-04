@@ -18,7 +18,7 @@ lazy_static = "1.4"
 serde_yaml = "0.8"
 snafu = "0.7"
 strum = { version = "0.24.0", features = ["derive"] }
-tokio = { version = "1.17", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.18", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 
 [build-dependencies]

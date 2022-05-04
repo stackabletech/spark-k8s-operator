@@ -213,11 +213,14 @@ impl SparkApplication {
         if s3bucket.as_ref().and_then(|s3| s3.secret_class()).is_some() {
             // We don't use the secret at all here, instead we assume the Self::env() has been
             // called and this environment variables are availables.
-            submit_cmd
-                .push("--conf spark.hadoop.fs.s3a.access.key=$ENV_AWS_ACCESS_KEY_ID".to_owned());
-            submit_cmd.push(
-                "--conf spark.hadoop.fs.s3a.secret.key=$ENV_AWS_SECRET_ACCESS_KEY".to_owned(),
-            );
+            submit_cmd.push(format!(
+                "--conf spark.hadoop.fs.s3a.access.key=${}",
+                ENV_AWS_ACCESS_KEY_ID
+            ));
+            submit_cmd.push(format!(
+                "--conf spark.hadoop.fs.s3a.secret.key=${}",
+                ENV_AWS_SECRET_ACCESS_KEY
+            ));
         }
 
         // conf arguments that are not driver or executor specific

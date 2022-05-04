@@ -169,7 +169,7 @@ spec:
       secretClass: minio-credentials
 ----
 
-This has the advantage that bucket configuration can be shared across Spark applications and reduces the cost of updating this details.
+This has the advantage that bucket configuration can be shared across `SparkApplication`s and reduces the cost of updating these details.
 
 == CRD argument coverage
 

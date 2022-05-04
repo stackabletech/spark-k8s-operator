@@ -142,7 +142,7 @@ s3bucket:  # <1>
 <4> Optional bucket port.
 <5> Name of the `Secret` object expected to contain the following keys: `ACCESS_KEY_ID` and `SECRET_ACCESS_KEY`
 
-It is also possible to configure the bucket connection details as a separate Kubernetes resource and only refer to that object from the Spark application like this:
+It is also possible to configure the bucket connection details as a separate Kubernetes resource and only refer to that object from the `SparkApplication` like this:
 
 [source,yaml]
 ----

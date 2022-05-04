@@ -279,7 +279,7 @@ spec:
                           nullable: true
                           type: string
                         connection:
-                          description: "S3 connection definition used by [S3BucketSpec]"
+                          description: Operators are expected to define fields for this type in order to work with S3 connections.
                           nullable: true
                           oneOf:
                             - required:
@@ -311,18 +311,7 @@ spec:
                                             - none
                                         - required:
                                             - server
-                                        - required:
-                                            - mutual
                                       properties:
-                                        mutual:
-                                          description: Use TLS and ca certificate to verify the server and the client
-                                          properties:
-                                            certSecretClass:
-                                              description: "[SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html) which will provide ca.crt, tls.crt and tls.key"
-                                              type: string
-                                          required:
-                                            - certSecretClass
-                                          type: object
                                         none:
                                           description: "Use TLS but don't verify certificates"
                                           type: object

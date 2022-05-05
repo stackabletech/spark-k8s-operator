@@ -12,7 +12,6 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
-use stackable_operator::commons::s3::S3ConnectionImplementation;
 use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels;
@@ -204,10 +203,7 @@ impl SparkApplication {
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
         // for possible S3 related properties
-        if let Some(endpoint) = s3bucket
-            .as_ref()
-            .and_then(|s3| s3.endpoint(&S3ConnectionImplementation::S3a))
-        {
+        if let Some(endpoint) = s3bucket.as_ref().and_then(|s3| s3.endpoint()) {
             submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
         }
         if s3bucket.as_ref().and_then(|s3| s3.secret_class()).is_some() {

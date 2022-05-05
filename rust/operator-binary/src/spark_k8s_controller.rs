@@ -2,6 +2,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{
     ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
 };
+
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
     ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
@@ -71,6 +72,10 @@ pub enum Error {
     DriverPodTemplateSerde { source: serde_yaml::Error },
     #[snafu(display("executor pod template serialization"))]
     ExecutorPodTemplateSerde { source: serde_yaml::Error },
+    #[snafu(display("s3 bucket error"))]
+    S3Bucket {
+        source: stackable_operator::error::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -88,6 +93,15 @@ pub async fn reconcile(
     tracing::info!("Starting reconcile");
 
     let client = &ctx.get_ref().client;
+
+    let s3bucket = match spark_application.spec.s3bucket.as_ref() {
+        Some(s3bd) => s3bd
+            .resolve(client, spark_application.metadata.namespace.as_deref())
+            .await
+            .context(S3BucketSnafu)
+            .ok(),
+        _ => None,
+    };
 
     let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
     client
@@ -131,8 +145,13 @@ pub async fn reconcile(
             .build()
     });
 
-    let pod_template_config_map =
-        pod_template_config_map(&spark_application, &job_container, &requirements_container)?;
+    let env_vars = spark_application.env(&s3bucket);
+    let pod_template_config_map = pod_template_config_map(
+        &spark_application,
+        &job_container,
+        &requirements_container,
+        &env_vars,
+    )?;
     client
         .apply_patch(
             FIELD_MANAGER_SCOPE,
@@ -142,11 +161,17 @@ pub async fn reconcile(
         .await
         .context(ApplyApplicationSnafu)?;
 
+    let job_commands = spark_application
+        .build_command(serviceaccount.metadata.name.as_ref().unwrap(), &s3bucket)
+        .context(BuildCommandSnafu)?;
+
     let job = spark_job(
         &spark_application,
         spark_image,
         &serviceaccount,
         &job_container,
+        &env_vars,
+        &job_commands,
     )?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
@@ -214,6 +239,7 @@ fn pod_template_config_map(
     spark_application: &SparkApplication,
     job_container: &Option<Container>,
     requirements_container: &Option<Container>,
+    env: &[EnvVar],
 ) -> Result<ConfigMap> {
     let volumes = spark_application.volumes();
 
@@ -223,7 +249,7 @@ fn pod_template_config_map(
         requirements_container,
         volumes.as_ref(),
         spark_application.driver_volume_mounts().as_ref(),
-        spark_application.env().as_ref(),
+        env,
     )?;
     let executor_template = pod_template(
         CONTAINER_NAME_EXECUTOR,
@@ -231,7 +257,7 @@ fn pod_template_config_map(
         requirements_container,
         volumes.as_ref(),
         spark_application.executor_volume_mounts().as_ref(),
-        spark_application.env().as_ref(),
+        env,
     )?;
 
     ConfigMapBuilder::new()
@@ -261,6 +287,8 @@ fn spark_job(
     spark_image: &str,
     serviceaccount: &ServiceAccount,
     job_container: &Option<Container>,
+    env: &[EnvVar],
+    job_commands: &[String],
 ) -> Result<Job> {
     let mut volume_mounts = vec![VolumeMount {
         name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
@@ -276,17 +304,17 @@ fn spark_job(
         })
     }
 
-    let commands = spark_application
-        .build_command(serviceaccount.metadata.name.as_ref().unwrap())
-        .context(BuildCommandSnafu)?;
-
     let mut container = ContainerBuilder::new("spark-submit");
     container
         .image(spark_image)
         .command(vec!["/bin/bash".to_string()])
-        .args(vec!["-c".to_string(), "-x".to_string(), commands.join(" ")])
+        .args(vec![
+            "-c".to_string(),
+            "-x".to_string(),
+            job_commands.join(" "),
+        ])
         .add_volume_mounts(volume_mounts)
-        .add_env_vars(spark_application.env())
+        .add_env_vars(env.to_vec())
         // TODO: move this to the image
         .add_env_vars(vec![EnvVar {
             name: "SPARK_CONF_DIR".to_string(),
@@ -391,132 +419,4 @@ fn build_spark_role_serviceaccount(
 
 pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::spark_k8s_controller::spark_job;
-    use crate::spark_k8s_controller::{build_spark_role_serviceaccount, pod_template_config_map};
-    use crate::SparkApplication;
-    use std::collections::BTreeMap;
-
-    #[test]
-    fn test_pod_config_map() {
-        // N.B. have to include the uid explicitly here in the test (other than letting it be generated)
-        let spark_application = serde_yaml::from_str::<SparkApplication>(
-        r#"
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: spark-examples-s3
-  namespace: default
-  uid: "b4952dc3-d670-11e5-8cd0-68f728db1985"
-spec:
-  version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
-  mode: cluster
-  mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
-  sparkConf:
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-  driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
-  executor:
-    cores: 1
-    instances: 3
-    memory: "512m"
-  config:
-    enableMonitoring: true
-        "#).unwrap();
-
-        let pod_template_config_map =
-            pod_template_config_map(&spark_application, &None, &None).unwrap();
-
-        assert!(&pod_template_config_map.binary_data.is_none());
-        assert_eq!(
-            Some(2),
-            pod_template_config_map.clone().data.map(|d| d.keys().len())
-        );
-        assert_eq!(
-            Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
-            pod_template_config_map
-                .metadata
-                .owner_references
-                .map(|r| r[0].uid.to_string())
-        );
-    }
-
-    #[test]
-    fn test_job() {
-        // N.B. uid provided explicitly as in previous test
-        let spark_application = serde_yaml::from_str::<SparkApplication>(
-            r#"
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: spark-examples-s3
-  namespace: default
-  uid: "b4952dc3-d670-11e5-8cd0-68f728db1985"
-spec:
-  version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
-  mode: cluster
-  mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
-  sparkConf:
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-  driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
-  executor:
-    cores: 1
-    instances: 3
-    memory: "512m"
-            "#).unwrap();
-
-        let (serviceaccount, _rolebinding) =
-            build_spark_role_serviceaccount(&spark_application).unwrap();
-        let spark_image = spark_application.spec.spark_image.as_ref().unwrap();
-        let job = spark_job(&spark_application, spark_image, &serviceaccount, &None).unwrap();
-        let job_containers = &job
-            .clone()
-            .spec
-            .expect("no job spec found!")
-            .template
-            .spec
-            .expect("no template spec found!")
-            .containers;
-        assert_eq!(1, job_containers.len());
-
-        let job_args = &job_containers[0].args.clone().expect("no job args found!");
-        assert_eq!(3, job_args.len());
-        let spark_submit_cmd = &job_args[2];
-
-        assert_eq!(
-            Some("s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar"),
-            spark_submit_cmd.split_whitespace().rev().next()
-        );
-
-        assert_eq!(
-            Some("b4952dc3-d670-11e5-8cd0-68f728db1985".to_string()),
-            job.metadata.owner_references.map(|r| r[0].uid.to_string())
-        );
-    }
-
-    #[test]
-    fn test_cast() {
-        let properties = serde_yaml::from_str::<BTreeMap<String, String>>(
-            r#"
-    spark.hadoop.fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider
-    spark.driver.extraClassPath: /dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar
-    spark.executor.extraClassPath: /dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar
-        "#,
-        );
-        assert_eq!(3, properties.unwrap().len());
-    }
 }

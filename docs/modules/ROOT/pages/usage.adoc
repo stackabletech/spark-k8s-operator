@@ -119,6 +119,58 @@ include::example$example-sparkapp-configmap.yaml[]
 <6> The name of the volume backed by the configuration map that will be mounted to the driver/executor
 <7> The mount location of the volume (this will contain a file `/arguments/job-args.txt`)
 
+== S3 bucket specification
+
+You can specify S3 connection details directly inside the `SparkApplication` specification or by refering to an external `S3Bucket` custom resource.
+
+To specify S3 connection details directly as part of the `SparkApplication` resource you add an inline bucket configuration as shown below.
+
+[source,yaml]
+----
+s3bucket:  # <1>
+  inline:
+    bucketName: my-bucket # <2>
+    connection:
+      inline:
+        host: test-minio # <3>
+        port: 9000 # <4>
+        secretClass: minio-credentials  # <5>
+----
+<1> Entry point for the bucket configuration.
+<2> Bucket name.
+<3> Bucket host.
+<4> Optional bucket port.
+<5> Name of the `Secret` object expected to contain the following keys: `ACCESS_KEY_ID` and `SECRET_ACCESS_KEY`
+
+It is also possible to configure the bucket connection details as a separate Kubernetes resource and only refer to that object from the `SparkApplication` like this:
+
+[source,yaml]
+----
+s3bucket:
+  reference: my-bucket-resource # <1>
+----
+<1> Name of the bucket resource with connection details.
+
+The resource named `my-bucket-resource` is then defined as shown below:
+
+[source,yaml]
+----
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Bucket
+metadata:
+  name: my-bucket-resource
+spec:
+  bucketName: my-bucket-name
+  connection:
+    inline:
+      host: test-minio
+      port: 9000
+      secretClass: minio-credentials
+----
+
+This has the advantage that bucket configuration can be shared across `SparkApplication`s and reduces the cost of updating these details.
+
 == CRD argument coverage
 
 Below are listed the CRD fields that can be defined by the user:
@@ -156,11 +208,8 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.args`
 |Arguments passed directly to the job artifact
 
-|`spec.s3.credentialsSecret`
-|Name of the credentials secret for S3 access
-
-|`spec.s3.endpoint`
-|S3 endpoint
+|`spec.s3bucket`
+|S3 bucket and connection specification. See the <<S3 bucket specification>> for more details.
 
 |`spec.sparkConf`
 |A map of key/value strings that will be passed directly to `spark-submit`

@@ -1,7 +1,0 @@
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: list-jars-job
-status:
-  succeeded: 1

@@ -8,7 +8,7 @@ repository = "https://github.com/stackabletech/spark-k8s-operator"
 version = "0.1.0-nightly"
 
 [dependencies]
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", branch="bugfix/s3-endpoint-protocol" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.19.0" }
 stackable-spark-k8s-crd = { path = "../crd" }
 anyhow = "1.0"
 clap = "3.1"
@@ -23,5 +23,5 @@ tracing = "0.1"
 
 [build-dependencies]
 built = { version =  "0.5", features = ["chrono", "git2"] }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", branch="bugfix/s3-endpoint-protocol" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.19.0" }
 stackable-spark-k8s-crd = { path = "../crd" }

@@ -1671,8 +1671,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.18.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?branch=bugfix/s3-endpoint-protocol#c17458b1f6a7ec0af7735059764252606ab3fd41"
+version = "0.19.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.19.0#f8f2d5527b3463cc40f3d851172af7ae81db75c1"
 dependencies = [
  "backoff",
  "chrono",
@@ -1694,12 +1694,24 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "stackable-operator-derive",
  "strum",
  "thiserror",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "stackable-operator-derive"
+version = "0.17.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.19.0#f8f2d5527b3463cc40f3d851172af7ae81db75c1"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

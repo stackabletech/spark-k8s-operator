@@ -5,16 +5,16 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
     hooks:
-    - id: trailing-whitespace
-    - id: end-of-file-fixer
-    - id: check-yaml
-      args: ["--allow-multiple-documents"]
-    - id: detect-aws-credentials
-      args: ["--allow-missing-credentials"]
-    - id: detect-private-key
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      - id: detect-aws-credentials
+        args: ["--allow-missing-credentials"]
+      - id: detect-private-key
   - repo: https://github.com/doublify/pre-commit-rust
     rev: v1.0
     hooks:
-    - id: fmt
-    - id: clippy
-      args: ["--all-targets"]
+      - id: fmt
+      - id: clippy
+        args: ["--all-targets"]

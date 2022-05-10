@@ -69,7 +69,7 @@ This should be fairly easy to solve and we can look at this as soon as it become
 
 To run tests locally you need the following things installed:
 
-- python3
+- python3 (version >= 3.9)
   - pyyaml library installed
 - ansible
 
@@ -79,4 +79,4 @@ To run tests please execute the following command from the gitroot of the operat
 
 `scripts/run_tests.sh`
 
-This will install the necessarry ansible role into `tests/ansible/roles`, expand the test templates into all defined test scenarios and execute kuttl to test these scenarios.
+This will install the necessary ansible role into `tests/ansible/roles`, expand the test templates into all defined test scenarios and execute kuttl to test these scenarios.

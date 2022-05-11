@@ -25,5 +25,5 @@ popd
 
 # Run tests
 pushd tests/_work
-kubectl kuttl test
+kubectl kuttl test "$@"
 popd

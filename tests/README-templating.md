@@ -71,7 +71,7 @@ To run tests locally you need the following things installed:
 
 - python3 (version >= 3.9)
   - pyyaml library installed
-- ansible
+- ansible (tested with `2.10.8` and `2.12.5`)
 - jq
 
 ### Running

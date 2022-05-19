@@ -25,4 +25,3 @@ The operator has example requests included in the [`/examples`](https://github.c
 ## Links
 
 https://github.com/stackabletech/spark-k8s-operator
-

@@ -5,23 +5,10 @@
 #
 # usage: cargo-version.py [-h] [-p PROJECT] [-r] [-n {major,minor,patch}] [-s SET] [-o] [-m PRERELEASE]
 #
-# Change versions of cargo projects.
-#
-# optional arguments:
-#   -h, --help            show this help message and exit
-#   -p PROJECT, --project PROJECT
-#                         Project folder
-#   -r, --release         Version
-#   -n {major,minor,patch}, --next {major,minor,patch}
-#                         Version
-#   -s SET, --set SET     Version
-#   -o, --show            Version
-#   -m PRERELEASE, --prerelease PRERELEASE
-#                         Set pre-prelease string.
-#
+import argparse
+
 import toml
 import semver
-import argparse
 
 
 class Crate:
@@ -41,20 +28,22 @@ class Crate:
 
     @classmethod
     def bump_level(cls, version, level):
-        v = semver.VersionInfo.parse(version)
+        ver = semver.VersionInfo.parse(version)
         if level == "major":
-            return str(v.bump_major())
-        elif level == "minor":
-            return str(v.bump_minor())
-        elif level == "patch":
-            return str(v.bump_patch())
-        else:
-            return str(v.bump_prerelease("nightly"))[:-2]  # remove the .1 suffix that semver always adds to the prererelease.
+            return str(ver.bump_major())
+        if level == "minor":
+            return str(ver.bump_minor())
+        if level == "patch":
+            return str(ver.bump_patch())
+
+        return str(ver.bump_prerelease("nightly"))[
+            :-2
+        ]  # remove the .1 suffix that semver always adds to the prererelease.
 
     @classmethod
     def prerelease(cls, version, prerelease):
-        v = semver.VersionInfo.parse(version)
-        return str(semver.VersionInfo(v.major, v.minor, v.patch, prerelease))
+        ver = semver.VersionInfo.parse(version)
+        return str(semver.VersionInfo(ver.major, ver.minor, ver.patch, prerelease))
 
     def finalize_version(self):
         return Crate(
@@ -94,8 +83,8 @@ class Crate:
     def save(self, previous):
         contents = []
         cargo_file = f"{self.path}/Cargo.toml"
-        with open(cargo_file, "r") as r:
-            for line in r.readlines():
+        with open(cargo_file, "r", encoding="utf8") as ctl:
+            for line in ctl.readlines():
                 if line.startswith("version"):
                     line = line.replace(previous.version, self.version)
                 else:
@@ -103,8 +92,8 @@ class Crate:
                         if line.startswith(dname):
                             line = line.replace(previous.dependencies[dname], dversion)
                 contents.append(line)
-        with open(cargo_file, "w") as w:
-            w.write("".join(contents))
+        with open(cargo_file, "w", encoding="utf8") as ctl:
+            ctl.write("".join(contents))
 
     def __str__(self):
         return f"Crate({self.path}, {self.name}, {self.version}, {self.dependencies})"
@@ -112,7 +101,7 @@ class Crate:
 
 class Workspace:
     def __init__(self, crates):
-        names = set([c.name for c in crates])
+        names = {c.name for c in crates}
         self.crates = {c.name: c.with_dependencies(names) for c in crates}
 
     def finalize_version(self):
@@ -136,8 +125,8 @@ class Workspace:
         return Workspace(Workspace.update_dependencies(crates).values())
 
     def show_version(self):
-        for c in self.crates.values():
-            return c.show_version()
+        for cts in self.crates.values():
+            return cts.show_version()
         return "0.0.0"
 
     @classmethod
@@ -151,25 +140,27 @@ class Workspace:
         return f"Workspace({[str(c) for c in self.crates.values()]})"
 
     def save(self, previous):
-        for cn in self.crates.keys():
-            self.crates[cn].save(previous.crates[cn])
+        for crn in self.crates.keys():
+            self.crates[crn].save(previous.crates[crn])
 
 
 def load(root):
-    r = toml.load(f"{root}/Cargo.toml")
-    if "workspace" in r:
-        return Workspace([load(f"{root}/{path}") for path in r["workspace"]["members"]])
-    else:
-        return Crate(
-            path=root,
-            name=r["package"]["name"],
-            version=r["package"]["version"],
-            dependencies={
-                dn: r["dependencies"][dn]["version"]
-                for dn in r["dependencies"]
-                if "version" in r["dependencies"][dn]
-            },
+    ctl = toml.load(f"{root}/Cargo.toml")
+    if "workspace" in ctl:
+        return Workspace(
+            [load(f"{root}/{path}") for path in ctl["workspace"]["members"]]
         )
+
+    return Crate(
+        path=root,
+        name=ctl["package"]["name"],
+        version=ctl["package"]["version"],
+        dependencies={
+            dn: ctl["dependencies"][dn]["version"]
+            for dn in ctl["dependencies"]
+            if "version" in ctl["dependencies"][dn]
+        },
+    )
 
 
 def parse_args():

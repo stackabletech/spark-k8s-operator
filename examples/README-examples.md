@@ -27,7 +27,7 @@ The PVC should contain a few dependencies that Spark needs to access S3:
 kubectl apply -f kind/kind-pvc.yaml
 ````
 
-## Set up the `minio` obejct store
+## Set up the `minio` object store
 
 Use a local object store to avoid external dependencies:
 

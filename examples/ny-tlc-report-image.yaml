@@ -2,23 +2,32 @@
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: ny-tlc-report-image
+  name: spark-ny-image
   namespace: default
 spec:
   version: "1.0"
+  # everything under /jobs will be copied to /stackable/spark/jobs
   image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
   sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.2.1-hadoop3.2-python39-stackable0.1.0
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
   args:
-    - "--input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
+    - "--input 's3a://my-bucket/yellow_tripdata_2021-07.csv'"
   deps:
     requirements:
       - tabulate==0.8.9
+  s3bucket:
+    inline:
+      bucketName: my-bucket
+      connection:
+        inline:
+          host: test-minio
+          port: 9000
   sparkConf:
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    "spark.driver.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
-    "spark.executor.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+    spark.hadoop.fs.s3a.path.style.access: "true"
+    spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
   volumes:
     - name: job-deps
       persistentVolumeClaim:

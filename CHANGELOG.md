@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated examples ([#71])
+
+[#71]: https://github.com/stackabletech/spark-k8s-operator/pull/71
+
 ## [0.1.0] - 2022-05-05
 
 ### Added

@@ -30,8 +30,6 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object defines no version"))]
-    ObjectHasNoVersion,
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
@@ -133,7 +131,8 @@ pub async fn reconcile(
     });
 
     let requirements_container = spark_application.requirements().map(|req| {
-        ContainerBuilder::new(CONTAINER_NAME_REQ)
+        let mut container_builder = ContainerBuilder::new(CONTAINER_NAME_REQ);
+        container_builder
             .image(spark_image)
             .command(vec![
                 "/bin/bash".to_string(),
@@ -141,8 +140,11 @@ pub async fn reconcile(
                 "-c".to_string(),
                 format!("pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"),
             ])
-            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
-            .build()
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ);
+        if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+            container_builder.image_pull_policy(image_pull_policy.to_string());
+        }
+        container_builder.build()
     });
 
     let env_vars = spark_application.env(&s3bucket);
@@ -321,6 +323,10 @@ fn spark_job(
             value: Some("/stackable/spark/conf".to_string()),
             value_from: None,
         }]);
+
+    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+        container.image_pull_policy(image_pull_policy.to_string());
+    }
 
     let mut volumes = vec![Volume {
         name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),

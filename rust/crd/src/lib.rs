@@ -68,6 +68,8 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_image: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spark_image_pull_policy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<DriverConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<ExecutorConfig>,
@@ -121,6 +123,10 @@ impl SparkApplication {
 
     pub fn image(&self) -> Option<&str> {
         self.spec.image.as_deref()
+    }
+
+    pub fn spark_image_pull_policy(&self) -> Option<&str> {
+        self.spec.spark_image_pull_policy.as_deref()
     }
 
     pub fn version(&self) -> Option<&str> {

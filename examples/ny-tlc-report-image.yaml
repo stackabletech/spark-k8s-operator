@@ -9,6 +9,8 @@ spec:
   # everything under /jobs will be copied to /stackable/spark/jobs
   image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
   sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.2.1-hadoop3.2-python39-stackable0.1.0
+  # Always | IfNotPresent | Never
+  sparkImagePullPolicy: Always
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
   args:

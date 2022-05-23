@@ -353,6 +353,9 @@ spec:
                     type: string
                   nullable: true
                   type: object
+                sparkHome:
+                  nullable: true
+                  type: string
                 sparkImage:
                   nullable: true
                   type: string

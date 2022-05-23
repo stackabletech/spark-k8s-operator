@@ -68,6 +68,8 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_image: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spark_home: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<DriverConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<ExecutorConfig>,
@@ -121,6 +123,37 @@ impl SparkApplication {
 
     pub fn image(&self) -> Option<&str> {
         self.spec.image.as_deref()
+    }
+
+    fn spark_home(&self) -> String {
+        self.spec
+            .spark_home
+            .clone()
+            .unwrap_or_else(|| DEFAULT_SPARK_HOME.to_string())
+    }
+
+    pub fn volume_mount_path_pod_templates(&self) -> String {
+        let mut path = self.spark_home();
+        path.push_str(VOLUME_MOUNT_DIR_POD_TEMPLATES);
+        path
+    }
+
+    pub fn volume_mount_path_job(&self) -> String {
+        let mut path = self.spark_home();
+        path.push_str(VOLUME_MOUNT_DIR_JOB);
+        path
+    }
+
+    pub fn volume_mount_path_req(&self) -> String {
+        let mut path = self.spark_home();
+        path.push_str(VOLUME_MOUNT_DIR_REQ);
+        path
+    }
+
+    pub fn spark_conf_dir(&self) -> String {
+        let mut path = self.spark_home();
+        path.push_str(SPARK_CONF_DIR);
+        path
     }
 
     pub fn version(&self) -> Option<&str> {
@@ -184,15 +217,16 @@ impl SparkApplication {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
+        let spark_home = self.spark_home();
 
         let mut submit_cmd = vec![
-            "/stackable/spark/bin/spark-submit".to_string(),
+            "{spark_home}/bin/spark-submit".to_string(),
             "--verbose".to_string(),
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
             format!("--deploy-mode {mode}"),
             format!("--name {name}"),
-            format!("--conf spark.kubernetes.driver.podTemplateFile={VOLUME_MOUNT_PATH_POD_TEMPLATES}/driver.yml"),
-            format!("--conf spark.kubernetes.executor.podTemplateFile={VOLUME_MOUNT_PATH_POD_TEMPLATES}/executor.yml"),
+            format!("--conf spark.kubernetes.driver.podTemplateFile={spark_home}{VOLUME_MOUNT_DIR_POD_TEMPLATES}/driver.yml"),
+            format!("--conf spark.kubernetes.executor.podTemplateFile={spark_home}{VOLUME_MOUNT_DIR_POD_TEMPLATES}/executor.yml"),
             format!("--conf spark.kubernetes.driver.podTemplateContainerName={CONTAINER_NAME_DRIVER}"),
             format!("--conf spark.kubernetes.executor.podTemplateContainerName={CONTAINER_NAME_EXECUTOR}"),
             format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),

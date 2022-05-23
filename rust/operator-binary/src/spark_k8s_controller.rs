@@ -119,6 +119,8 @@ pub async fn reconcile(
         .as_deref()
         .context(ObjectHasNoSparkImageSnafu)?;
 
+    let volume_mount_path_job = spark_application.volume_mount_path_job();
+
     let job_container = spark_application.spec.image.as_ref().map(|job_image| {
         ContainerBuilder::new(CONTAINER_NAME_JOB)
             .image(job_image)
@@ -126,11 +128,13 @@ pub async fn reconcile(
                 "/bin/bash".to_string(),
                 "-x".to_string(),
                 "-c".to_string(),
-                format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"),
+                format!("cp /jobs/* {volume_mount_path_job}"),
             ])
-            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
+            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, volume_mount_path_job)
             .build()
     });
+
+    let volume_mount_path_req = spark_application.volume_mount_path_req();
 
     let requirements_container = spark_application.requirements().map(|req| {
         ContainerBuilder::new(CONTAINER_NAME_REQ)
@@ -139,9 +143,9 @@ pub async fn reconcile(
                 "/bin/bash".to_string(),
                 "-x".to_string(),
                 "-c".to_string(),
-                format!("pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"),
+                format!("pip install --target={volume_mount_path_req} {req}"),
             ])
-            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, volume_mount_path_req)
             .build()
     });
 
@@ -182,6 +186,7 @@ pub async fn reconcile(
 }
 
 fn pod_template(
+    spark_application: &SparkApplication,
     container_name: &str,
     job_container: &Option<Container>,
     requirements_container: &Option<Container>,
@@ -192,21 +197,24 @@ fn pod_template(
     let volumes = volumes.to_vec();
     let volume_mounts = volume_mounts.to_vec();
 
+    let volume_mount_path_job = spark_application.volume_mount_path_job();
+    let volume_mount_path_req = spark_application.volume_mount_path_req();
+
     let mut container = ContainerBuilder::new(container_name);
     container
         .add_volume_mounts(volume_mounts)
         .add_env_vars(env.to_vec());
 
     if job_container.is_some() {
-        container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
+        container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, volume_mount_path_job);
     }
 
     if requirements_container.is_some() {
         container
-            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, volume_mount_path_req.clone())
             .add_env_var(
                 "PYTHONPATH",
-                format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
+                format!("$SPARK_HOME/python:{volume_mount_path_req}:$PYTHONPATH"),
             );
     }
 
@@ -244,6 +252,7 @@ fn pod_template_config_map(
     let volumes = spark_application.volumes();
 
     let driver_template = pod_template(
+        spark_application,
         CONTAINER_NAME_DRIVER,
         job_container,
         requirements_container,
@@ -252,6 +261,7 @@ fn pod_template_config_map(
         env,
     )?;
     let executor_template = pod_template(
+        spark_application,
         CONTAINER_NAME_EXECUTOR,
         job_container,
         requirements_container,
@@ -290,16 +300,19 @@ fn spark_job(
     env: &[EnvVar],
     job_commands: &[String],
 ) -> Result<Job> {
+    let volume_mount_path_pod_templates = spark_application.volume_mount_path_pod_templates();
+    let volume_mount_path_job = spark_application.volume_mount_path_job();
+
     let mut volume_mounts = vec![VolumeMount {
         name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
-        mount_path: VOLUME_MOUNT_PATH_POD_TEMPLATES.into(),
+        mount_path: volume_mount_path_pod_templates,
         ..VolumeMount::default()
     }];
     volume_mounts.extend(spark_application.driver_volume_mounts());
     if job_container.is_some() {
         volume_mounts.push(VolumeMount {
             name: VOLUME_MOUNT_NAME_JOB.into(),
-            mount_path: VOLUME_MOUNT_PATH_JOB.into(),
+            mount_path: volume_mount_path_job,
             ..VolumeMount::default()
         })
     }
@@ -315,10 +328,9 @@ fn spark_job(
         ])
         .add_volume_mounts(volume_mounts)
         .add_env_vars(env.to_vec())
-        // TODO: move this to the image
         .add_env_vars(vec![EnvVar {
-            name: "SPARK_CONF_DIR".to_string(),
-            value: Some("/stackable/spark/conf".to_string()),
+            name: SPARK_CONF_DIR_NAME.to_string(),
+            value: Some(spark_application.spark_conf_dir()),
             value_from: None,
         }]);
 

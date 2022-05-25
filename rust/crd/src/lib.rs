@@ -220,7 +220,7 @@ impl SparkApplication {
         let spark_home = self.spark_home();
 
         let mut submit_cmd = vec![
-            "{spark_home}/bin/spark-submit".to_string(),
+            format!("{spark_home}/bin/spark-submit"),
             "--verbose".to_string(),
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
             format!("--deploy-mode {mode}"),

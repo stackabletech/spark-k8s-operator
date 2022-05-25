@@ -9,6 +9,7 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
+  sparkHome: /stackable/spark
   s3bucket:
     inline:
       bucketName: my-bucket

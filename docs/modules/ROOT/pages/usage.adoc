@@ -12,11 +12,11 @@ The example below creates a job running on Apache Spark 3.2.1, using the spark-o
     metadata:
       name: spark-clustermode-001
     spec:
-      version: 3.2.1-hadoop3.2
+      version: "1.0"
       mode: cluster
       mainClass: org.apache.spark.examples.SparkPi
       mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-3.2.1.jar
-      image: 3.2.1-hadoop3.2
+      sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
       driver:
         cores: 1
         coreLimit: "1200m"

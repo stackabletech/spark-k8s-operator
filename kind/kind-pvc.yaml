@@ -18,6 +18,8 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      nodeSelector:
+        node: "1"
       volumes:
         - name: job-deps
           persistentVolumeClaim:

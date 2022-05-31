@@ -95,7 +95,6 @@ pub struct SparkApplicationSpec {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Display, EnumString)]
-#[strum(ascii_case_insensitive)]
 pub enum ImagePullPolicy {
     Always,
     IfNotPresent,
@@ -622,20 +621,16 @@ spec:
     #[test]
     fn test_image_pull_policy_de() {
         assert_eq!(
-            ImagePullPolicy::Never,
-            ImagePullPolicy::from_str("never").unwrap()
+            ImagePullPolicy::Always,
+            ImagePullPolicy::from_str("Always").unwrap()
         );
         assert_eq!(
             ImagePullPolicy::Never,
-            ImagePullPolicy::from_str("NeVer").unwrap()
+            ImagePullPolicy::from_str("Never").unwrap()
         );
         assert_eq!(
             ImagePullPolicy::IfNotPresent,
             ImagePullPolicy::from_str("IfNotPresent").unwrap()
-        );
-        assert_eq!(
-            ImagePullPolicy::IfNotPresent,
-            ImagePullPolicy::from_str("ifNOTpresent").unwrap()
         );
     }
 }

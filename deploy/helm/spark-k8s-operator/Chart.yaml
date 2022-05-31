@@ -1,7 +1,7 @@
 ---
 apiVersion: v2
 name: spark-k8s-operator
-version: 0.1.0
+version: "0.1.0"
 appVersion: "0.1.0"
 description: The Stackable Operator for Apache Spark-on-Kubernetes
 home: https://github.com/stackabletech/spark-k8s-operator

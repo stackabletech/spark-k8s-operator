@@ -20,6 +20,7 @@ use stackable_operator::{
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
+use strum::{Display, EnumString};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -68,7 +69,7 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_image: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_image_pull_policy: Option<String>,
+    pub spark_image_pull_policy: Option<ImagePullPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<DriverConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -89,6 +90,14 @@ pub struct SparkApplicationSpec {
     pub volumes: Option<Vec<Volume>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<EnvVar>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Display, EnumString)]
+#[strum(ascii_case_insensitive)]
+pub enum ImagePullPolicy {
+    Always,
+    IfNotPresent,
+    Never,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -125,8 +134,8 @@ impl SparkApplication {
         self.spec.image.as_deref()
     }
 
-    pub fn spark_image_pull_policy(&self) -> Option<&str> {
-        self.spec.spark_image_pull_policy.as_deref()
+    pub fn spark_image_pull_policy(&self) -> Option<ImagePullPolicy> {
+        self.spec.spark_image_pull_policy.clone()
     }
 
     pub fn version(&self) -> Option<&str> {
@@ -386,7 +395,9 @@ pub struct CommandStatus {
 
 #[cfg(test)]
 mod tests {
+    use crate::ImagePullPolicy;
     use crate::SparkApplication;
+    use std::str::FromStr;
 
     #[test]
     fn test_spark_examples_s3() {
@@ -547,5 +558,20 @@ spec:
 
         assert!(spark_application.spec.main_class.is_none());
         assert!(spark_application.spec.image.is_none());
+    }
+
+    #[test]
+    fn test_image_pull_policy_ser() {
+        assert_eq!("Never", ImagePullPolicy::Never.to_string());
+        assert_eq!("Always", ImagePullPolicy::Always.to_string());
+        assert_eq!("IfNotPresent", ImagePullPolicy::IfNotPresent.to_string());
+    }
+
+    #[test]
+    fn test_image_pull_policy_de() {
+        assert_eq!(ImagePullPolicy::Never, ImagePullPolicy::from_str("never").unwrap());
+        assert_eq!(ImagePullPolicy::Never, ImagePullPolicy::from_str("NeVer").unwrap());
+        assert_eq!(ImagePullPolicy::IfNotPresent, ImagePullPolicy::from_str("IfNotPresent").unwrap());
+        assert_eq!(ImagePullPolicy::IfNotPresent, ImagePullPolicy::from_str("ifNOTpresent").unwrap());
     }
 }

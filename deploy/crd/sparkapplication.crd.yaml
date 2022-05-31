@@ -357,6 +357,10 @@ spec:
                   nullable: true
                   type: string
                 sparkImagePullPolicy:
+                  enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
                   nullable: true
                   type: string
                 stopped:

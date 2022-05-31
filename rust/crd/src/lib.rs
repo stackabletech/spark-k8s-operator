@@ -5,7 +5,7 @@ pub mod constants;
 use constants::*;
 use stackable_operator::commons::s3::{InlinedS3BucketSpec, S3BucketDef};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount,
+    EnvVar, EnvVarSource, LocalObjectReference, SecretKeySelector, Volume, VolumeMount,
 };
 
 use std::collections::{BTreeMap, HashMap};
@@ -70,6 +70,8 @@ pub struct SparkApplicationSpec {
     pub spark_image: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_image_pull_policy: Option<ImagePullPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spark_image_pull_secrets: Option<Vec<LocalObjectReference>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<DriverConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -136,6 +138,10 @@ impl SparkApplication {
 
     pub fn spark_image_pull_policy(&self) -> Option<ImagePullPolicy> {
         self.spec.spark_image_pull_policy.clone()
+    }
+
+    pub fn spark_image_pull_secrets(&self) -> Option<Vec<LocalObjectReference>> {
+        self.spec.spark_image_pull_secrets.clone()
     }
 
     pub fn version(&self) -> Option<&str> {
@@ -396,6 +402,7 @@ pub struct CommandStatus {
 #[cfg(test)]
 mod tests {
     use crate::ImagePullPolicy;
+    use crate::LocalObjectReference;
     use crate::SparkApplication;
     use std::str::FromStr;
 
@@ -561,6 +568,51 @@ spec:
     }
 
     #[test]
+    fn test_image_actions() {
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+            r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-pi-local
+  namespace: default
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
+  sparkImagePullPolicy: Always
+  sparkImagePullSecrets:
+    - name: myregistrykey
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-3.2.1.jar
+  sparkConf:
+    spark.kubernetes.node.selector.node: "2"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 1
+    memory: "512m"
+        "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            Some(vec![LocalObjectReference {
+                name: Some("myregistrykey".to_string())
+            }]),
+            spark_application.spark_image_pull_secrets()
+        );
+        assert_eq!(
+            Some(ImagePullPolicy::Always),
+            spark_application.spark_image_pull_policy()
+        );
+    }
+
+    #[test]
     fn test_image_pull_policy_ser() {
         assert_eq!("Never", ImagePullPolicy::Never.to_string());
         assert_eq!("Always", ImagePullPolicy::Always.to_string());
@@ -569,9 +621,21 @@ spec:
 
     #[test]
     fn test_image_pull_policy_de() {
-        assert_eq!(ImagePullPolicy::Never, ImagePullPolicy::from_str("never").unwrap());
-        assert_eq!(ImagePullPolicy::Never, ImagePullPolicy::from_str("NeVer").unwrap());
-        assert_eq!(ImagePullPolicy::IfNotPresent, ImagePullPolicy::from_str("IfNotPresent").unwrap());
-        assert_eq!(ImagePullPolicy::IfNotPresent, ImagePullPolicy::from_str("ifNOTpresent").unwrap());
+        assert_eq!(
+            ImagePullPolicy::Never,
+            ImagePullPolicy::from_str("never").unwrap()
+        );
+        assert_eq!(
+            ImagePullPolicy::Never,
+            ImagePullPolicy::from_str("NeVer").unwrap()
+        );
+        assert_eq!(
+            ImagePullPolicy::IfNotPresent,
+            ImagePullPolicy::from_str("IfNotPresent").unwrap()
+        );
+        assert_eq!(
+            ImagePullPolicy::IfNotPresent,
+            ImagePullPolicy::from_str("ifNOTpresent").unwrap()
+        );
     }
 }

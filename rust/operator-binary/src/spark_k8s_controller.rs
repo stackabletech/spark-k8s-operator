@@ -359,6 +359,7 @@ fn spark_job(
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
+            image_pull_secrets: spark_application.spark_image_pull_secrets(),
             ..PodSpec::default()
         }),
     };

@@ -6,9 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Added new fields to govern image pull policy ([#xx])
+- Added new fields to govern image pull policy ([#75])
 
-[#xx]: https://github.com/stackabletech/spark-k8s-operator/pull/xx
+[#75]: https://github.com/stackabletech/spark-k8s-operator/pull/75
 
 ### Changed
 

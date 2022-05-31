@@ -199,6 +199,12 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.sparkImage`
 | Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0`
 
+|`spec.sparkImagePullPolicy`
+| Optional Enum (one of `Always`, `IfNotPresent` or `Never`) that determines the pull policy of the spark job image
+
+|`spec.sparkImagePullSecrets`
+| An optional list of references to secrets in the same namespace to use for pulling any of the images used by a `SparkApplication` resource. Each reference has a single property (`name`) that must contain a reference to a valid secret
+
 |`spec.mainApplicationFile`
 |The actual application file that will be called by `spark-submit`
 

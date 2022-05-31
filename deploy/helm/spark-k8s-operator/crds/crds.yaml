@@ -358,6 +358,23 @@ spec:
                 sparkImage:
                   nullable: true
                   type: string
+                sparkImagePullPolicy:
+                  enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
+                  nullable: true
+                  type: string
+                sparkImagePullSecrets:
+                  items:
+                    description: LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.
+                    properties:
+                      name:
+                        description: "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names"
+                        type: string
+                    type: object
+                  nullable: true
+                  type: array
                 stopped:
                   nullable: true
                   type: boolean

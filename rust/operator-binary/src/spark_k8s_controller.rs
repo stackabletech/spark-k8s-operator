@@ -184,6 +184,7 @@ pub async fn reconcile(
 }
 
 fn pod_template(
+    spark_application: &SparkApplication,
     container_name: &str,
     job_container: &Option<Container>,
     requirements_container: &Option<Container>,
@@ -198,6 +199,10 @@ fn pod_template(
     container
         .add_volume_mounts(volume_mounts)
         .add_env_vars(env.to_vec());
+
+    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+        container.image_pull_policy(image_pull_policy.to_string());
+    }
 
     if job_container.is_some() {
         container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
@@ -246,6 +251,7 @@ fn pod_template_config_map(
     let volumes = spark_application.volumes();
 
     let driver_template = pod_template(
+        spark_application,
         CONTAINER_NAME_DRIVER,
         job_container,
         requirements_container,
@@ -254,6 +260,7 @@ fn pod_template_config_map(
         env,
     )?;
     let executor_template = pod_template(
+        spark_application,
         CONTAINER_NAME_EXECUTOR,
         job_container,
         requirements_container,

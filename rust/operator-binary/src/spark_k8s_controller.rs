@@ -1,6 +1,6 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{
-    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
+    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, VolumeBuilder,
 };
 
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
@@ -10,6 +10,7 @@ use stackable_operator::k8s_openapi::api::core::v1::{
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
+use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::product_config::ProductConfigManager;
@@ -192,8 +193,9 @@ fn pod_template(
     volume_mounts: &[VolumeMount],
     env: &[EnvVar],
 ) -> Result<Pod> {
-    let volumes = volumes.to_vec();
+    let mut volumes = volumes.to_vec();
     let volume_mounts = volume_mounts.to_vec();
+    let mut inits: Option<Vec<Container>> = None;
 
     let mut container = ContainerBuilder::new(container_name);
     container
@@ -206,6 +208,9 @@ fn pod_template(
 
     if job_container.is_some() {
         container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
+        volumes.extend(vec![VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
+            .empty_dir(EmptyDirVolumeSource::default())
+            .build()]);
     }
 
     if requirements_container.is_some() {
@@ -215,31 +220,31 @@ fn pod_template(
                 "PYTHONPATH",
                 format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
             );
+        volumes.extend(vec![VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
+            .empty_dir(EmptyDirVolumeSource::default())
+            .build()]);
     }
-
-    let mut template = PodBuilder::new();
-    template
-        .metadata_default()
-        .add_container(container.build())
-        .add_volumes(volumes);
 
     if let Some(container) = requirements_container.clone() {
-        template.add_init_container(container);
-        template.add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
-                .empty_dir(EmptyDirVolumeSource::default())
-                .build(),
-        );
+        inits.get_or_insert_with(Vec::new).push(container);
     }
     if let Some(container) = job_container.clone() {
-        template.add_init_container(container);
-        template.add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
-                .empty_dir(EmptyDirVolumeSource::default())
-                .build(),
-        );
+        inits.get_or_insert_with(Vec::new).push(container);
     }
-    template.build().context(PodTemplateSnafu)
+
+    let pod = Pod {
+        metadata: ObjectMeta::default(),
+        spec: Some(PodSpec {
+            containers: vec![container.build()],
+            init_containers: inits,
+            volumes: Some(volumes),
+            image_pull_secrets: spark_application.spark_image_pull_secrets(),
+            ..PodSpec::default()
+        }),
+        ..Pod::default()
+    };
+
+    Ok(pod)
 }
 
 fn pod_template_config_map(

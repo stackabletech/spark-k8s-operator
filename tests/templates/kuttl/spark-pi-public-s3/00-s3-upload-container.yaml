@@ -5,6 +5,7 @@ metadata:
   name: minio-mc
   labels:
     app: minio-mc
+timeout: 240
 spec:
   clusterIP: None
   selector:
@@ -16,6 +17,7 @@ metadata:
   name: minio-mc
   labels:
     app: minio-mc
+timeout: 240
 spec:
   replicas: 1
   serviceName: "minio-mc"

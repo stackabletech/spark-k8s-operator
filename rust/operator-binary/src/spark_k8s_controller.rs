@@ -1,6 +1,6 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{
-    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder,
+    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, VolumeBuilder,
 };
 
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
@@ -10,6 +10,7 @@ use stackable_operator::k8s_openapi::api::core::v1::{
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
+use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::product_config::ProductConfigManager;
@@ -30,8 +31,6 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object defines no version"))]
-    ObjectHasNoVersion,
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
@@ -133,7 +132,8 @@ pub async fn reconcile(
     });
 
     let requirements_container = spark_application.requirements().map(|req| {
-        ContainerBuilder::new(CONTAINER_NAME_REQ)
+        let mut container_builder = ContainerBuilder::new(CONTAINER_NAME_REQ);
+        container_builder
             .image(spark_image)
             .command(vec![
                 "/bin/bash".to_string(),
@@ -141,8 +141,11 @@ pub async fn reconcile(
                 "-c".to_string(),
                 format!("pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"),
             ])
-            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
-            .build()
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ);
+        if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+            container_builder.image_pull_policy(image_pull_policy.to_string());
+        }
+        container_builder.build()
     });
 
     let env_vars = spark_application.env(&s3bucket);
@@ -182,6 +185,7 @@ pub async fn reconcile(
 }
 
 fn pod_template(
+    spark_application: &SparkApplication,
     container_name: &str,
     job_container: &Option<Container>,
     requirements_container: &Option<Container>,
@@ -189,16 +193,24 @@ fn pod_template(
     volume_mounts: &[VolumeMount],
     env: &[EnvVar],
 ) -> Result<Pod> {
-    let volumes = volumes.to_vec();
+    let mut volumes = volumes.to_vec();
     let volume_mounts = volume_mounts.to_vec();
+    let mut inits: Option<Vec<Container>> = None;
 
     let mut container = ContainerBuilder::new(container_name);
     container
         .add_volume_mounts(volume_mounts)
         .add_env_vars(env.to_vec());
 
+    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+        container.image_pull_policy(image_pull_policy.to_string());
+    }
+
     if job_container.is_some() {
         container.add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB);
+        volumes.extend(vec![VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
+            .empty_dir(EmptyDirVolumeSource::default())
+            .build()]);
     }
 
     if requirements_container.is_some() {
@@ -208,31 +220,34 @@ fn pod_template(
                 "PYTHONPATH",
                 format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
             );
+        volumes.extend(vec![VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
+            .empty_dir(EmptyDirVolumeSource::default())
+            .build()]);
     }
-
-    let mut template = PodBuilder::new();
-    template
-        .metadata_default()
-        .add_container(container.build())
-        .add_volumes(volumes);
 
     if let Some(container) = requirements_container.clone() {
-        template.add_init_container(container);
-        template.add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
-                .empty_dir(EmptyDirVolumeSource::default())
-                .build(),
-        );
+        inits.get_or_insert_with(Vec::new).push(container);
     }
     if let Some(container) = job_container.clone() {
-        template.add_init_container(container);
-        template.add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
-                .empty_dir(EmptyDirVolumeSource::default())
-                .build(),
-        );
+        inits.get_or_insert_with(Vec::new).push(container);
     }
-    template.build().context(PodTemplateSnafu)
+
+    let mut pod_spec = PodSpec {
+        containers: vec![container.build()],
+        init_containers: inits.clone(),
+        volumes: Some(volumes.clone()),
+        ..PodSpec::default()
+    };
+
+    if let Some(image_pull_secrets) = spark_application.spark_image_pull_secrets() {
+        pod_spec.image_pull_secrets = Some(image_pull_secrets);
+    }
+
+    Ok(Pod {
+        metadata: ObjectMeta::default(),
+        spec: Some(pod_spec),
+        ..Pod::default()
+    })
 }
 
 fn pod_template_config_map(
@@ -244,6 +259,7 @@ fn pod_template_config_map(
     let volumes = spark_application.volumes();
 
     let driver_template = pod_template(
+        spark_application,
         CONTAINER_NAME_DRIVER,
         job_container,
         requirements_container,
@@ -252,6 +268,7 @@ fn pod_template_config_map(
         env,
     )?;
     let executor_template = pod_template(
+        spark_application,
         CONTAINER_NAME_EXECUTOR,
         job_container,
         requirements_container,
@@ -322,6 +339,10 @@ fn spark_job(
             value_from: None,
         }]);
 
+    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+        container.image_pull_policy(image_pull_policy.to_string());
+    }
+
     let mut volumes = vec![Volume {
         name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),
         config_map: Some(ConfigMapVolumeSource {
@@ -353,6 +374,7 @@ fn spark_job(
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
+            image_pull_secrets: spark_application.spark_image_pull_secrets(),
             ..PodSpec::default()
         }),
     };

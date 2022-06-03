@@ -232,19 +232,22 @@ fn pod_template(
         inits.get_or_insert_with(Vec::new).push(container);
     }
 
-    let pod = Pod {
-        metadata: ObjectMeta::default(),
-        spec: Some(PodSpec {
-            containers: vec![container.build()],
-            init_containers: inits,
-            volumes: Some(volumes),
-            image_pull_secrets: spark_application.spark_image_pull_secrets(),
-            ..PodSpec::default()
-        }),
-        ..Pod::default()
+    let mut pod_spec = PodSpec {
+        containers: vec![container.build()],
+        init_containers: inits.clone(),
+        volumes: Some(volumes.clone()),
+        ..PodSpec::default()
     };
 
-    Ok(pod)
+    if let Some(image_pull_secrets) = spark_application.spark_image_pull_secrets() {
+        pod_spec.image_pull_secrets = Some(image_pull_secrets);
+    }
+
+    Ok(Pod {
+        metadata: ObjectMeta::default(),
+        spec: Some(pod_spec),
+        ..Pod::default()
+    })
 }
 
 fn pod_template_config_map(

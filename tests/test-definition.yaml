@@ -25,3 +25,8 @@ tests:
       - spark
       - hadoop
       - stackable
+  - name: node-selector
+    dimensions:
+      - spark
+      - hadoop
+      - stackable

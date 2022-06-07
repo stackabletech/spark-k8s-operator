@@ -7,8 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Added new fields to govern image pull policy ([#75])
+- New `nodeSelector` fields for both the driver and the excutors ([#76])
 
 [#75]: https://github.com/stackabletech/spark-k8s-operator/pull/75
+[#76]: https://github.com/stackabletech/spark-k8s-operator/pull/76
 
 ### Changed
 

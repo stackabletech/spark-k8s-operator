@@ -388,6 +388,20 @@ impl SparkApplication {
             ..Default::default()
         }
     }
+
+    pub fn driver_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
+        self.spec
+            .driver
+            .as_ref()
+            .and_then(|driver_config| driver_config.node_selector.clone())
+    }
+
+    pub fn executor_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
+        self.spec
+            .executor
+            .as_ref()
+            .and_then(|executor_config| executor_config.node_selector.clone())
+    }
 }
 
 #[derive(Clone, Default, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -415,8 +429,6 @@ pub struct DriverConfig {
     pub memory: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub node_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_selector: Option<std::collections::BTreeMap<String, String>>,
 }
@@ -447,8 +459,6 @@ pub struct ExecutorConfig {
     pub memory: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub node_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_selector: Option<std::collections::BTreeMap<String, String>>,
 }

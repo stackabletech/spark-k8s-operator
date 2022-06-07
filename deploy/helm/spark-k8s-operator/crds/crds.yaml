@@ -98,9 +98,6 @@ spec:
                     memory:
                       nullable: true
                       type: string
-                    nodeName:
-                      nullable: true
-                      type: string
                     nodeSelector:
                       additionalProperties:
                         type: string
@@ -230,9 +227,6 @@ spec:
                       nullable: true
                       type: integer
                     memory:
-                      nullable: true
-                      type: string
-                    nodeName:
                       nullable: true
                       type: string
                     nodeSelector:

@@ -30,3 +30,8 @@ tests:
       - spark
       - hadoop
       - stackable
+  - name: spark-examples
+    dimensions:
+      - spark
+      - hadoop
+      - stackable

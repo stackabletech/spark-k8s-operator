@@ -8,7 +8,6 @@ use stackable_operator::k8s_openapi::api::core::v1::{
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
-use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_operator::product_config::ProductConfigManager;
@@ -218,7 +217,10 @@ fn pod_template(
         pod_spec.node_selector = node_selector;
     }
     Ok(Pod {
-        metadata: ObjectMeta::default(),
+        metadata: ObjectMetaBuilder::new()
+            .name(container_name)
+            .with_labels(spark_application.recommended_labels())
+            .build(),
         spec: Some(pod_spec),
         ..Pod::default()
     })

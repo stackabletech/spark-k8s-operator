@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - Added new fields to govern image pull policy ([#75])
 - New `nodeSelector` fields for both the driver and the excutors ([#76])
+- Mirror driver pod status to the corresponding spark application ([#77])
 
 [#75]: https://github.com/stackabletech/spark-k8s-operator/pull/75
 [#76]: https://github.com/stackabletech/spark-k8s-operator/pull/76
+[#77]: https://github.com/stackabletech/spark-k8s-operator/pull/77
 
 ### Changed
 

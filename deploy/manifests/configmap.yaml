@@ -6,7 +6,8 @@ data:
     # Not used. Kept for compatibilty with Dockerfile.
     version: 0.1.0
     spec:
-    properties:
+      units: []
+    properties: []
 kind: ConfigMap
 metadata:
   name: spark-k8s-operator-configmap

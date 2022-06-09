@@ -6,9 +6,9 @@ metadata:
 timeout: 900
 ---
 # The Job starting the whole process
-apiVersion: batch/v1
-kind: Job
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
 metadata:
   name: spark-ny-cm
 status:
-  succeeded: 1
+  phase: Succeeded

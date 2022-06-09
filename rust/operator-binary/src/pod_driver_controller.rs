@@ -48,7 +48,7 @@ impl ReconcilerError for Error {
 
 /// Updates the status of the SparkApplication that started the pod.
 pub async fn reconcile(pod: Arc<Pod>, ctx: Context<Ctx>) -> Result<Action> {
-    tracing::info!("Starting reconcile");
+    tracing::info!("Starting reconcile driver pod");
 
     let pod_name = pod.metadata.name.as_ref().context(PodNameNotFoundSnafu)?;
     let app_name = pod
@@ -76,6 +76,8 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Context<Ctx>) -> Result<Action> {
         .context(SparkApplicationNotFoundSnafu {
             name: app_name.clone(),
         })?;
+
+    tracing::info!("Update spark application [{app_name}] status to [{pod_status}]");
 
     ctx.get_ref()
         .client

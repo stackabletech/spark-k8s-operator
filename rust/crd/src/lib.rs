@@ -14,7 +14,6 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
-use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels;
 use stackable_operator::{
@@ -41,14 +40,20 @@ pub enum Error {
     #[snafu(display("application has no Spark image"))]
     NoSparkImage,
 }
-/// SparkApplicationStatus CommandStatus
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SparkApplicationStatus {
+    pub phase: String,
+}
+
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "spark.stackable.tech",
     version = "v1alpha1",
     kind = "SparkApplication",
     shortname = "sc",
-    status = "CommandStatus",
+    status = "SparkApplicationStatus",
     namespaced,
     crates(
         kube_core = "stackable_operator::kube::core",
@@ -404,14 +409,6 @@ impl SparkApplication {
     }
 }
 
-#[derive(Clone, Default, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SparkApplicationStatus {
-    /// An opaque value that changes every time a discovery detail does
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub discovery_hash: Option<String>,
-}
-
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommonConfig {
@@ -477,15 +474,6 @@ impl ExecutorConfig {
         }
         cmd
     }
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CommandStatus {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub started_at: Option<Time>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub finished_at: Option<Time>,
 }
 
 #[cfg(test)]

@@ -2,7 +2,7 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::Pod,
     kube::runtime::controller::{Action, Context},
 };
-use stackable_spark_k8s_crd::SparkApplication;
+use stackable_spark_k8s_crd::{SparkApplication, SparkApplicationStatus};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -45,7 +45,6 @@ impl ReconcilerError for Error {
         ErrorDiscriminants::from(self).into()
     }
 }
-
 /// Updates the status of the SparkApplication that started the pod.
 pub async fn reconcile(pod: Arc<Pod>, ctx: Context<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile driver pod");
@@ -59,7 +58,7 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Context<Ctx>) -> Result<Action> {
         .context(LabelInstaceNotFoundSnafu {
             pod_name: pod_name.clone(),
         })?;
-    let pod_status = pod.status.as_ref().and_then(|s| s.phase.as_ref()).context(
+    let phase = pod.status.as_ref().and_then(|s| s.phase.as_ref()).context(
         PodStatusPhaseNotFoundSnafu {
             pod_name: pod_name.clone(),
         },
@@ -77,11 +76,17 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Context<Ctx>) -> Result<Action> {
             name: app_name.clone(),
         })?;
 
-    tracing::info!("Update spark application [{app_name}] status to [{pod_status}]");
+    tracing::info!("Update spark application [{app_name}] status to [{phase}]");
 
     ctx.get_ref()
         .client
-        .apply_patch_status("pod-driver", &app, pod_status)
+        .apply_patch_status(
+            "pod-driver.sparkapplications.stackable.tech",
+            &app,
+            &SparkApplicationStatus {
+                phase: phase.clone(),
+            },
+        )
         .await
         .with_context(|_| ApplySparkApplicationStatusSnafu {
             name: app_name.clone(),

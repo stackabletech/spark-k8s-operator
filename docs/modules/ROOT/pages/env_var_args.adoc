@@ -27,4 +27,3 @@ docker run \
 --mount type=bind,source="$HOME/.kube/config",target="/home/stackable/.kube/config" \
 docker.stackable.tech/stackable/spark-k8s-operator:latest
 ----
-

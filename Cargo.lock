@@ -1728,6 +1728,7 @@ dependencies = [
  "built",
  "clap",
  "futures",
+ "serde",
  "serde_yaml",
  "snafu",
  "stackable-operator",

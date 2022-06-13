@@ -281,6 +281,6 @@ Below are listed the CRD fields that can be defined by the user:
 |Volume mount path
 
 |`spec.executor.nodeSelector`
-|A dictionary of labels to use for node selection when scheduling the executors.
+|A dictionary of labels to use for node selection when scheduling the executors N.B. this assumes there are no implicit node dependencies (e.g. `PVC`, `VolumeMount`) defined elsewhere.
 |===
 

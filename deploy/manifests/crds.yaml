@@ -24,7 +24,6 @@ spec:
           description: "Auto-generated derived type for SparkApplicationSpec via `CustomResource`"
           properties:
             spec:
-              description: SparkApplicationStatus CommandStatus
               properties:
                 args:
                   items:
@@ -99,6 +98,11 @@ spec:
                     memory:
                       nullable: true
                       type: string
+                    nodeSelector:
+                      additionalProperties:
+                        type: string
+                      nullable: true
+                      type: object
                     volumeMounts:
                       items:
                         description: VolumeMount describes a mounting of a Volume within a container.
@@ -225,6 +229,11 @@ spec:
                     memory:
                       nullable: true
                       type: string
+                    nodeSelector:
+                      additionalProperties:
+                        type: string
+                      nullable: true
+                      type: object
                     volumeMounts:
                       items:
                         description: VolumeMount describes a mounting of a Volume within a container.
@@ -359,6 +368,23 @@ spec:
                 sparkImage:
                   nullable: true
                   type: string
+                sparkImagePullPolicy:
+                  enum:
+                    - Always
+                    - IfNotPresent
+                    - Never
+                  nullable: true
+                  type: string
+                sparkImagePullSecrets:
+                  items:
+                    description: LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.
+                    properties:
+                      name:
+                        description: "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names"
+                        type: string
+                    type: object
+                  nullable: true
+                  type: array
                 stopped:
                   nullable: true
                   type: boolean
@@ -1379,16 +1405,10 @@ spec:
             status:
               nullable: true
               properties:
-                finishedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
+                phase:
                   type: string
-                startedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
-                  type: string
+              required:
+                - phase
               type: object
           required:
             - spec

@@ -12,3 +12,4 @@ commands:
       --set users[0].accessKey=minioAccessKey,users[0].secretKey=minioSecretKey,users[0].policy=readwrite
       --set resources.requests.memory=1Gi
       --repo https://charts.min.io/ minio
+    timeout: 240

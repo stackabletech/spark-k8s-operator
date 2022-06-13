@@ -3,16 +3,17 @@
 pub mod constants;
 
 use constants::*;
+use stackable_operator::builder::VolumeBuilder;
 use stackable_operator::commons::s3::{InlinedS3BucketSpec, S3BucketDef};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    EnvVar, EnvVarSource, SecretKeySelector, Volume, VolumeMount,
+    EmptyDirVolumeSource, EnvVar, EnvVarSource, LocalObjectReference, SecretKeySelector, Volume,
+    VolumeMount,
 };
 
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
-use stackable_operator::k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels;
 use stackable_operator::{
@@ -20,6 +21,7 @@ use stackable_operator::{
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
+use strum::{Display, EnumString};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -38,14 +40,20 @@ pub enum Error {
     #[snafu(display("application has no Spark image"))]
     NoSparkImage,
 }
-/// SparkApplicationStatus CommandStatus
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SparkApplicationStatus {
+    pub phase: String,
+}
+
 #[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[kube(
     group = "spark.stackable.tech",
     version = "v1alpha1",
     kind = "SparkApplication",
     shortname = "sc",
-    status = "CommandStatus",
+    status = "SparkApplicationStatus",
     namespaced,
     crates(
         kube_core = "stackable_operator::kube::core",
@@ -70,6 +78,10 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_home: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spark_image_pull_policy: Option<ImagePullPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spark_image_pull_secrets: Option<Vec<LocalObjectReference>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<DriverConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<ExecutorConfig>,
@@ -89,6 +101,13 @@ pub struct SparkApplicationSpec {
     pub volumes: Option<Vec<Volume>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<EnvVar>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Display, EnumString)]
+pub enum ImagePullPolicy {
+    Always,
+    IfNotPresent,
+    Never,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -156,6 +175,14 @@ impl SparkApplication {
         path
     }
 
+    pub fn spark_image_pull_policy(&self) -> Option<ImagePullPolicy> {
+        self.spec.spark_image_pull_policy.clone()
+    }
+
+    pub fn spark_image_pull_secrets(&self) -> Option<Vec<LocalObjectReference>> {
+        self.spec.spark_image_pull_secrets.clone()
+    }
+
     pub fn version(&self) -> Option<&str> {
         self.spec.version.as_deref()
     }
@@ -173,28 +200,89 @@ impl SparkApplication {
     }
 
     pub fn volumes(&self) -> Vec<Volume> {
-        let tmp = self.spec.volumes.as_ref();
-        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
+        let mut result: Vec<Volume> = self
+            .spec
+            .volumes
+            .as_ref()
+            .iter()
+            .flat_map(|v| v.iter())
+            .cloned()
+            .collect();
+
+        if self.spec.image.is_some() {
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
+                    .empty_dir(EmptyDirVolumeSource::default())
+                    .build(),
+            );
+        }
+
+        if self.requirements().is_some() {
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
+                    .empty_dir(EmptyDirVolumeSource::default())
+                    .build(),
+            );
+        }
+        result
     }
 
     pub fn executor_volume_mounts(&self) -> Vec<VolumeMount> {
-        let tmp = self
+        let mut result: Vec<VolumeMount> = self
             .spec
             .executor
             .as_ref()
-            .and_then(|executor_conf| executor_conf.volume_mounts.clone());
+            .and_then(|executor_conf| executor_conf.volume_mounts.clone())
+            .iter()
+            .flat_map(|v| v.iter())
+            .cloned()
+            .collect();
 
-        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
+        if self.spec.image.is_some() {
+            result.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_JOB.into(),
+                mount_path: self.volume_mount_path_job(),
+                ..VolumeMount::default()
+            });
+        }
+
+        if self.requirements().is_some() {
+            result.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_REQ.into(),
+                mount_path: self.volume_mount_path_req(),
+                ..VolumeMount::default()
+            });
+        }
+
+        result
     }
 
     pub fn driver_volume_mounts(&self) -> Vec<VolumeMount> {
-        let tmp = self
+        let mut result: Vec<VolumeMount> = self
             .spec
             .driver
             .as_ref()
-            .and_then(|driver_conf| driver_conf.volume_mounts.clone());
+            .and_then(|driver_conf| driver_conf.volume_mounts.clone())
+            .iter()
+            .flat_map(|v| v.iter())
+            .cloned()
+            .collect();
+        if self.spec.image.is_some() {
+            result.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_JOB.into(),
+                mount_path: self.volume_mount_path_job(),
+                ..VolumeMount::default()
+            });
+        }
 
-        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
+        if self.requirements().is_some() {
+            result.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_REQ.into(),
+                mount_path: self.volume_mount_path_req(),
+                ..VolumeMount::default()
+            });
+        }
+        result
     }
 
     pub fn recommended_labels(&self) -> BTreeMap<String, String> {
@@ -313,6 +401,16 @@ impl SparkApplication {
                 ));
             }
         }
+        if self.requirements().is_some() {
+            let volume_mount_path_req = self.volume_mount_path_req();
+            e.push(EnvVar {
+                name: "PYTHONPATH".to_string(),
+                value: Some(format!(
+                    "$SPARK_HOME/python:{volume_mount_path_req}:$PYTHONPATH"
+                )),
+                value_from: None,
+            });
+        }
         e
     }
 
@@ -330,14 +428,20 @@ impl SparkApplication {
             ..Default::default()
         }
     }
-}
 
-#[derive(Clone, Default, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SparkApplicationStatus {
-    /// An opaque value that changes every time a discovery detail does
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub discovery_hash: Option<String>,
+    pub fn driver_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
+        self.spec
+            .driver
+            .as_ref()
+            .and_then(|driver_config| driver_config.node_selector.clone())
+    }
+
+    pub fn executor_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
+        self.spec
+            .executor
+            .as_ref()
+            .and_then(|executor_config| executor_config.node_selector.clone())
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -357,6 +461,8 @@ pub struct DriverConfig {
     pub memory: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_selector: Option<std::collections::BTreeMap<String, String>>,
 }
 
 impl DriverConfig {
@@ -385,6 +491,8 @@ pub struct ExecutorConfig {
     pub memory: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_selector: Option<std::collections::BTreeMap<String, String>>,
 }
 
 impl ExecutorConfig {
@@ -403,18 +511,12 @@ impl ExecutorConfig {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CommandStatus {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub started_at: Option<Time>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub finished_at: Option<Time>,
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::ImagePullPolicy;
+    use crate::LocalObjectReference;
     use crate::SparkApplication;
+    use std::str::FromStr;
 
     #[test]
     fn test_spark_examples_s3() {
@@ -575,5 +677,73 @@ spec:
 
         assert!(spark_application.spec.main_class.is_none());
         assert!(spark_application.spec.image.is_none());
+    }
+
+    #[test]
+    fn test_image_actions() {
+        let spark_application = serde_yaml::from_str::<SparkApplication>(
+            r#"
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-pi-local
+  namespace: default
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
+  sparkImagePullPolicy: Always
+  sparkImagePullSecrets:
+    - name: myregistrykey
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-3.2.1.jar
+  sparkConf:
+    spark.kubernetes.node.selector.node: "2"
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 1
+    memory: "512m"
+        "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            Some(vec![LocalObjectReference {
+                name: Some("myregistrykey".to_string())
+            }]),
+            spark_application.spark_image_pull_secrets()
+        );
+        assert_eq!(
+            Some(ImagePullPolicy::Always),
+            spark_application.spark_image_pull_policy()
+        );
+    }
+
+    #[test]
+    fn test_image_pull_policy_ser() {
+        assert_eq!("Never", ImagePullPolicy::Never.to_string());
+        assert_eq!("Always", ImagePullPolicy::Always.to_string());
+        assert_eq!("IfNotPresent", ImagePullPolicy::IfNotPresent.to_string());
+    }
+
+    #[test]
+    fn test_image_pull_policy_de() {
+        assert_eq!(
+            ImagePullPolicy::Always,
+            ImagePullPolicy::from_str("Always").unwrap()
+        );
+        assert_eq!(
+            ImagePullPolicy::Never,
+            ImagePullPolicy::from_str("Never").unwrap()
+        );
+        assert_eq!(
+            ImagePullPolicy::IfNotPresent,
+            ImagePullPolicy::from_str("IfNotPresent").unwrap()
+        );
     }
 }

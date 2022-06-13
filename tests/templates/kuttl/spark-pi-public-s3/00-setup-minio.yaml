@@ -11,3 +11,4 @@ commands:
       --set buckets[0].name=my-bucket,buckets[0].policy=public
       --set resources.requests.memory=1Gi
       --repo https://charts.min.io/ minio
+    timeout: 240

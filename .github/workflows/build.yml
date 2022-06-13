@@ -112,7 +112,7 @@ jobs:
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: EmbarkStudios/cargo-deny-action@3481b77dfd7b1d3c62bebdbfb57695131cd59c8f # tag=v1.2.17
+      - uses: EmbarkStudios/cargo-deny-action@30ecad1d5873c1cc2cad10a33637371ca094768b # tag=v1.3.1
         with:
           command: check ${{ matrix.checks }}
 
@@ -252,7 +252,7 @@ jobs:
         run: git diff --exit-code
       - name: Git Diff showed uncommitted changes
         if: ${{ failure() }}
-        uses: actions/github-script@9ac08808f993958e9de277fe43a64532a609130e # tag=v6
+        uses: actions/github-script@7a5c598405937d486b0331594b5da2b14db670da # tag=v6
         with:
           script: |
             core.setFailed('Committed charts were not up to date, please regenerate and re-commit!')

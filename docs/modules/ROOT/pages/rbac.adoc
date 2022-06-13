@@ -6,30 +6,6 @@ The https://spark.apache.org/docs/latest/running-on-kubernetes.html#rbac[Spark-K
 
 However, to add security, each `spark-submit` job launched by the spark-k8s operator will be assigned its own service account.
 
-When the spark-k8s operator is launched via helm, like this:
+When the spark-k8s operator is installed via helm, a cluster role named `spark-driver-edit-role` is created with pre-defined permissions.
 
-[source,bash]
-----
-helm install spark-k8s-operator stackable/spark-k8s-operator
-----
-
-the operator will take care of these steps automatically:
-
-- a cluster role will be created with pre-defined permissions
-- for each `SparkApplication` job, a service account will be created
-- for each `SparkApplication` job, a role binding will connect the cluster role with the service account
-
-If the operator is started outside the cluster, like this:
-
-[source,bash]
-----
-cargo run -- crd | kubectl apply -f -
-cargo run -- run
-----
-
-then the cluster-role has to be created assigned to the service account manually e.g.
-
-[source,bash]
-----
-kubectl create clusterrolebinding spark-role --clusterrole=spark-driver-edit-role  --serviceaccount=default:default
-----
+When a new Spark application is submitted, the operator creates a new service account with the same name as the application and binds this account to the cluster role `spark-driver-edit-role` created by helm.

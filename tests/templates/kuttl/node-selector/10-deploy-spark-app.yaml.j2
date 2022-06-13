@@ -6,41 +6,19 @@ metadata:
 spec:
   version: "1.0"
   sparkImage: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-hadoop{{ test_scenario['values']['hadoop'][:-2] }}-stackable{{ test_scenario['values']['stackable'] }}
+  sparkImagePullPolicy: IfNotPresent
   mode: cluster
-  mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
-  s3bucket:
-    inline:
-      bucketName: my-bucket
-      connection:
-        inline:
-          host: test-minio
-          port: 9000
-          secretClass: minio-credentials
-  volumes:
-    - name: spark-pi-deps
-      persistentVolumeClaim:
-        claimName: spark-pi-pvc
-  sparkConf:
-    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
-    spark.hadoop.fs.s3a.path.style.access: "true"
-    spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
-    spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+  mainClass: org.apache.spark.examples.SparkALS
+  mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
   driver:
     cores: 1
     coreLimit: "1200m"
     memory: "512m"
-    volumeMounts:
-      - name: spark-pi-deps
-        mountPath: /dependencies
     nodeSelector:
       node: "1"
   executor:
     cores: 1
     instances: 1
     memory: "512m"
-    volumeMounts:
-      - name: spark-pi-deps
-        mountPath: /dependencies
     nodeSelector:
       kubernetes.io/os: linux

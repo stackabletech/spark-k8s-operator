@@ -43,7 +43,7 @@ The following examples have the following `spec` fields in common:
 
 Job-specific settings are annotated below.
 
-=== Pyspark: externally located artifact and dataset 
+=== Pyspark: externally located artifact and dataset
 
 [source,yaml]
 ----
@@ -72,7 +72,7 @@ include::example$example-sparkapp-image.yaml[]
 <6> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
 <7> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
-=== JVM (Scala): externally located artifact and dataset 
+=== JVM (Scala): externally located artifact and dataset
 
 [source,yaml]
 ----
@@ -283,4 +283,3 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.executor.nodeSelector`
 |A dictionary of labels to use for node selection when scheduling the executors N.B. this assumes there are no implicit node dependencies (e.g. `PVC`, `VolumeMount`) defined elsewhere.
 |===
-

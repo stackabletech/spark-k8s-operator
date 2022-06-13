@@ -8,10 +8,8 @@ use stackable_operator::k8s_openapi::api::core::v1::{
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
-use stackable_operator::kube::api::ObjectMeta;
 use stackable_operator::kube::runtime::controller::{Action, Context};
 use stackable_operator::logging::controller::ReconcilerError;
-use stackable_operator::product_config::ProductConfigManager;
 use stackable_spark_k8s_crd::constants::*;
 use stackable_spark_k8s_crd::SparkApplication;
 use std::collections::BTreeMap;
@@ -23,7 +21,6 @@ const SPARK_CLUSTER_ROLE: &str = "spark-driver-edit-role";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
-    pub product_config: ProductConfigManager,
 }
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -218,7 +215,10 @@ fn pod_template(
         pod_spec.node_selector = node_selector;
     }
     Ok(Pod {
-        metadata: ObjectMeta::default(),
+        metadata: ObjectMetaBuilder::new()
+            .name(container_name)
+            .with_labels(spark_application.recommended_labels())
+            .build(),
         spec: Some(pod_spec),
         ..Pod::default()
     })

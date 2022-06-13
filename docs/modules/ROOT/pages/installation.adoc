@@ -27,19 +27,19 @@ service. You are now ready to deploy Apache Spark in Kubernetes.
 
 == Building the operator from source
 
-This operator is written in Rust and is developed against a recent stable Rust release.
+To run it from your local machine - usually for development purposes - you need to install the required manifest files.
 
 [source,bash]
 ----
-cargo run -- crd | kubectl apply -f -
+make renenerate-charts
+kubectl create -f deploy/manifests
+----
+
+Then, start the operator:
+
+[source,bash]
+----
 cargo run -- run
-----
-
-To run it from your local machine - usually for development purposes - you need to create a `ClusterRoleBinding` :
-
-[source,bash]
-----
-kubectl create clusterrolebinding spark-role --clusterrole=spark-driver-edit-role  --serviceaccount=default:default
 ----
 
 == Additional/Optional components

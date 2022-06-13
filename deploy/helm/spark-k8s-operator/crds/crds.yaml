@@ -23,7 +23,6 @@ spec:
           description: "Auto-generated derived type for SparkApplicationSpec via `CustomResource`"
           properties:
             spec:
-              description: SparkApplicationStatus CommandStatus
               properties:
                 args:
                   items:
@@ -1405,16 +1404,10 @@ spec:
             status:
               nullable: true
               properties:
-                finishedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
+                phase:
                   type: string
-                startedAt:
-                  description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
-                  format: date-time
-                  nullable: true
-                  type: string
+              required:
+                - phase
               type: object
           required:
             - spec

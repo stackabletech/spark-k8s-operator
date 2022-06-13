@@ -1,17 +1,4 @@
 
-=== product-config
-
-*Default value*: `/etc/stackable/spark-k8s-operator/config-spec/properties.yaml`
-
-*Required*: false
-
-*Multiple values:* false
-
-[source]
-----
-stackable-spark-k8s-operator run --product-config /foo/bar/properties.yaml
-----
-
 === watch-namespace
 
 *Default value*: All namespaces

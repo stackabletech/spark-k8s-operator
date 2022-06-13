@@ -3,7 +3,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 metadata:
   name: node-selector-assert
-timeout: 900
+timeout: 300
 ---
 # The Job starting the whole process
 apiVersion: batch/v1

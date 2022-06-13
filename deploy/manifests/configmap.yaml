@@ -284,4 +284,4 @@ metadata:
   labels:
     app.kubernetes.io/name: spark-k8s-operator
     app.kubernetes.io/instance: spark-k8s-operator
-    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/version: "0.2.0-nightly"

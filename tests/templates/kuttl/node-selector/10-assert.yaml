@@ -1,0 +1,14 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+metadata:
+  name: node-selector-assert
+timeout: 300
+---
+# The Job starting the whole process
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: node-selector-test
+status:
+  succeeded: 1

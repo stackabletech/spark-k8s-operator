@@ -259,6 +259,9 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.driver.volumeMounts.mountPath`
 |Volume mount path
 
+|`spec.driver.nodeSelector`
+|A dictionary of labels to use for node selection when scheduling the driver N.B. this assumes there are no implicit node dependencies (e.g. `PVC`, `VolumeMount`) defined elsewhere.
+
 |`spec.executor.cores`
 |Number of cores for each executor
 
@@ -276,5 +279,8 @@ Below are listed the CRD fields that can be defined by the user:
 
 |`spec.executor.volumeMounts.mountPath`
 |Volume mount path
+
+|`spec.executor.nodeSelector`
+|A dictionary of labels to use for node selection when scheduling the executors N.B. this assumes there are no implicit node dependencies (e.g. `PVC`, `VolumeMount`) defined elsewhere.
 |===
 

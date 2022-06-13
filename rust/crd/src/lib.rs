@@ -3,9 +3,11 @@
 pub mod constants;
 
 use constants::*;
+use stackable_operator::builder::VolumeBuilder;
 use stackable_operator::commons::s3::{InlinedS3BucketSpec, S3BucketDef};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    EnvVar, EnvVarSource, LocalObjectReference, SecretKeySelector, Volume, VolumeMount,
+    EmptyDirVolumeSource, EnvVar, EnvVarSource, LocalObjectReference, SecretKeySelector, Volume,
+    VolumeMount,
 };
 
 use std::collections::{BTreeMap, HashMap};
@@ -160,28 +162,89 @@ impl SparkApplication {
     }
 
     pub fn volumes(&self) -> Vec<Volume> {
-        let tmp = self.spec.volumes.as_ref();
-        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
+        let mut result: Vec<Volume> = self
+            .spec
+            .volumes
+            .as_ref()
+            .iter()
+            .flat_map(|v| v.iter())
+            .cloned()
+            .collect();
+
+        if self.spec.image.is_some() {
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
+                    .empty_dir(EmptyDirVolumeSource::default())
+                    .build(),
+            );
+        }
+
+        if self.requirements().is_some() {
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
+                    .empty_dir(EmptyDirVolumeSource::default())
+                    .build(),
+            );
+        }
+        result
     }
 
     pub fn executor_volume_mounts(&self) -> Vec<VolumeMount> {
-        let tmp = self
+        let mut result: Vec<VolumeMount> = self
             .spec
             .executor
             .as_ref()
-            .and_then(|executor_conf| executor_conf.volume_mounts.clone());
+            .and_then(|executor_conf| executor_conf.volume_mounts.clone())
+            .iter()
+            .flat_map(|v| v.iter())
+            .cloned()
+            .collect();
 
-        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
+        if self.spec.image.is_some() {
+            result.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_JOB.into(),
+                mount_path: VOLUME_MOUNT_PATH_JOB.into(),
+                ..VolumeMount::default()
+            });
+        }
+
+        if self.requirements().is_some() {
+            result.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_REQ.into(),
+                mount_path: VOLUME_MOUNT_PATH_REQ.into(),
+                ..VolumeMount::default()
+            });
+        }
+
+        result
     }
 
     pub fn driver_volume_mounts(&self) -> Vec<VolumeMount> {
-        let tmp = self
+        let mut result: Vec<VolumeMount> = self
             .spec
             .driver
             .as_ref()
-            .and_then(|driver_conf| driver_conf.volume_mounts.clone());
+            .and_then(|driver_conf| driver_conf.volume_mounts.clone())
+            .iter()
+            .flat_map(|v| v.iter())
+            .cloned()
+            .collect();
+        if self.spec.image.is_some() {
+            result.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_JOB.into(),
+                mount_path: VOLUME_MOUNT_PATH_JOB.into(),
+                ..VolumeMount::default()
+            });
+        }
 
-        tmp.iter().flat_map(|v| v.iter()).cloned().collect()
+        if self.requirements().is_some() {
+            result.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_REQ.into(),
+                mount_path: VOLUME_MOUNT_PATH_REQ.into(),
+                ..VolumeMount::default()
+            });
+        }
+        result
     }
 
     pub fn recommended_labels(&self) -> BTreeMap<String, String> {
@@ -299,6 +362,15 @@ impl SparkApplication {
                 ));
             }
         }
+        if self.requirements().is_some() {
+            e.push(EnvVar {
+                name: "PYTHONPATH".to_string(),
+                value: Some(format!(
+                    "$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"
+                )),
+                value_from: None,
+            });
+        }
         e
     }
 
@@ -315,6 +387,20 @@ impl SparkApplication {
             }),
             ..Default::default()
         }
+    }
+
+    pub fn driver_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
+        self.spec
+            .driver
+            .as_ref()
+            .and_then(|driver_config| driver_config.node_selector.clone())
+    }
+
+    pub fn executor_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
+        self.spec
+            .executor
+            .as_ref()
+            .and_then(|executor_config| executor_config.node_selector.clone())
     }
 }
 
@@ -343,6 +429,8 @@ pub struct DriverConfig {
     pub memory: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_selector: Option<std::collections::BTreeMap<String, String>>,
 }
 
 impl DriverConfig {
@@ -371,6 +459,8 @@ pub struct ExecutorConfig {
     pub memory: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_selector: Option<std::collections::BTreeMap<String, String>>,
 }
 
 impl ExecutorConfig {

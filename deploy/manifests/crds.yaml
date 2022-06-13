@@ -99,6 +99,11 @@ spec:
                     memory:
                       nullable: true
                       type: string
+                    nodeSelector:
+                      additionalProperties:
+                        type: string
+                      nullable: true
+                      type: object
                     volumeMounts:
                       items:
                         description: VolumeMount describes a mounting of a Volume within a container.
@@ -225,6 +230,11 @@ spec:
                     memory:
                       nullable: true
                       type: string
+                    nodeSelector:
+                      additionalProperties:
+                        type: string
+                      nullable: true
+                      type: object
                     volumeMounts:
                       items:
                         description: VolumeMount describes a mounting of a Volume within a container.

@@ -52,6 +52,24 @@ jobs:
         with:
           command: udeps
 
+  prerelease_job:
+    name: Returns the pre-release string from the version of the cargo workspace.
+    runs-on: ubuntu-latest
+    outputs:
+      str: ${{ steps.prerelease.outputs.str }}
+    steps:
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@98f2ad02fd48d057ee3b4d4f66525b231c3e52b6 # tag=v3
+      - name: Install requirements for version tool
+        run: pip install -r python/requirements.txt
+      - id: prerelease
+        name: Extract the pre-release string. Might be empty.
+        run: |
+          PRERELEASE=$(python/cargo_version.py -o | sed  "s/^[0-9]\+\.[0-9]\+\.[0-9]\+-\?//g")
+          echo "::set-output name=str::$PRERELEASE"
+
   # This job evaluates the github environment to determine why this action is running and selects the appropriate
   # target repository for published Helm charts based on this.
   #
@@ -64,8 +82,8 @@ jobs:
   #         condition: github.event_name == 'create' & github.ref.startswith('refs/tags/')
   #         repository: stable
   #
-  #    - merge of pr to main branch:
-  #         condition: github.event_name == 'push' & github.ref == 'refs/heads/main'
+  #    - merge of pr to main branch and pre release is nightly:
+  #         condition: github.event_name == 'push' & github.ref == 'refs/heads/main' & needs.prerelease_job.outputs.str == 'nightly'
   #         repository: dev
   #
   # Any other scenarios will cause the publish step to be skipped, most commonly this is expected to happen for the
@@ -76,16 +94,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       repository: ${{ steps.selectrepo.outputs.repo }}
+    needs: prerelease_job
     steps:
       - id: selectrepo
         env:
           TRIGGER: ${{ github.event_name }}
           GITHUB_REF: ${{ github.ref }}
+          PRERELEASE: ${{ needs.prerelease_job.outputs.str }}
         run: |
           if [[ $TRIGGER == "pull_request" ]]; then
             echo "exporting test as target repo: ${{ env.TEST_REPO_HELM_URL }}"
             echo "::set-output name=repo::${{ env.TEST_REPO_HELM_URL }}"
-          elif [[ $TRIGGER == "push" && $GITHUB_REF == "refs/heads/main" ]]; then
+          elif [[ $TRIGGER == "push" && $GITHUB_REF == "refs/heads/main" && $PRERELEASE == 'nightly' ]]; then
             echo "exporting dev as target repo: ${{ env.DEV_REPO_HELM_URL }}"
             echo "::set-output name=repo::${{ env.DEV_REPO_HELM_URL }}"
           elif [[ ( $TRIGGER == "create" || $TRIGGER == "push" ) && $GITHUB_REF == refs/tags/* ]]; then

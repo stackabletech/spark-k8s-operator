@@ -17,7 +17,7 @@ serde = "1.0"
 serde_yaml = "0.8"
 snafu = "0.7"
 strum = { version = "0.24.0", features = ["derive"] }
-tokio = { version = "1.18", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.19", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-futures = { version = "0.2", features = ["futures-03"] }
 

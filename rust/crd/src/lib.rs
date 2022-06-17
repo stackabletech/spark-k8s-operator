@@ -4,10 +4,9 @@ pub mod constants;
 
 use constants::*;
 use stackable_operator::builder::VolumeBuilder;
-use stackable_operator::commons::s3::{InlinedS3BucketSpec, S3BucketDef};
+use stackable_operator::commons::s3::{InlinedS3BucketSpec, S3BucketDef, S3ConnectionSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    EmptyDirVolumeSource, EnvVar, EnvVarSource, LocalObjectReference, SecretKeySelector, Volume,
-    VolumeMount,
+    EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
 
 use std::collections::{BTreeMap, HashMap};
@@ -166,7 +165,7 @@ impl SparkApplication {
             .map(|req| req.join(" "))
     }
 
-    pub fn volumes(&self) -> Vec<Volume> {
+    pub fn volumes(&self, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<Volume> {
         let mut result: Vec<Volume> = self
             .spec
             .volumes
@@ -191,10 +190,23 @@ impl SparkApplication {
                     .build(),
             );
         }
+
+        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
+
+        if let Some(S3ConnectionSpec {
+            credentials: Some(credentials),
+            ..
+        }) = s3_conn
+        {
+            result.push(credentials.to_volume("s3-credentials"));
+        }
         result
     }
 
-    pub fn executor_volume_mounts(&self) -> Vec<VolumeMount> {
+    pub fn executor_volume_mounts(
+        &self,
+        s3bucket: &Option<InlinedS3BucketSpec>,
+    ) -> Vec<VolumeMount> {
         let mut result: Vec<VolumeMount> = self
             .spec
             .executor
@@ -221,10 +233,23 @@ impl SparkApplication {
             });
         }
 
+        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
+
+        if let Some(S3ConnectionSpec {
+            credentials: Some(_credentials),
+            ..
+        }) = s3_conn
+        {
+            result.push(VolumeMount {
+                name: "s3-credentials".into(),
+                mount_path: S3_SECRET_DIR_NAME.into(),
+                ..VolumeMount::default()
+            });
+        }
         result
     }
 
-    pub fn driver_volume_mounts(&self) -> Vec<VolumeMount> {
+    pub fn driver_volume_mounts(&self, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<VolumeMount> {
         let mut result: Vec<VolumeMount> = self
             .spec
             .driver
@@ -246,6 +271,20 @@ impl SparkApplication {
             result.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_REQ.into(),
                 mount_path: VOLUME_MOUNT_PATH_REQ.into(),
+                ..VolumeMount::default()
+            });
+        }
+
+        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
+
+        if let Some(S3ConnectionSpec {
+            credentials: Some(_credentials),
+            ..
+        }) = s3_conn
+        {
+            result.push(VolumeMount {
+                name: "s3-credentials".into(),
+                mount_path: S3_SECRET_DIR_NAME.into(),
                 ..VolumeMount::default()
             });
         }
@@ -273,7 +312,30 @@ impl SparkApplication {
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
-        let mut submit_cmd = vec![
+        let mut submit_cmd: Vec<String> = vec![];
+
+        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
+
+        if let Some(S3ConnectionSpec {
+            credentials: Some(_credentials),
+            ..
+        }) = s3_conn
+        {
+            submit_cmd.push(format!(
+                "export {env_var}=$(cat {secret_dir}/{file_name}) && ",
+                env_var = ENV_AWS_ACCESS_KEY_ID,
+                secret_dir = S3_SECRET_DIR_NAME,
+                file_name = ACCESS_KEY_ID
+            ));
+            submit_cmd.push(format!(
+                "export {env_var}=$(cat {secret_dir}/{file_name}) && ",
+                env_var = ENV_AWS_SECRET_ACCESS_KEY,
+                secret_dir = S3_SECRET_DIR_NAME,
+                file_name = SECRET_ACCESS_KEY
+            ));
+        }
+
+        submit_cmd.extend(vec![
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
@@ -287,16 +349,21 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
-        ];
+        ]);
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
         // for possible S3 related properties
         if let Some(endpoint) = s3bucket.as_ref().and_then(|s3| s3.endpoint()) {
             submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
         }
-        if s3bucket.as_ref().and_then(|s3| s3.secret_class()).is_some() {
-            // We don't use the secret at all here, instead we assume the Self::env() has been
-            // called and this environment variables are availables.
+        if s3bucket
+            .as_ref()
+            .and_then(|i| i.connection.as_ref())
+            .and_then(|c| c.credentials.as_ref())
+            .is_some()
+        {
+            // We don't use the credentials at all here, instead we assume the Self::env() has been
+            // called and the environment variables are available.
             submit_cmd.push(format!(
                 "--conf spark.hadoop.fs.s3a.access.key=${}",
                 ENV_AWS_ACCESS_KEY_ID
@@ -350,23 +417,9 @@ impl SparkApplication {
         Ok(submit_cmd)
     }
 
-    pub fn env(&self, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<EnvVar> {
+    pub fn env(&self, _s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<EnvVar> {
         let tmp = self.spec.env.as_ref();
         let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
-        if let Some(s3) = s3bucket {
-            if let Some(secret) = s3.secret_class() {
-                e.push(Self::env_var_from_secret(
-                    ENV_AWS_ACCESS_KEY_ID,
-                    secret.as_ref(),
-                    ACCESS_KEY_ID,
-                ));
-                e.push(Self::env_var_from_secret(
-                    ENV_AWS_SECRET_ACCESS_KEY,
-                    secret.as_ref(),
-                    SECRET_ACCESS_KEY,
-                ));
-            }
-        }
         if self.requirements().is_some() {
             e.push(EnvVar {
                 name: "PYTHONPATH".to_string(),
@@ -377,21 +430,6 @@ impl SparkApplication {
             });
         }
         e
-    }
-
-    fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
-        EnvVar {
-            name: String::from(var_name),
-            value_from: Some(EnvVarSource {
-                secret_key_ref: Some(SecretKeySelector {
-                    name: Some(String::from(secret)),
-                    key: String::from(secret_key),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }
     }
 
     pub fn driver_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {

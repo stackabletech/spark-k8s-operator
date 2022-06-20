@@ -301,18 +301,51 @@ spec:
                             inline:
                               description: S3 connection definition as CRD.
                               properties:
+                                accessStyle:
+                                  description: "Which access style to use. Defaults to virtual hosted-style as most of the data products out there. Have a look at the official documentation on <https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html>"
+                                  enum:
+                                    - Path
+                                    - VirtualHosted
+                                  nullable: true
+                                  type: string
+                                credentials:
+                                  description: "If the S3 uses authentication you have to specify you S3 credentials. In the most cases a SecretClass providing `accessKey` and `secretKey` is sufficient."
+                                  nullable: true
+                                  properties:
+                                    scope:
+                                      description: "[Scope](https://docs.stackable.tech/secret-operator/scope.html) of the [SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html)"
+                                      nullable: true
+                                      properties:
+                                        node:
+                                          default: false
+                                          type: boolean
+                                        pod:
+                                          default: false
+                                          type: boolean
+                                        services:
+                                          default: []
+                                          items:
+                                            type: string
+                                          type: array
+                                      type: object
+                                    secretClass:
+                                      description: "[SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html) containing the LDAP bind credentials"
+                                      type: string
+                                  required:
+                                    - secretClass
+                                  type: object
                                 host:
+                                  description: Hostname of the S3 server without any protocol or port
                                   nullable: true
                                   type: string
                                 port:
+                                  description: Port the S3 server listens on. If not specified the products will determine the port to use.
                                   format: uint16
                                   minimum: 0.0
                                   nullable: true
                                   type: integer
-                                secretClass:
-                                  nullable: true
-                                  type: string
                                 tls:
+                                  description: If you want to use TLS when talking to S3 you can enable TLS encrypted communication with this setting.
                                   nullable: true
                                   properties:
                                     verification:

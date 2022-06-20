@@ -16,7 +16,8 @@ spec:
         inline:
           host: test-minio
           port: 9000
-          secretClass: minio-credentials
+          credentials:
+            secretClass: s3-credentials-class
   volumes:
     - name: spark-pi-deps
       persistentVolumeClaim:

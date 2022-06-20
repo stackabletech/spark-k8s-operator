@@ -1,5 +1,5 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder};
+use stackable_operator::builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodSecurityContextBuilder};
 
 use stackable_operator::commons::s3::InlinedS3BucketSpec;
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
@@ -207,6 +207,7 @@ fn pod_template(
     let mut pod_spec = PodSpec {
         containers: vec![cb.build()],
         volumes: Some(volumes.to_vec()),
+        security_context: PodSecurityContextBuilder::new().fs_group(1000).build().into(), // Needed for secret-operator
         ..PodSpec::default()
     };
 
@@ -303,10 +304,9 @@ fn spark_job(
 
     let mut cb = ContainerBuilder::new("spark-submit");
     cb.image(spark_image)
-        .command(vec!["/bin/bash".to_string()])
+        .command(vec!["/bin/sh".to_string()])
         .args(vec![
             "-c".to_string(),
-            "-x".to_string(),
             job_commands.join(" "),
         ])
         .add_volume_mounts(volume_mounts)
@@ -354,6 +354,7 @@ fn spark_job(
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
             image_pull_secrets: spark_application.spark_image_pull_secrets(),
+            security_context: PodSecurityContextBuilder::new().fs_group(1000).build().into(), // Needed for secret-operator
             ..PodSpec::default()
         }),
     };

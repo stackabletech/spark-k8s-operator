@@ -362,8 +362,7 @@ impl SparkApplication {
             .and_then(|c| c.credentials.as_ref())
             .is_some()
         {
-            // We don't use the credentials at all here, instead we assume the Self::env() has been
-            // called and the environment variables are available.
+            // We don't use the credentials at all here but assume they are available
             submit_cmd.push(format!(
                 "--conf spark.hadoop.fs.s3a.access.key=${}",
                 ENV_AWS_ACCESS_KEY_ID

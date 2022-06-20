@@ -217,35 +217,8 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        if self.spec.image.is_some() {
-            result.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_JOB.into(),
-                mount_path: VOLUME_MOUNT_PATH_JOB.into(),
-                ..VolumeMount::default()
-            });
-        }
+        self.check_mounts(&mut result, s3bucket);
 
-        if self.requirements().is_some() {
-            result.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_REQ.into(),
-                mount_path: VOLUME_MOUNT_PATH_REQ.into(),
-                ..VolumeMount::default()
-            });
-        }
-
-        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
-
-        if let Some(S3ConnectionSpec {
-            credentials: Some(_credentials),
-            ..
-        }) = s3_conn
-        {
-            result.push(VolumeMount {
-                name: "s3-credentials".into(),
-                mount_path: S3_SECRET_DIR_NAME.into(),
-                ..VolumeMount::default()
-            });
-        }
         result
     }
 
@@ -259,6 +232,13 @@ impl SparkApplication {
             .flat_map(|v| v.iter())
             .cloned()
             .collect();
+
+        self.check_mounts(&mut result, s3bucket);
+
+        result
+    }
+
+    fn check_mounts(&self, result: &mut Vec<VolumeMount>, s3bucket: &Option<InlinedS3BucketSpec>) {
         if self.spec.image.is_some() {
             result.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_JOB.into(),
@@ -266,7 +246,6 @@ impl SparkApplication {
                 ..VolumeMount::default()
             });
         }
-
         if self.requirements().is_some() {
             result.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_REQ.into(),
@@ -274,7 +253,6 @@ impl SparkApplication {
                 ..VolumeMount::default()
             });
         }
-
         let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
 
         if let Some(S3ConnectionSpec {
@@ -288,7 +266,6 @@ impl SparkApplication {
                 ..VolumeMount::default()
             });
         }
-        result
     }
 
     pub fn recommended_labels(&self) -> BTreeMap<String, String> {
@@ -416,7 +393,7 @@ impl SparkApplication {
         Ok(submit_cmd)
     }
 
-    pub fn env(&self, _s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<EnvVar> {
+    pub fn env(&self) -> Vec<EnvVar> {
         let tmp = self.spec.env.as_ref();
         let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
         if self.requirements().is_some() {

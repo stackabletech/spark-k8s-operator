@@ -147,7 +147,7 @@ pub async fn reconcile(
         container_builder.build()
     });
 
-    let env_vars = spark_application.env(&s3bucket);
+    let env_vars = spark_application.env();
     let init_containers: Vec<Container> =
         vec![job_container.clone(), requirements_container.clone()]
             .into_iter()

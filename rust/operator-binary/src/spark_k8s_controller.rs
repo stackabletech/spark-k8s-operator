@@ -101,6 +101,13 @@ pub async fn reconcile(
         _ => None,
     };
 
+    if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
+        if conn.tls.as_ref().is_some() {
+            tracing::warn!("The resource indicates S3-access should use TLS: TLS-verification has not yet been implemented \
+            but an HTTPS-endpoint will be used!");
+        }
+    }
+
     let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &serviceaccount, &serviceaccount)

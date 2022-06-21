@@ -2,7 +2,7 @@
 
 == Create an Apache Spark job
 
-If you followed the installation instructions, you should now have a Stackable Operator for Apache Spark up and running and you are ready to create your first Apache Spark kubernetes cluster.
+If you followed the installation instructions, you should now have a Stackable Operator for Apache Spark up and running, and you are ready to create your first Apache Spark kubernetes cluster.
 
 The example below creates a job running on Apache Spark 3.2.1, using the spark-on-kubernetes paradigm described in the spark documentation. The application file is itself part of the spark distribution and `local` refers to the path on the driver/executors; there are no external dependencies.
 
@@ -64,11 +64,11 @@ include::example$example-sparkapp-external-dependencies.yaml[]
 include::example$example-sparkapp-image.yaml[]
 ----
 
-<1> Job image: this contains the job artifact that will retrieved from the volume mount backed by the PVC
+<1> Job image: this contains the job artifact that will be retrieved from the volume mount backed by the PVC
 <2> Job python artifact (local)
 <3> Job argument (external)
 <4> List of python job requirements: these will be installed in the pods via `pip`
-<5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in s3)
+<5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in an S3 store)
 <6> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
 <7> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
@@ -81,7 +81,7 @@ include::example$example-sparkapp-pvc.yaml[]
 
 <1> Job artifact located on S3.
 <2> Job main class
-<3> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in s3, accessed without credentials)
+<3> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in an S3 store, accessed without credentials)
 <4> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
 <5> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
@@ -92,12 +92,12 @@ include::example$example-sparkapp-pvc.yaml[]
 include::example$example-sparkapp-s3-private.yaml[]
 ----
 
-<1> Job python artifact (located in S3)
+<1> Job python artifact (located in an S3 store)
 <2> Artifact class
 <3> S3 section, specifying the existing secret and S3 end-point (in this case, MinIO)
-<4> Credentials secret
+<4> Credentials referencing a secretClass (not shown in is example)
 <5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources...
-<6> ...in this case, in s3, accessed with the credentials defined in the secret
+<6> ...in this case, in an S3 store, accessed with the credentials defined in the secret
 <7> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
 <8> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
@@ -121,7 +121,7 @@ include::example$example-sparkapp-configmap.yaml[]
 
 == S3 bucket specification
 
-You can specify S3 connection details directly inside the `SparkApplication` specification or by refering to an external `S3Bucket` custom resource.
+You can specify S3 connection details directly inside the `SparkApplication` specification or by referring to an external `S3Bucket` custom resource.
 
 To specify S3 connection details directly as part of the `SparkApplication` resource you add an inline bucket configuration as shown below.
 
@@ -134,7 +134,9 @@ s3bucket:  # <1>
       inline:
         host: test-minio # <3>
         port: 9000 # <4>
-        secretClass: minio-credentials  # <5>
+        accessStyle: Path
+        credentials:
+          secretClass: s3-credentials-class  # <5>
 ----
 <1> Entry point for the bucket configuration.
 <2> Bucket name.
@@ -166,7 +168,9 @@ spec:
     inline:
       host: test-minio
       port: 9000
-      secretClass: minio-credentials
+      accessStyle: Path
+      credentials:
+        secretClass: minio-credentials-class
 ----
 
 This has the advantage that bucket configuration can be shared across `SparkApplication`s and reduces the cost of updating these details.

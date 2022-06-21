@@ -4,7 +4,9 @@ pub mod constants;
 
 use constants::*;
 use stackable_operator::builder::VolumeBuilder;
-use stackable_operator::commons::s3::{InlinedS3BucketSpec, S3BucketDef, S3ConnectionSpec};
+use stackable_operator::commons::s3::{
+    InlinedS3BucketSpec, S3AccessStyle, S3BucketDef, S3ConnectionSpec,
+};
 use stackable_operator::k8s_openapi::api::core::v1::{
     EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
@@ -333,21 +335,22 @@ impl SparkApplication {
         if let Some(endpoint) = s3bucket.as_ref().and_then(|s3| s3.endpoint()) {
             submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
         }
-        if s3bucket
-            .as_ref()
-            .and_then(|i| i.connection.as_ref())
-            .and_then(|c| c.credentials.as_ref())
-            .is_some()
-        {
-            // We don't use the credentials at all here but assume they are available
-            submit_cmd.push(format!(
-                "--conf spark.hadoop.fs.s3a.access.key=${}",
-                ENV_AWS_ACCESS_KEY_ID
-            ));
-            submit_cmd.push(format!(
-                "--conf spark.hadoop.fs.s3a.secret.key=${}",
-                ENV_AWS_SECRET_ACCESS_KEY
-            ));
+
+        if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
+            if let Some(S3AccessStyle::Path) = conn.access_style {
+                submit_cmd.push("--conf spark.hadoop.fs.s3a.path.style.access=true".to_string());
+            }
+            if conn.credentials.as_ref().is_some() {
+                // We don't use the credentials at all here but assume they are available
+                submit_cmd.push(format!(
+                    "--conf spark.hadoop.fs.s3a.access.key=${}",
+                    ENV_AWS_ACCESS_KEY_ID
+                ));
+                submit_cmd.push(format!(
+                    "--conf spark.hadoop.fs.s3a.secret.key=${}",
+                    ENV_AWS_SECRET_ACCESS_KEY
+                ));
+            }
         }
 
         // conf arguments that are not driver or executor specific

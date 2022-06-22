@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2022-06-21
+
 ### Added
 
 - Added new fields to govern image pull policy ([#75])

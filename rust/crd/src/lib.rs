@@ -219,8 +219,7 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        self.check_mounts(&mut result, s3bucket);
-
+        result = self.add_common_volume_mounts(result.to_owned(), s3bucket);
         result
     }
 
@@ -235,21 +234,20 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        self.check_mounts(&mut result, s3bucket);
-
+        result = self.add_common_volume_mounts(result.to_owned(), s3bucket);
         result
     }
 
-    fn check_mounts(&self, result: &mut Vec<VolumeMount>, s3bucket: &Option<InlinedS3BucketSpec>) {
+    fn add_common_volume_mounts(&self, mut mounts: Vec<VolumeMount>, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
-            result.push(VolumeMount {
+            mounts.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_JOB.into(),
                 mount_path: VOLUME_MOUNT_PATH_JOB.into(),
                 ..VolumeMount::default()
             });
         }
         if self.requirements().is_some() {
-            result.push(VolumeMount {
+            mounts.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_REQ.into(),
                 mount_path: VOLUME_MOUNT_PATH_REQ.into(),
                 ..VolumeMount::default()
@@ -262,12 +260,13 @@ impl SparkApplication {
             ..
         }) = s3_conn
         {
-            result.push(VolumeMount {
+            mounts.push(VolumeMount {
                 name: "s3-credentials".into(),
                 mount_path: S3_SECRET_DIR_NAME.into(),
                 ..VolumeMount::default()
             });
         }
+        mounts
     }
 
     pub fn recommended_labels(&self) -> BTreeMap<String, String> {

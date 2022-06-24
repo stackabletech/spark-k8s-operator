@@ -234,8 +234,7 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        result = self.add_common_volume_mounts(result.to_owned(), s3bucket);
-        result
+        self.add_common_volume_mounts(result.to_owned(), s3bucket)
     }
 
     fn add_common_volume_mounts(

@@ -17,6 +17,8 @@ metadata:
 spec:
   template:
     spec:
+      nodeSelector:
+        node: "1"
       restartPolicy: Never
       volumes:
         - name: job-deps

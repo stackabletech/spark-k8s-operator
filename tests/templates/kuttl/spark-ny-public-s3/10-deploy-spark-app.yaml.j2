@@ -48,6 +48,8 @@ spec:
         mountPath: /dependencies
       - name: cm-job-arguments
         mountPath: /arguments
+    nodeSelector:
+      node: "1"
   executor:
     cores: 1
     instances: 3
@@ -57,3 +59,5 @@ spec:
         mountPath: /dependencies
       - name: cm-job-arguments
         mountPath: /arguments
+    nodeSelector:
+      node: "1"

@@ -33,6 +33,8 @@ spec:
     volumeMounts:
       - name: spark-pi-deps
         mountPath: /dependencies
+    nodeSelector:
+      node: "1"
   executor:
     cores: 1
     instances: 1
@@ -40,3 +42,5 @@ spec:
     volumeMounts:
       - name: spark-pi-deps
         mountPath: /dependencies
+    nodeSelector:
+      node: "1"

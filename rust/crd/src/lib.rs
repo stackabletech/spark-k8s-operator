@@ -238,7 +238,11 @@ impl SparkApplication {
         result
     }
 
-    fn add_common_volume_mounts(&self, mut mounts: Vec<VolumeMount>, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<VolumeMount> {
+    fn add_common_volume_mounts(
+        &self,
+        mut mounts: Vec<VolumeMount>,
+        s3bucket: &Option<InlinedS3BucketSpec>,
+    ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
             mounts.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_JOB.into(),
@@ -336,8 +340,13 @@ impl SparkApplication {
         }
 
         if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
-            if let Some(S3AccessStyle::Path) = conn.access_style {
-                submit_cmd.push("--conf spark.hadoop.fs.s3a.path.style.access=true".to_string());
+            match conn.access_style {
+                Some(S3AccessStyle::Path) => {
+                    submit_cmd
+                        .push("--conf spark.hadoop.fs.s3a.path.style.access=true".to_string());
+                }
+                Some(S3AccessStyle::VirtualHosted) => {}
+                None => {}
             }
             if conn.credentials.as_ref().is_some() {
                 // We don't use the credentials at all here but assume they are available

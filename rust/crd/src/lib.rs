@@ -209,7 +209,7 @@ impl SparkApplication {
         &self,
         s3bucket: &Option<InlinedS3BucketSpec>,
     ) -> Vec<VolumeMount> {
-        let mut result: Vec<VolumeMount> = self
+        let result: Vec<VolumeMount> = self
             .spec
             .executor
             .as_ref()
@@ -219,12 +219,11 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        result = self.add_common_volume_mounts(result.to_owned(), s3bucket);
-        result
+        self.add_common_volume_mounts(result, s3bucket)
     }
 
     pub fn driver_volume_mounts(&self, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<VolumeMount> {
-        let mut result: Vec<VolumeMount> = self
+        let result: Vec<VolumeMount> = self
             .spec
             .driver
             .as_ref()
@@ -234,7 +233,7 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        self.add_common_volume_mounts(result.to_owned(), s3bucket)
+        self.add_common_volume_mounts(result, s3bucket)
     }
 
     fn add_common_volume_mounts(

@@ -4,6 +4,7 @@ use stackable_operator::builder::{
 };
 
 use stackable_operator::commons::s3::InlinedS3BucketSpec;
+use stackable_operator::commons::tls::{CaCert, TlsVerification};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
     ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
@@ -74,6 +75,10 @@ pub enum Error {
     S3Bucket {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("tls non-verification not supported"))]
+    S3TlsNoVerificationNotSupported,
+    #[snafu(display("ca-cert verification not supported"))]
+    S3TlsCaVerificationNotSupported,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -100,6 +105,22 @@ pub async fn reconcile(
             .ok(),
         _ => None,
     };
+
+    if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
+        if let Some(tls) = &conn.tls {
+            match &tls.verification {
+                TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
+                TlsVerification::Server(server_verification) => {
+                    match &server_verification.ca_cert {
+                        CaCert::WebPki {} => {}
+                        CaCert::SecretClass(_) => {
+                            return S3TlsCaVerificationNotSupportedSnafu.fail()
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
         if conn.tls.as_ref().is_some() {

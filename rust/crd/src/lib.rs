@@ -209,7 +209,7 @@ impl SparkApplication {
         &self,
         s3bucket: &Option<InlinedS3BucketSpec>,
     ) -> Vec<VolumeMount> {
-        let mut result: Vec<VolumeMount> = self
+        let result: Vec<VolumeMount> = self
             .spec
             .executor
             .as_ref()
@@ -219,13 +219,11 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        self.check_mounts(&mut result, s3bucket);
-
-        result
+        self.add_common_volume_mounts(result, s3bucket)
     }
 
     pub fn driver_volume_mounts(&self, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<VolumeMount> {
-        let mut result: Vec<VolumeMount> = self
+        let result: Vec<VolumeMount> = self
             .spec
             .driver
             .as_ref()
@@ -235,21 +233,23 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        self.check_mounts(&mut result, s3bucket);
-
-        result
+        self.add_common_volume_mounts(result, s3bucket)
     }
 
-    fn check_mounts(&self, result: &mut Vec<VolumeMount>, s3bucket: &Option<InlinedS3BucketSpec>) {
+    fn add_common_volume_mounts(
+        &self,
+        mut mounts: Vec<VolumeMount>,
+        s3bucket: &Option<InlinedS3BucketSpec>,
+    ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
-            result.push(VolumeMount {
+            mounts.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_JOB.into(),
                 mount_path: VOLUME_MOUNT_PATH_JOB.into(),
                 ..VolumeMount::default()
             });
         }
         if self.requirements().is_some() {
-            result.push(VolumeMount {
+            mounts.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_REQ.into(),
                 mount_path: VOLUME_MOUNT_PATH_REQ.into(),
                 ..VolumeMount::default()
@@ -262,12 +262,13 @@ impl SparkApplication {
             ..
         }) = s3_conn
         {
-            result.push(VolumeMount {
+            mounts.push(VolumeMount {
                 name: "s3-credentials".into(),
                 mount_path: S3_SECRET_DIR_NAME.into(),
                 ..VolumeMount::default()
             });
         }
+        mounts
     }
 
     pub fn recommended_labels(&self) -> BTreeMap<String, String> {
@@ -293,27 +294,6 @@ impl SparkApplication {
 
         let mut submit_cmd: Vec<String> = vec![];
 
-        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
-
-        if let Some(S3ConnectionSpec {
-            credentials: Some(_credentials),
-            ..
-        }) = s3_conn
-        {
-            submit_cmd.push(format!(
-                "export {env_var}=$(cat {secret_dir}/{file_name}) && ",
-                env_var = ENV_AWS_ACCESS_KEY_ID,
-                secret_dir = S3_SECRET_DIR_NAME,
-                file_name = ACCESS_KEY_ID
-            ));
-            submit_cmd.push(format!(
-                "export {env_var}=$(cat {secret_dir}/{file_name}) && ",
-                env_var = ENV_AWS_SECRET_ACCESS_KEY,
-                secret_dir = S3_SECRET_DIR_NAME,
-                file_name = SECRET_ACCESS_KEY
-            ));
-        }
-
         submit_cmd.extend(vec![
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
@@ -337,18 +317,25 @@ impl SparkApplication {
         }
 
         if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
-            if let Some(S3AccessStyle::Path) = conn.access_style {
-                submit_cmd.push("--conf spark.hadoop.fs.s3a.path.style.access=true".to_string());
+            match conn.access_style {
+                Some(S3AccessStyle::Path) => {
+                    submit_cmd
+                        .push("--conf spark.hadoop.fs.s3a.path.style.access=true".to_string());
+                }
+                Some(S3AccessStyle::VirtualHosted) => {}
+                None => {}
             }
             if conn.credentials.as_ref().is_some() {
                 // We don't use the credentials at all here but assume they are available
                 submit_cmd.push(format!(
-                    "--conf spark.hadoop.fs.s3a.access.key=${}",
-                    ENV_AWS_ACCESS_KEY_ID
+                    "--conf spark.hadoop.fs.s3a.access.key=$(cat {secret_dir}/{file_name})",
+                    secret_dir = S3_SECRET_DIR_NAME,
+                    file_name = ACCESS_KEY_ID
                 ));
                 submit_cmd.push(format!(
-                    "--conf spark.hadoop.fs.s3a.secret.key=${}",
-                    ENV_AWS_SECRET_ACCESS_KEY
+                    "--conf spark.hadoop.fs.s3a.secret.key=$(cat {secret_dir}/{file_name})",
+                    secret_dir = S3_SECRET_DIR_NAME,
+                    file_name = SECRET_ACCESS_KEY
                 ));
             }
         }

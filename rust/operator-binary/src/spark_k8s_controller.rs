@@ -1,6 +1,10 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder};
+use stackable_operator::builder::{
+    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodSecurityContextBuilder,
+};
 
+use stackable_operator::commons::s3::InlinedS3BucketSpec;
+use stackable_operator::commons::tls::{CaCert, TlsVerification};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
     ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
@@ -71,6 +75,10 @@ pub enum Error {
     S3Bucket {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("tls non-verification not supported"))]
+    S3TlsNoVerificationNotSupported,
+    #[snafu(display("ca-cert verification not supported"))]
+    S3TlsCaVerificationNotSupported,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -97,6 +105,29 @@ pub async fn reconcile(
             .ok(),
         _ => None,
     };
+
+    if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
+        if let Some(tls) = &conn.tls {
+            match &tls.verification {
+                TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
+                TlsVerification::Server(server_verification) => {
+                    match &server_verification.ca_cert {
+                        CaCert::WebPki {} => {}
+                        CaCert::SecretClass(_) => {
+                            return S3TlsCaVerificationNotSupportedSnafu.fail()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
+        if conn.tls.as_ref().is_some() {
+            tracing::warn!("The resource indicates S3-access should use TLS: TLS-verification has not yet been implemented \
+            but an HTTPS-endpoint will be used!");
+        }
+    }
 
     let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
     client
@@ -144,14 +175,18 @@ pub async fn reconcile(
         container_builder.build()
     });
 
-    let env_vars = spark_application.env(&s3bucket);
+    let env_vars = spark_application.env();
     let init_containers: Vec<Container> =
         vec![job_container.clone(), requirements_container.clone()]
             .into_iter()
             .flatten()
             .collect();
-    let pod_template_config_map =
-        pod_template_config_map(&spark_application, init_containers.as_ref(), &env_vars)?;
+    let pod_template_config_map = pod_template_config_map(
+        &spark_application,
+        init_containers.as_ref(),
+        &env_vars,
+        &s3bucket,
+    )?;
     client
         .apply_patch(
             FIELD_MANAGER_SCOPE,
@@ -172,6 +207,7 @@ pub async fn reconcile(
         &job_container,
         &env_vars,
         &job_commands,
+        &s3bucket,
     )?;
     client
         .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
@@ -190,18 +226,21 @@ fn pod_template(
     env: &[EnvVar],
     node_selector: Option<BTreeMap<String, String>>,
 ) -> Result<Pod> {
-    let mut container = ContainerBuilder::new(container_name);
-    container
-        .add_volume_mounts(volume_mounts.to_vec())
+    let mut cb = ContainerBuilder::new(container_name);
+    cb.add_volume_mounts(volume_mounts.to_vec())
         .add_env_vars(env.to_vec());
 
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-        container.image_pull_policy(image_pull_policy.to_string());
+        cb.image_pull_policy(image_pull_policy.to_string());
     }
 
     let mut pod_spec = PodSpec {
-        containers: vec![container.build()],
+        containers: vec![cb.build()],
         volumes: Some(volumes.to_vec()),
+        security_context: PodSecurityContextBuilder::new()
+            .fs_group(1000)
+            .build()
+            .into(), // Needed for secret-operator
         ..PodSpec::default()
     };
 
@@ -228,15 +267,16 @@ fn pod_template_config_map(
     spark_application: &SparkApplication,
     init_containers: &[Container],
     env: &[EnvVar],
+    s3bucket: &Option<InlinedS3BucketSpec>,
 ) -> Result<ConfigMap> {
-    let volumes = spark_application.volumes();
+    let volumes = spark_application.volumes(s3bucket);
 
     let driver_template = pod_template(
         spark_application,
         CONTAINER_NAME_DRIVER,
         init_containers,
         volumes.as_ref(),
-        spark_application.driver_volume_mounts().as_ref(),
+        spark_application.driver_volume_mounts(s3bucket).as_ref(),
         env,
         spark_application.driver_node_selector(),
     )?;
@@ -245,7 +285,7 @@ fn pod_template_config_map(
         CONTAINER_NAME_EXECUTOR,
         init_containers,
         volumes.as_ref(),
-        spark_application.executor_volume_mounts().as_ref(),
+        spark_application.executor_volume_mounts(s3bucket).as_ref(),
         env,
         spark_application.executor_node_selector(),
     )?;
@@ -279,13 +319,14 @@ fn spark_job(
     job_container: &Option<Container>,
     env: &[EnvVar],
     job_commands: &[String],
+    s3bucket: &Option<InlinedS3BucketSpec>,
 ) -> Result<Job> {
     let mut volume_mounts = vec![VolumeMount {
         name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
         mount_path: VOLUME_MOUNT_PATH_POD_TEMPLATES.into(),
         ..VolumeMount::default()
     }];
-    volume_mounts.extend(spark_application.driver_volume_mounts());
+    volume_mounts.extend(spark_application.driver_volume_mounts(s3bucket));
     if job_container.is_some() {
         volume_mounts.push(VolumeMount {
             name: VOLUME_MOUNT_NAME_JOB.into(),
@@ -294,15 +335,10 @@ fn spark_job(
         })
     }
 
-    let mut container = ContainerBuilder::new("spark-submit");
-    container
-        .image(spark_image)
-        .command(vec!["/bin/bash".to_string()])
-        .args(vec![
-            "-c".to_string(),
-            "-x".to_string(),
-            job_commands.join(" "),
-        ])
+    let mut cb = ContainerBuilder::new("spark-submit");
+    cb.image(spark_image)
+        .command(vec!["/bin/sh".to_string()])
+        .args(vec!["-c".to_string(), job_commands.join(" ")])
         .add_volume_mounts(volume_mounts)
         .add_env_vars(env.to_vec())
         // TODO: move this to the image
@@ -313,7 +349,7 @@ fn spark_job(
         }]);
 
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-        container.image_pull_policy(image_pull_policy.to_string());
+        cb.image_pull_policy(image_pull_policy.to_string());
     }
 
     let mut volumes = vec![Volume {
@@ -324,7 +360,7 @@ fn spark_job(
         }),
         ..Volume::default()
     }];
-    volumes.extend(spark_application.volumes());
+    volumes.extend(spark_application.volumes(s3bucket));
 
     if job_container.is_some() {
         volumes.push(Volume {
@@ -342,12 +378,16 @@ fn spark_job(
                 .build(),
         ),
         spec: Some(PodSpec {
-            containers: vec![container.build()],
+            containers: vec![cb.build()],
             init_containers: job_container.as_ref().map(|c| vec![c.clone()]),
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
             image_pull_secrets: spark_application.spark_image_pull_secrets(),
+            security_context: PodSecurityContextBuilder::new()
+                .fs_group(1000)
+                .build()
+                .into(), // Needed for secret-operator
             ..PodSpec::default()
         }),
     };

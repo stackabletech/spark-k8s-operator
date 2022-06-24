@@ -21,9 +21,9 @@ spec:
         inline:
           host: test-minio
           port: 9000
+          accessStyle: Path
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    spark.hadoop.fs.s3a.path.style.access: "true"
     spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-{{ test_scenario['values']['hadoop'] }}.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
     spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-{{ test_scenario['values']['hadoop'] }}.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
   driver:

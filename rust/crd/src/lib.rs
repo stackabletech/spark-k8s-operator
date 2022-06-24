@@ -4,10 +4,11 @@ pub mod constants;
 
 use constants::*;
 use stackable_operator::builder::VolumeBuilder;
-use stackable_operator::commons::s3::{InlinedS3BucketSpec, S3BucketDef};
+use stackable_operator::commons::s3::{
+    InlinedS3BucketSpec, S3AccessStyle, S3BucketDef, S3ConnectionSpec,
+};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    EmptyDirVolumeSource, EnvVar, EnvVarSource, LocalObjectReference, SecretKeySelector, Volume,
-    VolumeMount,
+    EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
 
 use std::collections::{BTreeMap, HashMap};
@@ -166,7 +167,7 @@ impl SparkApplication {
             .map(|req| req.join(" "))
     }
 
-    pub fn volumes(&self) -> Vec<Volume> {
+    pub fn volumes(&self, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<Volume> {
         let mut result: Vec<Volume> = self
             .spec
             .volumes
@@ -191,11 +192,24 @@ impl SparkApplication {
                     .build(),
             );
         }
+
+        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
+
+        if let Some(S3ConnectionSpec {
+            credentials: Some(credentials),
+            ..
+        }) = s3_conn
+        {
+            result.push(credentials.to_volume("s3-credentials"));
+        }
         result
     }
 
-    pub fn executor_volume_mounts(&self) -> Vec<VolumeMount> {
-        let mut result: Vec<VolumeMount> = self
+    pub fn executor_volume_mounts(
+        &self,
+        s3bucket: &Option<InlinedS3BucketSpec>,
+    ) -> Vec<VolumeMount> {
+        let result: Vec<VolumeMount> = self
             .spec
             .executor
             .as_ref()
@@ -205,27 +219,11 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        if self.spec.image.is_some() {
-            result.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_JOB.into(),
-                mount_path: VOLUME_MOUNT_PATH_JOB.into(),
-                ..VolumeMount::default()
-            });
-        }
-
-        if self.requirements().is_some() {
-            result.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_REQ.into(),
-                mount_path: VOLUME_MOUNT_PATH_REQ.into(),
-                ..VolumeMount::default()
-            });
-        }
-
-        result
+        self.add_common_volume_mounts(result, s3bucket)
     }
 
-    pub fn driver_volume_mounts(&self) -> Vec<VolumeMount> {
-        let mut result: Vec<VolumeMount> = self
+    pub fn driver_volume_mounts(&self, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<VolumeMount> {
+        let result: Vec<VolumeMount> = self
             .spec
             .driver
             .as_ref()
@@ -234,22 +232,43 @@ impl SparkApplication {
             .flat_map(|v| v.iter())
             .cloned()
             .collect();
+
+        self.add_common_volume_mounts(result, s3bucket)
+    }
+
+    fn add_common_volume_mounts(
+        &self,
+        mut mounts: Vec<VolumeMount>,
+        s3bucket: &Option<InlinedS3BucketSpec>,
+    ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
-            result.push(VolumeMount {
+            mounts.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_JOB.into(),
                 mount_path: VOLUME_MOUNT_PATH_JOB.into(),
                 ..VolumeMount::default()
             });
         }
-
         if self.requirements().is_some() {
-            result.push(VolumeMount {
+            mounts.push(VolumeMount {
                 name: VOLUME_MOUNT_NAME_REQ.into(),
                 mount_path: VOLUME_MOUNT_PATH_REQ.into(),
                 ..VolumeMount::default()
             });
         }
-        result
+        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
+
+        if let Some(S3ConnectionSpec {
+            credentials: Some(_credentials),
+            ..
+        }) = s3_conn
+        {
+            mounts.push(VolumeMount {
+                name: "s3-credentials".into(),
+                mount_path: S3_SECRET_DIR_NAME.into(),
+                ..VolumeMount::default()
+            });
+        }
+        mounts
     }
 
     pub fn recommended_labels(&self) -> BTreeMap<String, String> {
@@ -273,7 +292,9 @@ impl SparkApplication {
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
-        let mut submit_cmd = vec![
+        let mut submit_cmd: Vec<String> = vec![];
+
+        submit_cmd.extend(vec![
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
@@ -287,24 +308,36 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
-        ];
+        ]);
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
         // for possible S3 related properties
         if let Some(endpoint) = s3bucket.as_ref().and_then(|s3| s3.endpoint()) {
             submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
         }
-        if s3bucket.as_ref().and_then(|s3| s3.secret_class()).is_some() {
-            // We don't use the secret at all here, instead we assume the Self::env() has been
-            // called and this environment variables are availables.
-            submit_cmd.push(format!(
-                "--conf spark.hadoop.fs.s3a.access.key=${}",
-                ENV_AWS_ACCESS_KEY_ID
-            ));
-            submit_cmd.push(format!(
-                "--conf spark.hadoop.fs.s3a.secret.key=${}",
-                ENV_AWS_SECRET_ACCESS_KEY
-            ));
+
+        if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
+            match conn.access_style {
+                Some(S3AccessStyle::Path) => {
+                    submit_cmd
+                        .push("--conf spark.hadoop.fs.s3a.path.style.access=true".to_string());
+                }
+                Some(S3AccessStyle::VirtualHosted) => {}
+                None => {}
+            }
+            if conn.credentials.as_ref().is_some() {
+                // We don't use the credentials at all here but assume they are available
+                submit_cmd.push(format!(
+                    "--conf spark.hadoop.fs.s3a.access.key=$(cat {secret_dir}/{file_name})",
+                    secret_dir = S3_SECRET_DIR_NAME,
+                    file_name = ACCESS_KEY_ID
+                ));
+                submit_cmd.push(format!(
+                    "--conf spark.hadoop.fs.s3a.secret.key=$(cat {secret_dir}/{file_name})",
+                    secret_dir = S3_SECRET_DIR_NAME,
+                    file_name = SECRET_ACCESS_KEY
+                ));
+            }
         }
 
         // conf arguments that are not driver or executor specific
@@ -350,23 +383,9 @@ impl SparkApplication {
         Ok(submit_cmd)
     }
 
-    pub fn env(&self, s3bucket: &Option<InlinedS3BucketSpec>) -> Vec<EnvVar> {
+    pub fn env(&self) -> Vec<EnvVar> {
         let tmp = self.spec.env.as_ref();
         let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
-        if let Some(s3) = s3bucket {
-            if let Some(secret) = s3.secret_class() {
-                e.push(Self::env_var_from_secret(
-                    ENV_AWS_ACCESS_KEY_ID,
-                    secret.as_ref(),
-                    ACCESS_KEY_ID,
-                ));
-                e.push(Self::env_var_from_secret(
-                    ENV_AWS_SECRET_ACCESS_KEY,
-                    secret.as_ref(),
-                    SECRET_ACCESS_KEY,
-                ));
-            }
-        }
         if self.requirements().is_some() {
             e.push(EnvVar {
                 name: "PYTHONPATH".to_string(),
@@ -377,21 +396,6 @@ impl SparkApplication {
             });
         }
         e
-    }
-
-    fn env_var_from_secret(var_name: &str, secret: &str, secret_key: &str) -> EnvVar {
-        EnvVar {
-            name: String::from(var_name),
-            value_from: Some(EnvVarSource {
-                secret_key_ref: Some(SecretKeySelector {
-                    name: Some(String::from(secret)),
-                    key: String::from(secret_key),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }
     }
 
     pub fn driver_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
@@ -481,6 +485,10 @@ mod tests {
     use crate::ImagePullPolicy;
     use crate::LocalObjectReference;
     use crate::SparkApplication;
+    use stackable_operator::commons::s3::{
+        S3AccessStyle, S3BucketSpec, S3ConnectionDef, S3ConnectionSpec,
+    };
+    use stackable_operator::commons::tls::{Tls, TlsVerification};
     use std::str::FromStr;
 
     #[test]
@@ -710,5 +718,37 @@ spec:
             ImagePullPolicy::IfNotPresent,
             ImagePullPolicy::from_str("IfNotPresent").unwrap()
         );
+    }
+
+    #[test]
+    fn test_ser_inline() {
+        let bucket = S3BucketSpec {
+            bucket_name: Some("test-bucket-name".to_owned()),
+            connection: Some(S3ConnectionDef::Inline(S3ConnectionSpec {
+                host: Some("host".to_owned()),
+                port: Some(8080),
+                credentials: None,
+                access_style: Some(S3AccessStyle::VirtualHosted),
+                tls: Some(Tls {
+                    verification: TlsVerification::None {},
+                }),
+            })),
+        };
+
+        assert_eq!(
+            serde_yaml::to_string(&bucket).unwrap(),
+            "---
+bucketName: test-bucket-name
+connection:
+  inline:
+    host: host
+    port: 8080
+    accessStyle: VirtualHosted
+    tls:
+      verification:
+        none: {}
+"
+            .to_owned()
+        )
     }
 }

@@ -4,12 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+- BREAKING: Use current S3 connection/bucket structs ([#86])
+
+[#86]: https://github.com/stackabletech/spark-k8s-operator/pull/86
+
 ## [0.2.0] - 2022-06-21
 
 ### Added
 
 - Added new fields to govern image pull policy ([#75])
-- New `nodeSelector` fields for both the driver and the excutors ([#76])
+- New `nodeSelector` fields for both the driver and the executors ([#76])
 - Mirror driver pod status to the corresponding spark application ([#77])
 
 [#75]: https://github.com/stackabletech/spark-k8s-operator/pull/75

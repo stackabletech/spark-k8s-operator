@@ -294,27 +294,6 @@ impl SparkApplication {
 
         let mut submit_cmd: Vec<String> = vec![];
 
-        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
-
-        if let Some(S3ConnectionSpec {
-            credentials: Some(_credentials),
-            ..
-        }) = s3_conn
-        {
-            submit_cmd.push(format!(
-                "export {env_var}=$(cat {secret_dir}/{file_name}) && ",
-                env_var = ENV_AWS_ACCESS_KEY_ID,
-                secret_dir = S3_SECRET_DIR_NAME,
-                file_name = ACCESS_KEY_ID
-            ));
-            submit_cmd.push(format!(
-                "export {env_var}=$(cat {secret_dir}/{file_name}) && ",
-                env_var = ENV_AWS_SECRET_ACCESS_KEY,
-                secret_dir = S3_SECRET_DIR_NAME,
-                file_name = SECRET_ACCESS_KEY
-            ));
-        }
-
         submit_cmd.extend(vec![
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
@@ -349,12 +328,14 @@ impl SparkApplication {
             if conn.credentials.as_ref().is_some() {
                 // We don't use the credentials at all here but assume they are available
                 submit_cmd.push(format!(
-                    "--conf spark.hadoop.fs.s3a.access.key=${}",
-                    ENV_AWS_ACCESS_KEY_ID
+                    "--conf spark.hadoop.fs.s3a.access.key=$(cat {secret_dir}/{file_name})",
+                    secret_dir = S3_SECRET_DIR_NAME,
+                    file_name = ACCESS_KEY_ID
                 ));
                 submit_cmd.push(format!(
-                    "--conf spark.hadoop.fs.s3a.secret.key=${}",
-                    ENV_AWS_SECRET_ACCESS_KEY
+                    "--conf spark.hadoop.fs.s3a.secret.key=$(cat {secret_dir}/{file_name})",
+                    secret_dir = S3_SECRET_DIR_NAME,
+                    file_name = SECRET_ACCESS_KEY
                 ));
             }
         }

@@ -20,9 +20,9 @@ spec:
           credentials:
             secretClass: s3-credentials-class
   volumes:
-    - name: spark-pi-deps
+    - name: spark-pi-private-deps
       persistentVolumeClaim:
-        claimName: spark-pi-pvc
+        claimName: spark-pi-private-pvc
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
     spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
@@ -32,7 +32,7 @@ spec:
     coreLimit: "1200m"
     memory: "512m"
     volumeMounts:
-      - name: spark-pi-deps
+      - name: spark-pi-private-deps
         mountPath: /dependencies
     nodeSelector:
       node: "2"
@@ -41,7 +41,7 @@ spec:
     instances: 1
     memory: "512m"
     volumeMounts:
-      - name: spark-pi-deps
+      - name: spark-pi-private-deps
         mountPath: /dependencies
     nodeSelector:
       node: "2"

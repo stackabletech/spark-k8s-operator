@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: spark-pi-pvc
+  name: spark-pi-private-pvc
 spec:
   accessModes:
     - ReadWriteOnce
@@ -13,7 +13,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: spark-pi-deps-job
+  name: spark-pi-private-deps-job
 spec:
   ttlSecondsAfterFinished: 10
   template:
@@ -22,9 +22,9 @@ spec:
         node: "2"
       restartPolicy: Never
       volumes:
-        - name: job-deps
+        - name: job-deps-pi-private
           persistentVolumeClaim:
-            claimName: spark-pi-pvc
+            claimName: spark-pi-private-pvc
       containers:
         - name: aws-deps
           image: docker.stackable.tech/stackable/tools:0.2.0-stackable0
@@ -45,7 +45,7 @@ spec:
               "mkdir -p ${DEST_DIR} && curl -L  https://search.maven.org/remotecontent?filepath=org/apache/hadoop/hadoop-aws/${HADOOP}.0/hadoop-aws-${HADOOP}.0.jar -o ${DEST_DIR}/hadoop-aws-${HADOOP}.0.jar && curl -L https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS}/aws-java-sdk-bundle-${AWS}.jar -o ${DEST_DIR}/aws-java-sdk-bundle-${AWS}.jar && chown -R stackable:stackable ${DEST_DIR} && chmod -R a=,u=rwX ${DEST_DIR}",
             ]
           volumeMounts:
-            - name: job-deps
+            - name: job-deps-pi-private
               mountPath: /dependencies
           securityContext:
             runAsUser: 0

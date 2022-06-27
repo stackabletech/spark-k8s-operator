@@ -18,6 +18,8 @@ spec:
   mode: cluster
   mainClass: tech.stackable.demo.spark.NYTLCReport
   mainApplicationFile: s3a://my-bucket/ny-tlc-report-1.1.0.jar
+  nodeSelector:
+    node: "1"
   volumes:
     - name: spark-ny-deps
       persistentVolumeClaim:

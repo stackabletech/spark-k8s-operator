@@ -100,6 +100,8 @@ pub struct SparkApplicationSpec {
     pub volumes: Option<Vec<Volume>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<EnvVar>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_selector: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Display, EnumString)]
@@ -410,6 +412,10 @@ impl SparkApplication {
             .executor
             .as_ref()
             .and_then(|executor_config| executor_config.node_selector.clone())
+    }
+
+    pub fn job_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
+        self.spec.node_selector.clone()
     }
 }
 

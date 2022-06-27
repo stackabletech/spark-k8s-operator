@@ -274,6 +274,11 @@ spec:
                 mode:
                   nullable: true
                   type: string
+                nodeSelector:
+                  additionalProperties:
+                    type: string
+                  nullable: true
+                  type: object
                 s3bucket:
                   description: Operators are expected to define fields for this type in order to work with S3 buckets.
                   nullable: true

@@ -15,14 +15,14 @@ kind: Job
 metadata:
   name: spark-ny-deps-job
 spec:
-  ttlSecondsAfterFinished: 10
+  #ttlSecondsAfterFinished: 120
   template:
     spec:
       nodeSelector:
         node: "1"
       restartPolicy: Never
       volumes:
-        - name: job-deps-ny
+        - name: job-deps
           persistentVolumeClaim:
             claimName: spark-ny-pvc
       containers:
@@ -45,7 +45,7 @@ spec:
               "mkdir -p ${DEST_DIR} && curl -L  https://search.maven.org/remotecontent?filepath=org/apache/hadoop/hadoop-aws/${HADOOP}.0/hadoop-aws-${HADOOP}.0.jar -o ${DEST_DIR}/hadoop-aws-${HADOOP}.0.jar && curl -L https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS}/aws-java-sdk-bundle-${AWS}.jar -o ${DEST_DIR}/aws-java-sdk-bundle-${AWS}.jar && chown -R stackable:stackable ${DEST_DIR} && chmod -R a=,u=rwX ${DEST_DIR}",
             ]
           volumeMounts:
-            - name: job-deps-ny
+            - name: job-deps
               mountPath: /dependencies
           securityContext:
             runAsUser: 0

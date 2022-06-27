@@ -11,7 +11,7 @@ spec:
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
   volumes:
-    - name: spark-pi-public-deps
+    - name: spark-pi-deps
       persistentVolumeClaim:
         claimName: spark-pi-public-pvc
   s3bucket:
@@ -31,7 +31,7 @@ spec:
     coreLimit: "1200m"
     memory: "512m"
     volumeMounts:
-      - name: spark-pi-public-deps
+      - name: spark-pi-deps
         mountPath: /dependencies
     nodeSelector:
       node: "3"
@@ -40,7 +40,7 @@ spec:
     instances: 1
     memory: "512m"
     volumeMounts:
-      - name: spark-pi-public-deps
+      - name: spark-pi-deps
         mountPath: /dependencies
     nodeSelector:
       node: "3"

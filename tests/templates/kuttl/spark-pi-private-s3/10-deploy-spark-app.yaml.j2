@@ -20,7 +20,7 @@ spec:
           credentials:
             secretClass: s3-credentials-class
   volumes:
-    - name: spark-pi-private-deps
+    - name: spark-pi-deps
       persistentVolumeClaim:
         claimName: spark-pi-private-pvc
   sparkConf:
@@ -32,7 +32,7 @@ spec:
     coreLimit: "1200m"
     memory: "512m"
     volumeMounts:
-      - name: spark-pi-private-deps
+      - name: spark-pi-deps
         mountPath: /dependencies
     nodeSelector:
       node: "2"
@@ -41,7 +41,7 @@ spec:
     instances: 1
     memory: "512m"
     volumeMounts:
-      - name: spark-pi-private-deps
+      - name: spark-pi-deps
         mountPath: /dependencies
     nodeSelector:
       node: "2"

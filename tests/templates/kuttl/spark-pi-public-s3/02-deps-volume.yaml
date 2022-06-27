@@ -15,6 +15,7 @@ kind: Job
 metadata:
   name: spark-pi-deps-job
 spec:
+  ttlSecondsAfterFinished: 10
   template:
     spec:
       nodeSelector:

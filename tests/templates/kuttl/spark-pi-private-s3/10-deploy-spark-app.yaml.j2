@@ -35,7 +35,7 @@ spec:
       - name: spark-pi-deps
         mountPath: /dependencies
     nodeSelector:
-      node: "1"
+      node: "2"
   executor:
     cores: 1
     instances: 1
@@ -44,4 +44,4 @@ spec:
       - name: spark-pi-deps
         mountPath: /dependencies
     nodeSelector:
-      node: "1"
+      node: "2"

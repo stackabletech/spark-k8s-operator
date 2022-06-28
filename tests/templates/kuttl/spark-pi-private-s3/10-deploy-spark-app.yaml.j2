@@ -26,8 +26,8 @@ spec:
         claimName: spark-pi-pvc
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
-    spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
-    spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    spark.driver.extraClassPath: "/dependencies/jars/*"
+    spark.executor.extraClassPath: "/dependencies/jars/*"
   driver:
     cores: 1
     coreLimit: "1200m"

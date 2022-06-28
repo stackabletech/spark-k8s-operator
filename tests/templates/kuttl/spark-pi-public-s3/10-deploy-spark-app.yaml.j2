@@ -10,8 +10,6 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
-  nodeSelector:
-    node: "1"
   volumes:
     - name: spark-pi-deps
       persistentVolumeClaim:

@@ -18,7 +18,7 @@ spec:
   template:
     spec:
       nodeSelector:
-        node: "2"
+        node: "1"
       restartPolicy: Never
       volumes:
         - name: job-deps

@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: spark-pi-pvc
+  name: spark-pi-public-pvc
 spec:
   accessModes:
     - ReadWriteOnce
@@ -17,11 +17,13 @@ metadata:
 spec:
   template:
     spec:
+      nodeSelector:
+        node: "1"
       restartPolicy: Never
       volumes:
         - name: job-deps
           persistentVolumeClaim:
-            claimName: spark-pi-pvc
+            claimName: spark-pi-public-pvc
       containers:
         - name: aws-deps
           image: docker.stackable.tech/stackable/tools:0.2.0-stackable0

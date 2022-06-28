@@ -388,6 +388,7 @@ fn spark_job(
                 .fs_group(1000)
                 .build()
                 .into(), // Needed for secret-operator
+            node_selector: spark_application.driver_node_selector(),
             ..PodSpec::default()
         }),
     };

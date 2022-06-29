@@ -5,11 +5,11 @@ commands:
       - script: >-
               kubectl exec -n $NAMESPACE minio-mc-0 --
               sh -c 'mc alias set test-minio http://test-minio:9000/'
-      - script: kubectl cp -n $NAMESPACE ny-tlc-report-1.1.0.jar  minio-mc-0:/tmp
+      - script: kubectl cp -n $NAMESPACE ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'] }}.jar  minio-mc-0:/tmp
       - script: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv  minio-mc-0:/tmp
       - script: >-
               kubectl exec -n $NAMESPACE minio-mc-0 --
-              mc cp /tmp/ny-tlc-report-1.1.0.jar test-minio/my-bucket
+              mc cp /tmp/ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'] }}.jar test-minio/my-bucket
       - script: >-
               kubectl exec -n $NAMESPACE minio-mc-0 --
               mc cp /tmp/yellow_tripdata_2021-07.csv test-minio/my-bucket

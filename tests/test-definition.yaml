@@ -1,3 +1,7 @@
+#
+# Currently the tests only run against one version of Spark but will be changed
+# soon to support multiple Spark versions.
+#
 ---
 dimensions:
   - name: spark

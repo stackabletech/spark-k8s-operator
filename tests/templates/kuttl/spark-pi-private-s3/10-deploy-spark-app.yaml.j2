@@ -23,7 +23,7 @@ spec:
   volumes:
     - name: spark-pi-deps
       persistentVolumeClaim:
-        claimName: spark-pi-pvc
+        claimName: spark-pi-private-pvc
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
     spark.driver.extraClassPath: "/dependencies/jars/*"
@@ -35,6 +35,8 @@ spec:
     volumeMounts:
       - name: spark-pi-deps
         mountPath: /dependencies
+    nodeSelector:
+      node: "1"
   executor:
     cores: 1
     instances: 1
@@ -42,3 +44,5 @@ spec:
     volumeMounts:
       - name: spark-pi-deps
         mountPath: /dependencies
+    nodeSelector:
+      node: "1"

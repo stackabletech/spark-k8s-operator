@@ -7,7 +7,7 @@ metadata:
 spec:
   version: "1.0"
   image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0 # <1>
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.2.1-hadoop3.2-python39-stackable0.1.0
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.1.0
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py # <2>
   args:
@@ -17,8 +17,8 @@ spec:
       - tabulate==0.8.9 # <4>
   sparkConf: # <5>
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    "spark.driver.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
-    "spark.executor.extraClassPath": "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    "spark.driver.extraClassPath": "/dependencies/jars/*"
+    "spark.executor.extraClassPath": "/dependencies/jars/*"
   volumes:
     - name: job-deps # <6>
       persistentVolumeClaim:

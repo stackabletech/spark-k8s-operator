@@ -5,9 +5,9 @@ metadata:
   name: example-sparkapp-s3-private
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.1.0
   mode: cluster
-  mainApplicationFile: s3a://my-bucket/spark-examples_2.12-3.2.1.jar # <1>
+  mainApplicationFile: s3a://my-bucket/spark-examples_2.12-3.3.0.jar # <1>
   mainClass: org.apache.spark.examples.SparkPi # <2>
   s3bucket:  # <3>
     inline:

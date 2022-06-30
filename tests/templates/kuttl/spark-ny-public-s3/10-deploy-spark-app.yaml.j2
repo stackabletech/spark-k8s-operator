@@ -13,11 +13,11 @@ metadata:
   name: spark-ny-cm
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-hadoop{{ test_scenario['values']['hadoop'][:-2] }}-stackable{{ test_scenario['values']['stackable'] }}
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
   mainClass: tech.stackable.demo.spark.NYTLCReport
-  mainApplicationFile: s3a://my-bucket/ny-tlc-report-1.1.0.jar
+  mainApplicationFile: s3a://my-bucket/ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'] }}.jar
   volumes:
     - name: spark-ny-deps
       persistentVolumeClaim:
@@ -37,8 +37,8 @@ spec:
           accessStyle: Path
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-{{ test_scenario['values']['hadoop'] }}.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
-    spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-{{ test_scenario['values']['hadoop'] }}.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    spark.driver.extraClassPath: "/dependencies/jars/*"
+    spark.executor.extraClassPath: "/dependencies/jars/*"
   driver:
     cores: 1
     coreLimit: "1200m"

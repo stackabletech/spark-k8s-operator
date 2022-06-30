@@ -31,9 +31,9 @@ spec:
             - name: DEST_DIR
               value: "/dependencies/jars"
             - name: AWS
-              value: "1.11.375"
+              value: "1.11.1026"
             - name: HADOOP
-              value: "3.2"
+              value: "3.3.3"
           command:
             [
               "bash",
@@ -41,7 +41,7 @@ spec:
               "-o",
               "pipefail",
               "-c",
-              "mkdir -p ${DEST_DIR} && curl -L  https://search.maven.org/remotecontent?filepath=org/apache/hadoop/hadoop-aws/${HADOOP}.0/hadoop-aws-${HADOOP}.0.jar -o ${DEST_DIR}/hadoop-aws-${HADOOP}.0.jar && curl -L https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS}/aws-java-sdk-bundle-${AWS}.jar -o ${DEST_DIR}/aws-java-sdk-bundle-${AWS}.jar && chown -R stackable:stackable ${DEST_DIR} && chmod -R a=,u=rwX ${DEST_DIR}",
+              "mkdir -p ${DEST_DIR} && curl -L  https://search.maven.org/remotecontent?filepath=org/apache/hadoop/hadoop-aws/${HADOOP}/hadoop-aws-${HADOOP}.jar -o ${DEST_DIR}/hadoop-aws-${HADOOP}.jar && curl -L https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS}/aws-java-sdk-bundle-${AWS}.jar -o ${DEST_DIR}/aws-java-sdk-bundle-${AWS}.jar && chown -R stackable:stackable ${DEST_DIR} && chmod -R a=,u=rwX ${DEST_DIR}",
             ]
           volumeMounts:
             - name: job-deps

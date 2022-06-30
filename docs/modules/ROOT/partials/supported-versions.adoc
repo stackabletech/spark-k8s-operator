@@ -4,3 +4,4 @@
 
 - 3.2.1-hadoop3.2
 - 3.2.1-hadoop3.2-python39
+- 3.3.0-hadoop3

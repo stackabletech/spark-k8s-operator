@@ -8,7 +8,7 @@ spec:
   version: "1.0"
   # everything under /jobs will be copied to /stackable/spark/jobs
   image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.2.1-hadoop3.2-python39-stackable0.1.0
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.1.0
   sparkImagePullPolicy: Always
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
@@ -24,11 +24,11 @@ spec:
         inline:
           host: test-minio
           port: 9000
+          accessStyle: Path
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    spark.hadoop.fs.s3a.path.style.access: "true"
-    spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
-    spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
+    spark.driver.extraClassPath: "/dependencies/jars/*"
+    spark.executor.extraClassPath: "/dependencies/jars/*"
   volumes:
     - name: job-deps
       persistentVolumeClaim:

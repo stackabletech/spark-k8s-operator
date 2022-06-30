@@ -1,37 +1,33 @@
+#
+# Currently the tests only run against one version of Spark but will be changed
+# soon to support multiple Spark versions.
+#
 ---
 dimensions:
   - name: spark
     values:
-      - 3.2.1
-  - name: hadoop
-    values:
-      - 3.2.0
+      - 3.3.0
   - name: stackable
     values:
-      - 0.4.0
+      - 0.1.0
 tests:
   - name: spark-pi-private-s3
     dimensions:
       - spark
-      - hadoop
       - stackable
   - name: spark-pi-public-s3
     dimensions:
       - spark
-      - hadoop
       - stackable
   - name: spark-ny-public-s3
     dimensions:
       - spark
-      - hadoop
       - stackable
   - name: node-selector
     dimensions:
       - spark
-      - hadoop
       - stackable
   - name: spark-examples
     dimensions:
       - spark
-      - hadoop
       - stackable

@@ -4,7 +4,7 @@
 
 If you followed the installation instructions, you should now have a Stackable Operator for Apache Spark up and running, and you are ready to create your first Apache Spark kubernetes cluster.
 
-The example below creates a job running on Apache Spark 3.2.1, using the spark-on-kubernetes paradigm described in the spark documentation. The application file is itself part of the spark distribution and `local` refers to the path on the driver/executors; there are no external dependencies.
+The example below creates a job running on Apache Spark 3.3.0, using the spark-on-kubernetes paradigm described in the spark documentation. The application file is itself part of the spark distribution and `local` refers to the path on the driver/executors; there are no external dependencies.
 
     cat <<EOF | kubectl apply -f -
     apiVersion: spark.stackable.tech/v1alpha1
@@ -12,11 +12,11 @@ The example below creates a job running on Apache Spark 3.2.1, using the spark-o
     metadata:
       name: spark-clustermode-001
     spec:
-      version: 3.2.1-hadoop3.2
+      version: 1.0
       mode: cluster
       mainClass: org.apache.spark.examples.SparkPi
-      mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-3.2.1.jar
-      image: 3.2.1-hadoop3.2
+      mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-3.3.0.jar
+      image: 3.3.0-stackable0.1.0
       driver:
         cores: 1
         coreLimit: "1200m"
@@ -201,7 +201,7 @@ Below are listed the CRD fields that can be defined by the user:
 |User-supplied image containing spark-job dependencies that will be copied to the specified volume mount
 
 |`spec.sparkImage`
-| Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0`
+| Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.1.0`
 
 |`spec.sparkImagePullPolicy`
 | Optional Enum (one of `Always`, `IfNotPresent` or `Never`) that determines the pull policy of the spark job image

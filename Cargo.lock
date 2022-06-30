@@ -1744,7 +1744,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-spark-k8s-crd"
-version = "0.3.0-nightly"
+version = "0.4.0-nightly"
 dependencies = [
  "semver",
  "serde",
@@ -1757,7 +1757,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-spark-k8s-operator"
-version = "0.3.0-nightly"
+version = "0.4.0-nightly"
 dependencies = [
  "anyhow",
  "built",

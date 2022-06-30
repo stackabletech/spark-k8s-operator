@@ -1,7 +1,7 @@
 ---
 name: spark-k8s
-version: "0.3"
+version: "nightly"
 title: Stackable Operator for Apache Spark on Kubernetes
 nav:
   - modules/ROOT/nav.adoc
-prerelease: false
+prerelease: true

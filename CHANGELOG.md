@@ -11,10 +11,12 @@ All notable changes to this project will be documented in this file.
 - BREAKING: Use current S3 connection/bucket structs ([#86])
 - Add node selector to top-level job and specify node selection in PVC-relevant tests ([#90])
 - Update kuttl tests to use Spark 3.3.0 ([#91])
+- Bugfix for duplicate volume mounts in PySpark jobs ([#92])
 
 [#86]: https://github.com/stackabletech/spark-k8s-operator/pull/86
 [#90]: https://github.com/stackabletech/spark-k8s-operator/pull/90
 [#91]: https://github.com/stackabletech/spark-k8s-operator/pull/91
+[#92]: https://github.com/stackabletech/spark-k8s-operator/pull/92
 
 ## [0.2.0] - 2022-06-21
 

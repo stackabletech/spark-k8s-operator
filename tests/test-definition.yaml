@@ -31,3 +31,7 @@ tests:
     dimensions:
       - spark
       - stackable
+  - name: pyspark-ny-public-s3
+    dimensions:
+      - spark
+      - stackable

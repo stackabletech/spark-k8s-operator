@@ -2,16 +2,14 @@
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: spark-ny-image
-  namespace: default
+  name: pyspark-ny-public-s3
 spec:
   version: "1.0"
   # everything under /jobs will be copied to /stackable/spark/jobs
-  image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.1.0
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
-  mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
+  mainApplicationFile: s3a://my-bucket/ny_tlc_report.py
   args:
     - "--input 's3a://my-bucket/yellow_tripdata_2021-07.csv'"
   deps:
@@ -32,7 +30,7 @@ spec:
   volumes:
     - name: job-deps
       persistentVolumeClaim:
-        claimName: pvc-ksv
+        claimName: pyspark-ny-pvc
   driver:
     cores: 1
     coreLimit: "1200m"

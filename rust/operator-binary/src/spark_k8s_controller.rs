@@ -7,8 +7,8 @@ use stackable_operator::commons::s3::InlinedS3BucketSpec;
 use stackable_operator::commons::tls::{CaCert, TlsVerification};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    ConfigMap, ConfigMapVolumeSource, Container, EmptyDirVolumeSource, EnvVar, Pod, PodSpec,
-    PodTemplateSpec, ServiceAccount, Volume, VolumeMount,
+    ConfigMap, ConfigMapVolumeSource, Container, EnvVar, Pod, PodSpec, PodTemplateSpec,
+    ServiceAccount, Volume, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
@@ -327,13 +327,6 @@ fn spark_job(
         ..VolumeMount::default()
     }];
     volume_mounts.extend(spark_application.driver_volume_mounts(s3bucket));
-    if job_container.is_some() {
-        volume_mounts.push(VolumeMount {
-            name: VOLUME_MOUNT_NAME_JOB.into(),
-            mount_path: VOLUME_MOUNT_PATH_JOB.into(),
-            ..VolumeMount::default()
-        })
-    }
 
     let mut cb = ContainerBuilder::new("spark-submit");
     cb.image(spark_image)
@@ -361,14 +354,6 @@ fn spark_job(
         ..Volume::default()
     }];
     volumes.extend(spark_application.volumes(s3bucket));
-
-    if job_container.is_some() {
-        volumes.push(Volume {
-            name: String::from(VOLUME_MOUNT_NAME_JOB),
-            empty_dir: Some(EmptyDirVolumeSource::default()),
-            ..Volume::default()
-        })
-    }
 
     let pod = PodTemplateSpec {
         metadata: Some(

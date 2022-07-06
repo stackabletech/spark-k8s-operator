@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Include chart name when installing with a custom release name ([#97])
+
+[#97]: https://github.com/stackabletech/spark-k8s-operator/pull/92
+
 ## [0.3.0] - 2022-06-30
 
 ### Added

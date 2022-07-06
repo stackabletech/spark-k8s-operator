@@ -4,6 +4,6 @@ data:
 {{ (.Files.Glob "configs/*").AsConfig | indent 2 }}
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-configmap
+  name: {{ include "operator.fullname" . }}-configmap
   labels:
   {{- include "operator.labels" . | nindent 4 }}

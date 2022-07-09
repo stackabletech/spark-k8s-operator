@@ -8,6 +8,7 @@
 ## Review Checklist
 
 - [ ] Code contains useful comments
+- [ ] CRD change approved (or not applicable)
 - [ ] (Integration-)Test cases added (or not applicable)
 - [ ] Documentation added (or not applicable)
 - [ ] Changelog updated (or not applicable)

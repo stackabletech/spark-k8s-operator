@@ -7,8 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Include chart name when installing with a custom release name ([#97])
+- Pinned MinIO version for tests ([#100])
 
 [#97]: https://github.com/stackabletech/spark-k8s-operator/pull/92
+[#100]: https://github.com/stackabletech/spark-k8s-operator/pull/100
 
 ## [0.3.0] - 2022-06-30
 

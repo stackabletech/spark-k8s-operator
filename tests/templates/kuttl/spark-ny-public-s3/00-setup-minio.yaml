@@ -5,6 +5,7 @@ commands:
   - script: >-
       helm install test-minio
       --namespace $NAMESPACE
+      --version 4.0.2
       --set mode=standalone
       --set replicas=1
       --set persistence.enabled=false

@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Include chart name when installing with a custom release name ([#97])
 - Pinned MinIO version for tests ([#100])
-- Upgraded stackable-operator to version 0.22.0 ([#102])
+- `operator-rs` `0.21.0` → `0.22.0` ([#102]).
 
 [#97]: https://github.com/stackabletech/spark-k8s-operator/pull/92
 [#100]: https://github.com/stackabletech/spark-k8s-operator/pull/100

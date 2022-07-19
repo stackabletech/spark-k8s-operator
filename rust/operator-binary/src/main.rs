@@ -1,13 +1,15 @@
 mod pod_driver_controller;
 mod spark_k8s_controller;
 
+use std::sync::Arc;
+
 use clap::Parser;
 use futures::StreamExt;
 use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::k8s_openapi::api::core::v1::ConfigMap;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;
 use stackable_operator::kube::api::ListParams;
-use stackable_operator::kube::runtime::controller::{Context, Controller};
+use stackable_operator::kube::runtime::controller::Controller;
 use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::logging::controller::report_controller_reconciled;
 use stackable_spark_k8s_crd::SparkApplication;
@@ -65,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
             .run(
                 spark_k8s_controller::reconcile,
                 spark_k8s_controller::error_policy,
-                Context::new(spark_k8s_controller::Ctx {
+                Arc::new(spark_k8s_controller::Ctx {
                     client: client.clone(),
                 }),
             )
@@ -91,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
             .run(
                 pod_driver_controller::reconcile,
                 pod_driver_controller::error_policy,
-                Context::new(pod_driver_controller::Ctx {
+                Arc::new(pod_driver_controller::Ctx {
                     client: client.clone(),
                 }),
             )

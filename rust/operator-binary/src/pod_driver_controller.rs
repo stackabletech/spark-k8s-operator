@@ -1,7 +1,4 @@
-use stackable_operator::{
-    k8s_openapi::api::core::v1::Pod,
-    kube::runtime::controller::{Action, Context},
-};
+use stackable_operator::{k8s_openapi::api::core::v1::Pod, kube::runtime::controller::Action};
 use stackable_spark_k8s_crd::{SparkApplication, SparkApplicationStatus};
 use std::sync::Arc;
 use std::time::Duration;
@@ -46,7 +43,7 @@ impl ReconcilerError for Error {
     }
 }
 /// Updates the status of the SparkApplication that started the pod.
-pub async fn reconcile(pod: Arc<Pod>, ctx: Context<Ctx>) -> Result<Action> {
+pub async fn reconcile(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile driver pod");
 
     let pod_name = pod.metadata.name.as_ref().context(PodNameNotFoundSnafu)?;
@@ -65,7 +62,6 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Context<Ctx>) -> Result<Action> {
     )?;
 
     let app = ctx
-        .get_ref()
         .client
         .get::<SparkApplication>(
             app_name.as_ref(),
@@ -78,8 +74,7 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Context<Ctx>) -> Result<Action> {
 
     tracing::info!("Update spark application [{app_name}] status to [{phase}]");
 
-    ctx.get_ref()
-        .client
+    ctx.client
         .apply_patch_status(
             "pod-driver.sparkapplications.stackable.tech",
             &app,
@@ -95,6 +90,6 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Context<Ctx>) -> Result<Action> {
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }

@@ -30,6 +30,7 @@ allow = [
     "LicenseRef-ring",
     "LicenseRef-webpki",
     "MIT",
+    "Unicode-DFS-2016",
     "Zlib"
 ]
 

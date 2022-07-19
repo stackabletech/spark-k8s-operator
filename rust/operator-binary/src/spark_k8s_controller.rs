@@ -12,7 +12,7 @@ use stackable_operator::k8s_openapi::api::core::v1::{
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
-use stackable_operator::kube::runtime::controller::{Action, Context};
+use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_spark_k8s_crd::constants::*;
 use stackable_spark_k8s_crd::SparkApplication;
@@ -89,13 +89,10 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile(
-    spark_application: Arc<SparkApplication>,
-    ctx: Context<Ctx>,
-) -> Result<Action> {
+pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile");
 
-    let client = &ctx.get_ref().client;
+    let client = &ctx.client;
 
     let s3bucket = match spark_application.spec.s3bucket.as_ref() {
         Some(s3bd) => s3bd
@@ -438,6 +435,6 @@ fn build_spark_role_serviceaccount(
     Ok((sa, binding))
 }
 
-pub fn error_policy(_error: &Error, _ctx: Context<Ctx>) -> Action {
+pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }

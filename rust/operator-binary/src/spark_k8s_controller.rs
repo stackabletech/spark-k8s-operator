@@ -253,6 +253,8 @@ fn pod_template(
     Ok(Pod {
         metadata: ObjectMetaBuilder::new()
             .name(container_name)
+            .ownerreference_from_resource(spark_application, None, Some(false))
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_labels(spark_application.recommended_labels())
             .build(),
         spec: Some(pod_spec),

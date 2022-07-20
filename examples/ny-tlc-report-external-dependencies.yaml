@@ -10,7 +10,7 @@ spec:
   # Always | IfNotPresent | Never
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
-  mainApplicationFile: s3a://my-bucket/ny-tlc-report.py
+  mainApplicationFile: s3a://my-bucket/ny_tlc_report.py
   args:
     - "--input 's3a://my-bucket/yellow_tripdata_2021-07.csv'"
   deps:

@@ -485,6 +485,7 @@ mod tests {
     use crate::ImagePullPolicy;
     use crate::LocalObjectReference;
     use crate::SparkApplication;
+    use stackable_operator::builder::ObjectMetaBuilder;
     use stackable_operator::commons::s3::{
         S3AccessStyle, S3BucketSpec, S3ConnectionDef, S3ConnectionSpec,
     };
@@ -609,6 +610,7 @@ kind: SparkApplication
 metadata:
   name: ny-tlc-report-external-dependencies
   namespace: default
+  uid: 12345678asdfghj
 spec:
   version: "1.0"
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
@@ -630,6 +632,14 @@ spec:
     instances: 3
     memory: "512m"
         "#).unwrap();
+
+        let meta = ObjectMetaBuilder::new()
+            .name_and_namespace(&spark_application)
+            .ownerreference_from_resource(&spark_application, None, Some(true))
+            .unwrap()
+            .build();
+
+        assert_eq!("12345678asdfghj", meta.owner_references.unwrap()[0].uid);
 
         assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
         assert_eq!(

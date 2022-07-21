@@ -253,6 +253,10 @@ fn pod_template(
     Ok(Pod {
         metadata: ObjectMetaBuilder::new()
             .name(container_name)
+            // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
+            // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
+            .ownerreference_from_resource(spark_application, None, None)
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_labels(spark_application.recommended_labels())
             .build(),
         spec: Some(pod_spec),

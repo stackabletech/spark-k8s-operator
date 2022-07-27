@@ -41,7 +41,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
+      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
         with:
           key: udeps
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: actions/setup-python@98f2ad02fd48d057ee3b4d4f66525b231c3e52b6 # tag=v3
+      - uses: actions/setup-python@c4e89fac7e8767b327bbad6cb4d859eda999cf08 # tag=v4
       - name: Install requirements for version tool
         run: pip install -r python/requirements.txt
       - id: prerelease
@@ -132,7 +132,7 @@ jobs:
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: EmbarkStudios/cargo-deny-action@30ecad1d5873c1cc2cad10a33637371ca094768b # tag=v1.3.1
+      - uses: EmbarkStudios/cargo-deny-action@7257a18a9c2fe3f92b85d41ae473520dff953c97 # tag=v1.3.2
         with:
           command: check ${{ matrix.checks }}
 
@@ -167,7 +167,7 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
-      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
+      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
         with:
           key: clippy
       - name: Run clippy action to produce annotations
@@ -197,7 +197,7 @@ jobs:
           toolchain: stable
           components: rustfmt
           override: true
-      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
+      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
         with:
           key: doc
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -222,7 +222,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
+      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
         with:
           key: test
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -253,7 +253,7 @@ jobs:
         with:
           submodules: recursive
       - name: Set up Helm
-        uses: azure/setup-helm@217bf70cbd2e930ba2e81ba7e1de2f7faecc42ba # tag=v2.1
+        uses: azure/setup-helm@e4f3964f67aac34233ac06d6614802b7040f2a7c # tag=v3.1
         with:
           version: v3.6.2
       - name: Set up cargo
@@ -263,7 +263,7 @@ jobs:
           toolchain: stable
           override: true
       - name: Set up rust-cache
-        uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # tag=v1.4.0
+        uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
         with:
           key: charts
       - name: Regenerate charts
@@ -316,7 +316,7 @@ jobs:
         uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: actions/setup-python@98f2ad02fd48d057ee3b4d4f66525b231c3e52b6 # tag=v3
+      - uses: actions/setup-python@c4e89fac7e8767b327bbad6cb4d859eda999cf08 # tag=v4
         if: ${{ github.event_name == 'pull_request' }}
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:

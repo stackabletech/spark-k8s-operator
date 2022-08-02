@@ -1,0 +1,48 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: pyspark-ny-public-s3-image
+spec:
+  version: "1.0"
+  # everything under /jobs will be copied to /stackable/spark/jobs
+  image: docker.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+  sparkImagePullPolicy: IfNotPresent
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
+  args:
+    - "--input 's3a://my-bucket/yellow_tripdata_2021-07.csv'"
+  deps:
+    requirements:
+      - tabulate==0.8.9
+  s3bucket:
+    inline:
+      bucketName: my-bucket
+      connection:
+        inline:
+          host: test-minio
+          port: 9000
+          accessStyle: Path
+  sparkConf:
+    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+    spark.driver.extraClassPath: "/dependencies/jars/*"
+    spark.executor.extraClassPath: "/dependencies/jars/*"
+  volumes:
+    - name: job-deps
+      persistentVolumeClaim:
+        claimName: pyspark-ny-pvc
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+    volumeMounts:
+      - name: job-deps
+        mountPath: /dependencies
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"
+    volumeMounts:
+      - name: job-deps
+        mountPath: /dependencies

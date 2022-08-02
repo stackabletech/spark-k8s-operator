@@ -1,0 +1,14 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+metadata:
+  name: pyspark-ny-public-s3-image
+timeout: 900
+---
+# The Job starting the whole process
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: pyspark-ny-public-s3-image
+status:
+  phase: Succeeded

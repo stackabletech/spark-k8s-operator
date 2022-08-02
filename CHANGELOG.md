@@ -10,11 +10,13 @@ All notable changes to this project will be documented in this file.
 - Pinned MinIO version for tests ([#100])
 - `operator-rs` `0.21.0` → `0.22.0` ([#102]).
 - Added owner-reference to pod templates ([#104])
+- Added kuttl test for the case when pyspark jobs are provisioned using the `image` property of the `SparkApplication` definition ([#xxx])
 
 [#97]: https://github.com/stackabletech/spark-k8s-operator/pull/92
 [#100]: https://github.com/stackabletech/spark-k8s-operator/pull/100
 [#102]: https://github.com/stackabletech/spark-k8s-operator/pull/102
 [#104]: https://github.com/stackabletech/spark-k8s-operator/pull/104
+[#xxx]: https://github.com/stackabletech/spark-k8s-operator/pull/xxx
 
 ## [0.3.0] - 2022-06-30
 

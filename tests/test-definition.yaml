@@ -10,6 +10,9 @@ dimensions:
   - name: stackable
     values:
       - 0.1.0
+  - name: ny-tlc-report
+    values:
+      - 0.1.0
 tests:
   - name: spark-pi-private-s3
     dimensions:
@@ -35,3 +38,8 @@ tests:
     dimensions:
       - spark
       - stackable
+  - name: pyspark-ny-public-s3-image
+    dimensions:
+      - spark
+      - stackable
+      - ny-tlc-report

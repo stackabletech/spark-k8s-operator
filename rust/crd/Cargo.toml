@@ -5,7 +5,7 @@ edition = "2021"
 license = "OSL-3.0"
 name = "stackable-spark-k8s-crd"
 repository = "https://github.com/stackabletech/spark-k8s-operator"
-version = "0.4.0-nightly"
+version = "0.4.0"
 
 [dependencies]
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.22.0" }

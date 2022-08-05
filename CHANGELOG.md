@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Add missing role to read S3Connection and S3Bucket objects ([#112]).
+
+[#112]: https://github.com/stackabletech/spark-k8s-operator/pull/112
+
 ## [0.4.0] - 2022-08-03
 
 ### Changed

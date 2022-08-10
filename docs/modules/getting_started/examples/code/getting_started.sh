@@ -47,35 +47,4 @@ echo "Creating a Spark Application"
 kubectl apply -f pyspark-pi.yaml
 # end::install-sparkapp[]
 
-echo "Waiting on AirflowDB ..."
-# tag::wait-airflowdb[]
-kubectl wait airflowdb/airflow \
-  --for jsonpath='{.status.condition}'=Ready \
-  --timeout 300s
-# end::wait-airflowdb[]
 
-sleep 5
-
-echo "Awaiting Airflow rollout finish"
-# tag::watch-airflow-rollout[]
-kubectl rollout status --watch statefulset/airflow-webserver-default
-kubectl rollout status --watch statefulset/airflow-worker-default
-kubectl rollout status --watch statefulset/airflow-scheduler-default
-# end::watch-airflow-rollout[]
-
-echo "Starting port-forwarding of port 8080"
-# tag::port-forwarding[]
-kubectl port-forward svc/airflow-webserver 8080 2>&1 >/dev/null &
-# end::port-forwarding[]
-PORT_FORWARD_PID=$!
-trap "kill $PORT_FORWARD_PID" EXIT
-sleep 5
-
-echo "Checking if web interface is reachable ..."
-return_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/login/)
-if [ "$return_code" == 200 ]; then
-  echo "Webserver UI reachable!"
-else
-  echo "Could not reach Webserver UI."
-  exit 1
-fi

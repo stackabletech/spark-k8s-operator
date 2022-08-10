@@ -1,0 +1,114 @@
+= First steps
+
+Once you have followed the steps in the xref:installation.adoc[] section to install the Operator and its dependencies, you will now create a Spark job. Afterwards you can <<_verify_that_it_works, verify that it works>> by looking at the logs from the driver pod.
+
+=== Airflow
+
+An Airflow cluster is made of up three components:
+
+- `webserver`: this provides the main UI for user-interaction
+- `workers`: the nodes over which the job workload will be distributed by the scheduler
+- `scheduler`: responsible for triggering jobs and persisting their metadata to the backend database
+
+Create a file named `pyspark-pi.yaml` with the following contents:
+
+[source,yaml]
+----
+include::example$code/pyspark-pi.yaml[]
+----
+
+And apply it:
+
+----
+include::example$code/getting_started.sh[tag=install-sparkapp]
+----
+
+Where:
+
+- `metadata.name` contains the name of the SparkApplication
+- `spec.version`: the current version is "1.0"
+- `spec.sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
+- `spec.mode`: only `cluster` is currently supported
+- `spec.mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
+- `spec.driver`: driver-specific settings.
+- `spec.executor`: executor-specific settings.
+
+
+NOTE: If using Stackable image versions, please note that the version you need to specify for `spec.version` is not only the version of Spark which you want to roll out, but has to be amended with a Stackable version as shown. This Stackable version is the version of the underlying container image which is used to execute the processes. For a list of available versions please check our
+https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%spark-k8s%2Ftags[image registry].
+It should generally be safe to simply use the latest image version that is available.
+
+This will create the SparkApplication that in turn creates the Spark job.
+
+=== Initialization of the Airflow database
+
+When creating an Airflow cluster, a database-initialization job is first started to ensure that the database schema is present and correct (i.e. populated with an admin user). A Kubernetes job is created which starts a pod to initialize the database. This can take a while.
+
+You can use kubectl to wait on the resource, although the cluster itself will not be created until this step is complete.:
+
+[source,bash]
+include::example$code/getting_started.sh[tag=wait-airflowdb]
+
+The job status can be inspected and verified like this:
+
+[source,bash]
+----
+kubectl get jobs
+----
+
+which will show something like this:
+
+----
+NAME      COMPLETIONS   DURATION   AGE
+airflow   1/1           85s        11m
+----
+
+Then, make sure that all the Pods in the StatefulSets are ready:
+
+[source,bash]
+----
+kubectl get statefulset
+----
+
+The output should show all pods ready, including the external dependencies:
+
+----
+NAME                        READY   AGE
+airflow-postgresql          1/1     16m
+airflow-redis-master        1/1     16m
+airflow-redis-replicas      1/1     16m
+airflow-scheduler-default   1/1     11m
+airflow-webserver-default   1/1     11m
+airflow-worker-default      2/2     11m
+----
+
+The completed set of pods for the Airflow cluster will look something like this:
+
+image::airflow_pods.png[Airflow pods]
+
+When the Airflow cluster has been created and the database is initialized, Airflow can be opened in the
+browser: the webserver UI port defaults to `8080` can be forwarded to the local host:
+
+----
+include::example$code/getting_started.sh[tag=port-forwarding]
+----
+
+== Verify that it works
+
+The Webserver UI can now be opened in the browser with `http://localhost:8080`. Enter the admin credentials from the Kubernetes secret:
+
+image::airflow_login.png[Airflow login screen]
+
+Since the examples were loaded in the cluster definition, they will appear under the DAGs tabs:
+
+image::airflow_dags.png[Example Airflow DAGs]
+
+Select one of these DAGs by clicking on the name in the left-hand column e.g. `example_complex`. Click on the arrow in the top right of the screen, select "Trigger DAG" and the DAG nodes will be automatically highlighted as the job works through its phases.
+
+image::airflow_running.png[Airflow DAG in action]
+
+Great! You have set up an Airflow cluster, connected to it and run your first DAG!
+
+== What's next
+
+Look at the xref:ROOT:usage.adoc[Usage page] to find out more about configuring your Airflow cluster and loading your own DAG files.

@@ -1,0 +1,18 @@
+= Getting started
+
+This guide will get you started with Airflow using the Stackable Operator. It will guide you through the installation of the Operator and its dependencies, setting up your first Airflow cluster and connecting to it, and viewing and running one of the example workflows (called DAGs = Direct Acyclic Graphs).
+
+== Prerequisites
+
+You will need:
+
+* a Kubernetes cluster
+* kubectl
+* Helm
+
+== What's next
+
+The Guide is divided into two steps:
+
+* xref:installation.adoc[Installing the Operators].
+* xref:first_steps.adoc[Setting up the Airflow cluster and running an example DAG].

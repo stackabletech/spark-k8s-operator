@@ -5,4 +5,4 @@ helm:
 versions:
   commons: 0.3.0-nightly
   secret: 0.6.0-nightly
-  airflow: 0.5.0-nightly
+  spark: 0.5.0-nightly

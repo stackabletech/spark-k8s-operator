@@ -22,18 +22,18 @@ helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.3.0-nightly
-helm install --wait secret-operator stackable-dev/secret-operator --version 0.6.0-nightly
-helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version 0.5.0-nightly
+helm install --wait commons-operator stackable-dev/commons-operator --version {{ versions.commons }}
+helm install --wait secret-operator stackable-dev/secret-operator --version {{ versions.secret }}
+helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version {{ versions.spark }}
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.3.0-nightly \
-  secret=0.6.0-nightly \
-  spark-k8s=0.5.0-nightly
+  commons={{ versions.commons }} \
+  secret={{ versions.secret }} \
+  spark-k8s={{ versions.spark }}
 # end::stackablectl-install-operators[]
 ;;
 *)

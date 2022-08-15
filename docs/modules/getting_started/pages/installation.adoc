@@ -43,7 +43,7 @@ TIP: Consult the xref:stackablectl::quickstart.adoc[] to learn more about how to
 
 === Helm
 
-You can also use Helm to install the Operators. Add the Stackable Helm repository:
+You can also use Helm to install the operator. Add the Stackable Helm repository:
 [source,bash]
 ----
 include::example$code/getting_started.sh[tag=helm-add-repo]

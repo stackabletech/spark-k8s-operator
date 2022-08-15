@@ -42,7 +42,7 @@ This will create the `SparkApplication` that in turn creates the Spark job.
 
 == Verify that it works
 
-As mentioned above, the SparkApplication that has just been created will build a spark-submit command and pass it to the driver pod, which in turn will create executor pods that run for the duration of the job before being clean up. A running process will look like this:
+As mentioned above, the `SparkApplication` that has just been created will build a `spark-submit` command and pass it to the driver pod, which in turn will create executor pods that run for the duration of the job before being clean up. A running process will look like this:
 
 image::spark_running.png[Spark job]
 

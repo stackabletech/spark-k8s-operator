@@ -13,7 +13,7 @@ More information about the different ways to define Spark jobs and their depende
 
 == Stackable Operators
 
-There are 2 ways to run Stackable Operators
+There are 2 ways to install Stackable operators
 
 1. Using xref:stackablectl::index.adoc[]
 

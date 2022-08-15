@@ -1,0 +1,65 @@
+= First steps
+
+Once you have followed the steps in the xref:installation.adoc[] section to install the operator and its dependencies, you will now create a Spark job. Afterwards you can <<_verify_that_it_works, verify that it works>> by looking at the logs from the driver pod.
+
+== Starting a Spark job
+
+A Spark application is made of up three components:
+
+- Job: this will build a `spark-submit` command from the resource, passing this to internal spark code together with templates for building the driver and executor pods
+- Driver: the driver starts the designated number of executors and removes them when the job is completed.
+- Executor(s): responsible for executing the job itself
+
+Create a file named `pyspark-pi.yaml` with the following contents:
+
+[source,yaml]
+----
+include::example$code/pyspark-pi.yaml[]
+----
+
+And apply it:
+
+----
+include::example$code/getting_started.sh[tag=install-sparkapp]
+----
+
+Where:
+
+- `metadata.name` contains the name of the SparkApplication
+- `spec.version`: the current version is "1.0"
+- `spec.sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
+- `spec.mode`: only `cluster` is currently supported
+- `spec.mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job. This path is relative to the image, so in this case we are running an example python script (that calculates the value of pi): it is bundled with the Spark code and therefore already present in the job image
+- `spec.driver`: driver-specific settings.
+- `spec.executor`: executor-specific settings.
+
+
+NOTE: If using Stackable image versions, please note that the version you need to specify for `spec.version` is not only the version of Spark which you want to roll out, but has to be amended with a Stackable version as shown. This Stackable version is the version of the underlying container image which is used to execute the processes. For a list of available versions please check our
+https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%spark-k8s%2Ftags[image registry].
+It should generally be safe to simply use the latest image version that is available.
+
+This will create the `SparkApplication` that in turn creates the Spark job.
+
+== Verify that it works
+
+As mentioned above, the `SparkApplication` that has just been created will build a `spark-submit` command and pass it to the driver pod, which in turn will create executor pods that run for the duration of the job before being clean up. A running process will look like this:
+
+image::spark_running.png[Spark job]
+
+- `pyspark-pi-xxxx`: this is the initialising job that creates the spark-submit command (named as `metadata.name` with a unique suffix)
+- `pyspark-pi-xxxxxxx-driver`: the driver pod that drives the execution
+- `pythonpi-xxxxxxxxx-exec-x`: the set of executors started by the driver (in our example `spec.executor.instances` was set to 3 which is why we have 3 executors)
+
+Job progress can be followed by issuing this command:
+
+----
+include::example$code/getting_started.sh[tag=wait-for-job]
+----
+
+When the job completes the driver cleans up the executor. The initial job is persisted for several minutes before being removed. The completed state will look like this:
+
+image::spark_complete.png[Completed job]
+
+The driver logs can be inspected for more information about the results of the job. In this case we expect to find the results of our (approximate!) pi calculation:
+
+image::spark_log.png[Driver log]

@@ -1,32 +1,5 @@
 = Usage
 
-== Create an Apache Spark job
-
-If you followed the installation instructions, you should now have a Stackable Operator for Apache Spark up and running, and you are ready to create your first Apache Spark kubernetes cluster.
-
-The example below creates a job running on Apache Spark 3.3.0, using the spark-on-kubernetes paradigm described in the spark documentation. The application file is itself part of the spark distribution and `local` refers to the path on the driver/executors; there are no external dependencies.
-
-    cat <<EOF | kubectl apply -f -
-    apiVersion: spark.stackable.tech/v1alpha1
-    kind: SparkApplication
-    metadata:
-      name: spark-clustermode-001
-    spec:
-      version: 1.0
-      mode: cluster
-      mainClass: org.apache.spark.examples.SparkPi
-      mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-3.3.0.jar
-      image: 3.3.0-stackable0.1.0
-      driver:
-        cores: 1
-        coreLimit: "1200m"
-        memory: "512m"
-      executor:
-        cores: 1
-        instances: 3
-        memory: "512m"
-    EOF
-
 == Examples
 
 The following examples have the following `spec` fields in common:

@@ -4,11 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add Getting Started documentation ([#114]).
+
+[#114]: https://github.com/stackabletech/spark-k8s-operator/pull/114
+
 ### Fixed
 
 - Add missing role to read S3Connection and S3Bucket objects ([#112]).
+- Update annotation due to update to rust version ([#114]).
 
 [#112]: https://github.com/stackabletech/spark-k8s-operator/pull/112
+[#114]: https://github.com/stackabletech/spark-k8s-operator/pull/114
 
 ## [0.4.0] - 2022-08-03
 

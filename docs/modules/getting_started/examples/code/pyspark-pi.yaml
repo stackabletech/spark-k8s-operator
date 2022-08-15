@@ -1,0 +1,19 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: pyspark-pi
+  namespace: default
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.1.0
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+  executor:
+    cores: 1
+    instances: 3
+    memory: "512m"

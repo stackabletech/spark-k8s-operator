@@ -4,7 +4,7 @@ Once you have followed the steps in the xref:installation.adoc[] section to inst
 
 === Starting a Spark job
 
-A SparkApplication is made of up three components:
+A Spark application is made of up three components:
 
 - Job: this will build a spark-submit command from the resource, passing this to internal spark code together with templates for building the driver and executor pods
 - Driver: the driver starts the designated number of executors and removes them when the job is completed.

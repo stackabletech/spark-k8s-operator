@@ -4,7 +4,7 @@ On this page you will install the Stackable Spark-on-Kubernetes operator as well
 
 == Dependencies
 
-The Spark-k8s Operator does not install a cluster or a set of nodes, but rather a SparkApplication that creates a spark-submit job, delegating this to the Spark driver, which in turn spins up executors for the duration of the job. Spark job dependencies can thus vary in their scope and detail. In this guide we are going to keep things simple and look at executing a Spark job that has a minimum of dependencies.
+Spark applications almost always require dependencies like database drivers, REST api clients and many others. These dependencies must be available on the `classpath` of each executor (and in some cases of the driver, too). There are multiple ways to provision Spark jobs with such dependencies: some are built into Spark itself while others are implemented at the operator level. In this guide we are going to keep things simple and look at executing a Spark job that has a minimum of dependencies.
 
 More information about the different ways to define Spark jobs and their dependencies is given on the following pages:
 

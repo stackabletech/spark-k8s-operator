@@ -1,0 +1,18 @@
+[33mcommit 7332a082946d9fb05e631ebc39512646488d99b9[m[33m ([m[1;36mHEAD -> [m[1;32mgetting-start-docs[m[33m)[m
+Author: Andrew Kenworthy <andrew.kenworthy@stackable.de>
+Date:   Thu Aug 11 13:32:27 2022 +0200
+
+    gitaction change
+
+[1mdiff --git a/docs/modules/getting_started/examples/code/getting_started.sh.j2 b/docs/modules/getting_started/examples/code/getting_started.sh.j2[m
+[1mindex 4edbee4..dc51dbd 100755[m
+[1m--- a/docs/modules/getting_started/examples/code/getting_started.sh.j2[m
+[1m+++ b/docs/modules/getting_started/examples/code/getting_started.sh.j2[m
+[36m@@ -60,5 +60,5 @@[m [mif [ "$result" == "" ]; then[m
+   echo "Log result was not found!"[m
+   exit 1[m
+ else[m
+[31m-  echo "Job result:" $result[m
+[32m+[m[32m  echo "Job result:" "$result"[m
+ fi[m
+\ No newline at end of file[m

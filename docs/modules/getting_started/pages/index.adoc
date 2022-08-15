@@ -1,6 +1,6 @@
 = Getting started
 
-This guide will get you started with Airflow using the Stackable Operator. It will guide you through the installation of the Operator and its dependencies, setting up your first Airflow cluster and connecting to it, and viewing and running one of the example workflows (called DAGs = Direct Acyclic Graphs).
+This guide will get you started with Spark using the Stackable Operator. It will guide you through the installation of the Operator and its dependencies, executing your first Spark job and reviewing its result.
 
 == Prerequisites
 
@@ -15,4 +15,4 @@ You will need:
 The Guide is divided into two steps:
 
 * xref:installation.adoc[Installing the Operators].
-* xref:first_steps.adoc[Setting up the Airflow cluster and running an example DAG].
+* xref:first_steps.adoc[Starting a Spark job].

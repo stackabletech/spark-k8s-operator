@@ -2,7 +2,7 @@
 
 Once you have followed the steps in the xref:installation.adoc[] section to install the operator and its dependencies, you will now create a Spark job. Afterwards you can <<_verify_that_it_works, verify that it works>> by looking at the logs from the driver pod.
 
-=== Starting a Spark job
+== Starting a Spark job
 
 A Spark application is made of up three components:
 

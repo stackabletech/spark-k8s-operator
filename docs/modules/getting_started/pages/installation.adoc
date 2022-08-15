@@ -1,6 +1,6 @@
 = Installation
 
-On this page you will install the Stackable Spark-on-Kubernetes Operator as well as the commons and secret Operators which are required by all Stackable Operators.
+On this page you will install the Stackable Spark-on-Kubernetes operator as well as the Commons and Secret operators which are required by all Stackable operators.
 
 == Dependencies
 

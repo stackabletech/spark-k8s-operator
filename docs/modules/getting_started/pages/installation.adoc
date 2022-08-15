@@ -17,7 +17,7 @@ There are 2 ways to install Stackable operators
 
 1. Using xref:stackablectl::index.adoc[]
 
-1. Using Helm
+2. Using a Helm chart
 
 === stackablectl
 

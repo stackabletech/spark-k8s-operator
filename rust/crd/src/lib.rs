@@ -109,7 +109,7 @@ pub enum ImagePullPolicy {
     Never,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobDependencies {
     #[serde(default, skip_serializing_if = "Option::is_none")]

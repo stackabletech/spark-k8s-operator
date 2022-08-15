@@ -21,7 +21,7 @@ There are 2 ways to install Stackable operators
 
 === stackablectl
 
-stackablectl is the command line tool to interact with Stackable operators and our recommended way to install Operators.
+`stackablectl` is the command line tool to interact with Stackable operators and our recommended way to install Operators.
 Follow the xref:stackablectl::installation.adoc[installation steps] for your platform.
 
 After you have installed stackablectl run the following command to install the Spark-k8s Operator:

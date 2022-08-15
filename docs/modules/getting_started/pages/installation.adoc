@@ -55,7 +55,7 @@ Then install the Stackable Operators:
 include::example$code/getting_started.sh[tag=helm-install-operators]
 ----
 
-Helm will deploy the Operators in a Kubernetes Deployment and apply the CRDs for the SparkApplication (as well as the CRDs for the required operators). You are now ready to create a Spark job in Kubernetes.
+Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for the `SparkApplication` (as well as the CRDs for the required operators). You are now ready to create a Spark job.
 
 == What's next
 

@@ -60,5 +60,5 @@ if [ "$result" == "" ]; then
   echo "Log result was not found!"
   exit 1
 else
-  echo "Job result:" $result
+  echo "Job result: $result"
 fi

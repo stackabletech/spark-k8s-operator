@@ -38,7 +38,7 @@ NOTE: If using Stackable image versions, please note that the version you need t
 https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%spark-k8s%2Ftags[image registry].
 It should generally be safe to simply use the latest image version that is available.
 
-This will create the SparkApplication that in turn creates the Spark job.
+This will create the `SparkApplication` that in turn creates the Spark job.
 
 == Verify that it works
 

@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: actions/setup-python@c4e89fac7e8767b327bbad6cb4d859eda999cf08 # tag=v4
+      - uses: actions/setup-python@b55428b1882923874294fa556849718a1d7f2ca5 # tag=v4
       - name: Install requirements for version tool
         run: pip install -r python/requirements.txt
       - id: prerelease
@@ -316,7 +316,7 @@ jobs:
         uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
         with:
           submodules: recursive
-      - uses: actions/setup-python@c4e89fac7e8767b327bbad6cb4d859eda999cf08 # tag=v4
+      - uses: actions/setup-python@b55428b1882923874294fa556849718a1d7f2ca5 # tag=v4
         if: ${{ github.event_name == 'pull_request' }}
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:

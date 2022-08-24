@@ -29,7 +29,7 @@ securityContext:
   readOnlyRootFilesystem: false
   allowPrivilegeEscalation: false
   seccompProfile:
-  type: RuntimeDefault
+    type: RuntimeDefault
   # runAsNonRoot: true
   # runAsUser: 1000
 

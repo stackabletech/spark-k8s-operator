@@ -6,6 +6,6 @@ The https://spark.apache.org/docs/latest/running-on-kubernetes.html#rbac[Spark-K
 
 However, to add security, each `spark-submit` job launched by the spark-k8s operator will be assigned its own service account.
 
-When the spark-k8s operator is installed via helm, a cluster role named `spark-driver-edit-role` is created with pre-defined permissions.
+When the spark-k8s operator is installed via Helm, a cluster role named `spark-k8s-clusterrole` is created with pre-defined permissions.
 
-When a new Spark application is submitted, the operator creates a new service account with the same name as the application and binds this account to the cluster role `spark-driver-edit-role` created by helm.
+When a new Spark application is submitted, the operator creates a new service account with the same name as the application and binds this account to the cluster role `spark-k8s-clusterrole` created by Helm.

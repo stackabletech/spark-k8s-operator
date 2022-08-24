@@ -2,14 +2,20 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: spark-driver-edit-role
+  name: spark-k8s-clusterrole
 rules:
-  - apiGroups: [""]
-    resources: ["pods", "services", "configmaps"]
-    verbs: ["get", "list", "watch", "create", "delete"]
   - apiGroups:
       - ""
     resources:
-      - persistentvolumeclaims
+      - configmaps
+      - secrets
+      - serviceaccounts
+      - services
     verbs:
-      - list
+      - get
+  - apiGroups:
+      - events.k8s.io
+    resources:
+      - events
+    verbs:
+      - create

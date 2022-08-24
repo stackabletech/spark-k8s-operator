@@ -21,7 +21,7 @@ use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 const FIELD_MANAGER_SCOPE: &str = "sparkapplication";
-const SPARK_CLUSTER_ROLE: &str = "spark-driver-edit-role";
+const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,

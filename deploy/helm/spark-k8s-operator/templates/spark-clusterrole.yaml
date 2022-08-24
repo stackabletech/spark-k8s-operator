@@ -1,15 +1,75 @@
+{{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
+---
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: spark-k8s-scc
+  annotations:
+    kubernetes.io/description: |-
+      This resource is derived from hostmount-anyuid. It provides all the features of the
+      restricted SCC but allows host mounts and any UID by a pod.  This is primarily
+      used by the persistent volume recycler. WARNING: this SCC allows host file
+      system access as any UID, including UID 0.  Grant with caution.
+    release.openshift.io/create-only: "true"
+allowHostDirVolumePlugin: true
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: true
+allowPrivilegedContainer: false
+allowedCapabilities: null
+defaultAddCapabilities: null
+fsGroup:
+  type: RunAsAny
+groups: []
+priority: null
+readOnlyRootFilesystem: false
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: RunAsAny
+volumes:
+- configMap
+- downwardAPI
+- emptyDir
+- hostPath
+- nfs
+- persistentVolumeClaim
+- projected
+- secret
+- ephemeral
+{{ end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: spark-driver-edit-role
+  name: {{ include "operator.name" . }}-clusterrole
 rules:
-  - apiGroups: [""]
-    resources: ["pods", "services", "configmaps"]
-    verbs: ["get", "list", "watch", "create", "delete"]
   - apiGroups:
       - ""
     resources:
-      - persistentvolumeclaims
+      - configmaps
+      - secrets
+      - serviceaccounts
+      - services
     verbs:
-      - list
+      - get
+  - apiGroups:
+      - events.k8s.io
+    resources:
+      - events
+    verbs:
+      - create
+{{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
+  - apiGroups:
+      - security.openshift.io
+    resources:
+      - securitycontextconstraints
+    resourceNames:
+      - spark-k8s-scc
+    verbs:
+      - use
+{{ end }}

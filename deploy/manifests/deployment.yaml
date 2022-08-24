@@ -25,7 +25,14 @@ spec:
       securityContext: {}
       containers:
         - name: spark-k8s-operator
-          securityContext: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+            seccompProfile: null
+            type: RuntimeDefault
           image: "docker.stackable.tech/stackable/spark-k8s-operator:0.5.0-nightly"
           imagePullPolicy: IfNotPresent
           resources: {}

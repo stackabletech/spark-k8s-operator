@@ -52,11 +52,18 @@ rules:
       - ""
     resources:
       - configmaps
+      - pods
       - secrets
       - serviceaccounts
       - services
     verbs:
+      - create
+      - delete
       - get
+      - list
+      - patch
+      - update
+      - watch
   - apiGroups:
       - events.k8s.io
     resources:

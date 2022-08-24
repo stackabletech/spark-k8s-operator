@@ -30,7 +30,7 @@ securityContext:
   allowPrivilegeEscalation: false
   seccompProfile:
     type: RuntimeDefault
-  # runAsNonRoot: true
+  runAsNonRoot: true
   # runAsUser: 1000
 
 resources: {}

@@ -5,11 +5,7 @@ commands:
   - script: >-
       helm install test-minio
       --namespace $NAMESPACE
-      --version 4.0.2
-      --set mode=standalone
-      --set replicas=1
-      --set persistence.enabled=false
-      --set buckets[0].name=my-bucket,buckets[0].policy=public
-      --set resources.requests.memory=1Gi
-      --repo https://charts.min.io/ minio
+      --version 11.9.2
+      -f helm-bitnami-minio-values.yaml
+      --repo https://charts.bitnami.com/bitnami minio
     timeout: 240

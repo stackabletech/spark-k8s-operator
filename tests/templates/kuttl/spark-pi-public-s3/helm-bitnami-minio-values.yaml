@@ -1,0 +1,38 @@
+---
+volumePermissions:
+  enabled: false
+
+podSecurityContext:
+  enabled: false
+
+containerSecurityContext:
+  enabled: false
+
+mode: standalone
+defaultBuckets: my-bucket
+persistence:
+  enabled: false
+policies:
+  - name: my-bucket-public-policy
+    statements:
+      - resources:
+          - "arn:aws:s3:::my-bucket"
+        actions:
+          - "s3:GetBucketLocation"
+          - "s3:ListBucket"
+          - "s3:ListBucketMultipartUploads"
+      - resources:
+          - "arn:aws:s3:::my-bucket/*"
+        # Allowed values: "Allow" | "Deny"
+        # Defaults to "Deny" if not specified
+        effect: "Allow"
+        actions:
+          - "s3:AbortMultipartUpload"
+          - "s3:DeleteObject"
+          - "s3:GetObject"
+          - "s3:ListMultipartUploadParts"
+          - "s3:PutObject"
+
+resources:
+  requests:
+    memory: 1Gi

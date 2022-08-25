@@ -17,7 +17,7 @@ IS_NIGHTLY := $(shell echo "${VERSION}" | grep -- '-nightly$$')
 DOCS_VERSION := $(if ${IS_NIGHTLY},nightly,$(shell echo "${VERSION}" | sed 's/^\([0-9]\+\.[0-9]\+\)\..*$$/\1/'))
 export VERSION IS_NIGHTLY DOCS_VERSION
 
-SHELL=/bin/bash -euo pipefail
+SHELL=/usr/bin/env bash -euo pipefail
 
 ## Docker related targets
 docker-build:

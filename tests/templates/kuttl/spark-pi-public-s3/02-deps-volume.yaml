@@ -24,6 +24,9 @@ spec:
         - name: job-deps
           persistentVolumeClaim:
             claimName: spark-pi-public-pvc
+      serviceAccountName: integration-tests-sa
+      securityContext:
+        runAsUser: 0
       containers:
         - name: aws-deps
           image: docker.stackable.tech/stackable/tools:0.2.0-stackable0
@@ -46,5 +49,3 @@ spec:
           volumeMounts:
             - name: job-deps
               mountPath: /dependencies
-          securityContext:
-            runAsUser: 0

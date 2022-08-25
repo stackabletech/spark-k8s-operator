@@ -4,6 +4,9 @@
 #
 ---
 dimensions:
+  - name: openshift
+    values:
+      - "false"
   - name: spark
     values:
       - 3.3.0
@@ -22,6 +25,7 @@ tests:
     dimensions:
       - spark
       - stackable
+      - openshift
   - name: spark-ny-public-s3
     dimensions:
       - spark

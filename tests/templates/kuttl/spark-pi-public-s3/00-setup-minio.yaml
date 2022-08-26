@@ -28,13 +28,13 @@ spec:
       stdin: true
       tty: true
       env:
-        - name: MINIO_SERVER_ROOT_USER
+        - name: MINIO_SERVER_ACCESS_KEY
           valueFrom:
             secretKeyRef:
               name: test-minio
               key: root-user
               optional: false
-        - name: MINIO_SERVER_ROOT_PASSWORD
+        - name: MINIO_SERVER_SECRET_KEY
           valueFrom:
             secretKeyRef:
               name: test-minio
@@ -42,3 +42,7 @@ spec:
               optional: false
         - name: MINIO_SERVER_HOST
           value: test-minio
+        - name: MINIO_SERVER_PORT_NUMBER
+          value: "9000"
+        - name: MINIO_SERVER_SCHEME
+          value: http

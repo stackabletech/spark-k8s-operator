@@ -9,7 +9,8 @@ containerSecurityContext:
   enabled: false
 
 mode: standalone
-defaultBuckets: my-bucket
+disableWebUI: true
+defaultBuckets: "my-bucket"
 persistence:
   enabled: false
 policies:

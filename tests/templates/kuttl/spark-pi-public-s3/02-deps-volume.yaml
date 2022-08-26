@@ -27,6 +27,7 @@ spec:
       serviceAccountName: integration-tests-sa
       securityContext:
         fsGroup: 1000
+        runAsGroup: 0
       containers:
         - name: aws-deps
           image: docker.stackable.tech/stackable/tools:0.2.0-stackable0

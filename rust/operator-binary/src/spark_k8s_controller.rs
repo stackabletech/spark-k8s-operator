@@ -236,6 +236,7 @@ fn pod_template(
         volumes: Some(volumes.to_vec()),
         security_context: PodSecurityContextBuilder::new()
             .fs_group(1000)
+            .run_as_group(0) // needed for pvc file access
             .build()
             .into(), // Needed for secret-operator
         ..PodSpec::default()
@@ -372,6 +373,7 @@ fn spark_job(
             image_pull_secrets: spark_application.spark_image_pull_secrets(),
             security_context: PodSecurityContextBuilder::new()
                 .fs_group(1000)
+                .run_as_group(0) // needed for pvc file access
                 .build()
                 .into(), // Needed for secret-operator
             node_selector: spark_application.driver_node_selector(),

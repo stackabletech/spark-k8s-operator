@@ -6,7 +6,7 @@
 dimensions:
   - name: openshift
     values:
-      - "false"
+      - "true"
   - name: spark
     values:
       - 3.3.0
@@ -17,33 +17,33 @@ dimensions:
     values:
       - 0.1.0
 tests:
-  - name: spark-pi-private-s3
-    dimensions:
-      - spark
-      - stackable
+#  - name: spark-pi-private-s3
+#    dimensions:
+#      - spark
+#      - stackable
   - name: spark-pi-public-s3
     dimensions:
       - spark
       - stackable
       - openshift
-  - name: spark-ny-public-s3
-    dimensions:
-      - spark
-      - stackable
-  - name: node-selector
-    dimensions:
-      - spark
-      - stackable
-  - name: spark-examples
-    dimensions:
-      - spark
-      - stackable
-  - name: pyspark-ny-public-s3
-    dimensions:
-      - spark
-      - stackable
-  - name: pyspark-ny-public-s3-image
-    dimensions:
-      - spark
-      - stackable
-      - ny-tlc-report
+#  - name: spark-ny-public-s3
+#    dimensions:
+#      - spark
+#      - stackable
+#  - name: node-selector
+#    dimensions:
+#      - spark
+#      - stackable
+#  - name: spark-examples
+#    dimensions:
+#      - spark
+#      - stackable
+#  - name: pyspark-ny-public-s3
+#    dimensions:
+#      - spark
+#      - stackable
+#  - name: pyspark-ny-public-s3-image
+#    dimensions:
+#      - spark
+#      - stackable
+#      - ny-tlc-report

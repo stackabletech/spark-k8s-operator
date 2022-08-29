@@ -18,7 +18,7 @@ spec:
   template:
     spec:
       nodeSelector:
-        node: "2"
+        node: "1"
       restartPolicy: Never
       volumes:
         - name: job-deps
@@ -26,7 +26,6 @@ spec:
             claimName: spark-pi-public-pvc
       serviceAccountName: integration-tests-sa
       securityContext:
-        fsGroup: 1000
         runAsGroup: 0
       containers:
         - name: aws-deps

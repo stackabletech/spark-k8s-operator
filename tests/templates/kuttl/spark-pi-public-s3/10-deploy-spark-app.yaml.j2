@@ -34,7 +34,7 @@ spec:
       - name: spark-pi-deps
         mountPath: /stackable/dependencies/jars
     nodeSelector:
-      node: "2"
+      node: "1"
   executor:
     cores: 1
     instances: 1
@@ -43,4 +43,4 @@ spec:
       - name: spark-pi-deps
         mountPath: /stackable/dependencies/jars
     nodeSelector:
-      node: "2"
+      node: "1"

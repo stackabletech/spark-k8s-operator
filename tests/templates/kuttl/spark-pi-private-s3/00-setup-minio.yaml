@@ -5,12 +5,44 @@ commands:
   - script: >-
       helm install test-minio
       --namespace $NAMESPACE
-      --version 4.0.2
-      --set mode=standalone
-      --set replicas=1
-      --set persistence.enabled=false
-      --set buckets[0].name=my-bucket,buckets[0].policy=none
-      --set users[0].accessKey=minioAccessKey,users[0].secretKey=minioSecretKey,users[0].policy=readwrite
-      --set resources.requests.memory=1Gi
-      --repo https://charts.min.io/ minio
+      --version 11.9.2
+      -f helm-bitnami-minio-values.yaml
+      --repo https://charts.bitnami.com/bitnami minio
     timeout: 240
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minio-client
+  labels:
+    app: minio-client
+spec:
+  selector:
+    matchLabels:
+      app: minio-client
+  restartPolicy: Never
+  containers:
+    - name: minio-client
+      image: docker.io/bitnami/minio-client:2022.8.11-debian-11-r3
+      command: ["bash", "-c", "sleep infinity"]
+      stdin: true
+      tty: true
+      env:
+        - name: MINIO_SERVER_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: root-user
+              optional: false
+        - name: MINIO_SERVER_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: root-password
+              optional: false
+        - name: MINIO_SERVER_HOST
+          value: test-minio
+        - name: MINIO_SERVER_PORT_NUMBER
+          value: "9000"
+        - name: MINIO_SERVER_SCHEME
+          value: http

@@ -34,7 +34,7 @@ spec:
     memory: "512m"
     volumeMounts:
       - name: spark-pi-deps
-        mountPath: /dependencies
+        mountPath: /dependencies/jars
     nodeSelector:
       node: "1"
   executor:
@@ -43,6 +43,6 @@ spec:
     memory: "512m"
     volumeMounts:
       - name: spark-pi-deps
-        mountPath: /dependencies
+        mountPath: /dependencies/jars
     nodeSelector:
       node: "1"

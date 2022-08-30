@@ -1,12 +1,13 @@
 #
-# Currently the tests only run against one version of Spark but will be changed
-# soon to support multiple Spark versions.
+# To run these tests on OpenShift you have ensure that:
+# 1. The "openshift" dimension below is set to "true"
+# 2. At least one node in the cluster is labeled with "node: 1"
 #
 ---
 dimensions:
   - name: openshift
     values:
-      - "true"
+      - "false"
   - name: spark
     values:
       - 3.3.0
@@ -32,20 +33,22 @@ tests:
       - spark
       - stackable
       - openshift
-#  - name: node-selector
-#    dimensions:
-#      - spark
-#      - stackable
-#  - name: spark-examples
-#    dimensions:
-#      - spark
-#      - stackable
-#  - name: pyspark-ny-public-s3
-#    dimensions:
-#      - spark
-#      - stackable
-#  - name: pyspark-ny-public-s3-image
-#    dimensions:
-#      - spark
-#      - stackable
-#      - ny-tlc-report
+  - name: node-selector
+    dimensions:
+      - spark
+      - stackable
+  - name: spark-examples
+    dimensions:
+      - spark
+      - stackable
+  - name: pyspark-ny-public-s3
+    dimensions:
+      - spark
+      - stackable
+      - openshift
+  - name: pyspark-ny-public-s3-image
+    dimensions:
+      - spark
+      - stackable
+      - ny-tlc-report
+      - openshift

@@ -45,7 +45,7 @@ spec:
     memory: "512m"
     volumeMounts:
       - name: spark-ny-deps
-        mountPath: /dependencies
+        mountPath: /dependencies/jars
       - name: cm-job-arguments
         mountPath: /arguments
     nodeSelector:
@@ -56,7 +56,7 @@ spec:
     memory: "512m"
     volumeMounts:
       - name: spark-ny-deps
-        mountPath: /dependencies
+        mountPath: /dependencies/jars
       - name: cm-job-arguments
         mountPath: /arguments
     nodeSelector:

@@ -27,10 +27,11 @@ tests:
       - spark
       - stackable
       - openshift
-#  - name: spark-ny-public-s3
-#    dimensions:
-#      - spark
-#      - stackable
+  - name: spark-ny-public-s3
+    dimensions:
+      - spark
+      - stackable
+      - openshift
 #  - name: node-selector
 #    dimensions:
 #      - spark

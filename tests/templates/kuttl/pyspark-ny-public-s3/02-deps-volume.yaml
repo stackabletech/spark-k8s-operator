@@ -22,6 +22,7 @@ spec:
       restartPolicy: Never
       securityContext:
         runAsGroup: 0
+        runAsUser: 1000
       serviceAccountName: integration-tests-sa
       volumes:
         - name: job-deps

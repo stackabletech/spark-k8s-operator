@@ -1,0 +1,21 @@
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: stackable-operators
+  labels:
+    name: stackable-operators
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: spark-k8s-operator-catalog
+  namespace: stackable-operators
+spec:
+  sourceType: grpc
+  image: docker.stackable.tech/stackable/spark-k8s-operator-catalog:latest
+  displayName: Stackable Catalog
+  publisher: Stackable GmbH
+  updateStrategy:
+    registryPoll:
+      interval: 10m

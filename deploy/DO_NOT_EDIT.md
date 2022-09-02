@@ -5,6 +5,7 @@ directory manually.
 The following files are ok to edit:
 
 - helm/spark-k8s-operator/templates/roles.yaml
+- helm/spark-k8s-operator/values.yaml
 
 The details are in-motion but check this repository for a few details:
 <https://github.com/stackabletech/operator-templating>

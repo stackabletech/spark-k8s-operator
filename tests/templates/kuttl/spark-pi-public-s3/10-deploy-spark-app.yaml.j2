@@ -24,15 +24,15 @@ spec:
           accessStyle: Path
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    spark.driver.extraClassPath: "/dependencies/jars/*"
-    spark.executor.extraClassPath: "/dependencies/jars/*"
+    spark.driver.extraClassPath: "/stackable/dependencies/jars/*"
+    spark.executor.extraClassPath: "/stackable/dependencies/jars/*"
   driver:
     cores: 1
     coreLimit: "1200m"
     memory: "512m"
     volumeMounts:
       - name: spark-pi-deps
-        mountPath: /dependencies
+        mountPath: /stackable/dependencies/jars
     nodeSelector:
       node: "1"
   executor:
@@ -41,6 +41,6 @@ spec:
     memory: "512m"
     volumeMounts:
       - name: spark-pi-deps
-        mountPath: /dependencies
+        mountPath: /stackable/dependencies/jars
     nodeSelector:
       node: "1"

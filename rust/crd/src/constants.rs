@@ -20,3 +20,5 @@ pub const CONTAINER_NAME_EXECUTOR: &str = "spark-executor";
 pub const ACCESS_KEY_ID: &str = "accessKeyId";
 pub const SECRET_ACCESS_KEY: &str = "secretAccessKey";
 pub const S3_SECRET_DIR_NAME: &str = "/stackable/secrets";
+
+pub const SPARK_UID: i64 = 1000;

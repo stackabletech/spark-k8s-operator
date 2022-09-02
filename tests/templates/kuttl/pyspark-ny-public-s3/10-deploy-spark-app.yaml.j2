@@ -37,11 +37,11 @@ spec:
     memory: "512m"
     volumeMounts:
       - name: job-deps
-        mountPath: /dependencies
+        mountPath: /dependencies/jars
   executor:
     cores: 1
     instances: 3
     memory: "512m"
     volumeMounts:
       - name: job-deps
-        mountPath: /dependencies
+        mountPath: /dependencies/jars

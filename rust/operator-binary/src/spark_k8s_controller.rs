@@ -362,13 +362,13 @@ fn spark_job(
         ),
         spec: Some(PodSpec {
             containers: vec![cb.build()],
+            image_pull_secrets: spark_application.spark_image_pull_secrets(),
             init_containers: job_container.as_ref().map(|c| vec![c.clone()]),
+            node_selector: spark_application.driver_node_selector(),
             restart_policy: Some("Never".to_string()),
+            security_context: Some(security_context()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
-            image_pull_secrets: spark_application.spark_image_pull_secrets(),
-            security_context: Some(security_context()),
-            node_selector: spark_application.driver_node_selector(),
             ..PodSpec::default()
         }),
     };

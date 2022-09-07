@@ -19,11 +19,15 @@ Then, install the operator dependencies with Helm:
 
     cd deploy/experimental/olm
 
+    rm -rf bundle
+    mkdir bundle
+
     opm alpha bundle generate --directory manifests --package spark-k8s-operator --output-dir bundle --channels stable --default stable
     docker build -t docker.stackable.tech/stackable/spark-k8s-operator-bundle:latest -f bundle.Dockerfile .
     docker push docker.stackable.tech/stackable/spark-k8s-operator-bundle:latest
     opm alpha bundle validate --tag docker.stackable.tech/stackable/spark-k8s-operator-bundle:latest --image-builder docker
 
+    rm -rf catalog
     mkdir catalog
 
     opm generate dockerfile catalog

@@ -59,16 +59,6 @@ spec:
     strategy: deployment
     # spec for the deployment strategy is a list of deployment specs and required permissions - similar to a pod template used in a deployment
     spec:
-      permissions:
-        - serviceAccountName: spark-k8s-operator-serviceaccount
-          rules:
-            - apiGroups:
-                - ""
-              resources:
-                - pods
-              verbs:
-                - '*'
-
       clusterPermissions:
         - serviceAccountName: spark-k8s-operator-serviceaccount
           rules:
@@ -180,6 +170,14 @@ spec:
                 - bind
               resourceNames:
                 - spark-k8s-clusterrole
+            - apiGroups:
+                - security.openshift.io
+              resources:
+                - securitycontextconstraints
+              resourceNames:
+                - anyuid
+              verbs:
+                - use
 
       deployments:
         - name: spark-k8s-operator-deployment
@@ -198,7 +196,16 @@ spec:
                   app.kubernetes.io/instance: spark-k8s-operator
               spec:
                 serviceAccountName: spark-k8s-operator-serviceaccount
-                securityContext: {}
+                securityContext:
+                  capabilities:
+                    drop:
+                      - ALL
+                  readOnlyRootFilesystem: false
+                  allowPrivilegeEscalation: false
+                  seccompProfile:
+                    type: RuntimeDefault
+                  runAsNonRoot: true
+                  runAsUser: 1000
                 containers:
                   - name: spark-k8s-operator
                     securityContext:

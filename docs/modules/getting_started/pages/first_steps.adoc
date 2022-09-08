@@ -10,15 +10,9 @@ A Spark application is made of up three components:
 - Driver: the driver starts the designated number of executors and removes them when the job is completed.
 - Executor(s): responsible for executing the job itself
 
-Create a file named `pyspark-pi.yaml` with the following contents:
+Create a `SparkApplication`:
 
-[source,yaml]
-----
-include::example$code/pyspark-pi.yaml[]
-----
-
-And apply it:
-
+[source,bash]
 ----
 include::example$code/getting_started.sh[tag=install-sparkapp]
 ----
@@ -26,19 +20,12 @@ include::example$code/getting_started.sh[tag=install-sparkapp]
 Where:
 
 - `metadata.name` contains the name of the SparkApplication
-- `spec.version`: the current version is "1.0"
-- `spec.sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
+- `spec.version`: SparkApplication version (1.0). This can be freely set by the users and is added by the operator as label to all workload resources created by the application.
+- `spec.sparkImage`: the image by the job, driver and executor pods. This can be a custom image built by the user or an official Stackable image. Available official images can be listed in the Stackable https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%spark-k8s%2Ftags[image registry].
 - `spec.mode`: only `cluster` is currently supported
 - `spec.mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job. This path is relative to the image, so in this case we are running an example python script (that calculates the value of pi): it is bundled with the Spark code and therefore already present in the job image
 - `spec.driver`: driver-specific settings.
 - `spec.executor`: executor-specific settings.
-
-
-NOTE: If using Stackable image versions, please note that the version you need to specify for `spec.version` is not only the version of Spark which you want to roll out, but has to be amended with a Stackable version as shown. This Stackable version is the version of the underlying container image which is used to execute the processes. For a list of available versions please check our
-https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%spark-k8s%2Ftags[image registry].
-It should generally be safe to simply use the latest image version that is available.
-
-This will create the `SparkApplication` that in turn creates the Spark job.
 
 == Verify that it works
 

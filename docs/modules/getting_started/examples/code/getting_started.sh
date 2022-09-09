@@ -22,18 +22,18 @@ helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.3.0-nightly
+helm install --wait commons-operator stackable-dev/commons-operator --version 0.4.0-nightly
 helm install --wait secret-operator stackable-dev/secret-operator --version 0.6.0-nightly
-helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version 0.5.0-nightly
+helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version 0.6.0-nightly
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.3.0-nightly \
+  commons=0.4.0-nightly \
   secret=0.6.0-nightly \
-  spark-k8s=0.5.0-nightly
+  spark-k8s=0.6.0-nightly
 # end::stackablectl-install-operators[]
 ;;
 *)
@@ -60,5 +60,5 @@ if [ "$result" == "" ]; then
   echo "Log result was not found!"
   exit 1
 else
-  echo "Job result: $result"
+  echo "Job result:" "$result"
 fi

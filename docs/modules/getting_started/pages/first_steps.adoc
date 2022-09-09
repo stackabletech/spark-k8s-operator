@@ -21,7 +21,7 @@ Where:
 
 - `metadata.name` contains the name of the SparkApplication
 - `spec.version`: SparkApplication version (1.0). This can be freely set by the users and is added by the operator as label to all workload resources created by the application.
-- `spec.sparkImage`: the image by the job, driver and executor pods. This can be a custom image built by the user or an official Stackable image. Available official images can be listed in the Stackable https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%spark-k8s%2Ftags[image registry].
+- `spec.sparkImage`: the image used by the job, driver and executor pods. This can be a custom image built by the user or an official Stackable image. Available official images are listed in the Stackable https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%spark-k8s%2Ftags[image registry].
 - `spec.mode`: only `cluster` is currently supported
 - `spec.mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job. This path is relative to the image, so in this case we are running an example python script (that calculates the value of pi): it is bundled with the Spark code and therefore already present in the job image
 - `spec.driver`: driver-specific settings.

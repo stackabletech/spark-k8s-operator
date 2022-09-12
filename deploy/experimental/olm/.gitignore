@@ -2,3 +2,4 @@ bundle
 bundle.Dockerfile
 
 catalog
+catalog.Dockerfile

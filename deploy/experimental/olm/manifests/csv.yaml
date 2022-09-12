@@ -197,27 +197,19 @@ spec:
               spec:
                 serviceAccountName: spark-k8s-operator-serviceaccount
                 securityContext:
+                  readOnlyRootFilesystem: false
+                  allowPrivilegeEscalation: false
                   capabilities:
                     drop:
                       - ALL
-                  readOnlyRootFilesystem: false
-                  allowPrivilegeEscalation: false
-                  seccompProfile:
-                    type: RuntimeDefault
-                  runAsNonRoot: true
-                  runAsUser: 1000
                 containers:
                   - name: spark-k8s-operator
                     securityContext:
                       allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: false
                       capabilities:
                         drop:
                           - ALL
-                      readOnlyRootFilesystem: false
-                      runAsNonRoot: true
-                      runAsUser: 1000
-                      seccompProfile:
-                        type: RuntimeDefault
                     image: "docker.stackable.tech/stackable/spark-k8s-operator:0.5.0-nightly"
                     imagePullPolicy: IfNotPresent
                     resources: {}

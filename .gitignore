@@ -13,3 +13,4 @@ target/
 Cargo.nix
 crate-hashes.json
 result
+image.tar

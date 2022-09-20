@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped image to `3.3.0-stackable0.2.0` in tests and docs ([#XX])
+
+[#XX]: https://github.com/stackabletech/spark-k8s-operator/pull/XX
+
 ## [0.5.0] - 2022-09-06
 
 ### Added

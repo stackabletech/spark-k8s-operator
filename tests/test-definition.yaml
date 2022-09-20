@@ -13,7 +13,7 @@ dimensions:
       - 3.3.0
   - name: stackable
     values:
-      - 0.1.0
+      - 0.2.0
   - name: ny-tlc-report
     values:
       - 0.1.0
@@ -41,6 +41,7 @@ tests:
     dimensions:
       - spark
       - stackable
+      - openshift
   - name: pyspark-ny-public-s3
     dimensions:
       - spark

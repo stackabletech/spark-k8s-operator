@@ -6,14 +6,11 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.1.0
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.2.0
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.1.0.jar # <3>
   mainClass: tech.stackable.demo.spark.NYTLCReport
   volumes:
-    - name: job-deps
-      persistentVolumeClaim:
-        claimName: pvc-ksv
     - name: cm-job-arguments
       configMap:
         name: cm-job-arguments # <4>
@@ -21,15 +18,11 @@ spec:
     - "--input /arguments/job-args.txt" # <5>
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    "spark.driver.extraClassPath": "/dependencies/jars/*"
-    "spark.executor.extraClassPath": "/dependencies/jars/*"
   driver:
     cores: 1
     coreLimit: "1200m"
     memory: "512m"
     volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies
       - name: cm-job-arguments # <6>
         mountPath: /arguments  # <7>
   executor:
@@ -37,7 +30,5 @@ spec:
     instances: 3
     memory: "512m"
     volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies
       - name: cm-job-arguments # <6>
         mountPath: /arguments # <7>

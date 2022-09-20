@@ -11,17 +11,13 @@ apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
   name: spark-ny-cm
-  namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.1.0
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.2.0
   mode: cluster
   mainApplicationFile: s3a://my-bucket/ny-tlc-report-1.1.0-3.3.0.jar
   mainClass: tech.stackable.demo.spark.NYTLCReport
   volumes:
-    - name: job-deps
-      persistentVolumeClaim:
-        claimName: pvc-ksv
     - name: cm-job-arguments
       configMap:
         name: cm-job-arguments
@@ -37,15 +33,11 @@ spec:
           accessStyle: Path
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    spark.driver.extraClassPath: "/dependencies/jars/*"
-    spark.executor.extraClassPath: "/dependencies/jars/*"
   driver:
     cores: 1
     coreLimit: "1200m"
     memory: "512m"
     volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies
       - name: cm-job-arguments
         mountPath: /arguments
   executor:
@@ -53,7 +45,5 @@ spec:
     instances: 3
     memory: "512m"
     volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies
       - name: cm-job-arguments
         mountPath: /arguments

@@ -8,7 +8,7 @@ spec:
   version: "1.0"
   # everything under /jobs will be copied to /stackable/spark/jobs
   image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.1.0
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.2.0
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
@@ -27,23 +27,11 @@ spec:
           accessStyle: Path
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-    spark.driver.extraClassPath: "/dependencies/jars/*"
-    spark.executor.extraClassPath: "/dependencies/jars/*"
-  volumes:
-    - name: job-deps
-      persistentVolumeClaim:
-        claimName: pvc-ksv
   driver:
     cores: 1
     coreLimit: "1200m"
     memory: "512m"
-    volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies
   executor:
     cores: 1
     instances: 3
     memory: "512m"
-    volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies

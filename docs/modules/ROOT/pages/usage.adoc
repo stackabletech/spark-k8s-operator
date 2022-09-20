@@ -42,8 +42,6 @@ include::example$example-sparkapp-image.yaml[]
 <3> Job argument (external)
 <4> List of python job requirements: these will be installed in the pods via `pip`
 <5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in an S3 store)
-<6> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
-<7> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
 === JVM (Scala): externally located artifact and dataset
 
@@ -71,8 +69,6 @@ include::example$example-sparkapp-s3-private.yaml[]
 <4> Credentials referencing a secretClass (not shown in is example)
 <5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources...
 <6> ...in this case, in an S3 store, accessed with the credentials defined in the secret
-<7> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
-<8> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
 === JVM (Scala): externally located artifact accessed with job arguments provided via configuration map
 
@@ -174,7 +170,7 @@ Below are listed the CRD fields that can be defined by the user:
 |User-supplied image containing spark-job dependencies that will be copied to the specified volume mount
 
 |`spec.sparkImage`
-| Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.1.0`
+| Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.2.0`
 
 |`spec.sparkImagePullPolicy`
 | Optional Enum (one of `Always`, `IfNotPresent` or `Never`) that determines the pull policy of the spark job image

@@ -1,8 +1,6 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-metadata:
-  name: spark-pi-public-s3
 timeout: 900
 ---
 # The Job starting the whole process

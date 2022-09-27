@@ -79,6 +79,8 @@ pub enum Error {
     S3TlsNoVerificationNotSupported,
     #[snafu(display("ca-cert verification not supported"))]
     S3TlsCaVerificationNotSupported,
+    #[snafu(display("failed to resolve and merge resource config"))]
+    FailedToResolveResourceConfig,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -327,8 +329,13 @@ fn spark_job(
     volume_mounts.extend(spark_application.driver_volume_mounts(s3bucket));
 
     let mut cb = ContainerBuilder::new("spark-submit");
+    let resources = spark_application
+        .resolve_resource_config()
+        .context(FailedToResolveResourceConfigSnafu)?;
+
     cb.image(spark_image)
         .command(vec!["/bin/sh".to_string()])
+        .resources(resources.into())
         .args(vec!["-c".to_string(), job_commands.join(" ")])
         .add_volume_mounts(volume_mounts)
         .add_env_vars(env.to_vec())

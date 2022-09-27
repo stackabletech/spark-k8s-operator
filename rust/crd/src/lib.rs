@@ -494,28 +494,30 @@ pub struct DriverConfig {
 impl DriverConfig {
     pub fn spark_config(&self) -> Vec<String> {
         let mut cmd = vec![];
+        let mut conf = SparkConfig::default_resources();
 
         if let Some(resources) = &self
             .spark_config
             .clone()
             .and_then(|spark_config| spark_config.resources)
         {
-            if let Some(memory) = &resources.memory.limit {
-                let memory = &memory.0;
-                cmd.push(format!("--conf spark.driver.memory={memory}"));
-            }
-            if let Some(cpu_min) = &resources.cpu.min {
-                let cpu_min = &cpu_min.0;
-                cmd.push(format!(
-                    "--conf spark.kubernetes.driver.request.cores={cpu_min}"
-                ));
-            }
-            if let Some(cpu_max) = &resources.cpu.max {
-                let cpu_max = &cpu_max.0;
-                cmd.push(format!(
-                    "--conf spark.kubernetes.driver.limit.cores={cpu_max}"
-                ));
-            }
+            conf.merge(resources);
+        }
+        if let Some(memory) = &conf.memory.limit {
+            let memory = &memory.0;
+            cmd.push(format!("--conf spark.driver.memory={memory}"));
+        }
+        if let Some(cpu_min) = &conf.cpu.min {
+            let cpu_min = &cpu_min.0;
+            cmd.push(format!(
+                "--conf spark.kubernetes.driver.request.cores={cpu_min}"
+            ));
+        }
+        if let Some(cpu_max) = &conf.cpu.max {
+            let cpu_max = &cpu_max.0;
+            cmd.push(format!(
+                "--conf spark.kubernetes.driver.limit.cores={cpu_max}"
+            ));
         }
 
         cmd
@@ -537,28 +539,30 @@ pub struct ExecutorConfig {
 impl ExecutorConfig {
     pub fn spark_config(&self) -> Vec<String> {
         let mut cmd = vec![];
+        let mut conf = SparkConfig::default_resources();
 
         if let Some(resources) = &self
             .spark_config
             .clone()
             .and_then(|spark_config| spark_config.resources)
         {
-            if let Some(memory) = &resources.memory.limit {
-                let memory = &memory.0;
-                cmd.push(format!("--conf spark.executor.memory={memory}"));
-            }
-            if let Some(cpu_min) = &resources.cpu.min {
-                let cpu_min = &cpu_min.0;
-                cmd.push(format!(
-                    "--conf spark.kubernetes.executor.request.cores={cpu_min}"
-                ));
-            }
-            if let Some(cpu_max) = &resources.cpu.max {
-                let cpu_max = &cpu_max.0;
-                cmd.push(format!(
-                    "--conf spark.kubernetes.executor.limit.cores={cpu_max}"
-                ));
-            }
+            conf.merge(resources);
+        }
+        if let Some(memory) = &conf.memory.limit {
+            let memory = &memory.0;
+            cmd.push(format!("--conf spark.executor.memory={memory}"));
+        }
+        if let Some(cpu_min) = &conf.cpu.min {
+            let cpu_min = &cpu_min.0;
+            cmd.push(format!(
+                "--conf spark.kubernetes.executor.request.cores={cpu_min}"
+            ));
+        }
+        if let Some(cpu_max) = &conf.cpu.max {
+            let cpu_max = &cpu_max.0;
+            cmd.push(format!(
+                "--conf spark.kubernetes.executor.limit.cores={cpu_max}"
+            ));
         }
         if let Some(instances) = &self.instances {
             cmd.push(format!("--conf spark.executor.instances={instances}"));

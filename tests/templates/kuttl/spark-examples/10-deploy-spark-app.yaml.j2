@@ -10,11 +10,28 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkALS
   mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
+  job:
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "1200m"
+        memory:
+          limit: "512m"
   driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "1300m"
+        memory:
+          limit: "512m"
   executor:
-    cores: 1
-    instances: 1
-    memory: "512m"
+    config:
+      instances: 1
+      resources:
+        cpu:
+          min: "500m"
+          max: "1200m"
+        memory:
+          limit: "1Gi"

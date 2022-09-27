@@ -17,11 +17,29 @@ spec:
       - tabulate==0.8.9 # <4>
   sparkConf: # <5>
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+  job:
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "1"
+        memory:
+          limit: "512m"
   driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "1200m"
+        memory:
+          limit: "512m"
   executor:
-    cores: 1
-    instances: 3
-    memory: "512m"
+    config:
+      instances: 3
+      resources:
+        cpu:
+          min: "1"
+          max: "1"
+        memory:
+          limit: "512m"
+

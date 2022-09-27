@@ -42,4 +42,3 @@ spec:
           max: "1"
         memory:
           limit: "512m"
-

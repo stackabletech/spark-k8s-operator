@@ -229,14 +229,14 @@ fn pod_template(
     cb.add_volume_mounts(volume_mounts.to_vec())
         .add_env_vars(env.to_vec());
 
-    // TODO ugly hack due to hitting max. number of arguments
     let resources = match container_name {
         CONTAINER_NAME_DRIVER => spark_application
             .driver_resources()
             .context(FailedToResolveResourceConfigSnafu)?,
-        _ => spark_application
+        CONTAINER_NAME_EXECUTOR => spark_application
             .executor_resources()
             .context(FailedToResolveResourceConfigSnafu)?,
+        _ => return FailedToResolveResourceConfigSnafu.fail(),
     };
 
     cb.resources(resources.into());

@@ -926,7 +926,6 @@ spec:
             "1300m",
             &spark_application
                 .driver_resources()
-                .clone()
                 .unwrap()
                 .cpu
                 .max
@@ -937,7 +936,6 @@ spec:
             "500m",
             &spark_application
                 .executor_resources()
-                .clone()
                 .unwrap()
                 .cpu
                 .min

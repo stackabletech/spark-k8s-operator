@@ -229,6 +229,18 @@ fn pod_template(
     cb.add_volume_mounts(volume_mounts.to_vec())
         .add_env_vars(env.to_vec());
 
+    // TODO ugly hack due to hitting max. number of arguments
+    let resources = match container_name {
+        CONTAINER_NAME_DRIVER => spark_application
+            .driver_resources()
+            .context(FailedToResolveResourceConfigSnafu)?,
+        _ => spark_application
+            .executor_resources()
+            .context(FailedToResolveResourceConfigSnafu)?,
+    };
+
+    cb.resources(resources.into());
+
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
         cb.image_pull_policy(image_pull_policy.to_string());
     }
@@ -330,7 +342,7 @@ fn spark_job(
 
     let mut cb = ContainerBuilder::new("spark-submit");
     let resources = spark_application
-        .resolve_resource_config()
+        .job_resources()
         .context(FailedToResolveResourceConfigSnafu)?;
 
     cb.image(spark_image)

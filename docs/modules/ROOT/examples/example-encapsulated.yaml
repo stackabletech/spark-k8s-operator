@@ -9,11 +9,5 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: /stackable/spark/examples/jars/spark-examples_2.12-3.3.0.jar # <2>
-  driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
   executor:
-    cores: 1
     instances: 3
-    memory: "512m"

@@ -7,8 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Bumped image to `3.3.0-stackable0.2.0` in tests and docs ([#145])
+- BREAKING: use resource limit struct instead of passing spark configuration arguments ([#147])
 
 [#145]: https://github.com/stackabletech/spark-k8s-operator/pull/145
+[#147]: https://github.com/stackabletech/spark-k8s-operator/pull/147
 
 ## [0.5.0] - 2022-09-06
 

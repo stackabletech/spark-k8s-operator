@@ -21,16 +21,11 @@ spec:
       persistentVolumeClaim:
         claimName: pvc-ksv
   driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
     volumeMounts:
       - name: job-deps
         mountPath: /dependencies # <5>
   executor:
-    cores: 1
     instances: 3
-    memory: "512m"
     volumeMounts:
       - name: job-deps
         mountPath: /dependencies # <5>

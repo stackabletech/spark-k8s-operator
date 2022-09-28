@@ -19,16 +19,11 @@ spec:
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
   driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
     volumeMounts:
       - name: cm-job-arguments # <6>
         mountPath: /arguments  # <7>
   executor:
-    cores: 1
     instances: 3
-    memory: "512m"
     volumeMounts:
       - name: cm-job-arguments # <6>
         mountPath: /arguments # <7>

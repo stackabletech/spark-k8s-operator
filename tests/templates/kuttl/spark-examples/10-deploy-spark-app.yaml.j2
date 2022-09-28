@@ -11,27 +11,24 @@ spec:
   mainClass: org.apache.spark.examples.SparkALS
   mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
   job:
-    config:
-      resources:
-        cpu:
-          min: "1"
-          max: "1200m"
-        memory:
-          limit: "512m"
+    resources:
+      cpu:
+        min: "100m"
+        max: "200m"
+      memory:
+        limit: "1Gi"
   driver:
-    config:
-      resources:
-        cpu:
-          min: "1"
-          max: "1300m"
-        memory:
-          limit: "512m"
+    resources:
+      cpu:
+        min: "1"
+        max: "1500m"
+      memory:
+        limit: "1Gi"
   executor:
-    config:
-      instances: 1
-      resources:
-        cpu:
-          min: "500m"
-          max: "1200m"
-        memory:
-          limit: "1Gi"
+    instances: 1
+    resources:
+      cpu:
+        min: "1"
+        max: "2"
+      memory:
+        limit: "1Gi"

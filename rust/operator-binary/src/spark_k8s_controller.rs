@@ -19,7 +19,6 @@ use stackable_spark_k8s_crd::SparkApplication;
 use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
-use crate::spark_k8s_controller::Error::UnrecognisedContainerName;
 
 const FIELD_MANAGER_SCOPE: &str = "sparkapplication";
 const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";

@@ -876,8 +876,8 @@ spec:
         assert_eq!("100m", job_resources.clone().unwrap().cpu.max.unwrap().0);
 
         let driver_resources = &spark_application.driver_resources();
-        assert_eq!("100m", driver_resources.clone().unwrap().cpu.min.unwrap().0);
-        assert_eq!("1", driver_resources.clone().unwrap().cpu.max.unwrap().0);
+        assert_eq!("1", driver_resources.clone().unwrap().cpu.min.unwrap().0);
+        assert_eq!("2", driver_resources.clone().unwrap().cpu.max.unwrap().0);
 
         let executor_resources = &spark_application.executor_resources();
         assert_eq!("1", executor_resources.clone().unwrap().cpu.min.unwrap().0);

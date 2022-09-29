@@ -18,27 +18,24 @@ spec:
   sparkConf: # <5>
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
   job:
-    config:
-      resources:
-        cpu:
-          min: "1"
-          max: "1"
-        memory:
-          limit: "1Gi"
+    resources:
+      cpu:
+        min: "1"
+        max: "1"
+      memory:
+        limit: "1Gi"
   driver:
-    config:
-      resources:
-        cpu:
-          min: "1"
-          max: "1500m"
-        memory:
-          limit: "1Gi"
+    resources:
+      cpu:
+        min: "1"
+        max: "1500m"
+      memory:
+        limit: "1Gi"
   executor:
-    config:
-      instances: 3
-      resources:
-        cpu:
-          min: "1"
-          max: "4"
-        memory:
-          limit: "2Gi"
+    instances: 3
+    resources:
+      cpu:
+        min: "1"
+        max: "4"
+      memory:
+        limit: "2Gi"

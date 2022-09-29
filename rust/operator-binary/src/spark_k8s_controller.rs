@@ -19,6 +19,7 @@ use stackable_spark_k8s_crd::SparkApplication;
 use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
+use crate::spark_k8s_controller::Error::UnrecognisedContainerName;
 
 const FIELD_MANAGER_SCOPE: &str = "sparkapplication";
 const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
@@ -81,6 +82,8 @@ pub enum Error {
     S3TlsCaVerificationNotSupported,
     #[snafu(display("failed to resolve and merge resource config"))]
     FailedToResolveResourceConfig,
+    #[snafu(display("failed to recognise the container name"))]
+    UnrecognisedContainerName,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -236,7 +239,7 @@ fn pod_template(
         CONTAINER_NAME_EXECUTOR => spark_application
             .executor_resources()
             .context(FailedToResolveResourceConfigSnafu)?,
-        _ => return FailedToResolveResourceConfigSnafu.fail(),
+        _ => return UnrecognisedContainerNameSnafu.fail(),
     };
 
     cb.resources(resources.into());

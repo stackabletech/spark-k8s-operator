@@ -56,14 +56,8 @@ spec:
   sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.2.0
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py
-  driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
   executor:
-    cores: 1
     instances: 3
-    memory: "512m"
 EOF
 # end::install-sparkapp[]
 

@@ -79,6 +79,10 @@ pub enum Error {
     S3TlsNoVerificationNotSupported,
     #[snafu(display("ca-cert verification not supported"))]
     S3TlsCaVerificationNotSupported,
+    #[snafu(display("failed to resolve and merge resource config"))]
+    FailedToResolveResourceConfig,
+    #[snafu(display("failed to recognise the container name"))]
+    UnrecognisedContainerName,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -227,6 +231,18 @@ fn pod_template(
     cb.add_volume_mounts(volume_mounts.to_vec())
         .add_env_vars(env.to_vec());
 
+    let resources = match container_name {
+        CONTAINER_NAME_DRIVER => spark_application
+            .driver_resources()
+            .context(FailedToResolveResourceConfigSnafu)?,
+        CONTAINER_NAME_EXECUTOR => spark_application
+            .executor_resources()
+            .context(FailedToResolveResourceConfigSnafu)?,
+        _ => return UnrecognisedContainerNameSnafu.fail(),
+    };
+
+    cb.resources(resources.into());
+
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
         cb.image_pull_policy(image_pull_policy.to_string());
     }
@@ -327,8 +343,13 @@ fn spark_job(
     volume_mounts.extend(spark_application.driver_volume_mounts(s3bucket));
 
     let mut cb = ContainerBuilder::new("spark-submit");
+    let resources = spark_application
+        .job_resources()
+        .context(FailedToResolveResourceConfigSnafu)?;
+
     cb.image(spark_image)
         .command(vec!["/bin/sh".to_string()])
+        .resources(resources.into())
         .args(vec!["-c".to_string(), job_commands.join(" ")])
         .add_volume_mounts(volume_mounts)
         .add_env_vars(env.to_vec())

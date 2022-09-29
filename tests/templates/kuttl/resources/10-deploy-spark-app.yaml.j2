@@ -2,7 +2,7 @@
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: spark-examples
+  name: spark-resources
 spec:
   version: "1.0"
   sparkImage: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
@@ -10,5 +10,25 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkALS
   mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
+  job:
+    resources:
+      cpu:
+        min: "100m"
+        max: "200m"
+      memory:
+        limit: "1Gi"
+  driver:
+    resources:
+      cpu:
+        min: "1"
+        max: "1500m"
+      memory:
+        limit: "1Gi"
   executor:
     instances: 1
+    resources:
+      cpu:
+        min: "1"
+        max: "2"
+      memory:
+        limit: "1Gi"

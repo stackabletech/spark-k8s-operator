@@ -53,3 +53,8 @@ tests:
       - stackable
       - ny-tlc-report
       - openshift
+  - name: resources
+    dimensions:
+      - spark
+      - stackable
+      - openshift

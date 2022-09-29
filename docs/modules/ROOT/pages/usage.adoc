@@ -144,6 +144,42 @@ spec:
 
 This has the advantage that bucket configuration can be shared across `SparkApplication`s and reduces the cost of updating these details.
 
+== Resource Requests
+
+// The "nightly" version is needed because the "include" directive searches for
+// files in the "stable" version by default.
+// TODO: remove the "nightly" version after the next platform release (current: 22.09)
+include::nightly@home:concepts:stackable_resource_requests.adoc[]
+
+If no resources are configured explicitly, the operator uses the following defaults:
+
+[source,yaml]
+----
+job:
+  resources:
+    cpu:
+      min: '50m'
+      max: "100m"
+    memory:
+      limit: '1Gi'
+driver:
+  resources:
+    cpu:
+      min: '1'
+      max: "2"
+    memory:
+      limit: '2Gi'
+executor:
+  resources:
+    cpu:
+      min: '1'
+      max: "4"
+    memory:
+      limit: '4Gi'
+----
+WARNING: The default values are _most likely_ not sufficient to run a proper cluster in production. Please adapt according to your requirements.
+For more details regarding Kubernetes CPU limits see: https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/[Assign CPU Resources to Containers and Pods].
+
 == CRD argument coverage
 
 Below are listed the CRD fields that can be defined by the user:
@@ -214,14 +250,11 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.volumes.persistentVolumeClaim.claimName`
 |The persistent volume claim backing the volume
 
-|`spec.driver.cores`
-|Number of cores used by the driver (only in cluster mode)
+|`spec.job.resources`
+|Resources specification for the initiating Job
 
-|`spec.driver.coreLimit`
-|Total cores for all executors
-
-|`spec.driver.memory`
-|Specified memory for the driver
+|`spec.driver.resources`
+|Resources specification for the driver Pod
 
 |`spec.driver.volumeMounts`
 |A list of mounted volumes for the driver
@@ -235,14 +268,11 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.driver.nodeSelector`
 |A dictionary of labels to use for node selection when scheduling the driver N.B. this assumes there are no implicit node dependencies (e.g. `PVC`, `VolumeMount`) defined elsewhere.
 
-|`spec.executor.cores`
-|Number of cores for each executor
+|`spec.executor.resources`
+|Resources specification for the executor Pods
 
 |`spec.executor.instances`
 |Number of executor instances launched for this job
-
-|`spec.executor.memory`
-|Memory specified for executor
 
 |`spec.executor.volumeMounts`
 |A list of mounted volumes for each executor

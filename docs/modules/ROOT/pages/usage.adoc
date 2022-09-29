@@ -165,8 +165,8 @@ job:
 driver:
   resources:
     cpu:
-      min: '100m'
-      max: "1"
+      min: '1'
+      max: "2"
     memory:
       limit: '2Gi'
 executor:

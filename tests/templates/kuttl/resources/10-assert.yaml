@@ -3,10 +3,82 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 900
 ---
-# The Job starting the whole process
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
   name: spark-resources
 status:
   phase: Succeeded
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    spark-role: driver
+    spark-app-name: spark-resources
+    app.kubernetes.io/managed-by: spark-k8s-operator
+spec:
+  containers:
+    - name: spark-driver
+      resources:
+        limits:
+          cpu: 1500m
+          # N.B. spark adds memoryOverhead of 10% by default
+          memory: 1408Mi
+        requests:
+          cpu: "1"
+          memory: 1408Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    job-name: spark-resources
+    app.kubernetes.io/managed-by: spark-k8s-operator
+spec:
+  containers:
+    - name: spark-submit
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    spark-app-name: sparkals
+    spark-exec-id: "1"
+    spark-role: executor
+spec:
+  containers:
+    - name: spark-executor
+      resources:
+        limits:
+          cpu: "2"
+          # N.B. spark adds memoryOverhead of 10% by default
+          memory: 1408Mi
+        requests:
+          cpu: "1"
+          memory: 1408Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    spark-app-name: sparkals
+    spark-exec-id: "2"
+    spark-role: executor
+spec:
+  containers:
+    - name: spark-executor
+      resources:
+        limits:
+          cpu: "2"
+          memory: 1408Mi
+        requests:
+          cpu: "1"
+          memory: 1408Mi

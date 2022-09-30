@@ -1,9 +1,0 @@
----
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-timeout: 240
-skipLogOutput: true
-commands:
-  # read the config map, stripping indents and new lines and doing some replacement, then grepping for the relevant section
-  - script: kubectl get cm -n $NAMESPACE spark-resources-pod-template -o yaml | sed -e 's/^\s*//' -e '/^$/d' | tr '\n' ' ' | tr ':' '|' | grep -o 'spark-driver resources| limits| cpu| 1500m memory| 1Gi requests| cpu| "1" memory| 1Gi'
-  - script: kubectl get cm -n $NAMESPACE spark-resources-pod-template -o yaml | sed -e 's/^\s*//' -e '/^$/d' | tr '\n' ' ' | tr ':' '|' | grep -o 'spark-executor resources| limits| cpu| "2" memory| 1Gi requests| cpu| "1" memory| 1Gi'

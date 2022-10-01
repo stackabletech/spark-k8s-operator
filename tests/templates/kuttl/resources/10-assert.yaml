@@ -44,38 +44,3 @@ spec:
         requests:
           cpu: 100m
           memory: 1Gi
----
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    spark-exec-id: "1"
-    spark-role: executor
-spec:
-  containers:
-    - name: spark-executor
-      resources:
-        limits:
-          cpu: "2"
-          # N.B. spark adds memoryOverhead of 10% by default
-          memory: 1408Mi
-        requests:
-          cpu: "1"
-          memory: 1408Mi
----
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    spark-exec-id: "2"
-    spark-role: executor
-spec:
-  containers:
-    - name: spark-executor
-      resources:
-        limits:
-          cpu: "2"
-          memory: 1408Mi
-        requests:
-          cpu: "1"
-          memory: 1408Mi

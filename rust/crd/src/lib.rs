@@ -15,9 +15,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
-use stackable_operator::commons::resources::{
-    CpuLimits, MemoryLimits, NoRuntimeLimits, Resources,
-};
+use stackable_operator::commons::resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, Resources};
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels;
 use stackable_operator::{
@@ -53,7 +51,7 @@ pub struct SparkApplicationStatus {
     pub phase: String,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Eq, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SparkStorageConfig {}
 
@@ -347,12 +345,20 @@ impl SparkApplication {
 
         // TODO: Round up to the next whole number and use whole numbers
         if let Some(driver) = &self.spec.driver {
-            if let Some(Resources { cpu: CpuLimits { max: Some(max), .. }, ..}) = &driver.resources {
+            if let Some(Resources {
+                cpu: CpuLimits { max: Some(max), .. },
+                ..
+            }) = &driver.resources
+            {
                 submit_cmd.push(format!("--conf spark.driver.cores={}", max.0));
             }
         }
         if let Some(executors) = &self.spec.executor {
-            if let Some(Resources { cpu: CpuLimits { max: Some(max), .. }, ..}) = &executors.resources {
+            if let Some(Resources {
+                cpu: CpuLimits { max: Some(max), .. },
+                ..
+            }) = &executors.resources
+            {
                 submit_cmd.push(format!("--conf spark.executor.cores={}", max.0));
             }
             if let Some(instances) = executors.instances {
@@ -924,7 +930,10 @@ spec:
         )
         .unwrap();
 
-        let command = spark_application.build_command("sa", &None).map_err(|e| format!("{e}")).unwrap();
+        let command = spark_application
+            .build_command("sa", &None)
+            .map_err(|e| format!("{e}"))
+            .unwrap();
         assert!(command.contains(&"--conf spark.executor.instances=8".to_string()));
 
         let job_resources = &spark_application.job_resources();
@@ -933,7 +942,10 @@ spec:
 
         let driver_resources = &spark_application.driver_resources();
         assert_eq!("1", driver_resources.clone().unwrap().cpu.min.unwrap().0);
-        assert_eq!("1500m", driver_resources.clone().unwrap().cpu.max.unwrap().0);
+        assert_eq!(
+            "1500m",
+            driver_resources.clone().unwrap().cpu.max.unwrap().0
+        );
         assert!(command.contains(&"--conf spark.driver.cores=2".to_string()));
 
         let executor_resources = &spark_application.executor_resources();

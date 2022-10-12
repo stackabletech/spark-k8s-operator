@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, HashMap};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 use stackable_operator::commons::resources::{
-    CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources,
+    CpuLimits, MemoryLimits, NoRuntimeLimits, Resources,
 };
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels;
@@ -55,10 +55,7 @@ pub struct SparkApplicationStatus {
 
 #[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SparkStorageConfig {
-    #[serde(default)]
-    pub data: PvcConfig,
-}
+pub struct SparkStorageConfig {}
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -77,13 +74,7 @@ impl SparkConfig {
                 limit: Some(Quantity("1Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
-            storage: SparkStorageConfig {
-                data: PvcConfig {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
+            storage: SparkStorageConfig {},
         }
     }
 }
@@ -352,6 +343,23 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
         ]);
 
+        // Always use the upper bound of available cpu cores as otherwise the request can never be exceeded
+
+        // TODO: Round up to the next whole number and use whole numbers
+        if let Some(driver) = &self.spec.driver {
+            if let Some(Resources { cpu: CpuLimits { max: Some(max), .. }, ..}) = &driver.resources {
+                submit_cmd.push(format!("--conf spark.driver.cores={}", max.0));
+            }
+        }
+        if let Some(executors) = &self.spec.executor {
+            if let Some(Resources { cpu: CpuLimits { max: Some(max), .. }, ..}) = &executors.resources {
+                submit_cmd.push(format!("--conf spark.executor.cores={}", max.0));
+            }
+            if let Some(instances) = executors.instances {
+                submit_cmd.push(format!("--conf spark.executor.instances={}", instances));
+            }
+        }
+
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
         // for possible S3 related properties
         if let Some(endpoint) = s3bucket.as_ref().and_then(|s3| s3.endpoint()) {
@@ -508,22 +516,16 @@ impl DriverConfig {
                 limit: Some(Quantity("2Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
-            storage: SparkStorageConfig {
-                data: PvcConfig {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
+            storage: SparkStorageConfig {},
         }
     }
 
     pub fn spark_config(&self) -> Option<Resources<SparkStorageConfig, NoRuntimeLimits>> {
-        let conf = DriverConfig::default_resources();
+        let default_resources = DriverConfig::default_resources();
 
         let mut resources = self.resources.clone().unwrap_or_default();
+        resources.merge(&default_resources);
 
-        resources.merge(&conf);
         Some(resources)
     }
 }
@@ -551,22 +553,16 @@ impl ExecutorConfig {
                 limit: Some(Quantity("4Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
-            storage: SparkStorageConfig {
-                data: PvcConfig {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
+            storage: SparkStorageConfig {},
         }
     }
 
     pub fn spark_config(&self) -> Option<Resources<SparkStorageConfig>> {
-        let conf = ExecutorConfig::default_resources();
+        let default_resources = ExecutorConfig::default_resources();
 
         let mut resources = self.resources.clone().unwrap_or_default();
+        resources.merge(&default_resources);
 
-        resources.merge(&conf);
         Some(resources)
     }
 }
@@ -893,54 +889,56 @@ apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
   name: spark-examples
+  namespace: default
 spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
   job:
     resources:
       cpu:
         min: "100m"
-        max: "200m"
+        max: "1"
       memory:
         limit: "1G"
   driver:
     resources:
       cpu:
         min: "1"
-        max: "1300m"
+        max: "1500m"
       memory:
         limit: "512m"
   executor:
-    instances: 1
+    instances: 8
     resources:
       cpu:
-        min: "500m"
-        max: "1200m"
+        min: "4"
+        max: "6"
       memory:
-        limit: "1Gi"
+        limit: "10Gi"
   config:
     enableMonitoring: true
         "#,
         )
         .unwrap();
 
-        assert_eq!(
-            "1300m",
-            &spark_application
-                .driver_resources()
-                .unwrap()
-                .cpu
-                .max
-                .unwrap()
-                .0
-        );
-        assert_eq!(
-            "500m",
-            &spark_application
-                .executor_resources()
-                .unwrap()
-                .cpu
-                .min
-                .unwrap()
-                .0
-        );
+        let command = spark_application.build_command("sa", &None).map_err(|e| format!("{e}")).unwrap();
+        assert!(command.contains(&"--conf spark.executor.instances=8".to_string()));
+
+        let job_resources = &spark_application.job_resources();
+        assert_eq!("100m", job_resources.clone().unwrap().cpu.min.unwrap().0);
+        assert_eq!("1", job_resources.clone().unwrap().cpu.max.unwrap().0);
+
+        let driver_resources = &spark_application.driver_resources();
+        assert_eq!("1", driver_resources.clone().unwrap().cpu.min.unwrap().0);
+        assert_eq!("1500m", driver_resources.clone().unwrap().cpu.max.unwrap().0);
+        assert!(command.contains(&"--conf spark.driver.cores=2".to_string()));
+
+        let executor_resources = &spark_application.executor_resources();
+        assert_eq!("4", executor_resources.clone().unwrap().cpu.min.unwrap().0);
+        assert_eq!("6", executor_resources.clone().unwrap().cpu.max.unwrap().0);
+        assert!(command.contains(&"--conf spark.executor.cores=6".to_string()));
     }
 }

@@ -29,6 +29,7 @@ Not all of these steps are necessary for all versions.
 
 - [ ] Update the Docker image
 - [ ] Update documentation to include supported version(s)
+- [ ] Update and test getting started guide with updated version(s)
 - [ ] Update operator to support the new version (if needed)
 - [ ] Update integration tests to test use the new versions (in addition or replacing old versions
 - [ ] Update examples to use new versions

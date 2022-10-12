@@ -946,7 +946,8 @@ spec:
             "1500m",
             driver_resources.clone().unwrap().cpu.max.unwrap().0
         );
-        assert!(command.contains(&"--conf spark.driver.cores=2".to_string()));
+        // TODO Switch to assert!(command.contains(&"--conf spark.driver.cores=2".to_string()));
+        assert!(command.contains(&"--conf spark.driver.cores=150m".to_string()));
 
         let executor_resources = &spark_application.executor_resources();
         assert_eq!("4", executor_resources.clone().unwrap().cpu.min.unwrap().0);

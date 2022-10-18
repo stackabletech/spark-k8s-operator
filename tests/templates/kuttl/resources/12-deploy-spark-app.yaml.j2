@@ -1,0 +1,26 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: resources-sparkconf
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/examples/src/main/python/streaming/hdfs_wordcount.py
+  args:
+    - "/tmp2"
+  sparkConf:
+    spark.kubernetes.submission.waitAppCompletion: "false"
+    spark.kubernetes.driver.pod.name: "resources-sparkconf-driver"
+    spark.kubernetes.executor.podNamePrefix: "resources-sparkconf"
+    spark.kubernetes.driver.request.cores: "2"
+    spark.kubernetes.driver.limit.cores: "3"
+    spark.driver.memory: "1g"
+    spark.driver.memoryOverheadFactor: "0.4"
+    spark.kubernetes.executor.request.cores: "2"
+    spark.kubernetes.executor.limit.cores: "3"
+    spark.executor.memory: "2g"
+    spark.executor.memoryOverheadFactor: "0.4"
+    spark.executor.instances: "1"
+

@@ -10,14 +10,14 @@ use stackable_operator::commons::s3::{
 use stackable_operator::k8s_openapi::api::core::v1::{
     EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
+use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
+use std::cmp::max;
 
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, Snafu};
-use stackable_operator::commons::resources::{
-    CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources,
-};
+use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::commons::resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, Resources};
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels;
 use stackable_operator::{
@@ -45,6 +45,11 @@ pub enum Error {
     ObjectHasNoName,
     #[snafu(display("application has no Spark image"))]
     NoSparkImage,
+    #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
+    FailedToConvertJavaHeap {
+        source: stackable_operator::error::Error,
+        unit: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, JsonSchema)]
@@ -53,12 +58,9 @@ pub struct SparkApplicationStatus {
     pub phase: String,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SparkStorageConfig {
-    #[serde(default)]
-    pub data: PvcConfig,
-}
+pub struct SparkStorageConfig {}
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -77,13 +79,7 @@ impl SparkConfig {
                 limit: Some(Quantity("1Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
-            storage: SparkStorageConfig {
-                data: PvcConfig {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
+            storage: SparkStorageConfig {},
         }
     }
 }
@@ -334,6 +330,9 @@ impl SparkApplication {
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
+        // some command elements need to be initially stored in a map (to allow overwrites) and
+        // then added to the vector once complete.
+        let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();
         let mut submit_cmd: Vec<String> = vec![];
 
         submit_cmd.extend(vec![
@@ -382,13 +381,6 @@ impl SparkApplication {
             }
         }
 
-        // conf arguments that are not driver or executor specific
-        if let Some(spark_conf) = self.spec.spark_conf.clone() {
-            for (key, value) in spark_conf {
-                submit_cmd.push(format!("--conf {key}={value}"));
-            }
-        }
-
         // repositories and packages arguments
         if let Some(deps) = self.spec.deps.clone() {
             submit_cmd.extend(
@@ -396,6 +388,89 @@ impl SparkApplication {
                     .map(|r| format!("--repositories {}", r.join(","))),
             );
             submit_cmd.extend(deps.packages.map(|p| format!("--packages {}", p.join(","))));
+        }
+
+        // resource limits, either declared or taken from defaults
+        if let Some(Resources {
+            cpu: CpuLimits { max: Some(max), .. },
+            ..
+        }) = &self.driver_resources()
+        {
+            submit_conf.insert(
+                "--conf spark.kubernetes.driver.limit.cores".to_string(),
+                max.0.clone(),
+            );
+        }
+        if let Some(Resources {
+            cpu: CpuLimits { min: Some(min), .. },
+            ..
+        }) = &self.driver_resources()
+        {
+            submit_conf.insert(
+                "--conf spark.kubernetes.driver.request.cores".to_string(),
+                min.0.clone(),
+            );
+        }
+        if let Some(Resources {
+            memory: MemoryLimits {
+                limit: Some(limit), ..
+            },
+            ..
+        }) = &self.driver_resources()
+        {
+            let memory = self.jvm_memory_format(limit).unwrap();
+            submit_conf.insert("--conf spark.driver.memory".to_string(), memory);
+        }
+
+        if let Some(Resources {
+            cpu: CpuLimits { max: Some(max), .. },
+            ..
+        }) = &self.executor_resources()
+        {
+            submit_conf.insert(
+                "--conf spark.kubernetes.executor.limit.cores".to_string(),
+                max.0.clone(),
+            );
+        }
+        if let Some(Resources {
+            cpu: CpuLimits { min: Some(min), .. },
+            ..
+        }) = &self.executor_resources()
+        {
+            submit_conf.insert(
+                "--conf spark.kubernetes.executor.request.cores".to_string(),
+                min.0.clone(),
+            );
+        }
+        if let Some(Resources {
+            memory: MemoryLimits {
+                limit: Some(limit), ..
+            },
+            ..
+        }) = &self.executor_resources()
+        {
+            let memory = self.jvm_memory_format(limit).unwrap();
+            submit_conf.insert("--conf spark.executor.memory".to_string(), memory);
+        }
+
+        if let Some(executors) = &self.spec.executor {
+            if let Some(instances) = executors.instances {
+                submit_conf.insert(
+                    "--conf spark.executor.instances".to_string(),
+                    instances.to_string(),
+                );
+            }
+        }
+
+        // conf arguments: these should follow - and thus override - values set from resource limits above
+        if let Some(spark_conf) = self.spec.spark_conf.clone() {
+            for (key, value) in spark_conf {
+                submit_conf.insert(format!("--conf {key}"), value);
+            }
+        }
+        // ...before added to the command collection
+        for (key, value) in submit_conf {
+            submit_cmd.push(format!("{key}={value}"));
         }
 
         submit_cmd.extend(
@@ -415,6 +490,30 @@ impl SparkApplication {
         }
 
         Ok(submit_cmd)
+    }
+
+    // a memory overhead will be applied using a factor of 0.1 (JVM jobs) or 0.4 (non-JVM jobs),
+    // being not less than 384MB. The resource limit should keep this transparent by reducing the
+    // declared memory limit accordingly.
+    fn jvm_memory_format(&self, limit: &Quantity) -> Result<String, Error> {
+        // determine job-type using class name: scala/java will declare an application and main class;
+        // R and python will just declare the application name/file (for python this could be .zip/.py/.egg)
+        let non_jvm_factor = if self.spec.main_class.is_some() {
+            1.0 / (1.0 + JVM_OVERHEAD_FACTOR)
+        } else {
+            1.0 / (1.0 + NON_JVM_OVERHEAD_FACTOR)
+        };
+        let original_memory = to_java_heap_value(limit, 1.0, BinaryMultiple::Mebi).context(
+            FailedToConvertJavaHeapSnafu {
+                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+            },
+        )?;
+        let reduced_memory = to_java_heap_value(limit, non_jvm_factor, BinaryMultiple::Mebi)
+            .context(FailedToConvertJavaHeapSnafu {
+                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+            })?;
+        let deduction = max(MIN_MEMORY_OVERHEAD, original_memory - reduced_memory);
+        Ok(format!("{}m", original_memory - deduction))
     }
 
     pub fn env(&self) -> Vec<EnvVar> {
@@ -508,22 +607,16 @@ impl DriverConfig {
                 limit: Some(Quantity("2Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
-            storage: SparkStorageConfig {
-                data: PvcConfig {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
+            storage: SparkStorageConfig {},
         }
     }
 
     pub fn spark_config(&self) -> Option<Resources<SparkStorageConfig, NoRuntimeLimits>> {
-        let conf = DriverConfig::default_resources();
+        let default_resources = DriverConfig::default_resources();
 
         let mut resources = self.resources.clone().unwrap_or_default();
 
-        resources.merge(&conf);
+        resources.merge(&default_resources);
         Some(resources)
     }
 }
@@ -551,22 +644,16 @@ impl ExecutorConfig {
                 limit: Some(Quantity("4Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
-            storage: SparkStorageConfig {
-                data: PvcConfig {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
+            storage: SparkStorageConfig {},
         }
     }
 
     pub fn spark_config(&self) -> Option<Resources<SparkStorageConfig>> {
-        let conf = ExecutorConfig::default_resources();
+        let default_resources = ExecutorConfig::default_resources();
 
         let mut resources = self.resources.clone().unwrap_or_default();
 
-        resources.merge(&conf);
+        resources.merge(&default_resources);
         Some(resources)
     }
 }

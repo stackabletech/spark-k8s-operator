@@ -245,6 +245,31 @@ jobs:
         with:
           command: test
 
+  # Similar to check_charts, this tries to render the README, and see if there are unintended changes.
+  # This will save us from merging changes to the wrong file (instead of the templated source), and from
+  # forgetting to render out modifications to the README.
+  check_readme:
+    name: Check if committed README is the one we would render from the available parts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Regenerate charts
+        run: make render-readme
+      - name: Check if committed README were up to date
+        run: git diff --exit-code
+      - name: Git Diff showed uncommitted changes
+        if: ${{ failure() }}
+        uses: actions/github-script@d50f485531ba88479582bc2da03ff424389af5c1 # tag=v6
+        with:
+          script: |
+            core.setFailed('Committed README are not up to date, please make sure to apply them to the templated partials, and re-commit!')
+
   # This job cleans up the CRDs, Helm charts and Kustomize manifests, followed by rebuilding them
   # It then runs a `git diff` and fails the entire workflow, if any difference is encountered.
   #
@@ -292,7 +317,7 @@ jobs:
         run: git diff --exit-code
       - name: Git Diff showed uncommitted changes
         if: ${{ failure() }}
-        uses: actions/github-script@d50f485531ba88479582bc2da03ff424389af5c1 # tag=v6
+        uses: actions/github-script@7dff1a87643417cf3b95bb10b29f4c4bc60d8ebd # tag=v6
         with:
           script: |
             core.setFailed('Committed charts were not up to date, please regenerate and re-commit!')

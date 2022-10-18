@@ -330,9 +330,6 @@ impl SparkApplication {
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
-        // some command elements need to be initially stored in a map (to allow overwrites) and
-        // then added to the vector once complete.
-        let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();
         let mut submit_cmd: Vec<String> = vec![];
 
         submit_cmd.extend(vec![
@@ -389,6 +386,10 @@ impl SparkApplication {
             );
             submit_cmd.extend(deps.packages.map(|p| format!("--packages {}", p.join(","))));
         }
+
+        // some command elements need to be initially stored in a map (to allow overwrites) and
+        // then added to the vector once complete.
+        let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();
 
         // resource limits, either declared or taken from defaults
         if let Some(Resources {
@@ -468,7 +469,7 @@ impl SparkApplication {
                 submit_conf.insert(format!("--conf {key}"), value);
             }
         }
-        // ...before added to the command collection
+        // ...before being added to the command collection
         for (key, value) in submit_conf {
             submit_cmd.push(format!("{key}={value}"));
         }

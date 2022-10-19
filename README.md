@@ -3,7 +3,6 @@
 </p>
 
 <h1 align="center">Stackable Operator for Apache Spark</h1>
-
 [![Build Actions Status](https://ci.stackable.tech/job/spark-k8s%2doperator%2dit%2dnightly/badge/icon?subject=Integration%20Tests)](https://ci.stackable.tech/job/spark-k8s%2doperator%2dit%2dnightly)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/stackabletech/spark-k8s-operator/graphs/commit-activity)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
@@ -13,7 +12,7 @@
 
 This is a Kubernetes operator to manage [Apache Spark](https://spark.apache.org/) jobs.
 
-It is part of the Stackable Data Platform, a curated selection of the best open source data apps like Kafka, Druid, Trino or Spark, [all](#other-operators) working together seamlessly. Based on Kubernetes, it runs everywhere – [on prem or in the cloud]((#supported-platforms)).
+It is part of the Stackable Data Platform, a curated selection of the best open source data apps like Kafka, Druid, Trino or Spark, [all](#other-operators) working together seamlessly. Based on Kubernetes, it runs everywhere – [on prem or in the cloud](#supported-platforms).
 
 ## Installation
 
@@ -51,11 +50,12 @@ We love open-source!
 
 We develop and test our operators on the following cloud platforms:
 
-* Kubernetes 1.21-1.24
+* AKS on Microsoft Azure
 * EKS on Amazon Web Services (AWS)
 * GKE on Google Cloud Platform (GCP)
-* AKS on Microsoft Azure
+* [IONOS Cloud Managed Kubernetes](https://cloud.ionos.com/managed/kubernetes)
 * K3s
+* Kubernetes 1.21-1.24
 
 We are currently working to support:
 

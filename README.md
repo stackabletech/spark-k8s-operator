@@ -3,6 +3,7 @@
 </p>
 
 <h1 align="center">Stackable Operator for Apache Spark</h1>
+
 [![Build Actions Status](https://ci.stackable.tech/job/spark-k8s%2doperator%2dit%2dnightly/badge/icon?subject=Integration%20Tests)](https://ci.stackable.tech/job/spark-k8s%2doperator%2dit%2dnightly)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/stackabletech/spark-k8s-operator/graphs/commit-activity)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
@@ -64,24 +65,24 @@ We are currently working to support:
 
 These are the operators that are currently part of the Stackable Data Platform:
 
-- [Stackable Operator for Apache Airflow](https://github.com/stackabletech/airflow-operator)
-- [Stackable Operator for Apache Druid](https://github.com/stackabletech/druid-operator)
-- [Stackable Operator for Apache HBase](https://github.com/stackabletech/hbase-operator)
-- [Stackable Operator for Apache Hadoop HDFS](https://github.com/stackabletech/hdfs-operator)
-- [Stackable Operator for Apache Hive](https://github.com/stackabletech/hive-operator)
-- [Stackable Operator for Apache Kafka](https://github.com/stackabletech/kafka-operator)
-- [Stackable Operator for Apache NiFi](https://github.com/stackabletech/nifi-operator)
-- [Stackable Operator for Apache Spark](https://github.com/stackabletech/spark-k8s-operator)
-- [Stackable Operator for Apache Superset](https://github.com/stackabletech/superset-operator)
-- [Stackable Operator for Trino](https://github.com/stackabletech/trino-operator)
-- [Stackable Operator for Apache ZooKeeper](https://github.com/stackabletech/zookeeper-operator)
+* [Stackable Operator for Apache Airflow](https://github.com/stackabletech/airflow-operator)
+* [Stackable Operator for Apache Druid](https://github.com/stackabletech/druid-operator)
+* [Stackable Operator for Apache HBase](https://github.com/stackabletech/hbase-operator)
+* [Stackable Operator for Apache Hadoop HDFS](https://github.com/stackabletech/hdfs-operator)
+* [Stackable Operator for Apache Hive](https://github.com/stackabletech/hive-operator)
+* [Stackable Operator for Apache Kafka](https://github.com/stackabletech/kafka-operator)
+* [Stackable Operator for Apache NiFi](https://github.com/stackabletech/nifi-operator)
+* [Stackable Operator for Apache Spark](https://github.com/stackabletech/spark-k8s-operator)
+* [Stackable Operator for Apache Superset](https://github.com/stackabletech/superset-operator)
+* [Stackable Operator for Trino](https://github.com/stackabletech/trino-operator)
+* [Stackable Operator for Apache ZooKeeper](https://github.com/stackabletech/zookeeper-operator)
 
 And our internal operators:
 
-- [Commons Operator](https://github.com/stackabletech/commons-operator)
-- [Listener Operator](https://github.com/stackabletech/listener-operator)
-- [OpenPolicyAgent Operator](https://github.com/stackabletech/opa-operator)
-- [Secret Operator](https://github.com/stackabletech/secret-operator)
+* [Commons Operator](https://github.com/stackabletech/commons-operator)
+* [Listener Operator](https://github.com/stackabletech/listener-operator)
+* [OpenPolicyAgent Operator](https://github.com/stackabletech/opa-operator)
+* [Secret Operator](https://github.com/stackabletech/secret-operator)
 
 ## Contributing
 

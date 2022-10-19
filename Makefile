@@ -5,6 +5,7 @@
 
 # This script requires https://github.com/mikefarah/yq (not to be confused with https://github.com/kislyuk/yq)
 # It is available from Nixpkgs as `yq-go` (`nix shell nixpkgs#yq-go`)
+# This script also requires `jq` https://stedolan.github.io/jq/
 
 .PHONY: docker chart-lint compile-chart
 
@@ -18,6 +19,9 @@ DOCS_VERSION := $(if ${IS_NIGHTLY},nightly,$(shell echo "${VERSION}" | sed 's/^\
 export VERSION IS_NIGHTLY DOCS_VERSION
 
 SHELL=/usr/bin/env bash -euo pipefail
+
+render-readme:
+	scripts/render_readme.sh
 
 ## Docker related targets
 docker-build:

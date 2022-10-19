@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
-      - uses: reviewdog/action-actionlint@12f228ecba8c567a103efafb3fb0bf5b60dc16b7 # tag=v1.27.0
+      - uses: reviewdog/action-actionlint@fe5c2db6029881e0b5634d7cb0d119b0c16b6922 # tag=v1.32.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -41,9 +41,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
-      - uses: reviewdog/action-markdownlint@b8f945b8bee2a2967214f35956209bc31d3c4d26 # tag=v0.7.1
+      - uses: reviewdog/action-markdownlint@97e3df02fe1573d505a7b268046a44fa5409cbc3 # tag=v0.9.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          markdownlint_flags: '-i README.md .'
 
   shellcheck:
     runs-on: ubuntu-latest

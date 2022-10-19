@@ -50,6 +50,10 @@ pub enum Error {
         source: stackable_operator::error::Error,
         unit: String,
     },
+    #[snafu(display("failed to convert to quantity"))]
+    FailedQuantityConversion,
+    #[snafu(display("failed to parse value"))]
+    FailedParseToFloatConversion,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, JsonSchema)]
@@ -401,6 +405,9 @@ impl SparkApplication {
                 "--conf spark.kubernetes.driver.limit.cores".to_string(),
                 max.0.clone(),
             );
+            let cores =
+                cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
+            submit_conf.insert("--conf spark.driver.cores".to_string(), cores);
         }
         if let Some(Resources {
             cpu: CpuLimits { min: Some(min), .. },
@@ -419,7 +426,9 @@ impl SparkApplication {
             ..
         }) = &self.driver_resources()
         {
-            let memory = self.jvm_memory_format(limit).unwrap();
+            let memory = self
+                .jvm_memory_format(limit)
+                .map_err(|_| Error::FailedQuantityConversion)?;
             submit_conf.insert("--conf spark.driver.memory".to_string(), memory);
         }
 
@@ -432,6 +441,9 @@ impl SparkApplication {
                 "--conf spark.kubernetes.executor.limit.cores".to_string(),
                 max.0.clone(),
             );
+            let cores =
+                cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
+            submit_conf.insert("--conf spark.executor.cores".to_string(), cores);
         }
         if let Some(Resources {
             cpu: CpuLimits { min: Some(min), .. },
@@ -450,7 +462,9 @@ impl SparkApplication {
             ..
         }) = &self.executor_resources()
         {
-            let memory = self.jvm_memory_format(limit).unwrap();
+            let memory = self
+                .jvm_memory_format(limit)
+                .map_err(|_| Error::FailedQuantityConversion)?;
             submit_conf.insert("--conf spark.executor.memory".to_string(), memory);
         }
 
@@ -579,6 +593,27 @@ impl SparkApplication {
     }
 }
 
+// CPU Limits can be defined as integer, decimal, or unitised values (see
+// https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/#cpu-units)
+// of which only "m" (milli-units) is allowed. The parsed value will be rounded up to the next
+// integer value.
+fn cores_from_quantity(q: String) -> Result<String, Error> {
+    let start_of_unit = q.find('m');
+    let cores = if let Some(start_of_unit) = start_of_unit {
+        let (prefix, _) = q.split_at(start_of_unit);
+        (prefix
+            .parse::<f32>()
+            .map_err(|_| Error::FailedParseToFloatConversion)?
+            / 1000.0)
+            .ceil()
+    } else {
+        q.parse::<f32>()
+            .map_err(|_| Error::FailedParseToFloatConversion)?
+            .ceil()
+    };
+    Ok((cores as u32).to_string())
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommonConfig {
@@ -663,9 +698,11 @@ impl ExecutorConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::ImagePullPolicy;
     use crate::LocalObjectReference;
+    use crate::Quantity;
     use crate::SparkApplication;
+    use crate::{cores_from_quantity, ImagePullPolicy};
+    use rstest::rstest;
     use stackable_operator::builder::ObjectMetaBuilder;
     use stackable_operator::commons::s3::{
         S3AccessStyle, S3BucketSpec, S3ConnectionDef, S3ConnectionSpec,
@@ -1032,5 +1069,16 @@ spec:
                 .unwrap()
                 .0
         );
+    }
+
+    #[rstest]
+    #[case("1800m", "2")]
+    #[case("100m", "1")]
+    #[case("1.5", "2")]
+    #[case("2", "2")]
+    fn test_quantity_to_cores(#[case] input: &str, #[case] output: &str) {
+        let q = &Quantity(input.to_string());
+        let cores = cores_from_quantity(q.0.clone()).unwrap();
+        assert_eq!(output, cores);
     }
 }

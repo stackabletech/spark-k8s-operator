@@ -507,9 +507,9 @@ impl SparkApplication {
         Ok(submit_cmd)
     }
 
-    // a memory overhead will be applied using a factor of 0.1 (JVM jobs) or 0.4 (non-JVM jobs),
-    // being not less than 384MB. The resource limit should keep this transparent by reducing the
-    // declared memory limit accordingly.
+    /// A memory overhead will be applied using a factor of 0.1 (JVM jobs) or 0.4 (non-JVM jobs),
+    /// being not less than 384MB. The resource limit should keep this transparent by reducing the
+    /// declared memory limit accordingly.
     fn jvm_memory_format(&self, limit: &Quantity) -> Result<String, Error> {
         // determine job-type using class name: scala/java will declare an application and main class;
         // R and python will just declare the application name/file (for python this could be .zip/.py/.egg).

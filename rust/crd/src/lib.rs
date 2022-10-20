@@ -481,9 +481,7 @@ impl SparkApplication {
 
         // conf arguments: these should follow - and thus override - values set from resource limits above
         if let Some(spark_conf) = self.spec.spark_conf.clone() {
-            for (key, value) in spark_conf {
-                submit_conf.insert(key, value);
-            }
+            submit_conf.extend(spark_conf);
         }
         // ...before being added to the command collection
         for (key, value) in submit_conf {

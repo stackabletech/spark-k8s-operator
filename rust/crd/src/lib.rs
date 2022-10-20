@@ -514,7 +514,7 @@ impl SparkApplication {
         // determine job-type using class name: scala/java will declare an application and main class;
         // R and python will just declare the application name/file (for python this could be .zip/.py/.egg).
         // Spark itself just checks the application name - See e.g.
-        // https://github.com/apache/spark/blob/master/core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala#L1092
+        // https://github.com/apache/spark/blob/01c7a46f24fb4bb4287a184a3d69e0e5c904bc50/core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala#L1092
         let non_jvm_factor = if self.spec.main_class.is_some() {
             1.0 / (1.0 + JVM_OVERHEAD_FACTOR)
         } else {

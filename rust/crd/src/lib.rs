@@ -402,13 +402,13 @@ impl SparkApplication {
         }) = &self.driver_resources()
         {
             submit_conf.insert(
-                "--conf spark.kubernetes.driver.limit.cores".to_string(),
+                "spark.kubernetes.driver.limit.cores".to_string(),
                 max.0.clone(),
             );
             let cores =
                 cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
             // will have default value from resources to apply if nothing set specifically
-            submit_conf.insert("--conf spark.driver.cores".to_string(), cores);
+            submit_conf.insert("spark.driver.cores".to_string(), cores);
         }
         if let Some(Resources {
             cpu: CpuLimits { min: Some(min), .. },
@@ -416,7 +416,7 @@ impl SparkApplication {
         }) = &self.driver_resources()
         {
             submit_conf.insert(
-                "--conf spark.kubernetes.driver.request.cores".to_string(),
+                "spark.kubernetes.driver.request.cores".to_string(),
                 min.0.clone(),
             );
         }
@@ -430,7 +430,7 @@ impl SparkApplication {
             let memory = self
                 .subtract_spark_memory_overhead(limit)
                 .map_err(|_| Error::FailedQuantityConversion)?;
-            submit_conf.insert("--conf spark.driver.memory".to_string(), memory);
+            submit_conf.insert("spark.driver.memory".to_string(), memory);
         }
 
         if let Some(Resources {
@@ -439,13 +439,13 @@ impl SparkApplication {
         }) = &self.executor_resources()
         {
             submit_conf.insert(
-                "--conf spark.kubernetes.executor.limit.cores".to_string(),
+                "spark.kubernetes.executor.limit.cores".to_string(),
                 max.0.clone(),
             );
             let cores =
                 cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
             // will have default value from resources to apply if nothing set specifically
-            submit_conf.insert("--conf spark.executor.cores".to_string(), cores);
+            submit_conf.insert("spark.executor.cores".to_string(), cores);
         }
         if let Some(Resources {
             cpu: CpuLimits { min: Some(min), .. },
@@ -453,7 +453,7 @@ impl SparkApplication {
         }) = &self.executor_resources()
         {
             submit_conf.insert(
-                "--conf spark.kubernetes.executor.request.cores".to_string(),
+                "spark.kubernetes.executor.request.cores".to_string(),
                 min.0.clone(),
             );
         }
@@ -467,13 +467,13 @@ impl SparkApplication {
             let memory = self
                 .subtract_spark_memory_overhead(limit)
                 .map_err(|_| Error::FailedQuantityConversion)?;
-            submit_conf.insert("--conf spark.executor.memory".to_string(), memory);
+            submit_conf.insert("spark.executor.memory".to_string(), memory);
         }
 
         if let Some(executors) = &self.spec.executor {
             if let Some(instances) = executors.instances {
                 submit_conf.insert(
-                    "--conf spark.executor.instances".to_string(),
+                    "spark.executor.instances".to_string(),
                     instances.to_string(),
                 );
             }
@@ -482,12 +482,12 @@ impl SparkApplication {
         // conf arguments: these should follow - and thus override - values set from resource limits above
         if let Some(spark_conf) = self.spec.spark_conf.clone() {
             for (key, value) in spark_conf {
-                submit_conf.insert(format!("--conf {key}"), value);
+                submit_conf.insert(key, value);
             }
         }
         // ...before being added to the command collection
         for (key, value) in submit_conf {
-            submit_cmd.push(format!("{key}={value}"));
+            submit_cmd.push(format!("--conf {key}={value}"));
         }
 
         submit_cmd.extend(

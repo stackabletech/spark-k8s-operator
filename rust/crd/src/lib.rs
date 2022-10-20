@@ -407,6 +407,7 @@ impl SparkApplication {
             );
             let cores =
                 cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
+            // will have default value from resources to apply if nothing set specifically
             submit_conf.insert("--conf spark.driver.cores".to_string(), cores);
         }
         if let Some(Resources {
@@ -443,6 +444,7 @@ impl SparkApplication {
             );
             let cores =
                 cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
+            // will have default value from resources to apply if nothing set specifically
             submit_conf.insert("--conf spark.executor.cores".to_string(), cores);
         }
         if let Some(Resources {

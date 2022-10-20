@@ -597,6 +597,7 @@ impl SparkApplication {
 /// https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/#cpu-units)
 /// of which only "m" (milli-units) is allowed. The parsed value will be rounded up to the next
 /// integer value.
+// TODO: Move to operator-rs when needed in multiple operators
 fn cores_from_quantity(q: String) -> Result<String, Error> {
     let start_of_unit = q.find('m');
     let cores = if let Some(start_of_unit) = start_of_unit {

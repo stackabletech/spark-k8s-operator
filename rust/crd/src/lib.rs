@@ -10,14 +10,14 @@ use stackable_operator::commons::s3::{
 use stackable_operator::k8s_openapi::api::core::v1::{
     EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
+use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
+use std::cmp::max;
 
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, Snafu};
-use stackable_operator::commons::resources::{
-    CpuLimits, MemoryLimits, NoRuntimeLimits, PvcConfig, Resources,
-};
+use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::commons::resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, Resources};
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels;
 use stackable_operator::{
@@ -45,6 +45,15 @@ pub enum Error {
     ObjectHasNoName,
     #[snafu(display("application has no Spark image"))]
     NoSparkImage,
+    #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
+    FailedToConvertJavaHeap {
+        source: stackable_operator::error::Error,
+        unit: String,
+    },
+    #[snafu(display("failed to convert to quantity"))]
+    FailedQuantityConversion,
+    #[snafu(display("failed to parse value"))]
+    FailedParseToFloatConversion,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, JsonSchema)]
@@ -53,12 +62,9 @@ pub struct SparkApplicationStatus {
     pub phase: String,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SparkStorageConfig {
-    #[serde(default)]
-    pub data: PvcConfig,
-}
+pub struct SparkStorageConfig {}
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -77,13 +83,7 @@ impl SparkConfig {
                 limit: Some(Quantity("1Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
-            storage: SparkStorageConfig {
-                data: PvcConfig {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
+            storage: SparkStorageConfig {},
         }
     }
 }
@@ -382,13 +382,6 @@ impl SparkApplication {
             }
         }
 
-        // conf arguments that are not driver or executor specific
-        if let Some(spark_conf) = self.spec.spark_conf.clone() {
-            for (key, value) in spark_conf {
-                submit_cmd.push(format!("--conf {key}={value}"));
-            }
-        }
-
         // repositories and packages arguments
         if let Some(deps) = self.spec.deps.clone() {
             submit_cmd.extend(
@@ -396,6 +389,103 @@ impl SparkApplication {
                     .map(|r| format!("--repositories {}", r.join(","))),
             );
             submit_cmd.extend(deps.packages.map(|p| format!("--packages {}", p.join(","))));
+        }
+
+        // some command elements need to be initially stored in a map (to allow overwrites) and
+        // then added to the vector once complete.
+        let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();
+
+        // resource limits, either declared or taken from defaults
+        if let Some(Resources {
+            cpu: CpuLimits { max: Some(max), .. },
+            ..
+        }) = &self.driver_resources()
+        {
+            submit_conf.insert(
+                "spark.kubernetes.driver.limit.cores".to_string(),
+                max.0.clone(),
+            );
+            let cores =
+                cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
+            // will have default value from resources to apply if nothing set specifically
+            submit_conf.insert("spark.driver.cores".to_string(), cores);
+        }
+        if let Some(Resources {
+            cpu: CpuLimits { min: Some(min), .. },
+            ..
+        }) = &self.driver_resources()
+        {
+            submit_conf.insert(
+                "spark.kubernetes.driver.request.cores".to_string(),
+                min.0.clone(),
+            );
+        }
+        if let Some(Resources {
+            memory: MemoryLimits {
+                limit: Some(limit), ..
+            },
+            ..
+        }) = &self.driver_resources()
+        {
+            let memory = self
+                .subtract_spark_memory_overhead(limit)
+                .map_err(|_| Error::FailedQuantityConversion)?;
+            submit_conf.insert("spark.driver.memory".to_string(), memory);
+        }
+
+        if let Some(Resources {
+            cpu: CpuLimits { max: Some(max), .. },
+            ..
+        }) = &self.executor_resources()
+        {
+            submit_conf.insert(
+                "spark.kubernetes.executor.limit.cores".to_string(),
+                max.0.clone(),
+            );
+            let cores =
+                cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
+            // will have default value from resources to apply if nothing set specifically
+            submit_conf.insert("spark.executor.cores".to_string(), cores);
+        }
+        if let Some(Resources {
+            cpu: CpuLimits { min: Some(min), .. },
+            ..
+        }) = &self.executor_resources()
+        {
+            submit_conf.insert(
+                "spark.kubernetes.executor.request.cores".to_string(),
+                min.0.clone(),
+            );
+        }
+        if let Some(Resources {
+            memory: MemoryLimits {
+                limit: Some(limit), ..
+            },
+            ..
+        }) = &self.executor_resources()
+        {
+            let memory = self
+                .subtract_spark_memory_overhead(limit)
+                .map_err(|_| Error::FailedQuantityConversion)?;
+            submit_conf.insert("spark.executor.memory".to_string(), memory);
+        }
+
+        if let Some(executors) = &self.spec.executor {
+            if let Some(instances) = executors.instances {
+                submit_conf.insert(
+                    "spark.executor.instances".to_string(),
+                    instances.to_string(),
+                );
+            }
+        }
+
+        // conf arguments: these should follow - and thus override - values set from resource limits above
+        if let Some(spark_conf) = self.spec.spark_conf.clone() {
+            submit_conf.extend(spark_conf);
+        }
+        // ...before being added to the command collection
+        for (key, value) in submit_conf {
+            submit_cmd.push(format!("--conf {key}={value}"));
         }
 
         submit_cmd.extend(
@@ -415,6 +505,32 @@ impl SparkApplication {
         }
 
         Ok(submit_cmd)
+    }
+
+    /// A memory overhead will be applied using a factor of 0.1 (JVM jobs) or 0.4 (non-JVM jobs),
+    /// being not less than 384MB. The resource limit should keep this transparent by reducing the
+    /// declared memory limit accordingly.
+    fn subtract_spark_memory_overhead(&self, limit: &Quantity) -> Result<String, Error> {
+        // determine job-type using class name: scala/java will declare an application and main class;
+        // R and python will just declare the application name/file (for python this could be .zip/.py/.egg).
+        // Spark itself just checks the application name - See e.g.
+        // https://github.com/apache/spark/blob/01c7a46f24fb4bb4287a184a3d69e0e5c904bc50/core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala#L1092
+        let non_jvm_factor = if self.spec.main_class.is_some() {
+            1.0 / (1.0 + JVM_OVERHEAD_FACTOR)
+        } else {
+            1.0 / (1.0 + NON_JVM_OVERHEAD_FACTOR)
+        };
+        let original_memory = to_java_heap_value(limit, 1.0, BinaryMultiple::Mebi).context(
+            FailedToConvertJavaHeapSnafu {
+                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+            },
+        )?;
+        let reduced_memory = to_java_heap_value(limit, non_jvm_factor, BinaryMultiple::Mebi)
+            .context(FailedToConvertJavaHeapSnafu {
+                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+            })?;
+        let deduction = max(MIN_MEMORY_OVERHEAD, original_memory - reduced_memory);
+        Ok(format!("{}m", original_memory - deduction))
     }
 
     pub fn env(&self) -> Vec<EnvVar> {
@@ -477,6 +593,28 @@ impl SparkApplication {
     }
 }
 
+/// CPU Limits can be defined as integer, decimal, or unitised values (see
+/// <https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/#cpu-units>)
+/// of which only "m" (milli-units) is allowed. The parsed value will be rounded up to the next
+/// integer value.
+// TODO: Move to operator-rs when needed in multiple operators
+fn cores_from_quantity(q: String) -> Result<String, Error> {
+    let start_of_unit = q.find('m');
+    let cores = if let Some(start_of_unit) = start_of_unit {
+        let (prefix, _) = q.split_at(start_of_unit);
+        (prefix
+            .parse::<f32>()
+            .map_err(|_| Error::FailedParseToFloatConversion)?
+            / 1000.0)
+            .ceil()
+    } else {
+        q.parse::<f32>()
+            .map_err(|_| Error::FailedParseToFloatConversion)?
+            .ceil()
+    };
+    Ok((cores as u32).to_string())
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommonConfig {
@@ -508,22 +646,16 @@ impl DriverConfig {
                 limit: Some(Quantity("2Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
-            storage: SparkStorageConfig {
-                data: PvcConfig {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
+            storage: SparkStorageConfig {},
         }
     }
 
     pub fn spark_config(&self) -> Option<Resources<SparkStorageConfig, NoRuntimeLimits>> {
-        let conf = DriverConfig::default_resources();
+        let default_resources = DriverConfig::default_resources();
 
         let mut resources = self.resources.clone().unwrap_or_default();
 
-        resources.merge(&conf);
+        resources.merge(&default_resources);
         Some(resources)
     }
 }
@@ -551,31 +683,27 @@ impl ExecutorConfig {
                 limit: Some(Quantity("4Gi".to_owned())),
                 runtime_limits: NoRuntimeLimits {},
             },
-            storage: SparkStorageConfig {
-                data: PvcConfig {
-                    capacity: Some(Quantity("2Gi".to_owned())),
-                    storage_class: None,
-                    selectors: None,
-                },
-            },
+            storage: SparkStorageConfig {},
         }
     }
 
     pub fn spark_config(&self) -> Option<Resources<SparkStorageConfig>> {
-        let conf = ExecutorConfig::default_resources();
+        let default_resources = ExecutorConfig::default_resources();
 
         let mut resources = self.resources.clone().unwrap_or_default();
 
-        resources.merge(&conf);
+        resources.merge(&default_resources);
         Some(resources)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::ImagePullPolicy;
     use crate::LocalObjectReference;
+    use crate::Quantity;
     use crate::SparkApplication;
+    use crate::{cores_from_quantity, ImagePullPolicy};
+    use rstest::rstest;
     use stackable_operator::builder::ObjectMetaBuilder;
     use stackable_operator::commons::s3::{
         S3AccessStyle, S3BucketSpec, S3ConnectionDef, S3ConnectionSpec,
@@ -942,5 +1070,16 @@ spec:
                 .unwrap()
                 .0
         );
+    }
+
+    #[rstest]
+    #[case("1800m", "2")]
+    #[case("100m", "1")]
+    #[case("1.5", "2")]
+    #[case("2", "2")]
+    fn test_quantity_to_cores(#[case] input: &str, #[case] output: &str) {
+        let q = &Quantity(input.to_string());
+        let cores = cores_from_quantity(q.0.clone()).unwrap();
+        assert_eq!(output, cores);
     }
 }

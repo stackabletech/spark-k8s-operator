@@ -22,3 +22,6 @@ pub const SECRET_ACCESS_KEY: &str = "secretAccessKey";
 pub const S3_SECRET_DIR_NAME: &str = "/stackable/secrets";
 
 pub const SPARK_UID: i64 = 1000;
+pub const MIN_MEMORY_OVERHEAD: u32 = 384;
+pub const JVM_OVERHEAD_FACTOR: f32 = 0.1;
+pub const NON_JVM_OVERHEAD_FACTOR: f32 = 0.4;

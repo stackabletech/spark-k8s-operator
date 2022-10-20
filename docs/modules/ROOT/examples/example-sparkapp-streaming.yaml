@@ -2,25 +2,19 @@
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: resources-crd
+  name: pyspark-streaming
+  namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.1.0
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/streaming/hdfs_wordcount.py
   args:
     - "/tmp2"
   sparkConf:
     spark.kubernetes.submission.waitAppCompletion: "false"
-    spark.kubernetes.driver.pod.name: "resources-crd-driver"
-    spark.kubernetes.executor.podNamePrefix: "resources-crd"
-  job:
-    resources:
-      cpu:
-        min: "100m"
-        max: "200m"
-      memory:
-        limit: "1Gi"
+    spark.kubernetes.driver.pod.name: "pyspark-streaming-driver"
+    spark.kubernetes.executor.podNamePrefix: "pyspark-streaming"
   driver:
     resources:
       cpu:
@@ -32,7 +26,7 @@ spec:
     instances: 1
     resources:
       cpu:
-        min: "1500m"
+        min: "1700m"
         max: "3"
       memory:
         limit: "2Gi"

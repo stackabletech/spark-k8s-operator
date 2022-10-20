@@ -231,6 +231,8 @@ fn pod_template(
     cb.add_volume_mounts(volume_mounts.to_vec())
         .add_env_vars(env.to_vec());
 
+    // N.B. this may be ignored by spark as preference is given to spark
+    // configuration settings.
     let resources = match container_name {
         CONTAINER_NAME_DRIVER => spark_application
             .driver_resources()

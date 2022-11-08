@@ -33,6 +33,7 @@ Use a local object store to avoid external dependencies:
 
 ````text
 helm install test-minio \
+--version 4.0.15 \
 --set mode=standalone \
 --set replicas=1 \
 --set persistence.enabled=false \

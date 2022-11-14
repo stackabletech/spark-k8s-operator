@@ -1,5 +1,5 @@
 #
-# To run these tests on OpenShift you have ensure that:
+# To run these tests on OpenShift you have to ensure that:
 # 1. The "openshift" dimension below is set to "true"
 # 2. At least one node in the cluster is labeled with "node: 1"
 #
@@ -13,7 +13,7 @@ dimensions:
       - 3.3.0
   - name: stackable
     values:
-      - 0.2.0
+      - 0.3.0
   - name: ny-tlc-report
     values:
       - 0.1.0

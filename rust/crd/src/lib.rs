@@ -81,9 +81,9 @@ pub struct SparkApplicationStatus {
         Merge,
         JsonSchema,
         PartialEq,
-        Eq,
-        Serialize
-    ),
+        Serialize,
+        ),
+    allow(clippy::derive_partial_eq_without_eq),
     serde(rename_all = "camelCase")
 )]
 pub struct SparkStorageConfig {}

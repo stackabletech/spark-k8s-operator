@@ -17,11 +17,16 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::commons::resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, Resources};
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels;
 use stackable_operator::{
-    config::merge::Merge,
+    commons::resources::{
+        CpuLimits, CpuLimitsFragment, MemoryLimits, MemoryLimitsFragment, NoRuntimeLimits,
+        NoRuntimeLimitsFragment, Resources, ResourcesFragment,
+    },
+    config::{fragment, fragment::Fragment, fragment::ValidationError, merge::Merge},
+};
+use stackable_operator::{
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
     role_utils::CommonConfiguration,
@@ -54,36 +59,54 @@ pub enum Error {
     FailedQuantityConversion,
     #[snafu(display("failed to parse value"))]
     FailedParseToFloatConversion,
+    #[snafu(display("fragment validation failure"))]
+    FragmentValidationFailure { source: ValidationError },
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SparkApplicationStatus {
     pub phase: String,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[fragment_attrs(
+    derive(
+        Clone,
+        Debug,
+        Default,
+        Deserialize,
+        Merge,
+        JsonSchema,
+        PartialEq,
+        Eq,
+        Serialize
+    ),
+    serde(rename_all = "camelCase")
+)]
 pub struct SparkStorageConfig {}
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SparkConfig {
-    pub resources: Option<Resources<SparkStorageConfig, NoRuntimeLimits>>,
+    pub resources: Option<ResourcesFragment<SparkStorageConfig, NoRuntimeLimits>>,
 }
 
 impl SparkConfig {
-    fn default_resources() -> Resources<SparkStorageConfig, NoRuntimeLimits> {
-        Resources {
-            cpu: CpuLimits {
+    fn default_resources() -> ResourcesFragment<SparkStorageConfig, NoRuntimeLimits> {
+        ResourcesFragment {
+            cpu: CpuLimitsFragment {
                 min: Some(Quantity("50m".to_owned())),
                 max: Some(Quantity("100m".to_owned())),
             },
-            memory: MemoryLimits {
+            memory: MemoryLimitsFragment {
                 limit: Some(Quantity("1Gi".to_owned())),
-                runtime_limits: NoRuntimeLimits {},
+                runtime_limits: NoRuntimeLimitsFragment {},
             },
-            storage: SparkStorageConfig {},
+            storage: SparkStorageConfigFragment {},
         }
     }
 }
@@ -174,7 +197,7 @@ impl SparkApplication {
     }
 
     pub fn pod_template_config_map_name(&self) -> String {
-        format!("{}-pod-template", self.name())
+        format!("{}-pod-template", self.name_unchecked())
     }
 
     pub fn mode(&self) -> Option<&str> {
@@ -314,7 +337,8 @@ impl SparkApplication {
     }
 
     pub fn recommended_labels(&self) -> BTreeMap<String, String> {
-        let mut ls = labels::build_common_labels_for_all_managed_resources(APP_NAME, &self.name());
+        let mut ls =
+            labels::build_common_labels_for_all_managed_resources(APP_NAME, &self.name_unchecked());
         if let Some(version) = self.version() {
             ls.insert(labels::APP_VERSION_LABEL.to_string(), version.to_string());
         }
@@ -396,7 +420,7 @@ impl SparkApplication {
         let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();
 
         // resource limits, either declared or taken from defaults
-        if let Some(Resources {
+        if let Ok(Resources {
             cpu: CpuLimits { max: Some(max), .. },
             ..
         }) = &self.driver_resources()
@@ -410,7 +434,7 @@ impl SparkApplication {
             // will have default value from resources to apply if nothing set specifically
             submit_conf.insert("spark.driver.cores".to_string(), cores);
         }
-        if let Some(Resources {
+        if let Ok(Resources {
             cpu: CpuLimits { min: Some(min), .. },
             ..
         }) = &self.driver_resources()
@@ -420,7 +444,7 @@ impl SparkApplication {
                 min.0.clone(),
             );
         }
-        if let Some(Resources {
+        if let Ok(Resources {
             memory: MemoryLimits {
                 limit: Some(limit), ..
             },
@@ -433,7 +457,7 @@ impl SparkApplication {
             submit_conf.insert("spark.driver.memory".to_string(), memory);
         }
 
-        if let Some(Resources {
+        if let Ok(Resources {
             cpu: CpuLimits { max: Some(max), .. },
             ..
         }) = &self.executor_resources()
@@ -447,7 +471,7 @@ impl SparkApplication {
             // will have default value from resources to apply if nothing set specifically
             submit_conf.insert("spark.executor.cores".to_string(), cores);
         }
-        if let Some(Resources {
+        if let Ok(Resources {
             cpu: CpuLimits { min: Some(min), .. },
             ..
         }) = &self.executor_resources()
@@ -457,7 +481,7 @@ impl SparkApplication {
                 min.0.clone(),
             );
         }
-        if let Some(Resources {
+        if let Ok(Resources {
             memory: MemoryLimits {
                 limit: Some(limit), ..
             },
@@ -562,7 +586,7 @@ impl SparkApplication {
             .and_then(|executor_config| executor_config.node_selector.clone())
     }
 
-    pub fn job_resources(&self) -> Option<Resources<SparkStorageConfig, NoRuntimeLimits>> {
+    pub fn job_resources(&self) -> Result<Resources<SparkStorageConfig, NoRuntimeLimits>, Error> {
         let conf = SparkConfig::default_resources();
 
         let mut resources = self
@@ -573,23 +597,29 @@ impl SparkApplication {
             .unwrap_or_default();
 
         resources.merge(&conf);
-        Some(resources)
+        fragment::validate(resources).context(FragmentValidationFailureSnafu)
     }
 
-    pub fn driver_resources(&self) -> Option<Resources<SparkStorageConfig, NoRuntimeLimits>> {
-        if let Some(driver_config) = self.spec.driver.clone() {
+    pub fn driver_resources(
+        &self,
+    ) -> Result<Resources<SparkStorageConfig, NoRuntimeLimits>, Error> {
+        let resources = if let Some(driver_config) = self.spec.driver.clone() {
             driver_config.spark_config()
         } else {
-            Some(DriverConfig::default_resources())
-        }
+            DriverConfig::default_resources()
+        };
+        fragment::validate(resources).context(FragmentValidationFailureSnafu)
     }
 
-    pub fn executor_resources(&self) -> Option<Resources<SparkStorageConfig, NoRuntimeLimits>> {
-        if let Some(executor_config) = self.spec.executor.clone() {
+    pub fn executor_resources(
+        &self,
+    ) -> Result<Resources<SparkStorageConfig, NoRuntimeLimits>, Error> {
+        let resources = if let Some(executor_config) = self.spec.executor.clone() {
             executor_config.spark_config()
         } else {
-            Some(ExecutorConfig::default_resources())
-        }
+            ExecutorConfig::default_resources()
+        };
+        fragment::validate(resources).context(FragmentValidationFailureSnafu)
     }
 }
 
@@ -628,7 +658,7 @@ pub struct CommonConfig {
 #[serde(rename_all = "camelCase")]
 pub struct DriverConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub resources: Option<Resources<SparkStorageConfig, NoRuntimeLimits>>,
+    pub resources: Option<ResourcesFragment<SparkStorageConfig, NoRuntimeLimits>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -636,27 +666,27 @@ pub struct DriverConfig {
 }
 
 impl DriverConfig {
-    fn default_resources() -> Resources<SparkStorageConfig, NoRuntimeLimits> {
-        Resources {
-            cpu: CpuLimits {
+    fn default_resources() -> ResourcesFragment<SparkStorageConfig, NoRuntimeLimits> {
+        ResourcesFragment {
+            cpu: CpuLimitsFragment {
                 min: Some(Quantity("1".to_owned())),
                 max: Some(Quantity("2".to_owned())),
             },
-            memory: MemoryLimits {
+            memory: MemoryLimitsFragment {
                 limit: Some(Quantity("2Gi".to_owned())),
-                runtime_limits: NoRuntimeLimits {},
+                runtime_limits: NoRuntimeLimitsFragment {},
             },
-            storage: SparkStorageConfig {},
+            storage: SparkStorageConfigFragment {},
         }
     }
 
-    pub fn spark_config(&self) -> Option<Resources<SparkStorageConfig, NoRuntimeLimits>> {
+    fn spark_config(&self) -> ResourcesFragment<SparkStorageConfig, NoRuntimeLimits> {
         let default_resources = DriverConfig::default_resources();
 
         let mut resources = self.resources.clone().unwrap_or_default();
 
         resources.merge(&default_resources);
-        Some(resources)
+        resources
     }
 }
 
@@ -665,7 +695,7 @@ impl DriverConfig {
 pub struct ExecutorConfig {
     pub instances: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub resources: Option<Resources<SparkStorageConfig, NoRuntimeLimits>>,
+    pub resources: Option<ResourcesFragment<SparkStorageConfig, NoRuntimeLimits>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -673,27 +703,27 @@ pub struct ExecutorConfig {
 }
 
 impl ExecutorConfig {
-    fn default_resources() -> Resources<SparkStorageConfig, NoRuntimeLimits> {
-        Resources {
-            cpu: CpuLimits {
+    fn default_resources() -> ResourcesFragment<SparkStorageConfig, NoRuntimeLimits> {
+        ResourcesFragment {
+            cpu: CpuLimitsFragment {
                 min: Some(Quantity("1".to_owned())),
                 max: Some(Quantity("4".to_owned())),
             },
-            memory: MemoryLimits {
+            memory: MemoryLimitsFragment {
                 limit: Some(Quantity("4Gi".to_owned())),
-                runtime_limits: NoRuntimeLimits {},
+                runtime_limits: NoRuntimeLimitsFragment {},
             },
-            storage: SparkStorageConfig {},
+            storage: SparkStorageConfigFragment {},
         }
     }
 
-    pub fn spark_config(&self) -> Option<Resources<SparkStorageConfig>> {
+    fn spark_config(&self) -> ResourcesFragment<SparkStorageConfig, NoRuntimeLimits> {
         let default_resources = ExecutorConfig::default_resources();
 
         let mut resources = self.resources.clone().unwrap_or_default();
 
         resources.merge(&default_resources);
-        Some(resources)
+        resources
     }
 }
 
@@ -1000,16 +1030,62 @@ spec:
         .unwrap();
 
         let job_resources = &spark_application.job_resources();
-        assert_eq!("50m", job_resources.clone().unwrap().cpu.min.unwrap().0);
-        assert_eq!("100m", job_resources.clone().unwrap().cpu.max.unwrap().0);
+        assert_eq!(
+            "50m",
+            job_resources.as_ref().unwrap().clone().cpu.min.unwrap().0
+        );
+        assert_eq!(
+            "100m",
+            job_resources.as_ref().unwrap().clone().cpu.max.unwrap().0
+        );
 
         let driver_resources = &spark_application.driver_resources();
-        assert_eq!("1", driver_resources.clone().unwrap().cpu.min.unwrap().0);
-        assert_eq!("2", driver_resources.clone().unwrap().cpu.max.unwrap().0);
+        assert_eq!(
+            "1",
+            driver_resources
+                .as_ref()
+                .unwrap()
+                .clone()
+                .cpu
+                .min
+                .unwrap()
+                .0
+        );
+        assert_eq!(
+            "2",
+            driver_resources
+                .as_ref()
+                .unwrap()
+                .clone()
+                .cpu
+                .max
+                .unwrap()
+                .0
+        );
 
         let executor_resources = &spark_application.executor_resources();
-        assert_eq!("1", executor_resources.clone().unwrap().cpu.min.unwrap().0);
-        assert_eq!("4", executor_resources.clone().unwrap().cpu.max.unwrap().0);
+        assert_eq!(
+            "1",
+            executor_resources
+                .as_ref()
+                .unwrap()
+                .clone()
+                .cpu
+                .min
+                .unwrap()
+                .0
+        );
+        assert_eq!(
+            "4",
+            executor_resources
+                .as_ref()
+                .unwrap()
+                .clone()
+                .cpu
+                .max
+                .unwrap()
+                .0
+        );
     }
 
     #[test]

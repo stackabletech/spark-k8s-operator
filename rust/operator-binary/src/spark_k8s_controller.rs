@@ -20,8 +20,8 @@ use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-const FIELD_MANAGER_SCOPE: &str = "sparkapplication";
 const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
+pub const CONTROLLER_NAME: &str = "sparkapplication";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -80,9 +80,16 @@ pub enum Error {
     #[snafu(display("ca-cert verification not supported"))]
     S3TlsCaVerificationNotSupported,
     #[snafu(display("failed to resolve and merge resource config"))]
-    FailedToResolveResourceConfig,
+    FailedToResolveResourceConfig {
+        source: stackable_spark_k8s_crd::Error,
+    },
     #[snafu(display("failed to recognise the container name"))]
     UnrecognisedContainerName,
+    #[snafu(display("illegal container name: [{container_name}]"))]
+    IllegalContainerName {
+        source: stackable_operator::error::Error,
+        container_name: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -100,7 +107,10 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 
     let s3bucket = match spark_application.spec.s3bucket.as_ref() {
         Some(s3bd) => s3bd
-            .resolve(client, spark_application.metadata.namespace.as_deref())
+            .resolve(
+                client,
+                spark_application.metadata.namespace.as_deref().unwrap(),
+            )
             .await
             .context(S3BucketSnafu)
             .ok(),
@@ -132,11 +142,11 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 
     let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
     client
-        .apply_patch(FIELD_MANAGER_SCOPE, &serviceaccount, &serviceaccount)
+        .apply_patch(CONTROLLER_NAME, &serviceaccount, &serviceaccount)
         .await
         .context(ApplyServiceAccountSnafu)?;
     client
-        .apply_patch(FIELD_MANAGER_SCOPE, &rolebinding, &rolebinding)
+        .apply_patch(CONTROLLER_NAME, &rolebinding, &rolebinding)
         .await
         .context(ApplyRoleBindingSnafu)?;
 
@@ -146,9 +156,12 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .as_deref()
         .context(ObjectHasNoSparkImageSnafu)?;
 
+    let mut jcb =
+        ContainerBuilder::new(CONTAINER_NAME_JOB).with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
     let job_container = spark_application.spec.image.as_ref().map(|job_image| {
-        ContainerBuilder::new(CONTAINER_NAME_JOB)
-            .image(job_image)
+        jcb.image(job_image)
             .command(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
@@ -159,10 +172,12 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             .build()
     });
 
+    let mut rcb =
+        ContainerBuilder::new(CONTAINER_NAME_REQ).with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
     let requirements_container = spark_application.requirements().map(|req| {
-        let mut container_builder = ContainerBuilder::new(CONTAINER_NAME_REQ);
-        container_builder
-            .image(spark_image)
+        rcb.image(spark_image)
             .command(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
@@ -171,9 +186,9 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             ])
             .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ);
         if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-            container_builder.image_pull_policy(image_pull_policy.to_string());
+            rcb.image_pull_policy(image_pull_policy.to_string());
         }
-        container_builder.build()
+        rcb.build()
     });
 
     let env_vars = spark_application.env();
@@ -190,7 +205,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     )?;
     client
         .apply_patch(
-            FIELD_MANAGER_SCOPE,
+            CONTROLLER_NAME,
             &pod_template_config_map,
             &pod_template_config_map,
         )
@@ -211,7 +226,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &s3bucket,
     )?;
     client
-        .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
+        .apply_patch(CONTROLLER_NAME, &job, &job)
         .await
         .context(ApplyApplicationSnafu)?;
 
@@ -227,7 +242,10 @@ fn pod_template(
     env: &[EnvVar],
     node_selector: Option<BTreeMap<String, String>>,
 ) -> Result<Pod> {
-    let mut cb = ContainerBuilder::new(container_name);
+    let mut cb =
+        ContainerBuilder::new(container_name).with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
     cb.add_volume_mounts(volume_mounts.to_vec())
         .add_env_vars(env.to_vec());
 
@@ -344,7 +362,10 @@ fn spark_job(
     }];
     volume_mounts.extend(spark_application.driver_volume_mounts(s3bucket));
 
-    let mut cb = ContainerBuilder::new("spark-submit");
+    let mut cb =
+        ContainerBuilder::new("spark-submit").with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
     let resources = spark_application
         .job_resources()
         .context(FailedToResolveResourceConfigSnafu)?;
@@ -470,6 +491,6 @@ fn security_context() -> PodSecurityContext {
         .build()
 }
 
-pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
+pub fn error_policy(_obj: Arc<SparkApplication>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }

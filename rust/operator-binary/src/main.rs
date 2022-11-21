@@ -3,6 +3,7 @@ mod spark_k8s_controller;
 
 use std::sync::Arc;
 
+use crate::spark_k8s_controller::CONTROLLER_NAME;
 use clap::Parser;
 use futures::StreamExt;
 use stackable_operator::cli::{Command, ProductOperatorRun};
@@ -10,8 +11,8 @@ use stackable_operator::k8s_openapi::api::core::v1::ConfigMap;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;
 use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::runtime::controller::Controller;
-use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::logging::controller::report_controller_reconciled;
+use stackable_operator::CustomResourceExt;
 use stackable_spark_k8s_crd::SparkApplication;
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -19,6 +20,10 @@ use tracing_futures::Instrument;
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
+
+use crate::pod_driver_controller::POD_DRIVER_CONTROLLER_NAME;
+
+const OPERATOR_NAME: &str = "spark.stackable.tech";
 
 #[derive(Parser)]
 #[clap(about = built_info::PKG_DESCRIPTION, author = stackable_operator::cli::AUTHOR)]
@@ -31,7 +36,9 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => println!("{}", serde_yaml::to_string(&SparkApplication::crd())?,),
+        Command::Crd => {
+            SparkApplication::print_yaml_schema()?;
+        }
         Command::Run(ProductOperatorRun {
             product_config: _,
             watch_namespace,
@@ -52,8 +59,7 @@ async fn main() -> anyhow::Result<()> {
             );
 
             let client =
-                stackable_operator::client::create_client(Some("spark.stackable.tech".to_string()))
-                    .await?;
+                stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string())).await?;
 
             let app_controller = Controller::new(
                 watch_namespace.get_api::<SparkApplication>(&client),
@@ -74,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
             .map(|res| {
                 report_controller_reconciled(
                     &client,
-                    "sparkapplications.spark.stackable.tech",
+                    &format!("{CONTROLLER_NAME}.{OPERATOR_NAME}"),
                     &res,
                 )
             })
@@ -97,13 +103,7 @@ async fn main() -> anyhow::Result<()> {
                     client: client.clone(),
                 }),
             )
-            .map(|res| {
-                report_controller_reconciled(
-                    &client,
-                    "pod-driver.sparkapplications.stackable.tech",
-                    &res,
-                )
-            })
+            .map(|res| report_controller_reconciled(&client, POD_DRIVER_CONTROLLER_NAME, &res))
             .instrument(info_span!("pod_driver_controller"));
 
             futures::stream::select(app_controller, pod_driver_controller)

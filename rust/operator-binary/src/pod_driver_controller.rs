@@ -7,6 +7,8 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
+pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
+
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
 pub struct Ctx {
@@ -26,6 +28,8 @@ pub enum Error {
     },
     #[snafu(display("Pod name not found"))]
     PodNameNotFound,
+    #[snafu(display("Namespace not found"))]
+    NamespaceNotFound,
     #[snafu(display("Status phase not found for pod [{pod_name}]"))]
     PodStatusPhaseNotFound { pod_name: String },
     #[snafu(display("Spark application [{name}] not found"))]
@@ -65,7 +69,10 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
         .client
         .get::<SparkApplication>(
             app_name.as_ref(),
-            pod.metadata.namespace.as_ref().map(|ns| ns.as_ref()),
+            pod.metadata
+                .namespace
+                .as_ref()
+                .context(NamespaceNotFoundSnafu)?,
         )
         .await
         .context(SparkApplicationNotFoundSnafu {
@@ -76,7 +83,7 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
 
     ctx.client
         .apply_patch_status(
-            "pod-driver.sparkapplications.stackable.tech",
+            POD_DRIVER_CONTROLLER_NAME,
             &app,
             &SparkApplicationStatus {
                 phase: phase.clone(),
@@ -90,6 +97,6 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
+pub fn error_policy(_obj: Arc<Pod>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }

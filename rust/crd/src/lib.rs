@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, HashMap};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::kube::ResourceExt;
-use stackable_operator::labels;
+use stackable_operator::labels::ObjectLabels;
 use stackable_operator::{
     commons::resources::{
         CpuLimits, CpuLimitsFragment, MemoryLimits, MemoryLimitsFragment, NoRuntimeLimits,
@@ -33,6 +33,9 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
 };
 use strum::{Display, EnumString};
+
+pub const OPERATOR_NAME: &str = "spark.stackable.tech";
+pub const CONTROLLER_NAME: &str = "sparkapplication";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -82,14 +85,13 @@ pub struct SparkApplicationStatus {
         JsonSchema,
         PartialEq,
         Serialize,
-        ),
+    ),
     allow(clippy::derive_partial_eq_without_eq),
     serde(rename_all = "camelCase")
 )]
 pub struct SparkStorageConfig {}
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SparkConfig {
     pub resources: Option<ResourcesFragment<SparkStorageConfig, NoRuntimeLimits>>,
@@ -336,17 +338,16 @@ impl SparkApplication {
         mounts
     }
 
-    pub fn recommended_labels(&self) -> BTreeMap<String, String> {
-        let mut ls =
-            labels::build_common_labels_for_all_managed_resources(APP_NAME, &self.name_unchecked());
-        if let Some(version) = self.version() {
-            ls.insert(labels::APP_VERSION_LABEL.to_string(), version.to_string());
+    pub fn build_recommended_labels<'a>(&'a self, role: &'a str) -> ObjectLabels<SparkApplication> {
+        ObjectLabels {
+            owner: self,
+            app_name: APP_NAME,
+            app_version: self.version().unwrap(),
+            operator_name: OPERATOR_NAME,
+            controller_name: CONTROLLER_NAME,
+            role,
+            role_group: CONTROLLER_NAME,
         }
-        ls.insert(
-            labels::APP_MANAGED_BY_LABEL.to_string(),
-            format!("{}-operator", APP_NAME),
-        );
-        ls
     }
 
     pub fn build_command(
@@ -420,10 +421,10 @@ impl SparkApplication {
         let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();
 
         // resource limits, either declared or taken from defaults
-        if let Ok(Resources {
+        if let Resources {
             cpu: CpuLimits { max: Some(max), .. },
             ..
-        }) = &self.driver_resources()
+        } = &self.driver_resources()?
         {
             submit_conf.insert(
                 "spark.kubernetes.driver.limit.cores".to_string(),
@@ -434,22 +435,22 @@ impl SparkApplication {
             // will have default value from resources to apply if nothing set specifically
             submit_conf.insert("spark.driver.cores".to_string(), cores);
         }
-        if let Ok(Resources {
+        if let Resources {
             cpu: CpuLimits { min: Some(min), .. },
             ..
-        }) = &self.driver_resources()
+        } = &self.driver_resources()?
         {
             submit_conf.insert(
                 "spark.kubernetes.driver.request.cores".to_string(),
                 min.0.clone(),
             );
         }
-        if let Ok(Resources {
+        if let Resources {
             memory: MemoryLimits {
                 limit: Some(limit), ..
             },
             ..
-        }) = &self.driver_resources()
+        } = &self.driver_resources()?
         {
             let memory = self
                 .subtract_spark_memory_overhead(limit)
@@ -457,10 +458,10 @@ impl SparkApplication {
             submit_conf.insert("spark.driver.memory".to_string(), memory);
         }
 
-        if let Ok(Resources {
+        if let Resources {
             cpu: CpuLimits { max: Some(max), .. },
             ..
-        }) = &self.executor_resources()
+        } = &self.executor_resources()?
         {
             submit_conf.insert(
                 "spark.kubernetes.executor.limit.cores".to_string(),
@@ -471,22 +472,22 @@ impl SparkApplication {
             // will have default value from resources to apply if nothing set specifically
             submit_conf.insert("spark.executor.cores".to_string(), cores);
         }
-        if let Ok(Resources {
+        if let Resources {
             cpu: CpuLimits { min: Some(min), .. },
             ..
-        }) = &self.executor_resources()
+        } = &self.executor_resources()?
         {
             submit_conf.insert(
                 "spark.kubernetes.executor.request.cores".to_string(),
                 min.0.clone(),
             );
         }
-        if let Ok(Resources {
+        if let Resources {
             memory: MemoryLimits {
                 limit: Some(limit), ..
             },
             ..
-        }) = &self.executor_resources()
+        } = &self.executor_resources()?
         {
             let memory = self
                 .subtract_spark_memory_overhead(limit)

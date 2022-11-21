@@ -3,7 +3,6 @@ mod spark_k8s_controller;
 
 use std::sync::Arc;
 
-use crate::spark_k8s_controller::CONTROLLER_NAME;
 use clap::Parser;
 use futures::StreamExt;
 use stackable_operator::cli::{Command, ProductOperatorRun};
@@ -13,7 +12,8 @@ use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::runtime::controller::Controller;
 use stackable_operator::logging::controller::report_controller_reconciled;
 use stackable_operator::CustomResourceExt;
-use stackable_spark_k8s_crd::SparkApplication;
+use stackable_spark_k8s_crd::CONTROLLER_NAME;
+use stackable_spark_k8s_crd::{SparkApplication, OPERATOR_NAME};
 use tracing::info_span;
 use tracing_futures::Instrument;
 
@@ -22,8 +22,6 @@ mod built_info {
 }
 
 use crate::pod_driver_controller::POD_DRIVER_CONTROLLER_NAME;
-
-const OPERATOR_NAME: &str = "spark.stackable.tech";
 
 #[derive(Parser)]
 #[clap(about = built_info::PKG_DESCRIPTION, author = stackable_operator::cli::AUTHOR)]

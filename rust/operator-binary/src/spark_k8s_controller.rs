@@ -14,14 +14,13 @@ use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, R
 use stackable_operator::k8s_openapi::Resource;
 use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::logging::controller::ReconcilerError;
-use stackable_spark_k8s_crd::constants::*;
 use stackable_spark_k8s_crd::SparkApplication;
+use stackable_spark_k8s_crd::{constants::*, CONTROLLER_NAME};
 use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
-pub const CONTROLLER_NAME: &str = "sparkapplication";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -290,7 +289,7 @@ fn pod_template(
             // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
             .ownerreference_from_resource(spark_application, None, None)
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_labels(spark_application.recommended_labels())
+            .with_recommended_labels(spark_application.build_recommended_labels(container_name))
             .build(),
         spec: Some(pod_spec),
         ..Pod::default()
@@ -331,7 +330,9 @@ fn pod_template_config_map(
                 .name(spark_application.pod_template_config_map_name())
                 .ownerreference_from_resource(spark_application, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_labels(spark_application.recommended_labels())
+                .with_recommended_labels(
+                    spark_application.build_recommended_labels("pod-templates"),
+                )
                 .build(),
         )
         .add_data(
@@ -401,7 +402,9 @@ fn spark_job(
         metadata: Some(
             ObjectMetaBuilder::new()
                 .name("spark-submit")
-                .with_labels(spark_application.recommended_labels())
+                .with_recommended_labels(
+                    spark_application.build_recommended_labels("spark-job-template"),
+                )
                 .build(),
         ),
         spec: Some(PodSpec {
@@ -422,7 +425,7 @@ fn spark_job(
             .name_and_namespace(spark_application)
             .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_labels(spark_application.recommended_labels())
+            .with_recommended_labels(spark_application.build_recommended_labels("spark-job"))
             .build(),
         spec: Some(JobSpec {
             template: pod,
@@ -449,7 +452,7 @@ fn build_spark_role_serviceaccount(
             .name(&sa_name)
             .ownerreference_from_resource(spark_app, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_labels(spark_app.recommended_labels())
+            .with_recommended_labels(spark_app.build_recommended_labels("service-account"))
             .build(),
         ..ServiceAccount::default()
     };
@@ -460,7 +463,7 @@ fn build_spark_role_serviceaccount(
             .name(binding_name)
             .ownerreference_from_resource(spark_app, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_labels(spark_app.recommended_labels())
+            .with_recommended_labels(spark_app.build_recommended_labels("role-binding"))
             .build(),
         role_ref: RoleRef {
             api_group: ClusterRole::GROUP.to_string(),

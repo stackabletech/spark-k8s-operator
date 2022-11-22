@@ -1032,11 +1032,11 @@ spec:
 
         let job_resources = &spark_application.job_resources();
         assert_eq!(
-            "50m",
+            "500m",
             job_resources.as_ref().unwrap().clone().cpu.min.unwrap().0
         );
         assert_eq!(
-            "100m",
+            "1",
             job_resources.as_ref().unwrap().clone().cpu.max.unwrap().0
         );
 

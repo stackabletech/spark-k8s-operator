@@ -158,8 +158,8 @@ If no resources are configured explicitly, the operator uses the following defau
 job:
   resources:
     cpu:
-      min: '50m'
-      max: "100m"
+      min: '500m'
+      max: "1"
     memory:
       limit: '1Gi'
 driver:

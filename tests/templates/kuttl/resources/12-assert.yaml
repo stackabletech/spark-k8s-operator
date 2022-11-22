@@ -8,16 +8,16 @@ kind: Pod
 metadata:
   labels:
     job-name: resources-sparkconf
-    app.kubernetes.io/managed-by: spark-k8s-operator
+    app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
 spec:
   containers:
     - name: spark-submit
       resources:
         limits:
-          cpu: 100m
+          cpu: "1"
           memory: 1Gi
         requests:
-          cpu: 50m
+          cpu: 500m
           memory: 1Gi
 ---
 apiVersion: v1

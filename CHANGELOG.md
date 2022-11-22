@@ -7,8 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Updated stackable image versions ([#176])
+- `operator-rs` `0.22.0` → `0.27.1` ([#178])
 
 [#176]: https://github.com/stackabletech/spark-k8s-operator/pull/176
+[#178]: https://github.com/stackabletech/spark-k8s-operator/pull/178
 
 ## [0.6.0] - 2022-11-07
 

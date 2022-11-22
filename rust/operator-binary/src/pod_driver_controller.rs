@@ -20,7 +20,7 @@ pub struct Ctx {
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("Label [{LABEL_NAME_INSTANCE}] not found for pod name [{pod_name}]"))]
-    LabelInstaceNotFound { pod_name: String },
+    LabelInstanceNotFound { pod_name: String },
     #[snafu(display("Failed to update status for application [{name}]"))]
     ApplySparkApplicationStatus {
         source: stackable_operator::error::Error,
@@ -56,7 +56,7 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
         .labels
         .as_ref()
         .and_then(|l| l.get(&String::from(LABEL_NAME_INSTANCE)))
-        .context(LabelInstaceNotFoundSnafu {
+        .context(LabelInstanceNotFoundSnafu {
             pod_name: pod_name.clone(),
         })?;
     let phase = pod.status.as_ref().and_then(|s| s.phase.as_ref()).context(

@@ -87,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<Pod>(&client),
                 ListParams::default()
-                    .labels("app.kubernetes.io/managed-by=spark-k8s-operator,spark-role=driver"),
+                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
                 watch_namespace.get_api::<Pod>(&client),

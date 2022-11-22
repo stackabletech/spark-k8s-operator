@@ -8,7 +8,7 @@ kind: Pod
 metadata:
   labels:
     job-name: resources-sparkconf
-    app.kubernetes.io/managed-by: spark-k8s-operator
+    app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
 spec:
   containers:
     - name: spark-submit

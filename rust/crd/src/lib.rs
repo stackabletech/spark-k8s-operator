@@ -101,8 +101,8 @@ impl SparkConfig {
     fn default_resources() -> ResourcesFragment<SparkStorageConfig, NoRuntimeLimits> {
         ResourcesFragment {
             cpu: CpuLimitsFragment {
-                min: Some(Quantity("50m".to_owned())),
-                max: Some(Quantity("100m".to_owned())),
+                min: Some(Quantity("500m".to_owned())),
+                max: Some(Quantity("1".to_owned())),
             },
             memory: MemoryLimitsFragment {
                 limit: Some(Quantity("1Gi".to_owned())),

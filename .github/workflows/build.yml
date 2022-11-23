@@ -43,7 +43,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: "1.63.0"
+          toolchain: "1.65.0"
           override: true
       - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
         with:
@@ -150,7 +150,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: "1.63.0"
+          toolchain: "1.65.0"
           components: rustfmt
           override: true
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -172,7 +172,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: "1.63.0"
+          toolchain: "1.65.0"
           components: clippy
           override: true
       - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
@@ -206,7 +206,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: "1.63.0"
+          toolchain: "1.65.0"
           components: rustfmt
           override: true
       - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
@@ -236,7 +236,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: "1.63.0"
+          toolchain: "1.65.0"
           override: true
       - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
         with:
@@ -307,7 +307,7 @@ jobs:
         uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: "1.63.0"
+          toolchain: "1.65.0"
           override: true
       - name: Set up rust-cache
         uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
@@ -372,7 +372,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: "1.63.0"
+          toolchain: "1.65.0"
           components: rustfmt
           override: true
       - name: Install requirements for version tool

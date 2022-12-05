@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - Updated stackable image versions ([#176])
 - `operator-rs` `0.22.0` → `0.27.1` ([#178])
+- Don't run init container as root and avoid chmod and chowning ([#183])
 
 [#176]: https://github.com/stackabletech/spark-k8s-operator/pull/176
 [#178]: https://github.com/stackabletech/spark-k8s-operator/pull/178
+[#183]: https://github.com/stackabletech/spark-k8s-operator/pull/183
 
 ## [0.6.0] - 2022-11-07
 

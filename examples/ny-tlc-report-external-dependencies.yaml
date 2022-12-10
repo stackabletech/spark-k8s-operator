@@ -6,9 +6,11 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.3.0
-  # Always | IfNotPresent | Never
-  sparkImagePullPolicy: IfNotPresent
+  sparkImage:
+    custom: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.3.0
+    productVersion: "3.3.0"
+    # Always | IfNotPresent | Never
+    pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: s3a://my-bucket/ny_tlc_report.py
   args:

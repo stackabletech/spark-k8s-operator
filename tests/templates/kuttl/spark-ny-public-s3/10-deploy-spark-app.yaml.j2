@@ -13,8 +13,10 @@ metadata:
   name: spark-ny-cm
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
-  sparkImagePullPolicy: IfNotPresent
+  sparkImage:
+    productVersion: {{ test_scenario['values']['spark'] }}
+    stackableVersion: {{ test_scenario['values']['stackable'] }}
+    pullPolicy: IfNotPresent
   mode: cluster
   mainClass: tech.stackable.demo.spark.NYTLCReport
   mainApplicationFile: s3a://my-bucket/ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'] }}.jar

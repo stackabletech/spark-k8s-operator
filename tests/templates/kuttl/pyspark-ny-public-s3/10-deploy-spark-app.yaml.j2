@@ -5,9 +5,10 @@ metadata:
   name: pyspark-ny-public-s3
 spec:
   version: "1.0"
-  # everything under /jobs will be copied to /stackable/spark/jobs
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
-  sparkImagePullPolicy: IfNotPresent
+  sparkImage:
+    custom: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+    productVersion: {{ test_scenario['values']['spark'] }}
+    pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: s3a://my-bucket/ny_tlc_report.py
   args:

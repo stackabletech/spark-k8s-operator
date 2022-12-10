@@ -5,7 +5,9 @@ metadata:
   name: resources-crd
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+  sparkImage:
+    custom: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+    productVersion: {{ test_scenario['values']['spark'] }}
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/streaming/hdfs_wordcount.py
   args:

@@ -750,25 +750,49 @@ spec:
                   nullable: true
                   type: object
                 sparkImage:
+                  anyOf:
+                    - required:
+                        - custom
+                        - productVersion
+                    - required:
+                        - productVersion
+                        - stackableVersion
+                  description: The Spark image to use
                   nullable: true
-                  type: string
-                sparkImagePullPolicy:
-                  enum:
-                    - Always
-                    - IfNotPresent
-                    - Never
-                  nullable: true
-                  type: string
-                sparkImagePullSecrets:
-                  items:
-                    description: LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.
-                    properties:
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
-                        type: string
-                    type: object
-                  nullable: true
-                  type: array
+                  properties:
+                    custom:
+                      description: Overwrite the docker image. Specify the full docker image name, e.g. `docker.stackable.tech/stackable/superset:1.4.1-stackable2.1.0`
+                      type: string
+                    productVersion:
+                      description: Version of the product, e.g. `1.4.1`.
+                      type: string
+                    pullPolicy:
+                      default: IfNotPresent
+                      description: '[Pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy) used when pulling the Images'
+                      enum:
+                        - IfNotPresent
+                        - Always
+                        - Never
+                      type: string
+                    pullSecrets:
+                      description: '[Image pull secrets](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod) to pull images from a private registry'
+                      items:
+                        description: LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.
+                        properties:
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                            type: string
+                        type: object
+                      nullable: true
+                      type: array
+                    repo:
+                      description: Name of the docker repo, e.g. `docker.stackable.tech/stackable`
+                      nullable: true
+                      type: string
+                    stackableVersion:
+                      description: Stackable version of the product, e.g. 2.1.0
+                      type: string
+                  type: object
                 stopped:
                   nullable: true
                   type: boolean

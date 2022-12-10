@@ -8,7 +8,7 @@ use stackable_operator::commons::s3::{
     InlinedS3BucketSpec, S3AccessStyle, S3BucketDef, S3ConnectionSpec,
 };
 use stackable_operator::k8s_openapi::api::core::v1::{
-    EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
+    EmptyDirVolumeSource, EnvVar, Volume, VolumeMount,
 };
 use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
 use std::cmp::max;
@@ -17,6 +17,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::commons::product_image_selection::{ProductImage, ResolvedProductImage};
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::ObjectLabels;
 use stackable_operator::{
@@ -139,12 +140,9 @@ pub struct SparkApplicationSpec {
     pub main_application_file: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
+    /// The Spark image to use
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_image: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_image_pull_policy: Option<ImagePullPolicy>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_image_pull_secrets: Option<Vec<LocalObjectReference>>,
+    pub spark_image: Option<ProductImage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<SparkConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -210,12 +208,13 @@ impl SparkApplication {
         self.spec.image.as_deref()
     }
 
-    pub fn spark_image_pull_policy(&self) -> Option<ImagePullPolicy> {
-        self.spec.spark_image_pull_policy.clone()
-    }
-
-    pub fn spark_image_pull_secrets(&self) -> Option<Vec<LocalObjectReference>> {
-        self.spec.spark_image_pull_secrets.clone()
+    pub fn spark_image(&self) -> Result<ResolvedProductImage, Error> {
+        Ok(self
+            .spec
+            .spark_image
+            .as_ref()
+            .context(NoSparkImageSnafu)?
+            .resolve(DOCKER_SPARK_IMAGE_BASE_NAME))
     }
 
     pub fn version(&self) -> Option<&str> {
@@ -372,8 +371,8 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.driver.podTemplateContainerName={CONTAINER_NAME_DRIVER}"),
             format!("--conf spark.kubernetes.executor.podTemplateContainerName={CONTAINER_NAME_EXECUTOR}"),
             format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
-            format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
-            format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
+            format!("--conf spark.kubernetes.driver.container.image={}", self.spark_image()?.image),
+            format!("--conf spark.kubernetes.executor.container.image={}", self.spark_image()?.image),
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
         ]);
 
@@ -730,16 +729,18 @@ impl ExecutorConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::LocalObjectReference;
     use crate::Quantity;
     use crate::SparkApplication;
     use crate::{cores_from_quantity, ImagePullPolicy};
+
     use rstest::rstest;
     use stackable_operator::builder::ObjectMetaBuilder;
+    use stackable_operator::commons::product_image_selection::ResolvedProductImage;
     use stackable_operator::commons::s3::{
         S3AccessStyle, S3BucketSpec, S3ConnectionDef, S3ConnectionSpec,
     };
     use stackable_operator::commons::tls::{Tls, TlsVerification};
+    use stackable_operator::k8s_openapi::api::core::v1::LocalObjectReference;
     use std::str::FromStr;
 
     #[test]
@@ -924,10 +925,12 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
-  sparkImagePullPolicy: Always
-  sparkImagePullSecrets:
-    - name: myregistrykey
+  sparkImage:
+    productVersion: 3.2.1-hadoop3.2
+    stackableVersion: 0.4.0
+    pullPolicy: Always
+    pullSecrets:
+      - name: myregistrykey
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-3.2.1.jar
@@ -945,15 +948,21 @@ spec:
         )
         .unwrap();
 
+        let resolved_product_image: ResolvedProductImage = spark_application
+            .spec
+            .spark_image
+            .unwrap()
+            .resolve("spark-k8s");
+
         assert_eq!(
             Some(vec![LocalObjectReference {
                 name: Some("myregistrykey".to_string())
             }]),
-            spark_application.spark_image_pull_secrets()
+            resolved_product_image.pull_secrets
         );
         assert_eq!(
-            Some(ImagePullPolicy::Always),
-            spark_application.spark_image_pull_policy()
+            Some(ImagePullPolicy::Always.to_string()),
+            Some(resolved_product_image.image_pull_policy)
         );
     }
 

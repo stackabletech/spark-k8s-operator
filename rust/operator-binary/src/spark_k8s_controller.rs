@@ -1,6 +1,7 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder};
 
+use stackable_operator::commons::product_image_selection::ResolvedProductImage;
 use stackable_operator::commons::s3::InlinedS3BucketSpec;
 use stackable_operator::commons::tls::{CaCert, TlsVerification};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
@@ -12,8 +13,7 @@ use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, R
 use stackable_operator::k8s_openapi::Resource;
 use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::logging::controller::ReconcilerError;
-use stackable_spark_k8s_crd::SparkApplication;
-use stackable_spark_k8s_crd::{constants::*, CONTROLLER_NAME};
+use stackable_spark_k8s_crd::{constants::*, SparkApplication, CONTROLLER_NAME};
 use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -101,6 +101,12 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     tracing::info!("Starting reconcile");
 
     let client = &ctx.client;
+    let resolved_spark_product_image = spark_application
+        .spec
+        .spark_image
+        .as_ref()
+        .context(ObjectHasNoSparkImageSnafu)?
+        .resolve(DOCKER_SPARK_IMAGE_BASE_NAME);
 
     let s3bucket = match spark_application.spec.s3bucket.as_ref() {
         Some(s3bd) => s3bd
@@ -147,12 +153,6 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let spark_image = spark_application
-        .spec
-        .spark_image
-        .as_deref()
-        .context(ObjectHasNoSparkImageSnafu)?;
-
     let mut jcb =
         ContainerBuilder::new(CONTAINER_NAME_JOB).with_context(|_| IllegalContainerNameSnafu {
             container_name: APP_NAME.to_string(),
@@ -174,7 +174,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             container_name: APP_NAME.to_string(),
         })?;
     let requirements_container = spark_application.requirements().map(|req| {
-        rcb.image(spark_image)
+        rcb.image_from_product_image(&resolved_spark_product_image)
             .command(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
@@ -182,9 +182,6 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
                 format!("pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"),
             ])
             .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ);
-        if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-            rcb.image_pull_policy(image_pull_policy.to_string());
-        }
         rcb.build()
     });
 
@@ -196,6 +193,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             .collect();
     let pod_template_config_map = pod_template_config_map(
         &spark_application,
+        &resolved_spark_product_image,
         init_containers.as_ref(),
         &env_vars,
         &s3bucket,
@@ -215,7 +213,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 
     let job = spark_job(
         &spark_application,
-        spark_image,
+        &resolved_spark_product_image,
         &serviceaccount,
         &job_container,
         &env_vars,
@@ -232,6 +230,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 
 fn pod_template(
     spark_application: &SparkApplication,
+    resolved_spark_product_image: &ResolvedProductImage,
     container_name: &str,
     init_containers: &[Container],
     volumes: &[Volume],
@@ -259,23 +258,18 @@ fn pod_template(
     };
 
     cb.resources(resources.into());
-
-    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-        cb.image_pull_policy(image_pull_policy.to_string());
-    }
+    cb.image_pull_policy(resolved_spark_product_image.image_pull_policy.clone());
 
     let mut pod_spec = PodSpec {
         containers: vec![cb.build()],
         volumes: Some(volumes.to_vec()),
         security_context: Some(security_context()),
+        image_pull_secrets: resolved_spark_product_image.pull_secrets.clone(),
         ..PodSpec::default()
     };
 
     if !init_containers.is_empty() {
         pod_spec.init_containers = Some(init_containers.to_vec());
-    }
-    if let Some(image_pull_secrets) = spark_application.spark_image_pull_secrets() {
-        pod_spec.image_pull_secrets = Some(image_pull_secrets);
     }
     if node_selector.is_some() {
         pod_spec.node_selector = node_selector;
@@ -296,6 +290,7 @@ fn pod_template(
 
 fn pod_template_config_map(
     spark_application: &SparkApplication,
+    resolved_spark_product_image: &ResolvedProductImage,
     init_containers: &[Container],
     env: &[EnvVar],
     s3bucket: &Option<InlinedS3BucketSpec>,
@@ -304,6 +299,7 @@ fn pod_template_config_map(
 
     let driver_template = pod_template(
         spark_application,
+        resolved_spark_product_image,
         CONTAINER_NAME_DRIVER,
         init_containers,
         volumes.as_ref(),
@@ -313,6 +309,7 @@ fn pod_template_config_map(
     )?;
     let executor_template = pod_template(
         spark_application,
+        resolved_spark_product_image,
         CONTAINER_NAME_EXECUTOR,
         init_containers,
         volumes.as_ref(),
@@ -347,7 +344,7 @@ fn pod_template_config_map(
 
 fn spark_job(
     spark_application: &SparkApplication,
-    spark_image: &str,
+    resolved_spark_product_image: &ResolvedProductImage,
     serviceaccount: &ServiceAccount,
     job_container: &Option<Container>,
     env: &[EnvVar],
@@ -369,7 +366,7 @@ fn spark_job(
         .job_resources()
         .context(FailedToResolveResourceConfigSnafu)?;
 
-    cb.image(spark_image)
+    cb.image_from_product_image(resolved_spark_product_image)
         .command(vec!["/bin/sh".to_string()])
         .resources(resources.into())
         .args(vec!["-c".to_string(), job_commands.join(" ")])
@@ -381,10 +378,6 @@ fn spark_job(
             value: Some("/stackable/spark/conf".to_string()),
             value_from: None,
         }]);
-
-    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-        cb.image_pull_policy(image_pull_policy.to_string());
-    }
 
     let mut volumes = vec![Volume {
         name: String::from(VOLUME_MOUNT_NAME_POD_TEMPLATES),
@@ -411,7 +404,7 @@ fn spark_job(
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
-            image_pull_secrets: spark_application.spark_image_pull_secrets(),
+            image_pull_secrets: resolved_spark_product_image.pull_secrets.clone(),
             security_context: Some(security_context()),
             node_selector: spark_application.driver_node_selector(),
             ..PodSpec::default()

@@ -6,7 +6,9 @@ metadata:
 spec:
   version: "1.0"
   # everything under /jobs will be copied to /stackable/spark/jobs
-  image: docker.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}
+  image:
+    custom: docker.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}
+    productVersion: {{ test_scenario['values']['ny-tlc-report'] }}
   sparkImage:
     custom: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
     productVersion: {{ test_scenario['values']['spark'] }}

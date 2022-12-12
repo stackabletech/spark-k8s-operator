@@ -493,7 +493,7 @@ spec:
                 - required:
                   - productVersion
                   - stackableVersion
-                description: An external / custom image to provide extra data or libraries This should always be `CustomImage` as described in https://docs.stackable.tech/home/nightly/concepts/product_image_selection.html#_custom_images.
+                description: An external / custom image to provide extra data or libraries This should always be `CustomImage` as described in `<https://docs.stackable.tech/home/nightly/concepts/product_image_selection.html#_custom_images>`.
                 nullable: true
                 properties:
                   custom:

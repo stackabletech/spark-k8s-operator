@@ -136,7 +136,7 @@ pub struct SparkApplicationSpec {
     pub main_application_file: Option<String>,
     /// An external / custom image to provide extra data or libraries
     /// This should always be `CustomImage` as described in
-    /// https://docs.stackable.tech/home/nightly/concepts/product_image_selection.html#_custom_images.
+    /// `<https://docs.stackable.tech/home/nightly/concepts/product_image_selection.html#_custom_images>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<ProductImage>,
     /// The Spark image to use
@@ -741,7 +741,9 @@ metadata:
   name: spark-examples-s3
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  sparkImage:
+    productVersion: 3.2.1-hadoop3.2-python39-aws1.11.375
+    stackableVersion: 0.3.0
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
@@ -796,8 +798,12 @@ metadata:
   namespace: my-ns
 spec:
   version: "1.0"
-  image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  image:
+    custom: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
+    productVersion: 0.1.0 
+  sparkImage:
+    productVersion: 3.2.1-hadoop3.2-python39-aws1.11.375
+    stackableVersion: 0.3.0
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
   args:
@@ -851,7 +857,9 @@ metadata:
   uid: 12345678asdfghj
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  sparkImage:
+    productVersion: 3.2.1-hadoop3.2-python39-aws1.11.375
+    stackableVersion: 0.3.0
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny_tlc_report.py
   args:

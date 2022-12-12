@@ -1,10 +1,10 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder};
-
 use stackable_operator::commons::product_image_selection::ResolvedProductImage;
 use stackable_operator::commons::s3::InlinedS3BucketSpec;
 use stackable_operator::commons::tls::{CaCert, TlsVerification};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
+use stackable_operator::k8s_openapi::api::core::v1::LocalObjectReference;
 use stackable_operator::k8s_openapi::api::core::v1::{
     ConfigMap, ConfigMapVolumeSource, Container, EnvVar, Pod, PodSecurityContext, PodSpec,
     PodTemplateSpec, ServiceAccount, Volume, VolumeMount,
@@ -101,7 +101,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     tracing::info!("Starting reconcile");
 
     let client = &ctx.client;
-    let mut resolved_spark_product_image: ResolvedProductImage = spark_application
+    let resolved_spark_product_image: ResolvedProductImage = spark_application
         .spec
         .spark_image
         .as_ref()
@@ -157,20 +157,14 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         ContainerBuilder::new(CONTAINER_NAME_JOB).with_context(|_| IllegalContainerNameSnafu {
             container_name: APP_NAME.to_string(),
         })?;
+
+    let mut job_image_pull_secrets = None;
     let job_container = spark_application.spec.image.as_ref().map(|job_image| {
         let resolved_job_image = job_image.resolve("");
 
         // In case the job image has different pull secrets than the spark image
         // (which have to be added to the PodSpec later), lets merge this here.
-        if let Some(job_pull_secrets) = &resolved_job_image.pull_secrets {
-            resolved_spark_product_image
-                .pull_secrets
-                .as_mut()
-                .map(|spark_image_secrets| {
-                    spark_image_secrets.extend(job_pull_secrets.clone());
-                    spark_image_secrets
-                });
-        }
+        job_image_pull_secrets = resolved_job_image.pull_secrets.clone();
 
         jcb.image_from_product_image(&resolved_job_image)
             .command(vec![
@@ -232,6 +226,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     let job = spark_job(
         &spark_application,
         &resolved_spark_product_image,
+        job_image_pull_secrets,
         &serviceaccount,
         &job_container,
         &env_vars,
@@ -361,9 +356,11 @@ fn pod_template_config_map(
         .context(PodTemplateConfigMapSnafu)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spark_job(
     spark_application: &SparkApplication,
     resolved_spark_product_image: &ResolvedProductImage,
+    job_image_pull_secrets: Option<Vec<LocalObjectReference>>,
     serviceaccount: &ServiceAccount,
     job_container: &Option<Container>,
     env: &[EnvVar],
@@ -408,6 +405,17 @@ fn spark_job(
     }];
     volumes.extend(spark_application.volumes(s3bucket));
 
+    // We have to merge spark image pull secrets and job image pull secrets (if available)
+    let merged_pull_secrets = resolved_spark_product_image
+        .pull_secrets
+        .clone()
+        .into_iter()
+        .chain(job_image_pull_secrets.into_iter())
+        .reduce(|mut v1, mut v2| {
+            v1.append(&mut v2);
+            v1
+        });
+
     let pod = PodTemplateSpec {
         metadata: Some(
             ObjectMetaBuilder::new()
@@ -423,7 +431,7 @@ fn spark_job(
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
-            image_pull_secrets: resolved_spark_product_image.pull_secrets.clone(),
+            image_pull_secrets: merged_pull_secrets,
             security_context: Some(security_context()),
             node_selector: spark_application.driver_node_selector(),
             ..PodSpec::default()

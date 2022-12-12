@@ -101,7 +101,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     tracing::info!("Starting reconcile");
 
     let client = &ctx.client;
-    let resolved_spark_product_image = spark_application
+    let mut resolved_spark_product_image: ResolvedProductImage = spark_application
         .spec
         .spark_image
         .as_ref()
@@ -158,7 +158,21 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             container_name: APP_NAME.to_string(),
         })?;
     let job_container = spark_application.spec.image.as_ref().map(|job_image| {
-        jcb.image(job_image)
+        let resolved_job_image = job_image.resolve("");
+
+        // In case the job image has different pull secrets than the spark image
+        // (which have to be added to the PodSpec later), lets merge this here.
+        if let Some(job_pull_secrets) = &resolved_job_image.pull_secrets {
+            resolved_spark_product_image
+                .pull_secrets
+                .as_mut()
+                .map(|spark_image_secrets| {
+                    spark_image_secrets.extend(job_pull_secrets.clone());
+                    spark_image_secrets
+                });
+        }
+
+        jcb.image_from_product_image(&resolved_job_image)
             .command(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
@@ -208,7 +222,11 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .context(ApplyApplicationSnafu)?;
 
     let job_commands = spark_application
-        .build_command(serviceaccount.metadata.name.as_ref().unwrap(), &s3bucket)
+        .build_command(
+            &resolved_spark_product_image,
+            serviceaccount.metadata.name.as_ref().unwrap(),
+            &s3bucket,
+        )
         .context(BuildCommandSnafu)?;
 
     let job = spark_job(
@@ -228,6 +246,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     Ok(Action::await_change())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn pod_template(
     spark_application: &SparkApplication,
     resolved_spark_product_image: &ResolvedProductImage,

@@ -3,23 +3,19 @@
 pub mod constants;
 
 use constants::*;
+use serde::{Deserialize, Serialize};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::VolumeBuilder;
+use stackable_operator::commons::product_image_selection::{ProductImage, ResolvedProductImage};
 use stackable_operator::commons::s3::{
     InlinedS3BucketSpec, S3AccessStyle, S3BucketDef, S3ConnectionSpec,
 };
 use stackable_operator::k8s_openapi::api::core::v1::{
     EmptyDirVolumeSource, EnvVar, Volume, VolumeMount,
 };
-use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
-use std::cmp::max;
-
-use std::collections::{BTreeMap, HashMap};
-
-use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::commons::product_image_selection::{ProductImage, ResolvedProductImage};
 use stackable_operator::kube::ResourceExt;
 use stackable_operator::labels::ObjectLabels;
+use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
 use stackable_operator::{
     commons::resources::{
         CpuLimits, CpuLimitsFragment, MemoryLimits, MemoryLimitsFragment, NoRuntimeLimits,
@@ -33,6 +29,8 @@ use stackable_operator::{
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
+use std::cmp::max;
+use std::collections::{BTreeMap, HashMap};
 use strum::{Display, EnumString};
 
 pub const OPERATOR_NAME: &str = "spark.stackable.tech";
@@ -52,8 +50,6 @@ pub enum Error {
     ObjectHasNoImage,
     #[snafu(display("object has no name"))]
     ObjectHasNoName,
-    #[snafu(display("application has no Spark image"))]
-    NoSparkImage,
     #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
     FailedToConvertJavaHeap {
         source: stackable_operator::error::Error,
@@ -138,8 +134,11 @@ pub struct SparkApplicationSpec {
     pub main_class: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main_application_file: Option<String>,
+    /// An external / custom image to provide extra data or libraries
+    /// This should always be `CustomImage` as described in
+    /// https://docs.stackable.tech/home/nightly/concepts/product_image_selection.html#_custom_images.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub image: Option<String>,
+    pub image: Option<ProductImage>,
     /// The Spark image to use
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_image: Option<ProductImage>,
@@ -202,19 +201,6 @@ impl SparkApplication {
 
     pub fn mode(&self) -> Option<&str> {
         self.spec.mode.as_deref()
-    }
-
-    pub fn image(&self) -> Option<&str> {
-        self.spec.image.as_deref()
-    }
-
-    pub fn spark_image(&self) -> Result<ResolvedProductImage, Error> {
-        Ok(self
-            .spec
-            .spark_image
-            .as_ref()
-            .context(NoSparkImageSnafu)?
-            .resolve(DOCKER_SPARK_IMAGE_BASE_NAME))
     }
 
     pub fn version(&self) -> Option<&str> {
@@ -351,6 +337,7 @@ impl SparkApplication {
 
     pub fn build_command(
         &self,
+        resolved_spark_product_image: &ResolvedProductImage,
         serviceaccount_name: &str,
         s3bucket: &Option<InlinedS3BucketSpec>,
     ) -> Result<Vec<String>, Error> {
@@ -371,8 +358,8 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.driver.podTemplateContainerName={CONTAINER_NAME_DRIVER}"),
             format!("--conf spark.kubernetes.executor.podTemplateContainerName={CONTAINER_NAME_EXECUTOR}"),
             format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
-            format!("--conf spark.kubernetes.driver.container.image={}", self.spark_image()?.image),
-            format!("--conf spark.kubernetes.executor.container.image={}", self.spark_image()?.image),
+            format!("--conf spark.kubernetes.driver.container.image={}", resolved_spark_product_image.image),
+            format!("--conf spark.kubernetes.executor.container.image={}", resolved_spark_product_image.image),
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
         ]);
 

@@ -9,11 +9,11 @@ All notable changes to this project will be documented in this file.
 - Updated stackable image versions ([#176])
 - `operator-rs` `0.22.0` → `0.27.1` ([#178])
 - Don't run init container as root and avoid chmod and chowning ([#183])
-- [BREAKING] The `spec.sparkImage` now uses product image selection instead of just an image string ([#186])
+- [BREAKING] The `spec.sparkImage` and `spec.image` now uses product image selection instead of just an image string ([#186])
 
 ### Removed
 
-- [BREAKING] Removed `spec.sparkImagePullPolicy` and `spec.sparkImagePullSecrets` which is coverd via product image selection in `spec.sparkImage` ([#186])
+- [BREAKING] Removed `spec.sparkImagePullPolicy` and `spec.sparkImagePullSecrets` which is covered via product image selection in `spec.sparkImage` ([#186])
 
 [#176]: https://github.com/stackabletech/spark-k8s-operator/pull/176
 [#178]: https://github.com/stackabletech/spark-k8s-operator/pull/178

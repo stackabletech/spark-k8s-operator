@@ -163,7 +163,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         let resolved_job_image = job_image.resolve("");
 
         // In case the job image has different pull secrets than the spark image
-        // (which have to be added to the PodSpec later), lets merge this here.
+        // (which have to be added to the PodSpec later), lets retrieve this here.
         job_image_pull_secrets = resolved_job_image.pull_secrets.clone();
 
         jcb.image_from_product_image(&resolved_job_image)

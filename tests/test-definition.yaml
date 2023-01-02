@@ -33,10 +33,6 @@ tests:
       - spark
       - stackable
       - openshift
-  - name: node-selector
-    dimensions:
-      - spark
-      - stackable
   - name: spark-examples
     dimensions:
       - spark

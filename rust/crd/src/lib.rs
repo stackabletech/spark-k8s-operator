@@ -1,6 +1,7 @@
 //! This module provides all required CRD definitions and additional helper methods.
 
 pub mod constants;
+pub mod history;
 
 use constants::*;
 use stackable_operator::builder::VolumeBuilder;

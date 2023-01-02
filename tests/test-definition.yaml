@@ -18,6 +18,11 @@ dimensions:
     values:
       - 0.1.0
 tests:
+  - name: spark-history-server
+    dimensions:
+      - spark
+      - stackable
+      - openshift
   - name: spark-pi-private-s3
     dimensions:
       - spark

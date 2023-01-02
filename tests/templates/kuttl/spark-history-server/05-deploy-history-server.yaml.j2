@@ -1,0 +1,28 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+metadata:
+  name: spark-history
+spec:
+  image: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+  sparkImagePullPolicy: IfNotPresent
+  sparkConf:
+    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+    - # compaction
+    - # retention/ttl
+    - # update interval
+    - ...
+  cleaner: true # option of bool; default=false: sets spark.history.fs.cleaner.enabled=true
+  logFileDirectory:
+    s3:
+      prefix: logs/
+      bucket: # S3BucketDef
+        inline:
+          bucketName: spark-logs
+          connection:
+            inline:
+              host: test-minio
+              port: 9000
+              accessStyle: Path
+              credentials:
+                secretClass: minio-credentials

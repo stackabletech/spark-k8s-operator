@@ -1,9 +1,11 @@
+mod history_controller;
 mod pod_driver_controller;
 mod spark_k8s_controller;
 
 use std::sync::Arc;
 
 use clap::Parser;
+use futures::executor::block_on_stream;
 use futures::StreamExt;
 use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::k8s_openapi::api::core::v1::ConfigMap;
@@ -12,16 +14,17 @@ use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::runtime::controller::Controller;
 use stackable_operator::logging::controller::report_controller_reconciled;
 use stackable_operator::CustomResourceExt;
-use stackable_spark_k8s_crd::CONTROLLER_NAME;
-use stackable_spark_k8s_crd::{SparkApplication, OPERATOR_NAME};
+use stackable_spark_k8s_crd::constants::{
+    CONTROLLER_NAME, HISTORY_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_CONTROLLER_NAME,
+};
+use stackable_spark_k8s_crd::history::SparkHistoryServer;
+use stackable_spark_k8s_crd::SparkApplication;
 use tracing::info_span;
 use tracing_futures::Instrument;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
-
-use crate::pod_driver_controller::POD_DRIVER_CONTROLLER_NAME;
 
 #[derive(Parser)]
 #[clap(about = built_info::PKG_DESCRIPTION, author = stackable_operator::cli::AUTHOR)]
@@ -61,7 +64,9 @@ async fn main() -> anyhow::Result<()> {
 
             let app_controller = Controller::new(
                 watch_namespace.get_api::<SparkApplication>(&client),
-                ListParams::default(),
+                ListParams::default().labels(&format!(
+                    "app.kubernetes.io/managed-by={OPERATOR_NAME}_{CONTROLLER_NAME},spark-role=app"
+                )),
             )
             .owns(
                 watch_namespace.get_api::<ConfigMap>(&client),
@@ -87,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<Pod>(&client),
                 ListParams::default()
-                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{CONTROLLER_NAME},spark-role=driver")),
+                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{POD_DRIVER_CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
                 watch_namespace.get_api::<Pod>(&client),
@@ -101,10 +106,38 @@ async fn main() -> anyhow::Result<()> {
                     client: client.clone(),
                 }),
             )
-            .map(|res| report_controller_reconciled(&client, POD_DRIVER_CONTROLLER_NAME, &res))
+            .map(|res| report_controller_reconciled(&client, &format!("{OPERATOR_NAME}.{POD_DRIVER_CONTROLLER_NAME}"), &res))
             .instrument(info_span!("pod_driver_controller"));
 
-            futures::stream::select(app_controller, pod_driver_controller)
+            let history_controller = Controller::new(
+                watch_namespace.get_api::<SparkHistoryServer>(&client),
+                ListParams::default()
+                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{HISTORY_CONTROLLER_NAME},spark-role=history")),
+            )
+            .owns(
+                watch_namespace.get_api::<SparkHistoryServer>(&client),
+                ListParams::default(),
+            )
+            .shutdown_on_signal()
+            .run(
+                history_controller::reconcile,
+                history_controller::error_policy,
+                Arc::new(history_controller::Ctx {
+                    client: client.clone(),
+                }),
+            )
+            .map(|res| report_controller_reconciled(&client, &format!("{OPERATOR_NAME}.{HISTORY_CONTROLLER_NAME}"), &res))
+            .instrument(info_span!("history_controller"));
+
+            // TODO: fix this
+            //let streams = vec![
+            //    app_controller.boxed(),
+            //    pod_driver_controller.boxed(),
+            //    history_controller.boxed(),
+            //];
+            //block_on_stream(futures::stream::select_all(streams.collect::<()>()));
+
+            futures::stream::select(app_controller, history_controller)
                 .collect::<()>()
                 .await;
         }

@@ -1,15 +1,11 @@
 use stackable_operator::{k8s_openapi::api::core::v1::Pod, kube::runtime::controller::Action};
-use stackable_spark_k8s_crd::{SparkApplication, SparkApplicationStatus, SparkHistoryServer};
+use stackable_spark_k8s_crd::history::SparkHistoryServer;
 use std::sync::Arc;
 use std::time::Duration;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
-
-const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -19,8 +15,6 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("Label [{LABEL_NAME_INSTANCE}] not found for pod name [{pod_name}]"))]
-    LabelInstanceNotFound { pod_name: String },
     #[snafu(display("Failed to update status for application [{name}]"))]
     ApplySparkApplicationStatus {
         source: stackable_operator::error::Error,
@@ -53,6 +47,6 @@ pub async fn reconcile(pod: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_obj: Arc<Pod>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
+pub fn error_policy(_obj: Arc<SparkHistoryServer>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }

@@ -24,3 +24,10 @@ pub const S3_SECRET_DIR_NAME: &str = "/stackable/secrets";
 pub const MIN_MEMORY_OVERHEAD: u32 = 384;
 pub const JVM_OVERHEAD_FACTOR: f32 = 0.1;
 pub const NON_JVM_OVERHEAD_FACTOR: f32 = 0.4;
+
+pub const OPERATOR_NAME: &str = "spark.stackable.tech";
+pub const CONTROLLER_NAME: &str = "sparkapplication";
+pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
+pub const HISTORY_CONTROLLER_NAME: &str = "history";
+
+pub const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";

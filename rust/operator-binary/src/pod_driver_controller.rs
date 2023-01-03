@@ -1,13 +1,13 @@
 use stackable_operator::{k8s_openapi::api::core::v1::Pod, kube::runtime::controller::Action};
-use stackable_spark_k8s_crd::{SparkApplication, SparkApplicationStatus};
+use stackable_spark_k8s_crd::{
+    constants::POD_DRIVER_CONTROLLER_NAME, SparkApplication, SparkApplicationStatus,
+};
 use std::sync::Arc;
 use std::time::Duration;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
 
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 

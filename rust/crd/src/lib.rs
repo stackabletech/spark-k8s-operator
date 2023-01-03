@@ -35,9 +35,6 @@ use stackable_operator::{
 };
 use strum::{Display, EnumString};
 
-pub const OPERATOR_NAME: &str = "spark.stackable.tech";
-pub const CONTROLLER_NAME: &str = "sparkapplication";
-
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("object has no namespace associated"))]

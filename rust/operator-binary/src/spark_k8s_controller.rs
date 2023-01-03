@@ -12,8 +12,8 @@ use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, R
 use stackable_operator::k8s_openapi::Resource;
 use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::logging::controller::ReconcilerError;
+use stackable_spark_k8s_crd::constants::*;
 use stackable_spark_k8s_crd::SparkApplication;
-use stackable_spark_k8s_crd::{constants::*, CONTROLLER_NAME};
 use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};

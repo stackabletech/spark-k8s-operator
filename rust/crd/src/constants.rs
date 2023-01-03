@@ -30,4 +30,7 @@ pub const CONTROLLER_NAME: &str = "sparkapplication";
 pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
 pub const HISTORY_CONTROLLER_NAME: &str = "history";
 
+pub const HISTORY_ROLE_NAME: &str = "history";
+pub const HISTORY_GROUP_NAME: &str = "default";
+
 pub const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";

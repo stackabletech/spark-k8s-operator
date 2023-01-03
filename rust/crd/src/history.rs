@@ -10,6 +10,7 @@ use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
 use std::cmp::max;
 
 use std::collections::{BTreeMap, HashMap};
+use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -49,12 +50,59 @@ pub enum Error {}
 )]
 #[serde(rename_all = "camelCase")]
 pub struct SparkHistoryServerSpec {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cleaner: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_conf: Option<HashMap<String, String>>,
 }
 
+impl SparkHistoryServer {
+    pub fn deployment_labels(&self) -> ObjectLabels<SparkHistoryServer> {
+        ObjectLabels {
+            owner: self,
+            app_name: APP_NAME,
+            app_version: self.version(),
+            operator_name: OPERATOR_NAME,
+            controller_name: HISTORY_CONTROLLER_NAME,
+            role: HISTORY_ROLE_NAME,
+            role_group: HISTORY_GROUP_NAME,
+        }
+    }
+
+    pub fn config(&self) -> String {
+        vec![
+            ("spark.history.ui.port", "18080"),
+            ("spark.history.fs.logDirectory", "file:///tmp/logs/spark"),
+            (
+                "spark.history.provider",
+                "org.apache.spark.deploy.history.FsHistoryProvider",
+            ),
+            ("spark.history.fs.update.interval", "10s"),
+            ("spark.history.retainedApplications", "50"),
+            ("spark.history.ui.maxApplications", "2147483647"), // Integer.MAX_VALUE
+            ("spark.history.fs.cleaner.enabled", "false"),
+            ("spark.history.fs.cleaner.interval", "1d"),
+            ("spark.history.fs.cleaner.maxAge", "7d"),
+            ("spark.history.fs.cleaner.maxNum", "2147483647"),
+            // local history cache of application data (default is off)
+            //("spark.history.store.maxDiskUsage", "10g"),
+            //("spark.history.store.path", "/tmp/logs/spark/cache"),
+            ("", ""),
+        ]
+        .into_iter()
+        .map(|(key, value)| format!("{key} {value}"))
+        .collect::<Vec<String>>()
+        .join("\n")
+    }
+
+    fn version(&self) -> &str {
+        self.spec.version.as_deref().unwrap_or_default()
+    }
+}
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[serde(rename_all = "camelCase")]

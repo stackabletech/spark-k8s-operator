@@ -33,4 +33,6 @@ pub const HISTORY_CONTROLLER_NAME: &str = "history";
 pub const HISTORY_ROLE_NAME: &str = "history";
 pub const HISTORY_GROUP_NAME: &str = "default";
 
+pub const HISTORY_IMAGE_BASE_NAME: &str = "spark-k8s";
+
 pub const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";

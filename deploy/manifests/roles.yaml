@@ -50,6 +50,7 @@ rules:
       - apps
     resources:
       - statefulsets
+      - deployments
     verbs:
       - create
       - delete
@@ -84,6 +85,7 @@ rules:
       - spark.stackable.tech
     resources:
       - sparkapplications
+      - sparkhistoryservers
     verbs:
       - get
       - list

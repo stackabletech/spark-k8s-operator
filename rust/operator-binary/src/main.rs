@@ -5,7 +5,6 @@ mod spark_k8s_controller;
 use std::sync::Arc;
 
 use clap::Parser;
-use futures::executor::block_on_stream;
 use futures::StreamExt;
 use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::k8s_openapi::api::core::v1::ConfigMap;
@@ -39,6 +38,7 @@ async fn main() -> anyhow::Result<()> {
     match opts.cmd {
         Command::Crd => {
             SparkApplication::print_yaml_schema()?;
+            SparkHistoryServer::print_yaml_schema()?;
         }
         Command::Run(ProductOperatorRun {
             product_config: _,
@@ -64,9 +64,7 @@ async fn main() -> anyhow::Result<()> {
 
             let app_controller = Controller::new(
                 watch_namespace.get_api::<SparkApplication>(&client),
-                ListParams::default().labels(&format!(
-                    "app.kubernetes.io/managed-by={OPERATOR_NAME}_{CONTROLLER_NAME},spark-role=app"
-                )),
+                ListParams::default(),
             )
             .owns(
                 watch_namespace.get_api::<ConfigMap>(&client),
@@ -111,8 +109,7 @@ async fn main() -> anyhow::Result<()> {
 
             let history_controller = Controller::new(
                 watch_namespace.get_api::<SparkHistoryServer>(&client),
-                ListParams::default()
-                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{HISTORY_CONTROLLER_NAME},spark-role=history")),
+                ListParams::default(),
             )
             .owns(
                 watch_namespace.get_api::<SparkHistoryServer>(&client),
@@ -126,7 +123,13 @@ async fn main() -> anyhow::Result<()> {
                     client: client.clone(),
                 }),
             )
-            .map(|res| report_controller_reconciled(&client, &format!("{OPERATOR_NAME}.{HISTORY_CONTROLLER_NAME}"), &res))
+            .map(|res| {
+                report_controller_reconciled(
+                    &client,
+                    &format!("{OPERATOR_NAME}.{HISTORY_CONTROLLER_NAME}"),
+                    &res,
+                )
+            })
             .instrument(info_span!("history_controller"));
 
             // TODO: fix this

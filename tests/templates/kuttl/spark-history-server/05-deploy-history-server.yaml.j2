@@ -4,14 +4,11 @@ kind: SparkHistoryServer
 metadata:
   name: spark-history
 spec:
-  image: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
-  sparkImagePullPolicy: IfNotPresent
+  image:
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+    stackableVersion: "{{ test_scenario['values']['stackable'] }}"
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
-    - # compaction
-    - # retention/ttl
-    - # update interval
-    - ...
   cleaner: true # option of bool; default=false: sets spark.history.fs.cleaner.enabled=true
   logFileDirectory:
     s3:

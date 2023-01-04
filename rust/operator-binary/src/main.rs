@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
             SparkHistoryServer::print_yaml_schema()?;
         }
         Command::Run(ProductOperatorRun {
-            product_config: _,
+            product_config,
             watch_namespace,
             tracing_target,
         }) => {
@@ -58,6 +58,11 @@ async fn main() -> anyhow::Result<()> {
                 built_info::BUILT_TIME_UTC,
                 built_info::RUSTC_VERSION,
             );
+
+            let product_config = product_config.load(&[
+                "deploy/config-spec/properties.yaml",
+                "/etc/stackable/spark-k8s-operator/config-spec/properties.yaml",
+            ])?;
 
             let client =
                 stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string())).await?;
@@ -87,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
             })
             .instrument(info_span!("app_controller"));
 
-            let pod_driver_controller = Controller::new(
+            let _pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<Pod>(&client),
                 ListParams::default()
                     .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{POD_DRIVER_CONTROLLER_NAME},spark-role=driver")),
@@ -121,6 +126,7 @@ async fn main() -> anyhow::Result<()> {
                 history_controller::error_policy,
                 Arc::new(history_controller::Ctx {
                     client: client.clone(),
+                    product_config,
                 }),
             )
             .map(|res| {

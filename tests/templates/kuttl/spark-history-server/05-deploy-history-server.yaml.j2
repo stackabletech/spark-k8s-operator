@@ -7,10 +7,7 @@ spec:
   image:
     productVersion: "{{ test_scenario['values']['spark'] }}"
     stackableVersion: "{{ test_scenario['values']['stackable'] }}"
-  sparkConf:
-    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
-  cleaner: true # option of bool; default=false: sets spark.history.fs.cleaner.enabled=true
-  logFileDirectory:
+ logFileDirectory:
     s3:
       prefix: logs/
       bucket: # S3BucketDef
@@ -23,3 +20,9 @@ spec:
               accessStyle: Path
               credentials:
                 secretClass: minio-credentials
+  nodes:
+    default:
+      config:
+        cleaner: true
+        sparkConf:
+          spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"

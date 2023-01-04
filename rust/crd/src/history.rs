@@ -1,38 +1,40 @@
 use crate::constants::*;
-use stackable_operator::builder::VolumeBuilder;
 use stackable_operator::commons::product_image_selection::{ProductImage, ResolvedProductImage};
-use stackable_operator::commons::s3::{
-    InlinedS3BucketSpec, S3AccessStyle, S3BucketDef, S3ConnectionSpec,
+use stackable_operator::commons::s3::S3BucketDef;
+use stackable_operator::product_config::types::PropertyNameKind;
+use stackable_operator::product_config::ProductConfigManager;
+use stackable_operator::product_config_utils::{
+    transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
+    ValidatedRoleConfigByPropertyKind,
 };
-use stackable_operator::k8s_openapi::api::core::v1::{
-    EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
-};
-use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
+use stackable_operator::role_utils::Role;
 
-use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::kube::ResourceExt;
+use snafu::{ResultExt, Snafu};
 use stackable_operator::labels::ObjectLabels;
 use stackable_operator::{
-    commons::resources::{
-        CpuLimits, CpuLimitsFragment, MemoryLimits, MemoryLimitsFragment, NoRuntimeLimits,
-        NoRuntimeLimitsFragment, Resources, ResourcesFragment,
-    },
-    config::{fragment, fragment::Fragment, fragment::ValidationError, merge::Merge},
+    commons::resources::{NoRuntimeLimits, ResourcesFragment},
+    config::{fragment::Fragment, merge::Merge},
 };
 use stackable_operator::{
-    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
-    role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
-use strum::{Display, EnumString};
+use strum::Display;
 
 #[derive(Snafu, Debug)]
-pub enum Error {}
+pub enum Error {
+    #[snafu(display("Failed to transform configs"))]
+    ProductConfigTransform {
+        source: stackable_operator::product_config_utils::ConfigError,
+    },
+    #[snafu(display("invalid product config"))]
+    InvalidProductConfig {
+        source: stackable_operator::error::Error,
+    },
+}
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
@@ -51,33 +53,33 @@ pub enum Error {}
 #[serde(rename_all = "camelCase")]
 pub struct SparkHistoryServerSpec {
     pub image: ProductImage,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cleaner: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_conf: Option<HashMap<String, String>>,
     pub log_file_directory: LogFileDirectorySpec,
+    pub nodes: Role<HistoryConfig>,
 }
 
 impl SparkHistoryServer {
     pub fn labels<'a>(
         &'a self,
-        resolved_product_image: &'a ResolvedProductImage,
+        app_version_label: &'a str,
+        role_group: &'a str,
     ) -> ObjectLabels<SparkHistoryServer> {
         ObjectLabels {
             owner: self,
             app_name: APP_NAME,
-            app_version: &resolved_product_image.app_version_label,
+            app_version: app_version_label,
             operator_name: OPERATOR_NAME,
             controller_name: HISTORY_CONTROLLER_NAME,
             role: HISTORY_ROLE_NAME,
-            role_group: HISTORY_GROUP_NAME,
+            role_group,
         }
     }
 
     pub fn command_args(&self) -> Vec<String> {
         vec![
             "-c",
-            "'mkdir -p /tmp/logs/spark && /stackable/spark/sbin/start-history-server.sh --properties-file /stackable/spark/conf/spark-defaults.conf'",
+            "/stackable/spark/sbin/start-history-server.sh",
+            "--properties-file",
+            HISTORY_CONFIG_FILE_NAME_FULL,
         ]
         .into_iter()
         .map(String::from)
@@ -109,7 +111,36 @@ impl SparkHistoryServer {
         .collect::<Vec<String>>()
         .join("\n")
     }
+
+    pub fn validated_role_config(
+        &self,
+        resolved_product_image: &ResolvedProductImage,
+        product_config: &ProductConfigManager,
+    ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
+        let roles_to_validate: HashMap<String, (Vec<PropertyNameKind>, Role<HistoryConfig>)> =
+            vec![(
+                HISTORY_ROLE_NAME.to_string(),
+                (
+                    vec![PropertyNameKind::File(HISTORY_CONFIG_FILE_NAME.to_string())],
+                    self.spec.nodes.clone(),
+                ),
+            )]
+            .into_iter()
+            .collect();
+
+        let role_config = transform_all_roles_to_config(self, roles_to_validate);
+
+        validate_all_roles_and_groups_config(
+            &resolved_product_image.product_version,
+            &role_config.context(ProductConfigTransformSnafu)?,
+            product_config,
+            false,
+            false,
+        )
+        .context(InvalidProductConfigSnafu)
+    }
 }
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[serde(rename_all = "camelCase")]
@@ -129,4 +160,62 @@ pub enum LogFileDirectorySpec {
 pub struct S3LogFileDirectorySpec {
     pub prefix: String,
     pub bucket: S3BucketDef,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleaner: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spark_conf: Option<HashMap<String, String>>,
+    pub resources: Option<ResourcesFragment<NoStorageConfig, NoRuntimeLimits>>,
+}
+
+#[derive(Clone, Debug, Default, JsonSchema, Fragment)]
+#[fragment_attrs(
+    derive(Clone, Debug, Default, Deserialize, Merge, JsonSchema, Serialize),
+    serde(rename_all = "camelCase")
+)]
+pub struct NoStorageConfig {}
+
+impl Configuration for HistoryConfig {
+    type Configurable = SparkHistoryServer;
+
+    fn compute_env(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_cli(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_files(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+        file: &str,
+    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    {
+        let mut result = BTreeMap::new();
+        if let HISTORY_CONFIG_FILE_NAME = file {
+            // Copy user provided spark configuration
+            result.extend(self.spark_conf.as_ref().map_or(vec![], |c| {
+                c.iter()
+                    .map(|(k, v)| (k.clone(), Some(v.clone())))
+                    .collect()
+            }));
+        }
+        Ok(result)
+    }
 }

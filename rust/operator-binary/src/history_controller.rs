@@ -4,29 +4,31 @@ use stackable_operator::{
     k8s_openapi::{
         api::{
             apps::v1::{Deployment, DeploymentSpec},
-            core::v1::{ConfigMap, Pod, Service, ServicePort, ServiceSpec},
+            core::v1::{ConfigMap, Service, ServicePort, ServiceSpec},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
-    kube::runtime::controller::Action,
+    kube::runtime::{controller::Action, reflector::ObjectRef},
     labels::{role_group_selector_labels, role_selector_labels},
+    product_config::{types::PropertyNameKind, ProductConfigManager},
+    role_utils::RoleGroupRef,
 };
 use stackable_spark_k8s_crd::{
     constants::{
-        APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_GROUP_NAME, HISTORY_IMAGE_BASE_NAME,
-        HISTORY_ROLE_NAME,
+        APP_NAME, HISTORY_CONFIG_FILE_NAME, HISTORY_CONTROLLER_NAME, HISTORY_IMAGE_BASE_NAME,
     },
     history::SparkHistoryServer,
 };
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::HashMap, time::Duration};
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
+    pub product_config: ProductConfigManager,
 }
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -59,6 +61,10 @@ pub enum Error {
     ApplyService {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("product config validation failed"))]
+    ProductConfigValidation {
+        source: stackable_spark_k8s_crd::history::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -75,23 +81,60 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     let resolved_product_image = shs.spec.image.resolve(HISTORY_IMAGE_BASE_NAME);
 
     // TODO: (RBAC) need to use a dedicated service account, role
-    let config_map = build_config_map(&shs, &resolved_product_image)?;
-    ctx.client
-        .apply_patch(HISTORY_CONTROLLER_NAME, &config_map, &config_map)
-        .await
-        .context(ApplyConfigMapSnafu)?;
 
-    let service = build_service(&shs, &resolved_product_image)?;
-    ctx.client
-        .apply_patch(HISTORY_CONTROLLER_NAME, &service, &service)
-        .await
-        .context(ApplyServiceSnafu)?;
+    // The role_name is always "history"
+    for (role_name, role_config) in shs
+        .validated_role_config(&resolved_product_image, &ctx.product_config)
+        .context(ProductConfigValidationSnafu)?
+        .iter()
+    {
+        let service = build_service(
+            &shs,
+            &resolved_product_image.app_version_label,
+            role_name,
+            None,
+        )?;
+        ctx.client
+            .apply_patch(HISTORY_CONTROLLER_NAME, &service, &service)
+            .await
+            .context(ApplyServiceSnafu)?;
 
-    let deployment = build_deployment(&shs, &resolved_product_image)?;
-    ctx.client
-        .apply_patch(HISTORY_CONTROLLER_NAME, &deployment, &deployment)
-        .await
-        .context(ApplyDeploymentSnafu)?;
+        for (rolegroup_name, rolegroup_config) in role_config.iter() {
+            let rgr = RoleGroupRef {
+                cluster: ObjectRef::from_obj(&*shs),
+                role: role_name.into(),
+                role_group: rolegroup_name.into(),
+            };
+
+            let service = build_service(
+                &shs,
+                &resolved_product_image.app_version_label,
+                role_name,
+                Some(&rgr),
+            )?;
+            ctx.client
+                .apply_patch(HISTORY_CONTROLLER_NAME, &service, &service)
+                .await
+                .context(ApplyServiceSnafu)?;
+
+            let config_map = build_config_map(
+                &shs,
+                &resolved_product_image.app_version_label,
+                &rgr,
+                rolegroup_config,
+            )?;
+            ctx.client
+                .apply_patch(HISTORY_CONTROLLER_NAME, &config_map, &config_map)
+                .await
+                .context(ApplyConfigMapSnafu)?;
+
+            let deployment = build_deployment(&shs, &resolved_product_image, &rgr)?;
+            ctx.client
+                .apply_patch(HISTORY_CONTROLLER_NAME, &deployment, &deployment)
+                .await
+                .context(ApplyDeploymentSnafu)?;
+        }
+    }
 
     Ok(Action::await_change())
 }
@@ -102,19 +145,31 @@ pub fn error_policy(_obj: Arc<SparkHistoryServer>, _error: &Error, _ctx: Arc<Ctx
 
 fn build_config_map(
     shs: &SparkHistoryServer,
-    resolved_product_image: &ResolvedProductImage,
+    app_version_label: &str,
+    rolegroupref: &RoleGroupRef<SparkHistoryServer>,
+    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
 ) -> Result<ConfigMap, Error> {
+    let empty_map = BTreeMap::new();
+
+    let spark_defaults_data = rolegroup_config
+        .get(&PropertyNameKind::File(HISTORY_CONFIG_FILE_NAME.to_owned()))
+        .unwrap_or(&empty_map)
+        .iter()
+        .map(|(k, v)| format!("{k} {v}"))
+        .collect::<Vec<String>>()
+        .join("\n");
+
     let result = ConfigMapBuilder::new()
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(shs)
-                .name("spark-history-config")
+                .name(rolegroupref.object_name())
                 .ownerreference_from_resource(shs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(shs.labels(resolved_product_image))
+                .with_recommended_labels(shs.labels(app_version_label, &rolegroupref.role_group))
                 .build(),
         )
-        .add_data("spark-defaults.conf", shs.config())
+        .add_data(HISTORY_CONFIG_FILE_NAME, spark_defaults_data)
         .build()
         .context(InvalidConfigMapSnafu {
             name: String::from("spark-history-config"),
@@ -126,6 +181,7 @@ fn build_config_map(
 fn build_deployment(
     shs: &SparkHistoryServer,
     resolved_product_image: &ResolvedProductImage,
+    rolegroupref: &RoleGroupRef<SparkHistoryServer>,
 ) -> Result<Deployment, Error> {
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
@@ -146,10 +202,15 @@ fn build_deployment(
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
             VolumeBuilder::new("config")
-                .with_config_map("spark-history-config")
+                .with_config_map(rolegroupref.object_name())
                 .build(),
         )
-        .metadata_builder(|m| m.with_recommended_labels(shs.labels(resolved_product_image)))
+        .metadata_builder(|m| {
+            m.with_recommended_labels(shs.labels(
+                &resolved_product_image.app_version_label,
+                &rolegroupref.role_group,
+            ))
+        })
         .build_template();
 
     Ok(Deployment {
@@ -157,7 +218,10 @@ fn build_deployment(
             .name_and_namespace(shs)
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(shs.labels(resolved_product_image))
+            .with_recommended_labels(shs.labels(
+                &resolved_product_image.app_version_label,
+                rolegroupref.role_group.as_ref(),
+            ))
             .build(),
         spec: Some(DeploymentSpec {
             template,
@@ -165,8 +229,8 @@ fn build_deployment(
                 match_labels: Some(role_group_selector_labels(
                     shs,
                     APP_NAME,
-                    HISTORY_ROLE_NAME,
-                    HISTORY_GROUP_NAME,
+                    &rolegroupref.role,
+                    &rolegroupref.role_group,
                 )),
                 ..LabelSelector::default()
             },
@@ -178,15 +242,36 @@ fn build_deployment(
 
 fn build_service(
     shs: &SparkHistoryServer,
-    resolved_product_image: &ResolvedProductImage,
+    app_version_label: &str,
+    role: &str,
+    group: Option<&RoleGroupRef<SparkHistoryServer>>,
 ) -> Result<Service, Error> {
+    let group_name = match group {
+        Some(rgr) => rgr.role_group.clone(),
+        None => "global".to_owned(),
+    };
+
+    let service_name = match group {
+        Some(rgr) => rgr.object_name(),
+        None => format!(
+            "{}-{}",
+            shs.metadata.name.as_ref().unwrap_or(&APP_NAME.to_string()),
+            role
+        ),
+    };
+
+    let selector = match group {
+        Some(rgr) => role_group_selector_labels(shs, APP_NAME, &rgr.role, &rgr.role_group),
+        None => role_selector_labels(shs, APP_NAME, role),
+    };
+
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(shs)
-            .name("spark-history")
+            .name(service_name)
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(shs.labels(resolved_product_image))
+            .with_recommended_labels(shs.labels(app_version_label, &group_name))
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(vec![ServicePort {
@@ -194,7 +279,7 @@ fn build_service(
                 port: 18080,
                 ..ServicePort::default()
             }]),
-            selector: Some(role_selector_labels(shs, APP_NAME, HISTORY_ROLE_NAME)),
+            selector: Some(selector),
             type_: Some("NodePort".to_string()),
             ..ServiceSpec::default()
         }),

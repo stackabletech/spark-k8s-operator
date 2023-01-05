@@ -27,10 +27,10 @@ spec:
         config:
           cleaner: true
           sparkConf:
-            spark.hadoop.fs.s3a.endpoint: "http://test-minio:9000"
-            spark.history.fs.logDirectory: "s3a://spark-logs/"
-            spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-            spark.hadoop.fs.s3a.path.style.access: "true"
+            #spark.hadoop.fs.s3a.endpoint: "http://test-minio:9000"
+            #spark.history.fs.logDirectory: "s3a://spark-logs/"
+            #spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
+            #spark.hadoop.fs.s3a.path.style.access: "true"
 
             #spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
             #spark.history.ui.port: "18080"
@@ -43,4 +43,3 @@ spec:
             #spark.history.fs.cleaner.interval: "1d"
             #spark.history.fs.cleaner.maxAge: "7d"
             #spark.history.fs.cleaner.maxNum: "2147483647"
- 

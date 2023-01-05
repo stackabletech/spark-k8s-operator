@@ -21,6 +21,10 @@ spec:
           credentials:
             secretClass: s3-credentials-class
   sparkConf:
-    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+    # TODO: figure out how to log events to the history server bucket
+    #spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+    #spark.eventLog.dir: "s3a://spark-logs/"
+    #spark.eventLog.enabled: "true"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
   executor:
     instances: 1

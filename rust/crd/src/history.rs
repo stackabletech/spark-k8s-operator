@@ -76,40 +76,9 @@ impl SparkHistoryServer {
 
     pub fn command_args(&self) -> Vec<String> {
         vec![
-            "-c",
-            "/stackable/spark/sbin/start-history-server.sh",
-            "--properties-file",
-            HISTORY_CONFIG_FILE_NAME_FULL,
+            String::from("-c"),
+            format!("/stackable/spark/sbin/start-history-server.sh --properties-file {HISTORY_CONFIG_FILE_NAME_FULL}"),
         ]
-        .into_iter()
-        .map(String::from)
-        .collect()
-    }
-
-    pub fn config(&self) -> String {
-        vec![
-            ("spark.history.ui.port", "18080"),
-            ("spark.history.fs.logDirectory", "file:///tmp/logs/spark"),
-            (
-                "spark.history.provider",
-                "org.apache.spark.deploy.history.FsHistoryProvider",
-            ),
-            ("spark.history.fs.update.interval", "10s"),
-            ("spark.history.retainedApplications", "50"),
-            ("spark.history.ui.maxApplications", "2147483647"), // Integer.MAX_VALUE
-            ("spark.history.fs.cleaner.enabled", "false"),
-            ("spark.history.fs.cleaner.interval", "1d"),
-            ("spark.history.fs.cleaner.maxAge", "7d"),
-            ("spark.history.fs.cleaner.maxNum", "2147483647"),
-            // local history cache of application data (default is off)
-            //("spark.history.store.maxDiskUsage", "10g"),
-            //("spark.history.store.path", "/tmp/logs/spark/cache"),
-            ("", ""),
-        ]
-        .into_iter()
-        .map(|(key, value)| format!("{key} {value}"))
-        .collect::<Vec<String>>()
-        .join("\n")
     }
 
     pub fn validated_role_config(

@@ -3,7 +3,7 @@ use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::{
-            apps::v1::{Deployment, DeploymentSpec},
+            apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{ConfigMap, Service, ServicePort, ServiceSpec},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
@@ -128,7 +128,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 .await
                 .context(ApplyConfigMapSnafu)?;
 
-            let deployment = build_deployment(&shs, &resolved_product_image, &rgr)?;
+            let deployment = build_stateful_set(&shs, &resolved_product_image, &rgr)?;
             ctx.client
                 .apply_patch(HISTORY_CONTROLLER_NAME, &deployment, &deployment)
                 .await
@@ -178,11 +178,11 @@ fn build_config_map(
     Ok(result)
 }
 
-fn build_deployment(
+fn build_stateful_set(
     shs: &SparkHistoryServer,
     resolved_product_image: &ResolvedProductImage,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
-) -> Result<Deployment, Error> {
+) -> Result<StatefulSet, Error> {
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
         .context(InvalidContainerNameSnafu {
@@ -195,6 +195,9 @@ fn build_deployment(
         .args(shs.command_args())
         .add_container_port("http", 18080)
         .add_volume_mount("config", "/stackable/spark/conf")
+        // This env var prevents the history server from detaching it's self from the
+        // start script because this leads to the Pod terminating immediately.
+        .add_env_var("SPARK_NO_DAEMONIZE", "true")
         .build();
 
     let template = PodBuilder::new()
@@ -213,7 +216,7 @@ fn build_deployment(
         })
         .build_template();
 
-    Ok(Deployment {
+    Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(shs)
             .ownerreference_from_resource(shs, None, Some(true))
@@ -223,7 +226,7 @@ fn build_deployment(
                 rolegroupref.role_group.as_ref(),
             ))
             .build(),
-        spec: Some(DeploymentSpec {
+        spec: Some(StatefulSetSpec {
             template,
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(
@@ -234,9 +237,9 @@ fn build_deployment(
                 )),
                 ..LabelSelector::default()
             },
-            ..DeploymentSpec::default()
+            ..StatefulSetSpec::default()
         }),
-        ..Deployment::default()
+        ..StatefulSet::default()
     })
 }
 

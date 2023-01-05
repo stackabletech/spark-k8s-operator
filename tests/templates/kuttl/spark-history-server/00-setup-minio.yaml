@@ -8,7 +8,6 @@ commands:
       --version 11.9.2
       -f helm-bitnami-minio-values.yaml
       --repo https://charts.bitnami.com/bitnami minio
-    timeout: 240
 ---
 apiVersion: v1
 kind: Pod
@@ -17,9 +16,6 @@ metadata:
   labels:
     app: minio-client
 spec:
-  selector:
-    matchLabels:
-      app: minio-client
   restartPolicy: Never
   containers:
     - name: minio-client

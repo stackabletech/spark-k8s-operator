@@ -38,3 +38,5 @@ pub const HISTORY_CONFIG_FILE_NAME: &str = "spark-defaults.conf";
 pub const HISTORY_CONFIG_FILE_NAME_FULL: &str = "/stackable/spark/conf/spark-defaults.conf";
 
 pub const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
+
+pub const VOLUME_NAME_S3_CREDENTIALS: &str = "s3-credentials";

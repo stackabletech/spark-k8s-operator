@@ -25,6 +25,9 @@ spec:
       securityContext: {}
       containers:
         - name: spark-k8s-operator
+          env:
+            - name: SPARK_K8S_OPERATOR_LOG
+              value: debug
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

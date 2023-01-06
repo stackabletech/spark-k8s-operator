@@ -2,13 +2,17 @@ use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     commons::{
         product_image_selection::ResolvedProductImage,
-        s3::{InlinedS3BucketSpec, S3AccessStyle},
+        s3::{InlinedS3BucketSpec, S3AccessStyle, S3ConnectionSpec},
+        secret_class::SecretClassVolume,
         tls::{CaCert, TlsVerification},
     },
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{ConfigMap, Service, ServicePort, ServiceSpec},
+            core::v1::{
+                ConfigMap, PodSecurityContext, Service, ServicePort, ServiceSpec, Volume,
+                VolumeMount,
+            },
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
@@ -18,9 +22,7 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 use stackable_spark_k8s_crd::{
-    constants::{
-        APP_NAME, HISTORY_CONFIG_FILE_NAME, HISTORY_CONTROLLER_NAME, HISTORY_IMAGE_BASE_NAME,
-    },
+    constants::*,
     history::{LogFileDirectorySpec::S3, S3LogFileDirectorySpec, SparkHistoryServer},
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -144,9 +146,9 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 .await
                 .context(ApplyConfigMapSnafu)?;
 
-            let deployment = build_stateful_set(&shs, &resolved_product_image, &rgr)?;
+            let sts = build_stateful_set(&shs, &resolved_product_image, &rgr, &s3_log_dir)?;
             ctx.client
-                .apply_patch(HISTORY_CONTROLLER_NAME, &deployment, &deployment)
+                .apply_patch(HISTORY_CONTROLLER_NAME, &sts, &sts)
                 .await
                 .context(ApplyDeploymentSnafu)?;
         }
@@ -191,6 +193,7 @@ fn build_stateful_set(
     shs: &SparkHistoryServer,
     resolved_product_image: &ResolvedProductImage,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
+    s3_log_dir: &S3LogDir,
 ) -> Result<StatefulSet, Error> {
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
@@ -201,12 +204,13 @@ fn build_stateful_set(
         // TODO: add resources
         //.resources(resources.clone().into())
         .command(vec!["/bin/bash".to_string()])
-        .args(shs.command_args())
+        .args(command_args(s3_log_dir))
         .add_container_port("http", 18080)
-        .add_volume_mount("config", "/stackable/spark/conf")
         // This env var prevents the history server from detaching it's self from the
         // start script because this leads to the Pod terminating immediately.
         .add_env_var("SPARK_NO_DAEMONIZE", "true")
+        .add_volume_mounts(s3_log_dir.crdentials_volume_mount().into_iter())
+        .add_volume_mount("config", "/stackable/spark/conf")
         .build();
 
     let template = PodBuilder::new()
@@ -217,11 +221,18 @@ fn build_stateful_set(
                 .with_config_map(rolegroupref.object_name())
                 .build(),
         )
+        .add_volumes(s3_log_dir.crdentials_volume().into_iter().collect())
         .metadata_builder(|m| {
             m.with_recommended_labels(shs.labels(
                 &resolved_product_image.app_version_label,
                 &rolegroupref.role_group,
             ))
+        })
+        .security_context(PodSecurityContext {
+            run_as_user: Some(1000),
+            run_as_group: Some(1000),
+            fs_group: Some(1000),
+            ..PodSecurityContext::default()
         })
         .build_template();
 
@@ -366,7 +377,7 @@ impl S3LogDir {
         result.insert(
             "spark.history.fs.logDirectory".to_string(),
             format!(
-                "s3a://{}/{}/",
+                "s3a://{}/{}",
                 self.bucket.bucket_name.as_ref().unwrap().clone(), // this is guranateed to exist at this point
                 self.prefix
             ),
@@ -390,15 +401,40 @@ impl S3LogDir {
                 );
                 result.insert(
                     "spark.hadoop.fs.s3a.access.key".to_string(),
-                    "PLACEHOLDER_ACCESS_KEY".to_string(),
+                    "${env:ACCESS_KEY_ID}".to_string(),
                 );
                 result.insert(
                     "spark.hadoop.fs.s3a.secret.key".to_string(),
-                    "PLACEHOLDER_SECRET_KEY".to_string(),
+                    "${env:SECRET_ACCESS_KEY}".to_string(),
                 );
             }
         }
         result
+    }
+
+    fn crdentials_volume(&self) -> Option<Volume> {
+        self.credentials()
+            .map(|credentials| credentials.to_volume(VOLUME_NAME_S3_CREDENTIALS))
+    }
+
+    fn crdentials_volume_mount(&self) -> Option<VolumeMount> {
+        self.credentials().map(|_| VolumeMount {
+            name: VOLUME_NAME_S3_CREDENTIALS.into(),
+            mount_path: S3_SECRET_DIR_NAME.into(),
+            ..VolumeMount::default()
+        })
+    }
+
+    fn credentials(&self) -> Option<SecretClassVolume> {
+        if let Some(&S3ConnectionSpec {
+            credentials: Some(ref credentials),
+            ..
+        }) = self.bucket.connection.as_ref()
+        {
+            Some(credentials.clone())
+        } else {
+            None
+        }
     }
 }
 
@@ -406,14 +442,46 @@ fn spark_config(
     rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_log_dir: &S3LogDir,
 ) -> String {
-    let log_dir_settings = s3_log_dir.spark_config();
+    let empty = BTreeMap::new();
+
+    let mut log_dir_settings = s3_log_dir.spark_config();
+
+    tracing::debug!("log_dir_settings: {:?}", log_dir_settings);
 
     // Add user provided configuration. These can overwrite the "log_file_directory" settings.
-    rolegroup_config
+    let user_settings = rolegroup_config
         .get(&PropertyNameKind::File(HISTORY_CONFIG_FILE_NAME.to_owned()))
-        .unwrap_or(&log_dir_settings)
+        .unwrap_or(&empty);
+
+    tracing::debug!("user_settings: {:?}", user_settings);
+
+    log_dir_settings.extend(user_settings.clone().into_iter());
+
+    tracing::debug!("merged settings: {:?}", log_dir_settings);
+
+    log_dir_settings
         .iter()
         .map(|(k, v)| format!("{k} {v}"))
         .collect::<Vec<String>>()
         .join("\n")
+}
+
+fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
+    let mut command = vec![];
+
+    if s3logdir.credentials().is_some() {
+        command.extend(vec![
+            format!("export ACCESS_KEY_ID=$(cat {S3_SECRET_DIR_NAME}/{ACCESS_KEY_ID})"),
+            "&&".to_string(),
+            format!("export SECRET_ACCESS_KEY=$(cat {S3_SECRET_DIR_NAME}/{SECRET_ACCESS_KEY})"),
+            "&&".to_string(),
+        ]);
+    }
+    command.extend(vec![
+        "/stackable/spark/sbin/start-history-server.sh".to_string(),
+        "--properties-file".to_string(),
+        HISTORY_CONFIG_FILE_NAME_FULL.to_string(),
+    ]);
+
+    vec![String::from("-c"), command.join(" ")]
 }

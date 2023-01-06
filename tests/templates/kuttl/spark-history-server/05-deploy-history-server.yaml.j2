@@ -20,13 +20,13 @@ spec:
               port: 9000
               accessStyle: Path
               credentials:
-                secretClass: minio-credentials
+                secretClass: s3-credentials-class
   nodes:
     roleGroups:
       default:
         config:
           cleaner: true
-          sparkConf:
+          #sparkConf:
             #spark.hadoop.fs.s3a.endpoint: "http://test-minio:9000"
             #spark.history.fs.logDirectory: "s3a://spark-logs/"
             #spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"

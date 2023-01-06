@@ -265,7 +265,7 @@ impl SparkApplication {
             ..
         }) = s3_conn
         {
-            result.push(credentials.to_volume("s3-credentials"));
+            result.push(credentials.to_volume(VOLUME_NAME_S3_CREDENTIALS));
         }
         result
     }
@@ -328,7 +328,7 @@ impl SparkApplication {
         }) = s3_conn
         {
             mounts.push(VolumeMount {
-                name: "s3-credentials".into(),
+                name: VOLUME_NAME_S3_CREDENTIALS.into(),
                 mount_path: S3_SECRET_DIR_NAME.into(),
                 ..VolumeMount::default()
             });

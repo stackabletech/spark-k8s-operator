@@ -9,6 +9,5 @@ commands:
   - command: kubectl exec -n $NAMESPACE minio-client -- mc mb test-minio/my-bucket
   - command: kubectl exec -n $NAMESPACE minio-client -- mc policy set public test-minio/my-bucket
   - command: kubectl exec -n $NAMESPACE minio-client -- mc mb test-minio/spark-logs
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc policy set public test-minio/spark-logs
   - script: >-
       kubectl exec -n $NAMESPACE minio-client -- mc cp /tmp/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar test-minio/my-bucket

@@ -548,19 +548,10 @@ spec:
             - logFileDirectory
             - nodes
             type: object
-          status:
-            nullable: true
-            properties:
-              phase:
-                type: string
-            required:
-            - phase
-            type: object
         required:
         - spec
         title: SparkHistoryServer
         type: object
     served: true
     storage: true
-    subresources:
-      status: {}
+    subresources: {}

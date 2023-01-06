@@ -42,7 +42,6 @@ pub enum Error {
     version = "v1alpha1",
     kind = "SparkHistoryServer",
     shortname = "shs",
-    status = "SparkHistoryStatus",
     namespaced,
     crates(
         kube_core = "stackable_operator::kube::core",
@@ -74,13 +73,6 @@ impl SparkHistoryServer {
         }
     }
 
-    pub fn command_args(&self) -> Vec<String> {
-        vec![
-            String::from("-c"),
-            format!("/stackable/spark/sbin/start-history-server.sh --properties-file {HISTORY_CONFIG_FILE_NAME_FULL}"),
-        ]
-    }
-
     pub fn validated_role_config(
         &self,
         resolved_product_image: &ResolvedProductImage,
@@ -108,13 +100,6 @@ impl SparkHistoryServer {
         )
         .context(InvalidProductConfigSnafu)
     }
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[serde(rename_all = "camelCase")]
-pub struct SparkHistoryStatus {
-    pub phase: String,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, Display)]

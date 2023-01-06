@@ -17,7 +17,7 @@ use stackable_operator::{
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::runtime::{controller::Action, reflector::ObjectRef},
-    labels::{role_group_selector_labels, role_selector_labels},
+    labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     product_config::{types::PropertyNameKind, ProductConfigManager},
     role_utils::RoleGroupRef,
 };
@@ -177,7 +177,7 @@ fn build_config_map(
                 .name(rolegroupref.object_name())
                 .ownerreference_from_resource(shs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(shs.labels(app_version_label, &rolegroupref.role_group))
+                .with_recommended_labels(labels(shs, app_version_label, &rolegroupref.role_group))
                 .build(),
         )
         .add_data(HISTORY_CONFIG_FILE_NAME, spark_config)
@@ -223,7 +223,8 @@ fn build_stateful_set(
         )
         .add_volumes(s3_log_dir.crdentials_volume().into_iter().collect())
         .metadata_builder(|m| {
-            m.with_recommended_labels(shs.labels(
+            m.with_recommended_labels(labels(
+                shs,
                 &resolved_product_image.app_version_label,
                 &rolegroupref.role_group,
             ))
@@ -241,13 +242,15 @@ fn build_stateful_set(
             .name_and_namespace(shs)
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(shs.labels(
+            .with_recommended_labels(labels(
+                shs,
                 &resolved_product_image.app_version_label,
                 rolegroupref.role_group.as_ref(),
             ))
             .build(),
         spec: Some(StatefulSetSpec {
             template,
+            replicas: shs.replicas(rolegroupref),
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(
                     shs,
@@ -294,7 +297,7 @@ fn build_service(
             .name(service_name)
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(shs.labels(app_version_label, &group_name))
+            .with_recommended_labels(labels(shs, app_version_label, &group_name))
             .build(),
         spec: Some(ServiceSpec {
             ports: Some(vec![ServicePort {
@@ -371,6 +374,13 @@ impl S3LogDir {
 
     /// Constructs the properties needed for loading event logs from S3.
     /// These properties are later written in the `HISTORY_CONFIG_FILE_NAME_FULL` file.
+    ///
+    /// The following properties related to credentials are not included:
+    /// * spark.hadoop.fs.s3a.aws.credentials.provider
+    /// * spark.hadoop.fs.s3a.access.key
+    /// * spark.hadoop.fs.s3a.secret.key
+    /// instead, the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set
+    /// on the container start command.
     fn spark_config(&self) -> BTreeMap<String, String> {
         let mut result = BTreeMap::new();
 
@@ -392,20 +402,6 @@ impl S3LogDir {
                 result.insert(
                     "spark.hadoop.fs.s3a.path.style.access".to_string(),
                     "true".to_string(),
-                );
-            }
-            if conn.credentials.as_ref().is_some() {
-                result.insert(
-                    "spark.hadoop.fs.s3a.aws.credentials.provider".to_string(),
-                    "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider".to_string(),
-                );
-                result.insert(
-                    "spark.hadoop.fs.s3a.access.key".to_string(),
-                    "${env:ACCESS_KEY_ID}".to_string(),
-                );
-                result.insert(
-                    "spark.hadoop.fs.s3a.secret.key".to_string(),
-                    "${env:SECRET_ACCESS_KEY}".to_string(),
                 );
             }
         }
@@ -471,9 +467,9 @@ fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
 
     if s3logdir.credentials().is_some() {
         command.extend(vec![
-            format!("export ACCESS_KEY_ID=$(cat {S3_SECRET_DIR_NAME}/{ACCESS_KEY_ID})"),
+            format!("export AWS_ACCESS_KEY_ID=$(cat {S3_SECRET_DIR_NAME}/{ACCESS_KEY_ID})"),
             "&&".to_string(),
-            format!("export SECRET_ACCESS_KEY=$(cat {S3_SECRET_DIR_NAME}/{SECRET_ACCESS_KEY})"),
+            format!("export AWS_SECRET_ACCESS_KEY=$(cat {S3_SECRET_DIR_NAME}/{SECRET_ACCESS_KEY})"),
             "&&".to_string(),
         ]);
     }
@@ -484,4 +480,20 @@ fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
     ]);
 
     vec![String::from("-c"), command.join(" ")]
+}
+
+fn labels<'a, T>(
+    shs: &'a T,
+    app_version_label: &'a str,
+    role_group: &'a str,
+) -> ObjectLabels<'a, T> {
+    ObjectLabels {
+        owner: shs,
+        app_name: APP_NAME,
+        app_version: app_version_label,
+        operator_name: OPERATOR_NAME,
+        controller_name: HISTORY_CONTROLLER_NAME,
+        role: HISTORY_ROLE_NAME,
+        role_group,
+    }
 }

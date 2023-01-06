@@ -1,5 +1,4 @@
 ---
-# https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkHistoryServer
 metadata:
@@ -10,7 +9,7 @@ spec:
     stackableVersion: "{{ test_scenario['values']['stackable'] }}"
   logFileDirectory:
     s3:
-      prefix: logs/
+      prefix: /
       bucket: # S3BucketDef
         inline:
           bucketName: spark-logs
@@ -23,23 +22,9 @@ spec:
                 secretClass: s3-credentials-class
   nodes:
     roleGroups:
-      default:
+      cleaner:
+        replicas: 1
         config:
           cleaner: true
+          # For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
           #sparkConf:
-            #spark.hadoop.fs.s3a.endpoint: "http://test-minio:9000"
-            #spark.history.fs.logDirectory: "s3a://spark-logs/"
-            #spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-            #spark.hadoop.fs.s3a.path.style.access: "true"
-
-            #spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
-            #spark.history.ui.port: "18080"
-            #spark.history.fs.logDirectory: "file:///tmp"
-            #spark.history.provider: "org.apache.spark.deploy.history.FsHistoryProvider"
-            #spark.history.fs.update.interval: "10s"
-            #spark.history.retainedApplications: "50"
-            #spark.history.ui.maxApplications: "2147483647"
-            #spark.history.fs.cleaner.enabled: "false"
-            #spark.history.fs.cleaner.interval: "1d"
-            #spark.history.fs.cleaner.maxAge: "7d"
-            #spark.history.fs.cleaner.maxNum: "2147483647"

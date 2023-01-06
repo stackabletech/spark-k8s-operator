@@ -7,13 +7,12 @@ use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
     ValidatedRoleConfigByPropertyKind,
 };
-use stackable_operator::role_utils::Role;
+use stackable_operator::role_utils::{Role, RoleGroupRef};
 
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
-use stackable_operator::labels::ObjectLabels;
 use stackable_operator::{
     commons::resources::{NoRuntimeLimits, ResourcesFragment},
     config::{fragment::Fragment, merge::Merge},
@@ -57,20 +56,13 @@ pub struct SparkHistoryServerSpec {
 }
 
 impl SparkHistoryServer {
-    pub fn labels<'a>(
-        &'a self,
-        app_version_label: &'a str,
-        role_group: &'a str,
-    ) -> ObjectLabels<SparkHistoryServer> {
-        ObjectLabels {
-            owner: self,
-            app_name: APP_NAME,
-            app_version: app_version_label,
-            operator_name: OPERATOR_NAME,
-            controller_name: HISTORY_CONTROLLER_NAME,
-            role: HISTORY_ROLE_NAME,
-            role_group,
-        }
+    pub fn replicas(&self, rolegroup_ref: &RoleGroupRef<Self>) -> Option<i32> {
+        self.spec
+            .nodes
+            .role_groups
+            .get(&rolegroup_ref.role_group)
+            .and_then(|rg| rg.replicas)
+            .map(i32::from)
     }
 
     pub fn validated_role_config(

@@ -15,7 +15,7 @@ anyhow = "1.0"
 clap = "4.0"
 futures = "0.3"
 serde = "1.0"
-serde_yaml = "0.8"
+serde_yaml = "0.9"
 snafu = "0.7"
 strum = { version = "0.24.1", features = ["derive"] }
 tokio = { version = "1.24", features = ["macros", "rt-multi-thread"] }

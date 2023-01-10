@@ -92,10 +92,10 @@ async fn main() -> anyhow::Result<()> {
             })
             .instrument(info_span!("app_controller"));
 
-            let _pod_driver_controller = Controller::new(
+            let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<Pod>(&client),
                 ListParams::default()
-                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{POD_DRIVER_CONTROLLER_NAME},spark-role=driver")),
+                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
                 watch_namespace.get_api::<Pod>(&client),
@@ -138,17 +138,12 @@ async fn main() -> anyhow::Result<()> {
             })
             .instrument(info_span!("history_controller"));
 
-            // TODO: fix this
-            //let streams = vec![
-            //    app_controller.boxed(),
-            //    pod_driver_controller.boxed(),
-            //    history_controller.boxed(),
-            //];
-            //block_on_stream(futures::stream::select_all(streams.collect::<()>()));
-
-            futures::stream::select(app_controller, history_controller)
-                .collect::<()>()
-                .await;
+            futures::stream::select(
+                futures::stream::select(app_controller, pod_driver_controller),
+                history_controller,
+            )
+            .collect::<()>()
+            .await;
         }
     }
     Ok(())

@@ -206,10 +206,10 @@ fn build_stateful_set(
         .command(vec!["/bin/bash".to_string()])
         .args(command_args(s3_log_dir))
         .add_container_port("http", 18080)
-        // This env var prevents the history server from detaching it's self from the
+        // This env var prevents the history server from detaching itself from the
         // start script because this leads to the Pod terminating immediately.
         .add_env_var("SPARK_NO_DAEMONIZE", "true")
-        .add_volume_mounts(s3_log_dir.crdentials_volume_mount().into_iter())
+        .add_volume_mounts(s3_log_dir.credentials_volume_mount().into_iter())
         .add_volume_mount("config", "/stackable/spark/conf")
         .build();
 
@@ -221,7 +221,7 @@ fn build_stateful_set(
                 .with_config_map(rolegroupref.object_name())
                 .build(),
         )
-        .add_volumes(s3_log_dir.crdentials_volume().into_iter().collect())
+        .add_volumes(s3_log_dir.credentials_volume().into_iter().collect())
         .metadata_builder(|m| {
             m.with_recommended_labels(labels(
                 shs,
@@ -408,12 +408,12 @@ impl S3LogDir {
         result
     }
 
-    fn crdentials_volume(&self) -> Option<Volume> {
+    fn credentials_volume(&self) -> Option<Volume> {
         self.credentials()
             .map(|credentials| credentials.to_volume(VOLUME_NAME_S3_CREDENTIALS))
     }
 
-    fn crdentials_volume_mount(&self) -> Option<VolumeMount> {
+    fn credentials_volume_mount(&self) -> Option<VolumeMount> {
         self.credentials().map(|_| VolumeMount {
             name: VOLUME_NAME_S3_CREDENTIALS.into(),
             mount_path: S3_SECRET_DIR_NAME.into(),

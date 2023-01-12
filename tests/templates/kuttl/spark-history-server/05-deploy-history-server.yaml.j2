@@ -9,7 +9,7 @@ spec:
     stackableVersion: "{{ test_scenario['values']['stackable'] }}"
   logFileDirectory:
     s3:
-      prefix: /
+      prefix: eventlogs/
       bucket: # S3BucketDef
         inline:
           bucketName: spark-logs

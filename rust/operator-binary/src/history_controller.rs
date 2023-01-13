@@ -2,6 +2,7 @@ use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     commons::{
         product_image_selection::ResolvedProductImage,
+        resources::{NoRuntimeLimits, Resources},
         s3::{InlinedS3BucketSpec, S3AccessStyle, S3ConnectionSpec},
         secret_class::SecretClassVolume,
         tls::{CaCert, TlsVerification},
@@ -18,15 +19,17 @@ use stackable_operator::{
     },
     kube::runtime::{controller::Action, reflector::ObjectRef},
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
-    product_config::{types::PropertyNameKind, ProductConfigManager},
+    product_config::ProductConfigManager,
     role_utils::RoleGroupRef,
 };
 use stackable_spark_k8s_crd::{
     constants::*,
-    history::{LogFileDirectorySpec::S3, S3LogFileDirectorySpec, SparkHistoryServer},
+    history::{
+        HistoryStorageConfig, LogFileDirectorySpec::S3, S3LogFileDirectorySpec, SparkHistoryServer,
+    },
 };
+use std::time::Duration;
 use std::{collections::BTreeMap, sync::Arc};
-use std::{collections::HashMap, time::Duration};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::logging::controller::ReconcilerError;
@@ -81,6 +84,10 @@ pub enum Error {
     S3TlsCaVerificationNotSupported,
     #[snafu(display("missing bucket name for history logs"))]
     BucketNameMissing,
+    #[snafu(display("failed to resolve and merge config for role and role group"))]
+    FailedToResolveConfig {
+        source: stackable_spark_k8s_crd::history::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -99,7 +106,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
 
     // TODO: (RBAC) need to use a dedicated service account, role
 
-    // The role_name is always "history"
+    // The role_name is always HISTORY_ROLE_NAME
     for (role_name, role_config) in shs
         .validated_role_config(&resolved_product_image, &ctx.product_config)
         .context(ProductConfigValidationSnafu)?
@@ -116,12 +123,16 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
             .await
             .context(ApplyServiceSnafu)?;
 
-        for (rolegroup_name, rolegroup_config) in role_config.iter() {
+        for (rolegroup_name, _rolegroup_config) in role_config.iter() {
             let rgr = RoleGroupRef {
                 cluster: ObjectRef::from_obj(&*shs),
                 role: role_name.into(),
                 role_group: rolegroup_name.into(),
             };
+
+            let config = shs
+                .merged_config(&rgr)
+                .context(FailedToResolveConfigSnafu)?;
 
             let service = build_service(
                 &shs,
@@ -138,7 +149,6 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &shs,
                 &resolved_product_image.app_version_label,
                 &rgr,
-                rolegroup_config,
                 &s3_log_dir,
             )?;
             ctx.client
@@ -146,7 +156,13 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 .await
                 .context(ApplyConfigMapSnafu)?;
 
-            let sts = build_stateful_set(&shs, &resolved_product_image, &rgr, &s3_log_dir)?;
+            let sts = build_stateful_set(
+                &shs,
+                &resolved_product_image,
+                &rgr,
+                &s3_log_dir,
+                &config.resources,
+            )?;
             ctx.client
                 .apply_patch(HISTORY_CONTROLLER_NAME, &sts, &sts)
                 .await
@@ -165,10 +181,9 @@ fn build_config_map(
     shs: &SparkHistoryServer,
     app_version_label: &str,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     s3_log_dir: &S3LogDir,
 ) -> Result<ConfigMap, Error> {
-    let spark_config = spark_config(rolegroup_config, s3_log_dir);
+    let spark_config = spark_config(shs, s3_log_dir);
 
     let result = ConfigMapBuilder::new()
         .metadata(
@@ -194,6 +209,7 @@ fn build_stateful_set(
     resolved_product_image: &ResolvedProductImage,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
     s3_log_dir: &S3LogDir,
+    resources: &Resources<HistoryStorageConfig, NoRuntimeLimits>,
 ) -> Result<StatefulSet, Error> {
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
@@ -201,8 +217,7 @@ fn build_stateful_set(
             name: String::from(container_name),
         })?
         .image(resolved_product_image.image.clone())
-        // TODO: add resources
-        //.resources(resources.clone().into())
+        .resources(resources.clone().into())
         .command(vec!["/bin/bash".to_string()])
         .args(command_args(s3_log_dir))
         .add_container_port("http", 18080)
@@ -388,7 +403,7 @@ impl S3LogDir {
             "spark.history.fs.logDirectory".to_string(),
             format!(
                 "s3a://{}/{}",
-                self.bucket.bucket_name.as_ref().unwrap().clone(), // this is guranateed to exist at this point
+                self.bucket.bucket_name.as_ref().unwrap().clone(), // this is guaranteed to exist at this point
                 self.prefix
             ),
         );
@@ -434,10 +449,7 @@ impl S3LogDir {
     }
 }
 
-fn spark_config(
-    rolegroup_config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    s3_log_dir: &S3LogDir,
-) -> String {
+fn spark_config(shs: &SparkHistoryServer, s3_log_dir: &S3LogDir) -> String {
     let empty = BTreeMap::new();
 
     let mut log_dir_settings = s3_log_dir.spark_config();
@@ -445,9 +457,7 @@ fn spark_config(
     tracing::debug!("log_dir_settings: {:?}", log_dir_settings);
 
     // Add user provided configuration. These can overwrite the "log_file_directory" settings.
-    let user_settings = rolegroup_config
-        .get(&PropertyNameKind::File(HISTORY_CONFIG_FILE_NAME.to_owned()))
-        .unwrap_or(&empty);
+    let user_settings = shs.spec.spark_conf.as_ref().unwrap_or(&empty);
 
     tracing::debug!("user_settings: {:?}", user_settings);
 

@@ -20,11 +20,11 @@ spec:
               accessStyle: Path
               credentials:
                 secretClass: s3-credentials-class
+  # For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
+  #sparkConf:
   nodes:
     roleGroups:
       cleaner:
         replicas: 1
         config:
           cleaner: true
-          # For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
-          #sparkConf:

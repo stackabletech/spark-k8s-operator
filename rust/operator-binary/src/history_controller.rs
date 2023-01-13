@@ -11,11 +11,13 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, PodSecurityContext, Service, ServicePort, ServiceSpec, Volume,
-                VolumeMount,
+                ConfigMap, PodSecurityContext, Service, ServiceAccount, ServicePort, ServiceSpec,
+                Volume, VolumeMount,
             },
+            rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
+        Resource,
     },
     kube::runtime::{controller::Action, reflector::ObjectRef},
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
@@ -70,6 +72,14 @@ pub enum Error {
     ApplyService {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("failed to apply role ServiceAccount"))]
+    ApplyServiceAccount {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to apply global RoleBinding"))]
+    ApplyRoleBinding {
+        source: stackable_operator::error::Error,
+    },
     #[snafu(display("product config validation failed"))]
     ProductConfigValidation {
         source: stackable_spark_k8s_crd::history::Error,
@@ -101,10 +111,23 @@ impl ReconcilerError for Error {
 pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Action> {
     tracing::info!("Starting reconcile history server");
 
+    let client = &ctx.client;
+
     let resolved_product_image = shs.spec.image.resolve(HISTORY_IMAGE_BASE_NAME);
-    let s3_log_dir = S3LogDir::resolve(&shs, &ctx.client).await?;
+    let s3_log_dir = S3LogDir::resolve(&shs, client).await?;
 
     // TODO: (RBAC) need to use a dedicated service account, role
+    let (serviceaccount, rolebinding) =
+        build_history_role_serviceaccount(&shs, &resolved_product_image.app_version_label)?;
+
+    client
+        .apply_patch(HISTORY_CONTROLLER_NAME, &serviceaccount, &serviceaccount)
+        .await
+        .context(ApplyServiceAccountSnafu)?;
+    client
+        .apply_patch(HISTORY_CONTROLLER_NAME, &rolebinding, &rolebinding)
+        .await
+        .context(ApplyRoleBindingSnafu)?;
 
     // The role_name is always HISTORY_ROLE_NAME
     for (role_name, role_config) in shs
@@ -118,7 +141,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
             role_name,
             None,
         )?;
-        ctx.client
+        client
             .apply_patch(HISTORY_CONTROLLER_NAME, &service, &service)
             .await
             .context(ApplyServiceSnafu)?;
@@ -140,7 +163,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 role_name,
                 Some(&rgr),
             )?;
-            ctx.client
+            client
                 .apply_patch(HISTORY_CONTROLLER_NAME, &service, &service)
                 .await
                 .context(ApplyServiceSnafu)?;
@@ -151,7 +174,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &rgr,
                 &s3_log_dir,
             )?;
-            ctx.client
+            client
                 .apply_patch(HISTORY_CONTROLLER_NAME, &config_map, &config_map)
                 .await
                 .context(ApplyConfigMapSnafu)?;
@@ -163,7 +186,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &s3_log_dir,
                 &config.resources,
             )?;
-            ctx.client
+            client
                 .apply_patch(HISTORY_CONTROLLER_NAME, &sts, &sts)
                 .await
                 .context(ApplyDeploymentSnafu)?;
@@ -326,6 +349,45 @@ fn build_service(
         }),
         status: None,
     })
+}
+
+fn build_history_role_serviceaccount(
+    shs: &SparkHistoryServer,
+    app_version_label: &str,
+) -> Result<(ServiceAccount, RoleBinding)> {
+    let sa_name = shs.metadata.name.as_ref().unwrap().to_string();
+    let sa = ServiceAccount {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(shs)
+            .name(&sa_name)
+            .ownerreference_from_resource(shs, None, Some(true))
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
+            .build(),
+        ..ServiceAccount::default()
+    };
+    let binding_name = &sa_name;
+    let binding = RoleBinding {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(shs)
+            .name(binding_name)
+            .ownerreference_from_resource(shs, None, Some(true))
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
+            .build(),
+        role_ref: RoleRef {
+            api_group: ClusterRole::GROUP.to_string(),
+            kind: ClusterRole::KIND.to_string(),
+            name: HISTORY_ROLE_NAME.to_string(),
+        },
+        subjects: Some(vec![Subject {
+            api_group: Some(ServiceAccount::GROUP.to_string()),
+            kind: ServiceAccount::KIND.to_string(),
+            name: sa_name,
+            namespace: sa.metadata.namespace.clone(),
+        }]),
+    };
+    Ok((sa, binding))
 }
 
 struct S3LogDir {

@@ -2127,7 +2127,14 @@ spec:
                           nullable: true
                           type: boolean
                         resources:
-                          nullable: true
+                          default:
+                            memory:
+                              limit: null
+                              runtimeLimits: {}
+                            cpu:
+                              min: null
+                              max: null
+                            storage: {}
                           properties:
                             cpu:
                               default:
@@ -2248,11 +2255,6 @@ spec:
                             storage:
                               type: object
                           type: object
-                        sparkConf:
-                          additionalProperties:
-                            type: string
-                          nullable: true
-                          type: object
                       type: object
                     configOverrides:
                       additionalProperties:
@@ -2281,7 +2283,14 @@ spec:
                                 nullable: true
                                 type: boolean
                               resources:
-                                nullable: true
+                                default:
+                                  memory:
+                                    limit: null
+                                    runtimeLimits: {}
+                                  cpu:
+                                    min: null
+                                    max: null
+                                  storage: {}
                                 properties:
                                   cpu:
                                     default:
@@ -2402,11 +2411,6 @@ spec:
                                   storage:
                                     type: object
                                 type: object
-                              sparkConf:
-                                additionalProperties:
-                                  type: string
-                                nullable: true
-                                type: object
                             type: object
                           configOverrides:
                             additionalProperties:
@@ -2460,6 +2464,11 @@ spec:
                       type: object
                   required:
                     - roleGroups
+                  type: object
+                sparkConf:
+                  additionalProperties:
+                    type: string
+                  nullable: true
                   type: object
               required:
                 - image

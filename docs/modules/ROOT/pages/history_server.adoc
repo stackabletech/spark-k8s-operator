@@ -1,0 +1,25 @@
+= Spark History Server
+
+== Overview
+
+The Stackable Spark-on-Kubernetes operator runs Apache Spark workloads in a Kubernetes cluster, whereby driver- and executor-pods are created for the duration of the job and then terminated. One or more Spark History Server instances can be deployed independently of `SparkApplication` jobs and used as an end-point for spark logging, so that job information can be viewed once the job pods are no longer available.
+
+== Example
+
+[source,yaml]
+----
+include::example$example-history-server.yaml[]
+----
+
+<1> The history server writes logs to a file directory, which currently has to be a bucket in an S3 object store (see the s3 field).
+<2> The log destination requires a prefix so that different bucket folders can be detected correctly.
+<3> The S3BucketDef description, here provided in-line.
+<4> History server configuration settings can be provided here as a map. For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
+<5> The history server implements a single role called `nodes`.
+
+== Accessing the job history
+
+The history exposes a user console on port 18080. By setting up port-forwarding on 18080 this UI can be opened in a browser to show running and completed jobs:
+
+image::history-server-ui.png[History Server Console]
+

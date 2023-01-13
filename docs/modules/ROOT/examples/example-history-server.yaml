@@ -1,0 +1,29 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+metadata:
+  name: spark-history
+spec:
+  image:
+    productVersion: 3.3.0
+    stackableVersion: 0.3.0
+  logFileDirectory:  # <1>
+    s3:
+      prefix: eventlogs/  # <2>
+      bucket:  # <3>
+        inline:
+          bucketName: spark-logs
+          connection:
+            inline:
+              host: test-minio
+              port: 9000
+              accessStyle: Path
+              credentials:
+                secretClass: s3-credentials-class
+  sparkConf:  # <4>
+  nodes:  # <5>
+    roleGroups:
+      cleaner:
+        replicas: 1
+        config:
+          cleaner: true

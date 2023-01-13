@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Create and manage history servers ([#187])
+- `operator-rs` `0.27.1` -> `0.30.2` ([#187])
 
 [#187]: https://github.com/stackabletech/spark-k8s-operator/pull/187
 

@@ -18,8 +18,6 @@ use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
-
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
 }

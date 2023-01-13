@@ -378,7 +378,7 @@ fn build_history_role_serviceaccount(
         role_ref: RoleRef {
             api_group: ClusterRole::GROUP.to_string(),
             kind: ClusterRole::KIND.to_string(),
-            name: HISTORY_ROLE_NAME.to_string(),
+            name: SPARK_CLUSTER_ROLE.to_string(),
         },
         subjects: Some(vec![Subject {
             api_group: Some(ServiceAccount::GROUP.to_string()),

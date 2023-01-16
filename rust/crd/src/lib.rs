@@ -4,6 +4,7 @@ pub mod constants;
 pub mod history;
 
 use constants::*;
+use history::LogFileDirectorySpec;
 use stackable_operator::builder::VolumeBuilder;
 use stackable_operator::commons::s3::{
     InlinedS3BucketSpec, S3AccessStyle, S3BucketDef, S3ConnectionSpec,
@@ -111,7 +112,7 @@ impl SparkConfig {
     }
 }
 
-#[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "spark.stackable.tech",
     version = "v1alpha1",
@@ -165,6 +166,8 @@ pub struct SparkApplicationSpec {
     pub volumes: Option<Vec<Volume>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<EnvVar>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log_file_directory: Option<LogFileDirectorySpec>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Display, EnumString)]

@@ -1,18 +1,15 @@
+use crate::s3logdir::S3LogDir;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     commons::{
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
-        s3::{InlinedS3BucketSpec, S3AccessStyle, S3ConnectionSpec},
-        secret_class::SecretClassVolume,
-        tls::{CaCert, TlsVerification},
     },
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, PodSecurityContext, Service, ServiceAccount, ServicePort, ServiceSpec,
-                Volume, VolumeMount,
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
@@ -26,14 +23,12 @@ use stackable_operator::{
 };
 use stackable_spark_k8s_crd::{
     constants::*,
-    history::{
-        HistoryStorageConfig, LogFileDirectorySpec::S3, S3LogFileDirectorySpec, SparkHistoryServer,
-    },
+    history::{HistoryStorageConfig, SparkHistoryServer},
 };
 use std::time::Duration;
 use std::{collections::BTreeMap, sync::Arc};
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -84,16 +79,6 @@ pub enum Error {
     ProductConfigValidation {
         source: stackable_spark_k8s_crd::history::Error,
     },
-    #[snafu(display("s3 bucket error"))]
-    S3Bucket {
-        source: stackable_operator::error::Error,
-    },
-    #[snafu(display("tls non-verification not supported"))]
-    S3TlsNoVerificationNotSupported,
-    #[snafu(display("ca-cert verification not supported"))]
-    S3TlsCaVerificationNotSupported,
-    #[snafu(display("missing bucket name for history logs"))]
-    BucketNameMissing,
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig {
         source: stackable_spark_k8s_crd::history::Error,
@@ -102,6 +87,8 @@ pub enum Error {
     TooManyCleanerRoleGroups,
     #[snafu(display("number of cleaner replicas exceeds 1"))]
     TooManyCleanerReplicas,
+    #[snafu(display("failed to resolve the s3 log dir confirguration"))]
+    S3LogDir { source: crate::s3logdir::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -118,7 +105,9 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     let client = &ctx.client;
 
     let resolved_product_image = shs.spec.image.resolve(HISTORY_IMAGE_BASE_NAME);
-    let s3_log_dir = S3LogDir::resolve(&shs, client).await?;
+    let s3_log_dir = S3LogDir::resolve(&shs, client)
+        .await
+        .context(S3LogDirSnafu)?;
 
     // TODO: (RBAC) need to use a dedicated service account, role
     let (serviceaccount, rolebinding) =
@@ -392,127 +381,6 @@ fn build_history_role_serviceaccount(
         }]),
     };
     Ok((sa, binding))
-}
-
-struct S3LogDir {
-    bucket: InlinedS3BucketSpec,
-    prefix: String,
-}
-
-impl S3LogDir {
-    async fn resolve(
-        shs: &SparkHistoryServer,
-        client: &stackable_operator::client::Client,
-    ) -> Result<S3LogDir, Error> {
-        #[allow(irrefutable_let_patterns)]
-        let (s3bucket, prefix) =
-            if let S3(S3LogFileDirectorySpec { bucket, prefix }) = &shs.spec.log_file_directory {
-                (
-                    bucket
-                        .resolve(client, shs.metadata.namespace.as_deref().unwrap())
-                        .await
-                        .context(S3BucketSnafu)
-                        .ok(),
-                    prefix.clone(),
-                )
-            } else {
-                (None, "".to_string())
-            };
-
-        // Check that a bucket name has been defined
-        s3bucket
-            .as_ref()
-            .and_then(|i| i.bucket_name.as_ref())
-            .context(BucketNameMissingSnafu)?;
-
-        if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
-            if let Some(tls) = &conn.tls {
-                match &tls.verification {
-                    TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                    TlsVerification::Server(server_verification) => {
-                        match &server_verification.ca_cert {
-                            CaCert::WebPki {} => {}
-                            CaCert::SecretClass(_) => {
-                                return S3TlsCaVerificationNotSupportedSnafu.fail()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
-            if conn.tls.as_ref().is_some() {
-                tracing::warn!("The resource indicates S3-access should use TLS: TLS-verification has not yet been implemented \
-            but an HTTPS-endpoint will be used!");
-            }
-        }
-        Ok(S3LogDir {
-            bucket: s3bucket.unwrap(),
-            prefix,
-        })
-    }
-
-    /// Constructs the properties needed for loading event logs from S3.
-    /// These properties are later written in the `HISTORY_CONFIG_FILE_NAME_FULL` file.
-    ///
-    /// The following properties related to credentials are not included:
-    /// * spark.hadoop.fs.s3a.aws.credentials.provider
-    /// * spark.hadoop.fs.s3a.access.key
-    /// * spark.hadoop.fs.s3a.secret.key
-    /// instead, the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set
-    /// on the container start command.
-    fn spark_config(&self) -> BTreeMap<String, String> {
-        let mut result = BTreeMap::new();
-
-        result.insert(
-            "spark.history.fs.logDirectory".to_string(),
-            format!(
-                "s3a://{}/{}",
-                self.bucket.bucket_name.as_ref().unwrap().clone(), // this is guaranteed to exist at this point
-                self.prefix
-            ),
-        );
-
-        if let Some(endpoint) = self.bucket.endpoint() {
-            result.insert("spark.hadoop.fs.s3a.endpoint".to_string(), endpoint);
-        }
-
-        if let Some(conn) = self.bucket.connection.as_ref() {
-            if let Some(S3AccessStyle::Path) = conn.access_style {
-                result.insert(
-                    "spark.hadoop.fs.s3a.path.style.access".to_string(),
-                    "true".to_string(),
-                );
-            }
-        }
-        result
-    }
-
-    fn credentials_volume(&self) -> Option<Volume> {
-        self.credentials()
-            .map(|credentials| credentials.to_volume(VOLUME_NAME_S3_CREDENTIALS))
-    }
-
-    fn credentials_volume_mount(&self) -> Option<VolumeMount> {
-        self.credentials().map(|_| VolumeMount {
-            name: VOLUME_NAME_S3_CREDENTIALS.into(),
-            mount_path: S3_SECRET_DIR_NAME.into(),
-            ..VolumeMount::default()
-        })
-    }
-
-    fn credentials(&self) -> Option<SecretClassVolume> {
-        if let Some(&S3ConnectionSpec {
-            credentials: Some(ref credentials),
-            ..
-        }) = self.bucket.connection.as_ref()
-        {
-            Some(credentials.clone())
-        } else {
-            None
-        }
-    }
 }
 
 fn spark_config(

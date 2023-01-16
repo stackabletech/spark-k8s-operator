@@ -1,5 +1,6 @@
 mod history_controller;
 mod pod_driver_controller;
+mod s3logdir;
 mod spark_k8s_controller;
 
 use std::sync::Arc;

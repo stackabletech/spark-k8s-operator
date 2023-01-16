@@ -6,6 +6,7 @@ use stackable_operator::commons::resources::{
 use stackable_operator::commons::s3::S3BucketDef;
 use stackable_operator::config::fragment::ValidationError;
 use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
+use stackable_operator::kube::runtime::reflector::ObjectRef;
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
@@ -97,6 +98,20 @@ impl SparkHistoryServer {
             .get(&rolegroup_ref.role_group)
             .and_then(|rg| rg.replicas)
             .map(i32::from)
+    }
+
+    pub fn cleaner_rolegroups(&self) -> Vec<RoleGroupRef<SparkHistoryServer>> {
+        let mut rgs = vec![];
+        for (rg_name, rg_config) in &self.spec.nodes.role_groups {
+            if let Some(true) = rg_config.config.config.cleaner {
+                rgs.push(RoleGroupRef {
+                    cluster: ObjectRef::from_obj(self),
+                    role: HISTORY_ROLE_NAME.into(),
+                    role_group: rg_name.into(),
+                });
+            }
+        }
+        rgs
     }
 
     pub fn validated_role_config(

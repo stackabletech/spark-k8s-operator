@@ -98,6 +98,10 @@ pub enum Error {
     FailedToResolveConfig {
         source: stackable_spark_k8s_crd::history::Error,
     },
+    #[snafu(display("number of cleaner rolegroups exceeds 1"))]
+    TooManyCleanerRoleGroups,
+    #[snafu(display("number of cleaner replicas exceeds 1"))]
+    TooManyCleanerReplicas,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -206,7 +210,7 @@ fn build_config_map(
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
     s3_log_dir: &S3LogDir,
 ) -> Result<ConfigMap, Error> {
-    let spark_config = spark_config(shs, s3_log_dir);
+    let spark_config = spark_config(shs, s3_log_dir, rolegroupref)?;
 
     let result = ConfigMapBuilder::new()
         .metadata(
@@ -511,7 +515,11 @@ impl S3LogDir {
     }
 }
 
-fn spark_config(shs: &SparkHistoryServer, s3_log_dir: &S3LogDir) -> String {
+fn spark_config(
+    shs: &SparkHistoryServer,
+    s3_log_dir: &S3LogDir,
+    rolegroupref: &RoleGroupRef<SparkHistoryServer>,
+) -> Result<String, Error> {
     let empty = BTreeMap::new();
 
     let mut log_dir_settings = s3_log_dir.spark_config();
@@ -527,11 +535,33 @@ fn spark_config(shs: &SparkHistoryServer, s3_log_dir: &S3LogDir) -> String {
 
     tracing::debug!("merged settings: {:?}", log_dir_settings);
 
-    log_dir_settings
+    // check if cleaner is set for this rolegroup ref
+    let cleaner_rolegroups = shs.cleaner_rolegroups();
+
+    // should have max of one
+    if cleaner_rolegroups.len() > 1 {
+        return TooManyCleanerRoleGroupsSnafu.fail();
+    }
+
+    if cleaner_rolegroups.len() == 1 && cleaner_rolegroups[0].role_group == rolegroupref.role_group
+    {
+        if let Some(replicas) = shs.replicas(rolegroupref) {
+            if replicas > 1 {
+                return TooManyCleanerReplicasSnafu.fail();
+            } else {
+                log_dir_settings.insert(
+                    "spark.history.fs.cleaner.enabled".to_string(),
+                    "true".to_string(),
+                );
+            }
+        }
+    }
+
+    Ok(log_dir_settings
         .iter()
         .map(|(k, v)| format!("{k} {v}"))
         .collect::<Vec<String>>()
-        .join("\n")
+        .join("\n"))
 }
 
 fn command_args(s3logdir: &S3LogDir) -> Vec<String> {

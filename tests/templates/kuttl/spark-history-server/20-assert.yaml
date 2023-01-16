@@ -2,8 +2,12 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 metadata:
-  name: test-minio-logs
-commands:
-  - script: kubectl exec --namespace=$NAMESPACE minio-client -- chmod +x /tmp/test_logs.sh
-  - script: kubectl exec --namespace=$NAMESPACE minio-client -- /tmp/test_logs.sh
-timeout: 480
+  name: history-api-check
+timeout: 180
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: history-api-check
+status:
+  succeeded: 1

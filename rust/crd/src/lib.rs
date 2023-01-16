@@ -2,9 +2,11 @@
 
 pub mod constants;
 pub mod history;
+pub mod s3logdir;
 
 use constants::*;
 use history::LogFileDirectorySpec;
+use s3logdir::S3LogDir;
 use stackable_operator::builder::VolumeBuilder;
 use stackable_operator::commons::s3::{
     InlinedS3BucketSpec, S3AccessStyle, S3BucketDef, S3ConnectionSpec,
@@ -355,6 +357,7 @@ impl SparkApplication {
         &self,
         serviceaccount_name: &str,
         s3bucket: &Option<InlinedS3BucketSpec>,
+        s3_log_dir: &Option<S3LogDir>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
@@ -506,6 +509,10 @@ impl SparkApplication {
                     instances.to_string(),
                 );
             }
+        }
+
+        if let Some(log_dir) = s3_log_dir {
+            submit_conf.extend(log_dir.application_spark_config());
         }
 
         // conf arguments: these should follow - and thus override - values set from resource limits above

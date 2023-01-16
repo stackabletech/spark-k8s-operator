@@ -1,3 +1,10 @@
+use crate::{
+    constants::*,
+    history::{
+        LogFileDirectorySpec::{self, S3},
+        S3LogFileDirectorySpec,
+    },
+};
 use stackable_operator::{
     commons::{
         s3::{InlinedS3BucketSpec, S3AccessStyle, S3ConnectionSpec},
@@ -5,10 +12,6 @@ use stackable_operator::{
         tls::{CaCert, TlsVerification},
     },
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
-};
-use stackable_spark_k8s_crd::{
-    constants::*,
-    history::{LogFileDirectorySpec::S3, S3LogFileDirectorySpec, SparkHistoryServer},
 };
 use std::collections::BTreeMap;
 
@@ -38,22 +41,29 @@ pub struct S3LogDir {
 
 impl S3LogDir {
     pub async fn resolve(
-        shs: &SparkHistoryServer,
+        log_file_dir: Option<&LogFileDirectorySpec>,
+        namespace: Option<String>,
         client: &stackable_operator::client::Client,
-    ) -> Result<S3LogDir, Error> {
+    ) -> Result<Option<S3LogDir>, Error> {
         #[allow(irrefutable_let_patterns)]
         let (s3bucket, prefix) =
-            if let S3(S3LogFileDirectorySpec { bucket, prefix }) = &shs.spec.log_file_directory {
+            if let Some(S3(S3LogFileDirectorySpec { bucket, prefix })) = log_file_dir {
                 (
                     bucket
-                        .resolve(client, shs.metadata.namespace.as_deref().unwrap())
+                        .resolve(client, namespace.unwrap().as_str())
                         .await
                         .context(S3BucketSnafu)
                         .ok(),
                     prefix.clone(),
                 )
             } else {
-                (None, "".to_string())
+                // !!!!!
+                // Ugliness alert!
+                // No point in trying to resolve the connection anymore since there is no
+                // log_file_dir in the first place.
+                // This can casually happen for Spark applications that don't use a history server
+                // !!!!!
+                return Ok(None);
             };
 
         // Check that a bucket name has been defined
@@ -84,10 +94,10 @@ impl S3LogDir {
             but an HTTPS-endpoint will be used!");
             }
         }
-        Ok(S3LogDir {
+        Ok(Some(S3LogDir {
             bucket: s3bucket.unwrap(),
             prefix,
-        })
+        }))
     }
 
     /// Constructs the properties needed for loading event logs from S3.
@@ -99,17 +109,10 @@ impl S3LogDir {
     /// * spark.hadoop.fs.s3a.secret.key
     /// instead, the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set
     /// on the container start command.
-    pub fn spark_config(&self) -> BTreeMap<String, String> {
+    pub fn history_server_spark_config(&self) -> BTreeMap<String, String> {
         let mut result = BTreeMap::new();
 
-        result.insert(
-            "spark.history.fs.logDirectory".to_string(),
-            format!(
-                "s3a://{}/{}",
-                self.bucket.bucket_name.as_ref().unwrap().clone(), // this is guaranteed to exist at this point
-                self.prefix
-            ),
-        );
+        result.insert("spark.history.fs.logDirectory".to_string(), self.url());
 
         if let Some(endpoint) = self.bucket.endpoint() {
             result.insert("spark.hadoop.fs.s3a.endpoint".to_string(), endpoint);
@@ -126,6 +129,20 @@ impl S3LogDir {
         result
     }
 
+    pub fn application_spark_config(&self) -> BTreeMap<String, String> {
+        let mut result = BTreeMap::new();
+        result.insert("spark.eventLog.enabled".to_string(), "true".to_string());
+        result.insert("spark.eventLog.dir".to_string(), self.url());
+        result
+    }
+
+    fn url(&self) -> String {
+        format!(
+            "s3a://{}/{}",
+            self.bucket.bucket_name.as_ref().unwrap().clone(), // this is guaranteed to exist at this point
+            self.prefix
+        )
+    }
     pub fn credentials_volume(&self) -> Option<Volume> {
         self.credentials()
             .map(|credentials| credentials.to_volume(VOLUME_NAME_S3_CREDENTIALS))

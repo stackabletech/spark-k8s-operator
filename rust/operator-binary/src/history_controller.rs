@@ -1,4 +1,3 @@
-use crate::s3logdir::S3LogDir;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     commons::{
@@ -24,6 +23,7 @@ use stackable_operator::{
 use stackable_spark_k8s_crd::{
     constants::*,
     history::{HistoryStorageConfig, SparkHistoryServer},
+    s3logdir::S3LogDir,
 };
 use std::time::Duration;
 use std::{collections::BTreeMap, sync::Arc};
@@ -88,7 +88,9 @@ pub enum Error {
     #[snafu(display("number of cleaner replicas exceeds 1"))]
     TooManyCleanerReplicas,
     #[snafu(display("failed to resolve the s3 log dir confirguration"))]
-    S3LogDir { source: crate::s3logdir::Error },
+    S3LogDir {
+        source: stackable_spark_k8s_crd::s3logdir::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -105,9 +107,13 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     let client = &ctx.client;
 
     let resolved_product_image = shs.spec.image.resolve(HISTORY_IMAGE_BASE_NAME);
-    let s3_log_dir = S3LogDir::resolve(&shs, client)
-        .await
-        .context(S3LogDirSnafu)?;
+    let s3_log_dir = S3LogDir::resolve(
+        Some(&shs.spec.log_file_directory),
+        shs.metadata.namespace.clone(),
+        client,
+    )
+    .await
+    .context(S3LogDirSnafu)?;
 
     // TODO: (RBAC) need to use a dedicated service account, role
     let (serviceaccount, rolebinding) =
@@ -165,7 +171,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &shs,
                 &resolved_product_image.app_version_label,
                 &rgr,
-                &s3_log_dir,
+                s3_log_dir.as_ref().unwrap(),
             )?;
             client
                 .apply_patch(HISTORY_CONTROLLER_NAME, &config_map, &config_map)
@@ -176,7 +182,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &shs,
                 &resolved_product_image,
                 &rgr,
-                &s3_log_dir,
+                s3_log_dir.as_ref().unwrap(),
                 &config.resources,
             )?;
             client
@@ -390,7 +396,7 @@ fn spark_config(
 ) -> Result<String, Error> {
     let empty = BTreeMap::new();
 
-    let mut log_dir_settings = s3_log_dir.spark_config();
+    let mut log_dir_settings = s3_log_dir.history_server_spark_config();
 
     // add cleaner spark settings if requested
     log_dir_settings.extend(cleaner_config(shs, rolegroupref)?);

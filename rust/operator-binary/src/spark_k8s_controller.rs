@@ -18,6 +18,8 @@ use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
+use stackable_spark_k8s_crd::s3logdir::S3LogDir;
+
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
 }
@@ -85,6 +87,10 @@ pub enum Error {
         source: stackable_operator::error::Error,
         container_name: String,
     },
+    #[snafu(display("failed to resolve the s3 log dir confirguration"))]
+    S3LogDir {
+        source: stackable_spark_k8s_crd::s3logdir::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -134,6 +140,14 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             but an HTTPS-endpoint will be used!");
         }
     }
+
+    let s3_log_dir = S3LogDir::resolve(
+        spark_application.spec.log_file_directory.as_ref(),
+        spark_application.metadata.namespace.clone(),
+        client,
+    )
+    .await
+    .context(S3LogDirSnafu)?;
 
     let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
     client
@@ -208,7 +222,11 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .context(ApplyApplicationSnafu)?;
 
     let job_commands = spark_application
-        .build_command(serviceaccount.metadata.name.as_ref().unwrap(), &s3bucket)
+        .build_command(
+            serviceaccount.metadata.name.as_ref().unwrap(),
+            &s3bucket,
+            &s3_log_dir,
+        )
         .context(BuildCommandSnafu)?;
 
     let job = spark_job(

@@ -20,9 +20,18 @@ spec:
           accessStyle: Path
           credentials:
             secretClass: s3-credentials-class
-  sparkConf:
-    # N.B. seems to require a level below the bucket
-    spark.eventLog.dir: "s3a://spark-logs/eventlogs/"
-    spark.eventLog.enabled: "true"
+  logFileDirectory:
+    s3:
+      prefix: eventlogs/
+      bucket: # S3BucketDef
+        inline:
+          bucketName: spark-logs
+          connection:
+            inline:
+              host: test-minio
+              port: 9000
+              accessStyle: Path
+              credentials:
+                secretClass: history-credentials-class
   executor:
     instances: 1

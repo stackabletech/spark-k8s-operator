@@ -524,39 +524,14 @@ fn spark_config(
 
     let mut log_dir_settings = s3_log_dir.spark_config();
 
-    tracing::debug!("log_dir_settings: {:?}", log_dir_settings);
+    // add cleaner spark settings if requested
+    log_dir_settings.extend(cleaner_config(shs, rolegroupref)?);
 
-    // Add user provided configuration. These can overwrite the "log_file_directory" settings.
+    // add user provided configuration. These can overwrite everything.
     let user_settings = shs.spec.spark_conf.as_ref().unwrap_or(&empty);
-
-    tracing::debug!("user_settings: {:?}", user_settings);
-
     log_dir_settings.extend(user_settings.clone().into_iter());
 
-    tracing::debug!("merged settings: {:?}", log_dir_settings);
-
-    // check if cleaner is set for this rolegroup ref
-    let cleaner_rolegroups = shs.cleaner_rolegroups();
-
-    // should have max of one
-    if cleaner_rolegroups.len() > 1 {
-        return TooManyCleanerRoleGroupsSnafu.fail();
-    }
-
-    if cleaner_rolegroups.len() == 1 && cleaner_rolegroups[0].role_group == rolegroupref.role_group
-    {
-        if let Some(replicas) = shs.replicas(rolegroupref) {
-            if replicas > 1 {
-                return TooManyCleanerReplicasSnafu.fail();
-            } else {
-                log_dir_settings.insert(
-                    "spark.history.fs.cleaner.enabled".to_string(),
-                    "true".to_string(),
-                );
-            }
-        }
-    }
-
+    // stringify the spark configuration for the ConfigMap
     Ok(log_dir_settings
         .iter()
         .map(|(k, v)| format!("{k} {v}"))
@@ -598,4 +573,39 @@ fn labels<'a, T>(
         role: HISTORY_ROLE_NAME,
         role_group,
     }
+}
+
+/// Return the Spark properties for the cleaner role group (if any).
+/// There should be only one role group with "cleaner=true" and this
+/// group should have a replica count of 0 or 1.
+fn cleaner_config(
+    shs: &SparkHistoryServer,
+    rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
+) -> Result<BTreeMap<String, String>, Error> {
+    let mut result = BTreeMap::new();
+
+    // all role groups with "cleaner=true"
+    let cleaner_rolegroups = shs.cleaner_rolegroups();
+
+    // should have max of one
+    if cleaner_rolegroups.len() > 1 {
+        return TooManyCleanerRoleGroupsSnafu.fail();
+    }
+
+    // check if cleaner is set for this rolegroup ref
+    if cleaner_rolegroups.len() == 1 && cleaner_rolegroups[0].role_group == rolegroup_ref.role_group
+    {
+        if let Some(replicas) = shs.replicas(rolegroup_ref) {
+            if replicas > 1 {
+                return TooManyCleanerReplicasSnafu.fail();
+            } else {
+                result.insert(
+                    "spark.history.fs.cleaner.enabled".to_string(),
+                    "true".to_string(),
+                );
+            }
+        }
+    }
+
+    Ok(result)
 }

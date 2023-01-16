@@ -24,7 +24,5 @@ spec:
     # N.B. seems to require a level below the bucket
     spark.eventLog.dir: "s3a://spark-logs/eventlogs/"
     spark.eventLog.enabled: "true"
-    spark.hadoop.fs.s3a.bucket.spark-logs.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
-    spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
   executor:
     instances: 1

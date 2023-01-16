@@ -402,6 +402,9 @@ impl SparkApplication {
                     secret_dir = S3_SECRET_DIR_NAME,
                     file_name = SECRET_ACCESS_KEY
                 ));
+                submit_cmd.push("--conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider".to_string());
+            } else {
+                submit_cmd.push("--conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider".to_string());
             }
         }
 

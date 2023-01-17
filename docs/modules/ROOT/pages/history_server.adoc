@@ -26,7 +26,7 @@ NOTE: Only one role group can have scheduled cleanups enabled (`cleaner: true`) 
 == Application configuration
 
 
-The example below demonstrates how to configure Spark applications store log events to a S3 bucket.
+The example below demonstrates how to configure Spark applications to write log events to an S3 bucket.
 
 [source,yaml]
 ----

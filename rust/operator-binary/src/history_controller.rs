@@ -1,5 +1,6 @@
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
+    cluster_resources::ClusterResources,
     commons::{
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
@@ -13,9 +14,11 @@ use stackable_operator::{
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
+    },
+    kube::{
+        runtime::{controller::Action, reflector::ObjectRef},
         Resource,
     },
-    kube::runtime::{controller::Action, reflector::ObjectRef},
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     product_config::ProductConfigManager,
     role_utils::RoleGroupRef,
@@ -91,6 +94,14 @@ pub enum Error {
     S3LogDir {
         source: stackable_spark_k8s_crd::s3logdir::Error,
     },
+    #[snafu(display("failed to create cluster resources"))]
+    CreateClusterResources {
+        source: stackable_operator::error::Error,
+    },
+    #[snafu(display("failed to delete orphaned resources"))]
+    DeleteOrphanedResources {
+        source: stackable_operator::error::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -106,6 +117,14 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
 
     let client = &ctx.client;
 
+    let mut cluster_resources = ClusterResources::new(
+        APP_NAME,
+        OPERATOR_NAME,
+        HISTORY_CONTROLLER_NAME,
+        &shs.object_ref(&()),
+    )
+    .context(CreateClusterResourcesSnafu)?;
+
     let resolved_product_image = shs.spec.image.resolve(HISTORY_IMAGE_BASE_NAME);
     let s3_log_dir = S3LogDir::resolve(
         Some(&shs.spec.log_file_directory),
@@ -115,16 +134,15 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     .await
     .context(S3LogDirSnafu)?;
 
-    // TODO: (RBAC) need to use a dedicated service account, role
+    // Use a dedicated service account for history pods.
     let (serviceaccount, rolebinding) =
         build_history_role_serviceaccount(&shs, &resolved_product_image.app_version_label)?;
-
-    client
-        .apply_patch(HISTORY_CONTROLLER_NAME, &serviceaccount, &serviceaccount)
+    cluster_resources
+        .add(client, &serviceaccount)
         .await
         .context(ApplyServiceAccountSnafu)?;
-    client
-        .apply_patch(HISTORY_CONTROLLER_NAME, &rolebinding, &rolebinding)
+    cluster_resources
+        .add(client, &rolebinding)
         .await
         .context(ApplyRoleBindingSnafu)?;
 
@@ -140,8 +158,8 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
             role_name,
             None,
         )?;
-        client
-            .apply_patch(HISTORY_CONTROLLER_NAME, &service, &service)
+        cluster_resources
+            .add(client, &service)
             .await
             .context(ApplyServiceSnafu)?;
 
@@ -162,8 +180,8 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 role_name,
                 Some(&rgr),
             )?;
-            client
-                .apply_patch(HISTORY_CONTROLLER_NAME, &service, &service)
+            cluster_resources
+                .add(client, &service)
                 .await
                 .context(ApplyServiceSnafu)?;
 
@@ -173,8 +191,8 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &rgr,
                 s3_log_dir.as_ref().unwrap(),
             )?;
-            client
-                .apply_patch(HISTORY_CONTROLLER_NAME, &config_map, &config_map)
+            cluster_resources
+                .add(client, &config_map)
                 .await
                 .context(ApplyConfigMapSnafu)?;
 
@@ -185,12 +203,17 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 s3_log_dir.as_ref().unwrap(),
                 &config.resources,
             )?;
-            client
-                .apply_patch(HISTORY_CONTROLLER_NAME, &sts, &sts)
+            cluster_resources
+                .add(client, &sts)
                 .await
                 .context(ApplyDeploymentSnafu)?;
         }
     }
+
+    cluster_resources
+        .delete_orphaned_resources(client)
+        .await
+        .context(DeleteOrphanedResourcesSnafu)?;
 
     Ok(Action::await_change())
 }
@@ -375,13 +398,16 @@ fn build_history_role_serviceaccount(
             .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
             .build(),
         role_ref: RoleRef {
-            api_group: ClusterRole::GROUP.to_string(),
-            kind: ClusterRole::KIND.to_string(),
+            api_group: <ClusterRole as stackable_operator::k8s_openapi::Resource>::GROUP // need to fully qualify because of "Resource" name clash
+                .to_string(),
+            kind: <ClusterRole as stackable_operator::k8s_openapi::Resource>::KIND.to_string(),
             name: SPARK_CLUSTER_ROLE.to_string(),
         },
         subjects: Some(vec![Subject {
-            api_group: Some(ServiceAccount::GROUP.to_string()),
-            kind: ServiceAccount::KIND.to_string(),
+            api_group: Some(
+                <ServiceAccount as stackable_operator::k8s_openapi::Resource>::GROUP.to_string(),
+            ),
+            kind: <ServiceAccount as stackable_operator::k8s_openapi::Resource>::KIND.to_string(),
             name: sa_name,
             namespace: sa.metadata.namespace.clone(),
         }]),

@@ -21,9 +21,9 @@ spec:
               credentials:
                 secretClass: s3-credentials-class
   sparkConf:  # <4>
-  nodes:  # <5>
+  nodes:
     roleGroups:
       cleaner:
-        replicas: 1
+        replicas: 1  # <5>
         config:
-          cleaner: true
+          cleaner: true # <6>

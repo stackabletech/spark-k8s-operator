@@ -4,20 +4,45 @@
 
 The Stackable Spark-on-Kubernetes operator runs Apache Spark workloads in a Kubernetes cluster, whereby driver- and executor-pods are created for the duration of the job and then terminated. One or more Spark History Server instances can be deployed independently of `SparkApplication` jobs and used as an end-point for spark logging, so that job information can be viewed once the job pods are no longer available.
 
-== Example
+== Deployment
+
+The example below demonstrates how to set up the history server running in one Pod with scheduled cleanups of the event logs. The event logs are loaded from an S3 bucket named `spark-logs` and the folder `eventlogs/`. The credentials for this bucket are provided by the secret class `s3-credentials-class`. For more details on how the Stackable Data Platform manages S3 resources see the xref:home:concepts:s3.adoc[S3 resources] page.
+
 
 [source,yaml]
 ----
 include::example$example-history-server.yaml[]
 ----
 
-<1> The history server writes logs to a file directory, which currently has to be a bucket in an S3 object store (see the s3 field).
-<2> The log destination requires a prefix so that different bucket folders can be detected correctly.
-<3> The S3BucketDef description, here provided in-line.
-<4> History server configuration settings can be provided here as a map. For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
-<5> The history server implements a single role called `nodes`.
+<1> The location of the event logs. Must be a S3 bucket. Future implementations might add support for other shared filesystems such as HDFS.
+<2> Folder within the S3 bucket where the log files are located. This is folder is required and mus exist before setting up the history server.
+<3> The S3 bucket definition, here provided in-line.
+<4> Additional gistory server configuration properties can be provided here as a map. For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
+<5> This deployment has only one Pod. Multiple history servers can be started, all reading the same event logs by increasing the relica count.
+<6> This history server will automatically clean up old log files by using default properties. You can change any of these by using the `sparkConf` map.
 
-== Accessing the job history
+NOTE: Only one role group can have scheduled cleanups enabled (`cleaner: true`) and this role group can have a maximum replica of 1.
+
+== Application configuration
+
+
+The example below demonstrates how to configure Spark applications store log events to a S3 bucket.
+
+[source,yaml]
+----
+include::example$example-history-app.yaml[]
+----
+
+<1> Location of the data that is being processed by the application.
+<2> Credentials used to access the data above.
+<3> Instruct the operator to configure the application with logging enabled.
+<4> Folder to store logs. This must match the prefix used by the history server.
+<5> Bucket to store logs. This must match the bucket used by the history server.
+<6> Not used by the application! The operator will ignore this and use the credentials from the `s3bucket` to store event logs.
+
+
+
+== History Web UI
 
 The history exposes a user console on port 18080. By setting up port-forwarding on 18080 this UI can be opened in a browser to show running and completed jobs:
 

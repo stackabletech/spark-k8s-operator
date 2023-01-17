@@ -19,7 +19,7 @@ spec:
               port: 9000
               accessStyle: Path
               credentials:
-                secretClass: s3-credentials-class
+                secretClass: history-credentials-class
   sparkConf:  # <4>
   nodes:
     roleGroups:

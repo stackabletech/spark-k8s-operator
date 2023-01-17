@@ -21,7 +21,7 @@ include::example$example-history-server.yaml[]
 <5> This deployment has only one Pod. Multiple history servers can be started, all reading the same event logs by increasing the relica count.
 <6> This history server will automatically clean up old log files by using default properties. You can change any of these by using the `sparkConf` map.
 
-NOTE: Only one role group can have scheduled cleanups enabled (`cleaner: true`) and this role group can have a maximum replica of 1.
+NOTE: Only one role group can have scheduled cleanups enabled (`cleaner: true`) and this role group cannot have more than 1 replica.
 
 == Application configuration
 

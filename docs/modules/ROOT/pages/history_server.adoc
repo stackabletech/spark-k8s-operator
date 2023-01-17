@@ -23,6 +23,13 @@ include::example$example-history-server.yaml[]
 
 NOTE: Only one role group can have scheduled cleanups enabled (`cleaner: true`) and this role group cannot have more than 1 replica.
 
+The secret with S3 credentials mus contain at least the following two fields:
+
+* `accessKeyId` - the access key to the event log bucket.
+* `secretAccessKey` - the secret key to the event log bucket.
+
+Any other entries in the `stringData` field of the Secret are ignored by the operator.
+
 == Application configuration
 
 
@@ -38,7 +45,7 @@ include::example$example-history-app.yaml[]
 <3> Instruct the operator to configure the application with logging enabled.
 <4> Folder to store logs. This must match the prefix used by the history server.
 <5> Bucket to store logs. This must match the bucket used by the history server.
-<6> Not used by the application! The operator will ignore this and use the credentials from the `s3bucket` to store event logs.
+<6> Credentials used to write event logs. These can, of course, differ from the credentials used to process data.
 
 
 

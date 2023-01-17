@@ -39,5 +39,4 @@ pub const HISTORY_CONFIG_FILE_NAME_FULL: &str = "/stackable/spark/conf/spark-def
 
 pub const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
-pub const VOLUME_NAME_S3_CREDENTIALS: &str = "s3-credentials";
 pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";

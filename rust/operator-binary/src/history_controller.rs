@@ -442,11 +442,11 @@ fn spark_config(
 fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
     let mut command = vec![];
 
-    if s3logdir.credentials().is_some() {
+    if let Some(secret_dir) = s3logdir.credentials_mount_path() {
         command.extend(vec![
-            format!("export AWS_ACCESS_KEY_ID=$(cat {S3_SECRET_DIR_NAME}/{ACCESS_KEY_ID})"),
+            format!("export AWS_ACCESS_KEY_ID=$(cat {secret_dir}/{ACCESS_KEY_ID})"),
             "&&".to_string(),
-            format!("export AWS_SECRET_ACCESS_KEY=$(cat {S3_SECRET_DIR_NAME}/{SECRET_ACCESS_KEY})"),
+            format!("export AWS_SECRET_ACCESS_KEY=$(cat {secret_dir}/{SECRET_ACCESS_KEY})"),
             "&&".to_string(),
         ]);
     }

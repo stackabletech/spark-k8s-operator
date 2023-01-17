@@ -141,7 +141,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         }
     }
 
-    let s3_log_dir = S3LogDir::resolve(
+    let s3logdir = S3LogDir::resolve(
         spark_application.spec.log_file_directory.as_ref(),
         spark_application.metadata.namespace.clone(),
         client,
@@ -211,6 +211,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         init_containers.as_ref(),
         &env_vars,
         &s3bucket,
+        &s3logdir,
     )?;
     client
         .apply_patch(
@@ -225,7 +226,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .build_command(
             serviceaccount.metadata.name.as_ref().unwrap(),
             &s3bucket,
-            &s3_log_dir,
+            &s3logdir,
         )
         .context(BuildCommandSnafu)?;
 
@@ -237,6 +238,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &env_vars,
         &job_commands,
         &s3bucket,
+        &s3logdir,
     )?;
     client
         .apply_patch(CONTROLLER_NAME, &job, &job)
@@ -315,15 +317,18 @@ fn pod_template_config_map(
     init_containers: &[Container],
     env: &[EnvVar],
     s3bucket: &Option<InlinedS3BucketSpec>,
+    s3logdir: &Option<S3LogDir>,
 ) -> Result<ConfigMap> {
-    let volumes = spark_application.volumes(s3bucket);
+    let volumes = spark_application.volumes(s3bucket, s3logdir);
 
     let driver_template = pod_template(
         spark_application,
         CONTAINER_NAME_DRIVER,
         init_containers,
         volumes.as_ref(),
-        spark_application.driver_volume_mounts(s3bucket).as_ref(),
+        spark_application
+            .driver_volume_mounts(s3bucket, s3logdir)
+            .as_ref(),
         env,
         spark_application.driver_node_selector(),
     )?;
@@ -332,7 +337,9 @@ fn pod_template_config_map(
         CONTAINER_NAME_EXECUTOR,
         init_containers,
         volumes.as_ref(),
-        spark_application.executor_volume_mounts(s3bucket).as_ref(),
+        spark_application
+            .executor_volume_mounts(s3bucket, s3logdir)
+            .as_ref(),
         env,
         spark_application.executor_node_selector(),
     )?;
@@ -361,6 +368,7 @@ fn pod_template_config_map(
         .context(PodTemplateConfigMapSnafu)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spark_job(
     spark_application: &SparkApplication,
     spark_image: &str,
@@ -369,13 +377,14 @@ fn spark_job(
     env: &[EnvVar],
     job_commands: &[String],
     s3bucket: &Option<InlinedS3BucketSpec>,
+    s3logdir: &Option<S3LogDir>,
 ) -> Result<Job> {
     let mut volume_mounts = vec![VolumeMount {
         name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
         mount_path: VOLUME_MOUNT_PATH_POD_TEMPLATES.into(),
         ..VolumeMount::default()
     }];
-    volume_mounts.extend(spark_application.driver_volume_mounts(s3bucket));
+    volume_mounts.extend(spark_application.driver_volume_mounts(s3bucket, s3logdir));
 
     let mut cb =
         ContainerBuilder::new("spark-submit").with_context(|_| IllegalContainerNameSnafu {
@@ -410,7 +419,7 @@ fn spark_job(
         }),
         ..Volume::default()
     }];
-    volumes.extend(spark_application.volumes(s3bucket));
+    volumes.extend(spark_application.volumes(s3bucket, s3logdir));
 
     let pod = PodTemplateSpec {
         metadata: Some(

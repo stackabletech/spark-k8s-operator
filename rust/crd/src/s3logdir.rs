@@ -35,8 +35,8 @@ pub enum Error {
 }
 
 pub struct S3LogDir {
-    bucket: InlinedS3BucketSpec,
-    prefix: String,
+    pub bucket: InlinedS3BucketSpec,
+    pub prefix: String,
 }
 
 impl S3LogDir {
@@ -88,12 +88,6 @@ impl S3LogDir {
             }
         }
 
-        if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
-            if conn.tls.as_ref().is_some() {
-                tracing::warn!("The resource indicates S3-access should use TLS: TLS-verification has not yet been implemented \
-            but an HTTPS-endpoint will be used!");
-            }
-        }
         Ok(Some(S3LogDir {
             bucket: s3bucket.unwrap(),
             prefix,
@@ -133,6 +127,45 @@ impl S3LogDir {
         let mut result = BTreeMap::new();
         result.insert("spark.eventLog.enabled".to_string(), "true".to_string());
         result.insert("spark.eventLog.dir".to_string(), self.url());
+
+        let bucket_name = self.bucket.bucket_name.as_ref().unwrap().clone();
+        if let Some(endpoint) = self.bucket.endpoint() {
+            result.insert(
+                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.endpoint"),
+                endpoint,
+            );
+        }
+
+        if let Some(conn) = self.bucket.connection.as_ref() {
+            if let Some(S3AccessStyle::Path) = conn.access_style {
+                result.insert(
+                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.path.style.access"),
+                    "true".to_string(),
+                );
+            }
+
+            if let Some(secret_dir) = self.credentials_mount_path() {
+                // We don't use the credentials at all here but assume they are available
+                result.insert(
+                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.access.key"),
+                    format!("$(cat {secret_dir}/{ACCESS_KEY_ID})"),
+                );
+                result.insert(
+                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.secret.key"),
+                    format!("$(cat {secret_dir}/{SECRET_ACCESS_KEY})"),
+                );
+                result.insert(
+                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),
+                    "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider".to_string(),
+                );
+            } else {
+                result.insert(
+                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),
+                    "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider".to_string(),
+                );
+            }
+        }
+
         result
     }
 
@@ -145,13 +178,16 @@ impl S3LogDir {
     }
     pub fn credentials_volume(&self) -> Option<Volume> {
         self.credentials()
-            .map(|credentials| credentials.to_volume(VOLUME_NAME_S3_CREDENTIALS))
+            .map(|credentials| credentials.to_volume(credentials.secret_class.as_ref()))
     }
 
     pub fn credentials_volume_mount(&self) -> Option<VolumeMount> {
-        self.credentials().map(|_| VolumeMount {
-            name: VOLUME_NAME_S3_CREDENTIALS.into(),
-            mount_path: S3_SECRET_DIR_NAME.into(),
+        self.credentials().map(|secret_class_volume| VolumeMount {
+            name: secret_class_volume.secret_class.clone(),
+            mount_path: format!(
+                "{}/{}",
+                S3_SECRET_DIR_NAME, secret_class_volume.secret_class
+            ),
             ..VolumeMount::default()
         })
     }
@@ -166,5 +202,14 @@ impl S3LogDir {
         } else {
             None
         }
+    }
+
+    pub fn credentials_mount_path(&self) -> Option<String> {
+        self.credentials().map(|secret_class_volume| {
+            format!(
+                "{}/{}",
+                S3_SECRET_DIR_NAME, secret_class_volume.secret_class
+            )
+        })
     }
 }

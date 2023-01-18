@@ -17,8 +17,8 @@ pub const CONTAINER_NAME_DRIVER: &str = "spark-driver";
 pub const CONTAINER_IMAGE_NAME_EXECUTOR: &str = "dummy-overwritten-by-command-line";
 pub const CONTAINER_NAME_EXECUTOR: &str = "spark-executor";
 
-pub const ACCESS_KEY_ID: &str = "accessKeyId";
-pub const SECRET_ACCESS_KEY: &str = "secretAccessKey";
+pub const ACCESS_KEY_ID: &str = "accessKey";
+pub const SECRET_ACCESS_KEY: &str = "secretKey";
 pub const S3_SECRET_DIR_NAME: &str = "/stackable/secrets";
 
 pub const MIN_MEMORY_OVERHEAD: u32 = 384;

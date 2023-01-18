@@ -8,9 +8,7 @@ use constants::*;
 use history::LogFileDirectorySpec;
 use s3logdir::S3LogDir;
 use stackable_operator::builder::VolumeBuilder;
-use stackable_operator::commons::s3::{
-    InlinedS3BucketSpec, S3AccessStyle, S3BucketDef, S3ConnectionSpec,
-};
+use stackable_operator::commons::s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
     EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
@@ -161,7 +159,7 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deps: Option<JobDependencies>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3bucket: Option<S3BucketDef>,
+    pub s3connection: Option<S3ConnectionDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -239,7 +237,7 @@ impl SparkApplication {
 
     pub fn volumes(
         &self,
-        s3bucket: &Option<InlinedS3BucketSpec>,
+        s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<Volume> {
         let mut result: Vec<Volume> = self
@@ -267,12 +265,10 @@ impl SparkApplication {
             );
         }
 
-        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
-
         if let Some(S3ConnectionSpec {
             credentials: Some(secret_class_volume),
             ..
-        }) = s3_conn
+        }) = s3conn
         {
             result.push(secret_class_volume.to_volume(secret_class_volume.secret_class.as_ref()));
         }
@@ -286,7 +282,7 @@ impl SparkApplication {
 
     pub fn executor_volume_mounts(
         &self,
-        s3bucket: &Option<InlinedS3BucketSpec>,
+        s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
         let result: Vec<VolumeMount> = self
@@ -299,12 +295,12 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        self.add_common_volume_mounts(result, s3bucket, s3logdir)
+        self.add_common_volume_mounts(result, s3conn, s3logdir)
     }
 
     pub fn driver_volume_mounts(
         &self,
-        s3bucket: &Option<InlinedS3BucketSpec>,
+        s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
         let result: Vec<VolumeMount> = self
@@ -317,13 +313,13 @@ impl SparkApplication {
             .cloned()
             .collect();
 
-        self.add_common_volume_mounts(result, s3bucket, s3logdir)
+        self.add_common_volume_mounts(result, s3conn, s3logdir)
     }
 
     fn add_common_volume_mounts(
         &self,
         mut mounts: Vec<VolumeMount>,
-        s3bucket: &Option<InlinedS3BucketSpec>,
+        s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
@@ -340,12 +336,11 @@ impl SparkApplication {
                 ..VolumeMount::default()
             });
         }
-        let s3_conn = s3bucket.as_ref().and_then(|i| i.connection.as_ref());
 
         if let Some(S3ConnectionSpec {
             credentials: Some(secret_class_volume),
             ..
-        }) = s3_conn
+        }) = s3conn
         {
             let secret_class_name = secret_class_volume.secret_class.clone();
             let secret_dir = format!("{S3_SECRET_DIR_NAME}/{secret_class_name}");
@@ -379,7 +374,7 @@ impl SparkApplication {
     pub fn build_command(
         &self,
         serviceaccount_name: &str,
-        s3bucket: &Option<InlinedS3BucketSpec>,
+        s3conn: &Option<S3ConnectionSpec>,
         s3_log_dir: &Option<S3LogDir>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
@@ -406,11 +401,11 @@ impl SparkApplication {
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
         // for possible S3 related properties
-        if let Some(endpoint) = s3bucket.as_ref().and_then(|s3| s3.endpoint()) {
+        if let Some(endpoint) = s3conn.as_ref().and_then(|conn| conn.endpoint()) {
             submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
         }
 
-        if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
+        if let Some(conn) = s3conn.as_ref() {
             match conn.access_style {
                 Some(S3AccessStyle::Path) => {
                     submit_cmd

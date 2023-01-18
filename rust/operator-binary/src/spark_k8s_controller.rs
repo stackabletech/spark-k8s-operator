@@ -1,7 +1,7 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder};
 
-use stackable_operator::commons::s3::InlinedS3BucketSpec;
+use stackable_operator::commons::s3::S3ConnectionSpec;
 use stackable_operator::commons::tls::{CaCert, TlsVerification};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
@@ -106,7 +106,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 
     let client = &ctx.client;
 
-    let s3bucket = match spark_application.spec.s3bucket.as_ref() {
+    let opt_s3conn = match spark_application.spec.s3connection.as_ref() {
         Some(s3bd) => s3bd
             .resolve(
                 client,
@@ -118,7 +118,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         _ => None,
     };
 
-    if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
+    if let Some(conn) = opt_s3conn.as_ref() {
         if let Some(tls) = &conn.tls {
             match &tls.verification {
                 TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
@@ -131,13 +131,6 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
                     }
                 }
             }
-        }
-    }
-
-    if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
-        if conn.tls.as_ref().is_some() {
-            tracing::warn!("The resource indicates S3-access should use TLS: TLS-verification has not yet been implemented \
-            but an HTTPS-endpoint will be used!");
         }
     }
 
@@ -210,7 +203,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &spark_application,
         init_containers.as_ref(),
         &env_vars,
-        &s3bucket,
+        &opt_s3conn,
         &s3logdir,
     )?;
     client
@@ -225,7 +218,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     let job_commands = spark_application
         .build_command(
             serviceaccount.metadata.name.as_ref().unwrap(),
-            &s3bucket,
+            &opt_s3conn,
             &s3logdir,
         )
         .context(BuildCommandSnafu)?;
@@ -237,7 +230,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &job_container,
         &env_vars,
         &job_commands,
-        &s3bucket,
+        &opt_s3conn,
         &s3logdir,
     )?;
     client
@@ -316,10 +309,10 @@ fn pod_template_config_map(
     spark_application: &SparkApplication,
     init_containers: &[Container],
     env: &[EnvVar],
-    s3bucket: &Option<InlinedS3BucketSpec>,
+    s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
 ) -> Result<ConfigMap> {
-    let volumes = spark_application.volumes(s3bucket, s3logdir);
+    let volumes = spark_application.volumes(s3conn, s3logdir);
 
     let driver_template = pod_template(
         spark_application,
@@ -327,7 +320,7 @@ fn pod_template_config_map(
         init_containers,
         volumes.as_ref(),
         spark_application
-            .driver_volume_mounts(s3bucket, s3logdir)
+            .driver_volume_mounts(s3conn, s3logdir)
             .as_ref(),
         env,
         spark_application.driver_node_selector(),
@@ -338,7 +331,7 @@ fn pod_template_config_map(
         init_containers,
         volumes.as_ref(),
         spark_application
-            .executor_volume_mounts(s3bucket, s3logdir)
+            .executor_volume_mounts(s3conn, s3logdir)
             .as_ref(),
         env,
         spark_application.executor_node_selector(),
@@ -376,7 +369,7 @@ fn spark_job(
     job_container: &Option<Container>,
     env: &[EnvVar],
     job_commands: &[String],
-    s3bucket: &Option<InlinedS3BucketSpec>,
+    s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
 ) -> Result<Job> {
     let mut volume_mounts = vec![VolumeMount {
@@ -384,7 +377,7 @@ fn spark_job(
         mount_path: VOLUME_MOUNT_PATH_POD_TEMPLATES.into(),
         ..VolumeMount::default()
     }];
-    volume_mounts.extend(spark_application.driver_volume_mounts(s3bucket, s3logdir));
+    volume_mounts.extend(spark_application.driver_volume_mounts(s3conn, s3logdir));
 
     let mut cb =
         ContainerBuilder::new("spark-submit").with_context(|_| IllegalContainerNameSnafu {
@@ -419,7 +412,7 @@ fn spark_job(
         }),
         ..Volume::default()
     }];
-    volumes.extend(spark_application.volumes(s3bucket, s3logdir));
+    volumes.extend(spark_application.volumes(s3conn, s3logdir));
 
     let pod = PodTemplateSpec {
         metadata: Some(

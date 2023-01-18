@@ -25,8 +25,8 @@ NOTE: Only one role group can have scheduled cleanups enabled (`cleaner: true`) 
 
 The secret with S3 credentials mus contain at least the following two fields:
 
-* `accessKeyId` - the access key to the event log bucket.
-* `secretAccessKey` - the secret key to the event log bucket.
+* `accessKey` - the access key to the event log bucket.
+* `secretKey` - the secret key to the event log bucket.
 
 Any other entries in the `stringData` field of the Secret are ignored by the operator.
 
@@ -54,4 +54,3 @@ include::example$example-history-app.yaml[]
 The history exposes a user console on port 18080. By setting up port-forwarding on 18080 this UI can be opened in a browser to show running and completed jobs:
 
 image::history-server-ui.png[History Server Console]
-

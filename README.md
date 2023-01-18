@@ -4,7 +4,7 @@
 
 <h1 align="center">Stackable Operator for Apache Spark</h1>
 
-[![Build Actions Status](https://ci.stackable.tech/job/spark-k8s%2doperator%2dit%2dnightly/badge/icon?subject=Integration%20Tests)](https://ci.stackable.tech/job/spark-k8s%2doperator%2dit%2dnightly)
+![Build Actions Status](https://ci.stackable.tech/buildStatus/icon?job=spark-k8s%2doperator%2dit%2dnightly&subject=Integration%20Tests)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/stackabletech/spark-k8s-operator/graphs/commit-activity)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
 [![License OSL3.0](https://img.shields.io/badge/license-OSL3.0-green)](./LICENSE)
@@ -58,7 +58,7 @@ We develop and test our operators on the following cloud platforms:
 * GKE on Google Cloud Platform (GCP)
 * [IONOS Cloud Managed Kubernetes](https://cloud.ionos.com/managed/kubernetes)
 * K3s
-* Kubernetes 1.21-1.24
+* Kubernetes 1.21-1.25
 
 We are currently working to support:
 

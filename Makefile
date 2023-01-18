@@ -14,8 +14,7 @@ OPERATOR_NAME := spark-k8s-operator
 VERSION := $(shell cargo metadata --format-version 1 | jq -r '.packages[] | select(.name=="stackable-${OPERATOR_NAME}") | .version')
 
 DOCKER_REPO := docker.stackable.tech
-# TODO replace this with "stackable" before final-final go-live!
-ORGANIZATION := sandbox/test
+ORGANIZATION := stackable
 # this will be overwritten by an environmental variable if called from the github action
 HELM_REPO := https://repo.stackable.tech/repository/helm-dev
 HELM_CHART_ARTIFACT := target/helm/${OPERATOR_NAME}-${VERSION}.tgz

@@ -10,16 +10,8 @@ spec:
   logFileDirectory:
     s3:
       prefix: eventlogs/
-      bucket: # S3BucketDef
-        inline:
-          bucketName: spark-logs
-          connection:
-            inline:
-              host: eventlog-minio
-              port: 9000
-              accessStyle: Path
-              credentials:
-                secretClass: history-credentials-class
+      bucket:
+        reference: spark-history-s3-bucket
   # For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
   #sparkConf:
   nodes:

@@ -1,0 +1,31 @@
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: spark-data-s3-connection
+spec:
+  host: test-minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: s3-credentials-class
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: spark-history-s3-connection
+spec:
+  host: eventlog-minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: history-credentials-class
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Bucket
+metadata:
+  name: spark-history-s3-bucket
+spec:
+  bucketName: spark-logs
+  connection:
+    reference: spark-history-s3-connection

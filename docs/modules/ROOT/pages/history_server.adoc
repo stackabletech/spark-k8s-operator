@@ -25,8 +25,8 @@ NOTE: Only one role group can have scheduled cleanups enabled (`cleaner: true`) 
 
 The secret with S3 credentials must contain at least the following two keys:
 
-* `accessKey` - the access key to the event log bucket.
-* `secretKey` - the secret key to the event log bucket.
+* `accessKey` - the access key of a user with read and write access to the event log bucket.
+* `secretKey` - the secret key of a user with read and write access to the event log bucket.
 
 Any other entries in the `stringData` field of the Secret are ignored by the operator.
 

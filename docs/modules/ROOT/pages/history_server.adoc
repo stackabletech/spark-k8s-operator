@@ -51,6 +51,16 @@ include::example$example-history-app.yaml[]
 
 == History Web UI
 
-The history exposes a user console on port 18080. By setting up port-forwarding on 18080 this UI can be opened in a browser to show running and completed jobs:
+To access the history server web UI, use one of the `NodePort` services created by the operator. For the example above, the operator created two services as shown:
+
+[source,bash]
+----
+$ kubectl get svc
+NAME                         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE
+spark-history-node           NodePort    10.96.222.233   <none>        18080:30136/TCP     52m
+spark-history-node-cleaner   NodePort    10.96.203.43    <none>        18080:32585/TCP     52m
+----
+
+By setting up port forwarding on 18080 the UI can be opened by pointing your browser to `http://localhost:18080`:
 
 image::history-server-ui.png[History Server Console]

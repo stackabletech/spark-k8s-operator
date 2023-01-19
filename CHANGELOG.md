@@ -7,7 +7,6 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Create and manage history servers ([#187])
-- `operator-rs` `0.27.1` -> `0.30.2` ([#187])
 
 [#187]: https://github.com/stackabletech/spark-k8s-operator/pull/187
 
@@ -15,7 +14,9 @@ All notable changes to this project will be documented in this file.
 
 - Updated stackable image versions ([#176])
 - `operator-rs` `0.22.0` → `0.27.1` ([#178])
+- `operator-rs` `0.27.1` -> `0.30.2` ([#187])
 - Don't run init container as root and avoid chmod and chowning ([#183])
+- [BREAKING] Implement fix for S3 reference inconsistency as described in the issue #162 ([#187])
 
 [#176]: https://github.com/stackabletech/spark-k8s-operator/pull/176
 [#178]: https://github.com/stackabletech/spark-k8s-operator/pull/178

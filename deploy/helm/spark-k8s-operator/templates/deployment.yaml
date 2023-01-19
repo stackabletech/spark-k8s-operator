@@ -31,9 +31,6 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ include "operator.appname" . }}
-          env:
-            - name: SPARK_K8S_OPERATOR_LOG
-              value: debug
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"

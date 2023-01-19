@@ -87,7 +87,7 @@ pub enum Error {
         source: stackable_operator::error::Error,
         container_name: String,
     },
-    #[snafu(display("failed to resolve the s3 log dir confirguration"))]
+    #[snafu(display("failed to resolve the s3 log dir configuration"))]
     S3LogDir {
         source: stackable_spark_k8s_crd::s3logdir::Error,
     },

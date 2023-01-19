@@ -7,7 +7,7 @@ use crate::{
 };
 use stackable_operator::{
     commons::{
-        s3::{InlinedS3BucketSpec, S3AccessStyle, S3ConnectionSpec},
+        s3::{InlinedS3BucketSpec, S3AccessStyle},
         secret_class::SecretClassVolume,
         tls::{CaCert, TlsVerification},
     },

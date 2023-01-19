@@ -7,8 +7,9 @@ use std::sync::Arc;
 use clap::Parser;
 use futures::StreamExt;
 use stackable_operator::cli::{Command, ProductOperatorRun};
-use stackable_operator::k8s_openapi::api::core::v1::ConfigMap;
+use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;
+use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
 use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::runtime::controller::Controller;
 use stackable_operator::logging::controller::report_controller_reconciled;
@@ -118,6 +119,18 @@ async fn main() -> anyhow::Result<()> {
             )
             .owns(
                 watch_namespace.get_api::<SparkHistoryServer>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<StatefulSet>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<Service>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<ConfigMap>(&client),
                 ListParams::default(),
             )
             .shutdown_on_signal()

@@ -28,7 +28,7 @@ The secret with S3 credentials must contain at least the following two keys:
 * `accessKey` - the access key of a user with read and write access to the event log bucket.
 * `secretKey` - the secret key of a user with read and write access to the event log bucket.
 
-Any other entries in the `stringData` field of the Secret are ignored by the operator.
+Any other entries of the Secret are ignored by the operator.
 
 == Application configuration
 

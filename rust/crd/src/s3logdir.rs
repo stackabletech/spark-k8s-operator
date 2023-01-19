@@ -194,15 +194,10 @@ impl S3LogDir {
     }
 
     pub fn credentials(&self) -> Option<SecretClassVolume> {
-        if let Some(&S3ConnectionSpec {
-            credentials: Some(ref credentials),
-            ..
-        }) = self.bucket.connection.as_ref()
-        {
-            Some(credentials.clone())
-        } else {
-            None
-        }
+        self.bucket
+            .connection
+            .as_ref()
+            .and_then(|conn| conn.credentials.clone())
     }
 
     pub fn credentials_mount_path(&self) -> Option<String> {

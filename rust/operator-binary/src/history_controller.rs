@@ -134,7 +134,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     .await
     .context(S3LogDirSnafu)?;
 
-    // Use a dedicated service account for history pods.
+    // Use a dedicated service account for history server pods.
     let (serviceaccount, rolebinding) =
         build_history_role_serviceaccount(&shs, &resolved_product_image.app_version_label)?;
     cluster_resources

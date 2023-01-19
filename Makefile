@@ -25,10 +25,6 @@ SHELL=/usr/bin/env bash -euo pipefail
 render-readme:
 	scripts/render_readme.sh
 
-## Alternative Dockerfile that uses cargo chef to speed up dev builds.
-docker-build-alt:
-	docker build --build-arg VERSION=${VERSION} -t "docker.stackable.tech/stackable/spark-k8s-operator:${VERSION}" -f docker/Dockerfile.alternative .
-
 ## Docker related targets
 docker-build:
 	docker build --force-rm --build-arg VERSION=${VERSION} -t "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}" -f docker/Dockerfile .

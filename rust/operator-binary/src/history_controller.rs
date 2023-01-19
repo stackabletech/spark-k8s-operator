@@ -377,22 +377,18 @@ fn build_history_role_serviceaccount(
     shs: &SparkHistoryServer,
     app_version_label: &str,
 ) -> Result<(ServiceAccount, RoleBinding)> {
-    let sa_name = shs.metadata.name.as_ref().unwrap().to_string();
     let sa = ServiceAccount {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(shs)
-            .name(&sa_name)
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
             .build(),
         ..ServiceAccount::default()
     };
-    let binding_name = &sa_name;
     let binding = RoleBinding {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(shs)
-            .name(binding_name)
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
@@ -408,8 +404,8 @@ fn build_history_role_serviceaccount(
                 <ServiceAccount as stackable_operator::k8s_openapi::Resource>::GROUP.to_string(),
             ),
             kind: <ServiceAccount as stackable_operator::k8s_openapi::Resource>::KIND.to_string(),
-            name: sa_name,
-            namespace: sa.metadata.namespace.clone(),
+            name: sa.name_any(),
+            namespace: sa.namespace(),
         }]),
     };
     Ok((sa, binding))

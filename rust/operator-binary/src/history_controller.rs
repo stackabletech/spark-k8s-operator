@@ -261,7 +261,7 @@ fn build_stateful_set(
         .context(InvalidContainerNameSnafu {
             name: String::from(container_name),
         })?
-        .image(resolved_product_image.image.clone())
+        .image_from_product_image(&resolved_product_image)
         .resources(resources.clone().into())
         .command(vec!["/bin/bash".to_string()])
         .args(command_args(s3_log_dir))

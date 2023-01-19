@@ -176,6 +176,7 @@ impl S3LogDir {
             self.prefix
         )
     }
+
     pub fn credentials_volume(&self) -> Option<Volume> {
         self.credentials()
             .map(|credentials| credentials.to_volume(credentials.secret_class.as_ref()))

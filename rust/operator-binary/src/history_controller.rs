@@ -243,7 +243,7 @@ fn build_config_map(
         .add_data(HISTORY_CONFIG_FILE_NAME, spark_config)
         .build()
         .context(InvalidConfigMapSnafu {
-            name: String::from("spark-history-config"),
+            name: "spark-history-config".to_string(),
         })?;
 
     Ok(result)

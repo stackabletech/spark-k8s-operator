@@ -428,8 +428,7 @@ fn spark_config(
     log_dir_settings.extend(cleaner_config(shs, rolegroupref)?);
 
     // add user provided configuration. These can overwrite everything.
-    let user_settings = shs.spec.spark_conf.as_ref().unwrap_or(&empty);
-    log_dir_settings.extend(user_settings.clone().into_iter());
+    log_dir_settings.extend(shs.spec.spark_conf.clone().unwrap_or_default());
 
     // stringify the spark configuration for the ConfigMap
     Ok(log_dir_settings

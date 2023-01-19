@@ -414,8 +414,8 @@ impl SparkApplication {
                 Some(S3AccessStyle::VirtualHosted) => {}
                 None => {}
             }
-            if conn.credentials.as_ref().is_some() {
-                let secret_class_name = conn.credentials.as_ref().unwrap().clone().secret_class;
+            if let Some(credentials) = &conn.credentials {
+                let secret_class_name = credentials.secret_class.clone();
                 let secret_dir = format!("{S3_SECRET_DIR_NAME}/{secret_class_name}");
 
                 // We don't use the credentials at all here but assume they are available

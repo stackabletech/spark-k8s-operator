@@ -17,7 +17,7 @@ use stackable_operator::{
     },
     kube::{
         runtime::{controller::Action, reflector::ObjectRef},
-        Resource,
+        Resource, ResourceExt,
     },
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     product_config::ProductConfigManager,
@@ -261,7 +261,7 @@ fn build_stateful_set(
         .context(InvalidContainerNameSnafu {
             name: String::from(container_name),
         })?
-        .image_from_product_image(&resolved_product_image)
+        .image_from_product_image(resolved_product_image)
         .resources(resources.clone().into())
         .command(vec!["/bin/bash".to_string()])
         .args(command_args(s3_log_dir))
@@ -416,8 +416,6 @@ fn spark_config(
     s3_log_dir: &S3LogDir,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
 ) -> Result<String, Error> {
-    let empty = BTreeMap::new();
-
     let mut log_dir_settings = s3_log_dir.history_server_spark_config();
 
     // add cleaner spark settings if requested

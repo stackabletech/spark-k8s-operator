@@ -37,6 +37,4 @@ pub const HISTORY_IMAGE_BASE_NAME: &str = "spark-k8s";
 pub const HISTORY_CONFIG_FILE_NAME: &str = "spark-defaults.conf";
 pub const HISTORY_CONFIG_FILE_NAME_FULL: &str = "/stackable/spark/conf/spark-defaults.conf";
 
-pub const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
-
 pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";

@@ -31,7 +31,7 @@ use strum::Display;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("Failed to transform configs"))]
+    #[snafu(display("failed to transform configs"))]
     ProductConfigTransform {
         source: stackable_operator::product_config_utils::ConfigError,
     },

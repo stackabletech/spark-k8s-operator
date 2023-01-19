@@ -135,7 +135,7 @@ spec:
     secretClass: minio-credentials-class
 ----
 
-This has the advantage that one connection configuration can be shared across `SparkApplication`s and reduces the cost of updating these details.
+This has the advantage that one connection configuration can be shared across `SparkApplications` and reduces the cost of updating these details.
 
 == Resource Requests
 

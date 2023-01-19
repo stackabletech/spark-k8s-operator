@@ -23,7 +23,7 @@ include::example$example-history-server.yaml[]
 
 NOTE: Only one role group can have scheduled cleanups enabled (`cleaner: true`) and this role group cannot have more than 1 replica.
 
-The secret with S3 credentials mus contain at least the following two fields:
+The secret with S3 credentials must contain at least the following two keys:
 
 * `accessKey` - the access key to the event log bucket.
 * `secretKey` - the secret key to the event log bucket.

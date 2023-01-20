@@ -2,6 +2,8 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
+  # give minio enough time to start
+  - command: sleep 5
   - command: kubectl cp -n $NAMESPACE ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'] }}.jar  minio-client:/tmp
   - command: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv  minio-client:/tmp
   - command: kubectl exec -n $NAMESPACE minio-client -- sh -c 'mc alias set test-minio http://test-minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'

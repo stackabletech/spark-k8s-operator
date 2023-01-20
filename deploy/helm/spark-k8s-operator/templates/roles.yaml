@@ -84,6 +84,7 @@ rules:
       - spark.stackable.tech
     resources:
       - sparkapplications
+      - sparkhistoryservers
     verbs:
       - get
       - list

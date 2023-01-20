@@ -1,0 +1,34 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-pi-s3-1
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.3.0
+  sparkImagePullPolicy: IfNotPresent
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: s3a://my-bucket/spark-examples_2.12-3.3.0.jar
+  s3connection: # <1>
+    inline:
+      host: test-minio
+      port: 9000
+      accessStyle: Path
+      credentials:
+        secretClass: s3-credentials-class # <2>
+  logFileDirectory: # <3>
+    s3:
+      prefix: eventlogs/ # <4>
+      bucket:
+        inline:
+          bucketName: spark-logs # <5>
+          connection:
+            inline:
+              host: test-minio
+              port: 9000
+              accessStyle: Path
+              credentials:
+                secretClass: history-credentials-class # <6>
+  executor:
+    instances: 1

@@ -22,8 +22,6 @@ env:
   DEV_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-dev
   TEST_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-test
   STABLE_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-stable
-  # TODO remove before final go-live!
-  EXP_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-experimental
 
 jobs:
   # Identify unused dependencies
@@ -93,9 +91,8 @@ jobs:
             echo "exporting dev as target helm repo: ${{ env.DEV_REPO_HELM_URL }}"
             echo "::set-output name=helm_repo::${{ env.DEV_REPO_HELM_URL }}"
           elif [[ ( $TRIGGER == "create" || $TRIGGER == "push" ) && $GITHUB_REF == refs/tags/* ]]; then
-            # TODO replace EXP with STABLE repo name
-            echo "exporting stable as target helm repo: ${{ env.EXP_REPO_HELM_URL }}"
-            echo "::set-output name=helm_repo::${{ env.EXP_REPO_HELM_URL }}"
+            echo "exporting stable as target helm repo: ${{ env.STABLE_REPO_HELM_URL }}"
+            echo "::set-output name=helm_repo::${{ env.STABLE_REPO_HELM_URL }}"
           else
             echo "Unknown trigger and ref combination encountered, skipping publish step: $TRIGGER $GITHUB_REF"
             echo "::set-output name=helm_repo::skip"

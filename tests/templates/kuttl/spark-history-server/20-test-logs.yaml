@@ -1,0 +1,20 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: history-api-check
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      activeDeadlineSeconds: 100
+      containers:
+        - name: history-api-check
+          image: docker.stackable.tech/stackable/testing-tools:0.1.0-stackable0.1.0
+          command:
+            [
+              "bash",
+              "-x",
+              "-c",
+              "test 2 == $(curl http://spark-history-node-cleaner:18080/api/v1/applications | jq length)",
+            ]

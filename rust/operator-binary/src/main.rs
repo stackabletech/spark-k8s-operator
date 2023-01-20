@@ -1,3 +1,4 @@
+mod history_controller;
 mod pod_driver_controller;
 mod spark_k8s_controller;
 
@@ -6,12 +7,17 @@ use std::sync::Arc;
 use clap::Parser;
 use futures::StreamExt;
 use stackable_operator::cli::{Command, ProductOperatorRun};
-use stackable_operator::k8s_openapi::api::core::v1::ConfigMap;
+use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;
+use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
 use stackable_operator::kube::api::ListParams;
 use stackable_operator::kube::runtime::controller::Controller;
-use stackable_operator::kube::CustomResourceExt;
 use stackable_operator::logging::controller::report_controller_reconciled;
+use stackable_operator::CustomResourceExt;
+use stackable_spark_k8s_crd::constants::{
+    CONTROLLER_NAME, HISTORY_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_CONTROLLER_NAME,
+};
+use stackable_spark_k8s_crd::history::SparkHistoryServer;
 use stackable_spark_k8s_crd::SparkApplication;
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -31,9 +37,12 @@ struct Opts {
 async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
-        Command::Crd => println!("{}", serde_yaml::to_string(&SparkApplication::crd())?,),
+        Command::Crd => {
+            SparkApplication::print_yaml_schema()?;
+            SparkHistoryServer::print_yaml_schema()?;
+        }
         Command::Run(ProductOperatorRun {
-            product_config: _,
+            product_config,
             watch_namespace,
             tracing_target,
         }) => {
@@ -51,9 +60,13 @@ async fn main() -> anyhow::Result<()> {
                 built_info::RUSTC_VERSION,
             );
 
+            let product_config = product_config.load(&[
+                "deploy/config-spec/properties.yaml",
+                "/etc/stackable/spark-k8s-operator/config-spec/properties.yaml",
+            ])?;
+
             let client =
-                stackable_operator::client::create_client(Some("spark.stackable.tech".to_string()))
-                    .await?;
+                stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string())).await?;
 
             let app_controller = Controller::new(
                 watch_namespace.get_api::<SparkApplication>(&client),
@@ -74,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
             .map(|res| {
                 report_controller_reconciled(
                     &client,
-                    "sparkapplications.spark.stackable.tech",
+                    &format!("{CONTROLLER_NAME}.{OPERATOR_NAME}"),
                     &res,
                 )
             })
@@ -83,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<Pod>(&client),
                 ListParams::default()
-                    .labels("app.kubernetes.io/managed-by=spark-k8s-operator,spark-role=driver"),
+                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
                 watch_namespace.get_api::<Pod>(&client),
@@ -97,18 +110,53 @@ async fn main() -> anyhow::Result<()> {
                     client: client.clone(),
                 }),
             )
+            .map(|res| report_controller_reconciled(&client, &format!("{OPERATOR_NAME}.{POD_DRIVER_CONTROLLER_NAME}"), &res))
+            .instrument(info_span!("pod_driver_controller"));
+
+            let history_controller = Controller::new(
+                watch_namespace.get_api::<SparkHistoryServer>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<SparkHistoryServer>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<StatefulSet>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<Service>(&client),
+                ListParams::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<ConfigMap>(&client),
+                ListParams::default(),
+            )
+            .shutdown_on_signal()
+            .run(
+                history_controller::reconcile,
+                history_controller::error_policy,
+                Arc::new(history_controller::Ctx {
+                    client: client.clone(),
+                    product_config,
+                }),
+            )
             .map(|res| {
                 report_controller_reconciled(
                     &client,
-                    "pod-driver.sparkapplications.stackable.tech",
+                    &format!("{OPERATOR_NAME}.{HISTORY_CONTROLLER_NAME}"),
                     &res,
                 )
             })
-            .instrument(info_span!("pod_driver_controller"));
+            .instrument(info_span!("history_controller"));
 
-            futures::stream::select(app_controller, pod_driver_controller)
-                .collect::<()>()
-                .await;
+            futures::stream::select(
+                futures::stream::select(app_controller, pod_driver_controller),
+                history_controller,
+            )
+            .collect::<()>()
+            .await;
         }
     }
     Ok(())

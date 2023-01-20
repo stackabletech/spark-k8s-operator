@@ -1,0 +1,53 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 240
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    job-name: resources-crd
+    app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
+spec:
+  containers:
+    - name: spark-submit
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: resources-crd-driver
+spec:
+  containers:
+    - name: spark-driver
+      resources:
+        limits:
+          cpu: "2"
+          memory: "1Gi"
+        requests:
+          cpu: "1"
+          memory: "1Gi"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: resources-crd-exec-1
+spec:
+  containers:
+    - name: spark-executor
+      resources:
+        limits:
+          cpu: "3"
+          # rounding error (vs. 2 Gi)
+          memory: 2046Mi
+        requests:
+          cpu: 1500m
+          # rounding error (vs. 2 Gi)
+          memory: 2046Mi

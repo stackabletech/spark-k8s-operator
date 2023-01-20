@@ -16,15 +16,15 @@ fi
 
 case "$1" in
 "helm")
-echo "Adding 'stackable-dev' Helm Chart repository"
+echo "Adding '{{ helm.repo_name }}' Helm Chart repository"
 # tag::helm-add-repo[]
-helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
+helm repo add {{ helm.repo_name }} {{ helm.repo_url }}
 # end::helm-add-repo[]
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version {{ versions.commons }}
-helm install --wait secret-operator stackable-dev/secret-operator --version {{ versions.secret }}
-helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version {{ versions.spark }}
+helm install --wait commons-operator {{ helm.repo_name }}/commons-operator --version {{ versions.commons }}
+helm install --wait secret-operator {{ helm.repo_name }}/secret-operator --version {{ versions.secret }}
+helm install --wait spark-k8s-operator {{ helm.repo_name }}/spark-k8s-operator --version {{ versions.spark }}
 # end::helm-install-operators[]
 ;;
 "stackablectl")
@@ -53,7 +53,7 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.1.0
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.3.0
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py
   driver:

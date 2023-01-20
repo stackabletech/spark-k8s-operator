@@ -22,18 +22,18 @@ helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.4.0-nightly
-helm install --wait secret-operator stackable-dev/secret-operator --version 0.6.0-nightly
-helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version 0.6.0-nightly
+helm install --wait commons-operator stackable-dev/commons-operator --version 0.5.0-nightly
+helm install --wait secret-operator stackable-dev/secret-operator --version 0.7.0-nightly
+helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version 0.7.0-nightly
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.4.0-nightly \
-  secret=0.6.0-nightly \
-  spark-k8s=0.6.0-nightly
+  commons=0.5.0-nightly \
+  secret=0.7.0-nightly \
+  spark-k8s=0.7.0-nightly
 # end::stackablectl-install-operators[]
 ;;
 *)
@@ -53,7 +53,7 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.1.0
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.3.0
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py
   driver:

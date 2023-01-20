@@ -9,7 +9,7 @@ on:
       - trying
       - "renovate/**"
     tags:
-      - "*"
+      - '[0-9][0-9].[0-9]+.[0-9]+'
   pull_request:
 
 env:
@@ -19,11 +19,11 @@ env:
   RUSTFLAGS: "-D warnings"
   RUSTDOCFLAGS: "-D warnings"
   RUST_LOG: "info"
-  OPERATOR_NAME: "spark-k8s-operator"
-  PRODUCT_NAME: "spark-k8s"
   DEV_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-dev
   TEST_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-test
   STABLE_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-stable
+  # TODO remove before final go-live!
+  EXP_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-experimental
 
 jobs:
   # Identify unused dependencies
@@ -43,7 +43,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: "1.65.0"
           override: true
       - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
         with:
@@ -56,68 +56,49 @@ jobs:
         with:
           command: udeps
 
-  prerelease_job:
-    name: Returns the pre-release string from the version of the cargo workspace.
-    runs-on: ubuntu-latest
-    outputs:
-      str: ${{ steps.prerelease.outputs.str }}
-    steps:
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
-        with:
-          submodules: recursive
-      - uses: actions/setup-python@b55428b1882923874294fa556849718a1d7f2ca5 # tag=v4
-      - name: Install requirements for version tool
-        run: pip install -r python/requirements.txt
-      - id: prerelease
-        name: Extract the pre-release string. Might be empty.
-        run: |
-          PRERELEASE=$(python/cargo_version.py -o | sed  "s/^[0-9]\+\.[0-9]\+\.[0-9]\+-\?//g")
-          echo "::set-output name=str::$PRERELEASE"
-
   # This job evaluates the github environment to determine why this action is running and selects the appropriate
   # target repository for published Helm charts based on this.
   #
   # The following scenarios are identified:
-  #    - pull request:
+  #    - all pull requests land in the test repository:
   #        condition: github.event_name == "pull_request"
   #        repository: test
   #
-  #    - release (aka a tag was created):
+  #    - all tagged releases land in stable:
   #         condition: github.event_name == 'create' & github.ref.startswith('refs/tags/')
   #         repository: stable
   #
-  #    - merge of pr to main branch and pre release is nightly:
-  #         condition: github.event_name == 'push' & github.ref == 'refs/heads/main' & needs.prerelease_job.outputs.str == 'nightly'
+  #    - all pushes to main (i.e. PR-merges) land in dev:
+  #         condition: github.event_name == 'push' & github.ref == 'refs/heads/main'
   #         repository: dev
   #
-  # Any other scenarios will cause the publish step to be skipped, most commonly this is expected to happen for the
+  # Any other scenarios (e.g. when a branch is created/pushed) will cause the publish step to be skipped, most commonly this is expected to happen for the
   # branches that bors uses internally (staging, trying) for which the checks need to run, but we do not want artifacts
   # to be published.
-  select_repo:
-    name: Select target repository based on action trigger
+  select_helm_repo:
+    name: Select target helm repository based on action trigger
     runs-on: ubuntu-latest
     outputs:
-      repository: ${{ steps.selectrepo.outputs.repo }}
-    needs: prerelease_job
+      helm_repository: ${{ steps.selecthelmrepo.outputs.helm_repo }}
     steps:
-      - id: selectrepo
+      - id: selecthelmrepo
         env:
           TRIGGER: ${{ github.event_name }}
           GITHUB_REF: ${{ github.ref }}
-          PRERELEASE: ${{ needs.prerelease_job.outputs.str }}
         run: |
           if [[ $TRIGGER == "pull_request" ]]; then
-            echo "exporting test as target repo: ${{ env.TEST_REPO_HELM_URL }}"
-            echo "::set-output name=repo::${{ env.TEST_REPO_HELM_URL }}"
-          elif [[ $TRIGGER == "push" && $GITHUB_REF == "refs/heads/main" && $PRERELEASE == 'nightly' ]]; then
-            echo "exporting dev as target repo: ${{ env.DEV_REPO_HELM_URL }}"
-            echo "::set-output name=repo::${{ env.DEV_REPO_HELM_URL }}"
+            echo "exporting test as target helm repo: ${{ env.TEST_REPO_HELM_URL }}"
+            echo "::set-output name=helm_repo::${{ env.TEST_REPO_HELM_URL }}"
+          elif [[ $TRIGGER == "push" && $GITHUB_REF == "refs/heads/main" ]]; then
+            echo "exporting dev as target helm repo: ${{ env.DEV_REPO_HELM_URL }}"
+            echo "::set-output name=helm_repo::${{ env.DEV_REPO_HELM_URL }}"
           elif [[ ( $TRIGGER == "create" || $TRIGGER == "push" ) && $GITHUB_REF == refs/tags/* ]]; then
-            echo "exporting stable as target repo: ${{ env.STABLE_REPO_HELM_URL }}"
-            echo "::set-output name=repo::${{ env.STABLE_REPO_HELM_URL }}"
+            # TODO replace EXP with STABLE repo name
+            echo "exporting stable as target helm repo: ${{ env.EXP_REPO_HELM_URL }}"
+            echo "::set-output name=helm_repo::${{ env.EXP_REPO_HELM_URL }}"
           else
             echo "Unknown trigger and ref combination encountered, skipping publish step: $TRIGGER $GITHUB_REF"
-            echo "::set-output name=repo::skip"
+            echo "::set-output name=helm_repo::skip"
           fi
 
   run_cargodeny:
@@ -150,7 +131,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: "1.65.0"
           components: rustfmt
           override: true
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -172,7 +153,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: "1.65.0"
           components: clippy
           override: true
       - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
@@ -206,7 +187,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: "1.65.0"
           components: rustfmt
           override: true
       - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
@@ -219,11 +200,6 @@ jobs:
 
   run_tests:
     name: Run Cargo Tests
-    needs:
-      - run_cargodeny
-      - run_clippy
-      - run_rustfmt
-      - run_rustdoc
     runs-on: ubuntu-latest
     steps:
       - name: Install protoc
@@ -236,7 +212,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: "1.65.0"
           override: true
       - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
         with:
@@ -245,23 +221,45 @@ jobs:
         with:
           command: test
 
-  # This job cleans up the CRDs, Helm charts and Kustomize manifests, followed by rebuilding them
+  # Similar to check_charts, this tries to render the README, and see if there are unintended changes.
+  # This will save us from merging changes to the wrong file (instead of the templated source), and from
+  # forgetting to render out modifications to the README.
+  check_readme:
+    name: Check if committed README is the one we would render from the available parts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install jinja2-cli
+        run: pip install jinja2-cli==0.8.2
+      - name: Regenerate charts
+        run: make render-readme
+      - name: Check if committed README were up to date
+        run: git diff --exit-code
+      - name: Git Diff showed uncommitted changes
+        if: ${{ failure() }}
+        uses: actions/github-script@d50f485531ba88479582bc2da03ff424389af5c1 # tag=v6
+        with:
+          script: |
+            core.setFailed('Committed README are not up to date, please make sure to apply them to the templated partials, and re-commit!')
+
+  # This job cleans up the CRDs and Helm charts, followed by rebuilding them
   # It then runs a `git diff` and fails the entire workflow, if any difference is encountered.
   #
   # Since CRD files are generated during the 'cargo build' process we need to run this once after
   # removing the CRD files to ensure that the checked in versions match what the code expects.
   #
   # The reason for this step is, that developers are expected to check in up-to-date versions of charts
-  # and manifests, as we'd otherwise have to build these in CI and commit them back to the PR, which
+  # as we'd otherwise have to build these in CI and commit them back to the PR, which
   # creates all kinds of problems.
-  # Therefor this failsafe simply aborts anything that has not had charts and manifests rebuilt before pushing.
+  # This failsafe simply aborts anything that has not had charts rebuilt before pushing.
   check_charts:
-    name: Check if committed Helm & Kustomize Charts were up to date
-    needs:
-      - run_cargodeny
-      - run_clippy
-      - run_rustfmt
-      - run_rustdoc
+    name: Check if committed Helm charts are up to date
     runs-on: ubuntu-latest
     steps:
       - name: Install protoc
@@ -280,7 +278,7 @@ jobs:
         uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: "1.65.0"
           override: true
       - name: Set up rust-cache
         uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
@@ -292,30 +290,22 @@ jobs:
         run: git diff --exit-code
       - name: Git Diff showed uncommitted changes
         if: ${{ failure() }}
-        uses: actions/github-script@d50f485531ba88479582bc2da03ff424389af5c1 # tag=v6
+        uses: actions/github-script@7dff1a87643417cf3b95bb10b29f4c4bc60d8ebd # tag=v6
         with:
           script: |
             core.setFailed('Committed charts were not up to date, please regenerate and re-commit!')
 
-  test_charts:
-    name: Run Chart Tests
-    needs:
-      - check_charts
-      - run_tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
-        with:
-          submodules: recursive
-      - name: placeholder
-        run: echo Tests will go here
-
   tests_passed:
     name: All tests passed
     needs:
-      - test_charts
       - run_udeps
+      - run_cargodeny
+      - run_clippy
+      - run_rustfmt
+      - run_rustdoc
+      - run_tests
+      - check_charts
+      - check_readme
     runs-on: ubuntu-latest
     steps:
       - name: log
@@ -325,12 +315,12 @@ jobs:
     name: Package Charts, Build Docker Image and publish them
     needs:
       - tests_passed
-      - select_repo
+      - select_helm_repo
     runs-on: ubuntu-latest
     env:
       NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-      REPO: ${{ needs.select_repo.outputs.repository }}
-    if: needs.select_repo.outputs.repository != 'skip'
+      HELM_REPO: ${{ needs.select_helm_repo.outputs.helm_repository }}
+    if: needs.select_helm_repo.outputs.helm_repository != 'skip'
     steps:
       - name: Install protoc
         run: |
@@ -345,7 +335,7 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: "1.65.0"
           components: rustfmt
           override: true
       - name: Install requirements for version tool
@@ -359,22 +349,8 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: python/cargo_version.py -m pr${{ github.event.pull_request.number }}
 
-      # Recreate charts with changed version if needed
-      - name: Clean charts
-        if: ${{ github.event_name == 'pull_request' }}
-        run: make chart-clean clean-manifests compile-chart generate-manifests
-
-      # Package and publish charts
-      - name: Package Chart
-        run: mkdir -p target/helm && helm package --destination target/helm deploy/helm/${{ env.OPERATOR_NAME }}
-      - name: Build Docker image
-        if: env.NEXUS_PASSWORD != null # pragma: allowlist secret
-        run: make docker
-      - name: Publish Chart
-        if: env.NEXUS_PASSWORD != null # pragma: allowlist secret
-        run: >-
-          /usr/bin/curl
-          --fail
-          -u 'github:${{ secrets.NEXUS_PASSWORD }}'
-          --upload-file "./$(find  target/helm/ -name '*.tgz')"
-          "${{ env.REPO }}/"
+      # Recreate charts and publish charts and docker image. The "-e" is needed as we want to override the
+      # default value in the makefile if called from this action, but not otherwise (i.e. when called locally).
+      # This is needed for the HELM_REPO variable.
+      - name: Publish Docker image and Helm chart
+        run: make -e publish

@@ -5,39 +5,20 @@ metadata:
   name: example-sparkapp-s3-private
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.1.0
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.3.0
   mode: cluster
   mainApplicationFile: s3a://my-bucket/spark-examples_2.12-3.3.0.jar # <1>
   mainClass: org.apache.spark.examples.SparkPi # <2>
-  s3bucket:  # <3>
+  s3connection: # <3>
     inline:
-      bucketName: my-bucket
-      connection:
-        inline:
-          host: test-minio
-          port: 9000
-          accessStyle: Path
-          credentials: # <4>
-            secretClass: s3-credentials-class
+      host: test-minio
+      port: 9000
+      accessStyle: Path
+      credentials: # <4>
+        secretClass: s3-credentials-class
   sparkConf: # <5>
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" # <6>
     spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
     spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
-  volumes:
-    - name: spark-pi-deps # <7>
-      persistentVolumeClaim:
-        claimName: spark-pi-pvc
-  driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
-    volumeMounts:
-      - name: spark-pi-deps
-        mountPath: /dependencies # <8>
   executor:
-    cores: 1
     instances: 3
-    memory: "512m"
-    volumeMounts:
-      - name: spark-pi-deps
-        mountPath: /dependencies # <8>

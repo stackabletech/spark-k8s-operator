@@ -42,8 +42,6 @@ include::example$example-sparkapp-image.yaml[]
 <3> Job argument (external)
 <4> List of python job requirements: these will be installed in the pods via `pip`
 <5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in an S3 store)
-<6> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
-<7> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
 === JVM (Scala): externally located artifact and dataset
 
@@ -71,8 +69,6 @@ include::example$example-sparkapp-s3-private.yaml[]
 <4> Credentials referencing a secretClass (not shown in is example)
 <5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources...
 <6> ...in this case, in an S3 store, accessed with the credentials defined in the secret
-<7> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
-<8> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
 === JVM (Scala): externally located artifact accessed with job arguments provided via configuration map
 
@@ -96,57 +92,91 @@ include::example$example-sparkapp-configmap.yaml[]
 
 You can specify S3 connection details directly inside the `SparkApplication` specification or by referring to an external `S3Bucket` custom resource.
 
-To specify S3 connection details directly as part of the `SparkApplication` resource you add an inline bucket configuration as shown below.
+To specify S3 connection details directly as part of the `SparkApplication` resource you add an inline connection configuration as shown below.
 
 [source,yaml]
 ----
-s3bucket:  # <1>
+s3connection: # <1>
   inline:
-    bucketName: my-bucket # <2>
-    connection:
-      inline:
-        host: test-minio # <3>
-        port: 9000 # <4>
-        accessStyle: Path
-        credentials:
-          secretClass: s3-credentials-class  # <5>
+    host: test-minio # <2>
+    port: 9000 # <3>
+    accessStyle: Path
+    credentials:
+      secretClass: s3-credentials-class  # <4>
 ----
-<1> Entry point for the bucket configuration.
-<2> Bucket name.
-<3> Bucket host.
-<4> Optional bucket port.
-<5> Name of the `Secret` object expected to contain the following keys: `ACCESS_KEY_ID` and `SECRET_ACCESS_KEY`
+<1> Entry point for the S3 connection configuration.
+<2> Connection host.
+<3> Optional connection port.
+<4> Name of the `Secret` object expected to contain the following keys: `ACCESS_KEY_ID` and `SECRET_ACCESS_KEY`
 
-It is also possible to configure the bucket connection details as a separate Kubernetes resource and only refer to that object from the `SparkApplication` like this:
+It is also possible to configure the  connection details as a separate Kubernetes resource and only refer to that object from the `SparkApplication` like this:
 
 [source,yaml]
 ----
-s3bucket:
-  reference: my-bucket-resource # <1>
+s3connection:
+  reference: s3-connection-resource # <1>
 ----
-<1> Name of the bucket resource with connection details.
+<1> Name of the connection resource with connection details.
 
-The resource named `my-bucket-resource` is then defined as shown below:
+The resource named `s3-connection-resource` is then defined as shown below:
 
 [source,yaml]
 ----
 ---
 apiVersion: s3.stackable.tech/v1alpha1
-kind: S3Bucket
+kind: S3Connection
 metadata:
-  name: my-bucket-resource
+  name: s3-connection-resource
 spec:
-  bucketName: my-bucket-name
-  connection:
-    inline:
-      host: test-minio
-      port: 9000
-      accessStyle: Path
-      credentials:
-        secretClass: minio-credentials-class
+  host: test-minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: minio-credentials-class
 ----
 
-This has the advantage that bucket configuration can be shared across `SparkApplication`s and reduces the cost of updating these details.
+This has the advantage that one connection configuration can be shared across `SparkApplications` and reduces the cost of updating these details.
+
+== Resource Requests
+
+// The "nightly" version is needed because the "include" directive searches for
+// files in the "stable" version by default.
+// TODO: remove the "nightly" version after the next platform release (current: 22.09)
+include::nightly@home:concepts:stackable_resource_requests.adoc[]
+
+If no resources are configured explicitly, the operator uses the following defaults:
+
+[source,yaml]
+----
+job:
+  resources:
+    cpu:
+      min: '500m'
+      max: "1"
+    memory:
+      limit: '1Gi'
+driver:
+  resources:
+    cpu:
+      min: '1'
+      max: "2"
+    memory:
+      limit: '2Gi'
+executor:
+  resources:
+    cpu:
+      min: '1'
+      max: "4"
+    memory:
+      limit: '4Gi'
+----
+WARNING: The default values are _most likely_ not sufficient to run a proper cluster in production. Please adapt according to your requirements.
+For more details regarding Kubernetes CPU limits see: https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/[Assign CPU Resources to Containers and Pods].
+
+Spark allocates a default amount of non-heap memory based on the type of job (JVM or non-JVM). This is taken into account when defining memory settings based exclusively on the resource limits, so that the "declared" value is the actual total value (i.e. including memory overhead). This may result in minor deviations from the stated resource value due to rounding differences.
+
+NOTE: It is possible to define Spark resources either directly by setting configuration properties listed under `sparkConf`, or by using resource limits. If both are used, then `sparkConf` properties take precedence. It is recommended for the sake of clarity to use *_either_* one *_or_* the other.
+
 
 == CRD argument coverage
 
@@ -174,7 +204,7 @@ Below are listed the CRD fields that can be defined by the user:
 |User-supplied image containing spark-job dependencies that will be copied to the specified volume mount
 
 |`spec.sparkImage`
-| Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.1.0`
+| Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.3.0`
 
 |`spec.sparkImagePullPolicy`
 | Optional Enum (one of `Always`, `IfNotPresent` or `Never`) that determines the pull policy of the spark job image
@@ -191,8 +221,8 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.args`
 |Arguments passed directly to the job artifact
 
-|`spec.s3bucket`
-|S3 bucket and connection specification. See the <<S3 bucket specification>> for more details.
+|`spec.s3connection`
+|S3 connection specification. See the <<S3 bucket specification>> for more details.
 
 |`spec.sparkConf`
 |A map of key/value strings that will be passed directly to `spark-submit`
@@ -218,14 +248,11 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.volumes.persistentVolumeClaim.claimName`
 |The persistent volume claim backing the volume
 
-|`spec.driver.cores`
-|Number of cores used by the driver (only in cluster mode)
+|`spec.job.resources`
+|Resources specification for the initiating Job
 
-|`spec.driver.coreLimit`
-|Total cores for all executors
-
-|`spec.driver.memory`
-|Specified memory for the driver
+|`spec.driver.resources`
+|Resources specification for the driver Pod
 
 |`spec.driver.volumeMounts`
 |A list of mounted volumes for the driver
@@ -239,14 +266,11 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.driver.nodeSelector`
 |A dictionary of labels to use for node selection when scheduling the driver N.B. this assumes there are no implicit node dependencies (e.g. `PVC`, `VolumeMount`) defined elsewhere.
 
-|`spec.executor.cores`
-|Number of cores for each executor
+|`spec.executor.resources`
+|Resources specification for the executor Pods
 
 |`spec.executor.instances`
 |Number of executor instances launched for this job
-
-|`spec.executor.memory`
-|Memory specified for executor
 
 |`spec.executor.volumeMounts`
 |A list of mounted volumes for each executor

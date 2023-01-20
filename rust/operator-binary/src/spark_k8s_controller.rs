@@ -1,9 +1,7 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::{
-    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodSecurityContextBuilder,
-};
+use stackable_operator::builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder};
 
-use stackable_operator::commons::s3::InlinedS3BucketSpec;
+use stackable_operator::commons::s3::S3ConnectionSpec;
 use stackable_operator::commons::tls::{CaCert, TlsVerification};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
@@ -20,8 +18,7 @@ use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-const FIELD_MANAGER_SCOPE: &str = "sparkapplication";
-const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
+use stackable_spark_k8s_crd::s3logdir::S3LogDir;
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -79,6 +76,21 @@ pub enum Error {
     S3TlsNoVerificationNotSupported,
     #[snafu(display("ca-cert verification not supported"))]
     S3TlsCaVerificationNotSupported,
+    #[snafu(display("failed to resolve and merge resource config"))]
+    FailedToResolveResourceConfig {
+        source: stackable_spark_k8s_crd::Error,
+    },
+    #[snafu(display("failed to recognise the container name"))]
+    UnrecognisedContainerName,
+    #[snafu(display("illegal container name: [{container_name}]"))]
+    IllegalContainerName {
+        source: stackable_operator::error::Error,
+        container_name: String,
+    },
+    #[snafu(display("failed to resolve the s3 log dir configuration"))]
+    S3LogDir {
+        source: stackable_spark_k8s_crd::s3logdir::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -94,16 +106,19 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 
     let client = &ctx.client;
 
-    let s3bucket = match spark_application.spec.s3bucket.as_ref() {
+    let opt_s3conn = match spark_application.spec.s3connection.as_ref() {
         Some(s3bd) => s3bd
-            .resolve(client, spark_application.metadata.namespace.as_deref())
+            .resolve(
+                client,
+                spark_application.metadata.namespace.as_deref().unwrap(),
+            )
             .await
             .context(S3BucketSnafu)
             .ok(),
         _ => None,
     };
 
-    if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
+    if let Some(conn) = opt_s3conn.as_ref() {
         if let Some(tls) = &conn.tls {
             match &tls.verification {
                 TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
@@ -119,20 +134,21 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         }
     }
 
-    if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
-        if conn.tls.as_ref().is_some() {
-            tracing::warn!("The resource indicates S3-access should use TLS: TLS-verification has not yet been implemented \
-            but an HTTPS-endpoint will be used!");
-        }
-    }
+    let s3logdir = S3LogDir::resolve(
+        spark_application.spec.log_file_directory.as_ref(),
+        spark_application.metadata.namespace.clone(),
+        client,
+    )
+    .await
+    .context(S3LogDirSnafu)?;
 
     let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
     client
-        .apply_patch(FIELD_MANAGER_SCOPE, &serviceaccount, &serviceaccount)
+        .apply_patch(CONTROLLER_NAME, &serviceaccount, &serviceaccount)
         .await
         .context(ApplyServiceAccountSnafu)?;
     client
-        .apply_patch(FIELD_MANAGER_SCOPE, &rolebinding, &rolebinding)
+        .apply_patch(CONTROLLER_NAME, &rolebinding, &rolebinding)
         .await
         .context(ApplyRoleBindingSnafu)?;
 
@@ -142,9 +158,12 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .as_deref()
         .context(ObjectHasNoSparkImageSnafu)?;
 
+    let mut jcb =
+        ContainerBuilder::new(CONTAINER_NAME_JOB).with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
     let job_container = spark_application.spec.image.as_ref().map(|job_image| {
-        ContainerBuilder::new(CONTAINER_NAME_JOB)
-            .image(job_image)
+        jcb.image(job_image)
             .command(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
@@ -155,10 +174,12 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             .build()
     });
 
+    let mut rcb =
+        ContainerBuilder::new(CONTAINER_NAME_REQ).with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
     let requirements_container = spark_application.requirements().map(|req| {
-        let mut container_builder = ContainerBuilder::new(CONTAINER_NAME_REQ);
-        container_builder
-            .image(spark_image)
+        rcb.image(spark_image)
             .command(vec![
                 "/bin/bash".to_string(),
                 "-x".to_string(),
@@ -167,9 +188,9 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             ])
             .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ);
         if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-            container_builder.image_pull_policy(image_pull_policy.to_string());
+            rcb.image_pull_policy(image_pull_policy.to_string());
         }
-        container_builder.build()
+        rcb.build()
     });
 
     let env_vars = spark_application.env();
@@ -182,11 +203,12 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &spark_application,
         init_containers.as_ref(),
         &env_vars,
-        &s3bucket,
+        &opt_s3conn,
+        &s3logdir,
     )?;
     client
         .apply_patch(
-            FIELD_MANAGER_SCOPE,
+            CONTROLLER_NAME,
             &pod_template_config_map,
             &pod_template_config_map,
         )
@@ -194,7 +216,11 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .context(ApplyApplicationSnafu)?;
 
     let job_commands = spark_application
-        .build_command(serviceaccount.metadata.name.as_ref().unwrap(), &s3bucket)
+        .build_command(
+            serviceaccount.metadata.name.as_ref().unwrap(),
+            &opt_s3conn,
+            &s3logdir,
+        )
         .context(BuildCommandSnafu)?;
 
     let job = spark_job(
@@ -204,10 +230,11 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &job_container,
         &env_vars,
         &job_commands,
-        &s3bucket,
+        &opt_s3conn,
+        &s3logdir,
     )?;
     client
-        .apply_patch(FIELD_MANAGER_SCOPE, &job, &job)
+        .apply_patch(CONTROLLER_NAME, &job, &job)
         .await
         .context(ApplyApplicationSnafu)?;
 
@@ -223,9 +250,26 @@ fn pod_template(
     env: &[EnvVar],
     node_selector: Option<BTreeMap<String, String>>,
 ) -> Result<Pod> {
-    let mut cb = ContainerBuilder::new(container_name);
+    let mut cb =
+        ContainerBuilder::new(container_name).with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
     cb.add_volume_mounts(volume_mounts.to_vec())
         .add_env_vars(env.to_vec());
+
+    // N.B. this may be ignored by spark as preference is given to spark
+    // configuration settings.
+    let resources = match container_name {
+        CONTAINER_NAME_DRIVER => spark_application
+            .driver_resources()
+            .context(FailedToResolveResourceConfigSnafu)?,
+        CONTAINER_NAME_EXECUTOR => spark_application
+            .executor_resources()
+            .context(FailedToResolveResourceConfigSnafu)?,
+        _ => return UnrecognisedContainerNameSnafu.fail(),
+    };
+
+    cb.resources(resources.into());
 
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
         cb.image_pull_policy(image_pull_policy.to_string());
@@ -254,7 +298,7 @@ fn pod_template(
             // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
             .ownerreference_from_resource(spark_application, None, None)
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_labels(spark_application.recommended_labels())
+            .with_recommended_labels(spark_application.build_recommended_labels(container_name))
             .build(),
         spec: Some(pod_spec),
         ..Pod::default()
@@ -265,16 +309,19 @@ fn pod_template_config_map(
     spark_application: &SparkApplication,
     init_containers: &[Container],
     env: &[EnvVar],
-    s3bucket: &Option<InlinedS3BucketSpec>,
+    s3conn: &Option<S3ConnectionSpec>,
+    s3logdir: &Option<S3LogDir>,
 ) -> Result<ConfigMap> {
-    let volumes = spark_application.volumes(s3bucket);
+    let volumes = spark_application.volumes(s3conn, s3logdir);
 
     let driver_template = pod_template(
         spark_application,
         CONTAINER_NAME_DRIVER,
         init_containers,
         volumes.as_ref(),
-        spark_application.driver_volume_mounts(s3bucket).as_ref(),
+        spark_application
+            .driver_volume_mounts(s3conn, s3logdir)
+            .as_ref(),
         env,
         spark_application.driver_node_selector(),
     )?;
@@ -283,7 +330,9 @@ fn pod_template_config_map(
         CONTAINER_NAME_EXECUTOR,
         init_containers,
         volumes.as_ref(),
-        spark_application.executor_volume_mounts(s3bucket).as_ref(),
+        spark_application
+            .executor_volume_mounts(s3conn, s3logdir)
+            .as_ref(),
         env,
         spark_application.executor_node_selector(),
     )?;
@@ -295,7 +344,9 @@ fn pod_template_config_map(
                 .name(spark_application.pod_template_config_map_name())
                 .ownerreference_from_resource(spark_application, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_labels(spark_application.recommended_labels())
+                .with_recommended_labels(
+                    spark_application.build_recommended_labels("pod-templates"),
+                )
                 .build(),
         )
         .add_data(
@@ -310,6 +361,7 @@ fn pod_template_config_map(
         .context(PodTemplateConfigMapSnafu)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spark_job(
     spark_application: &SparkApplication,
     spark_image: &str,
@@ -317,18 +369,27 @@ fn spark_job(
     job_container: &Option<Container>,
     env: &[EnvVar],
     job_commands: &[String],
-    s3bucket: &Option<InlinedS3BucketSpec>,
+    s3conn: &Option<S3ConnectionSpec>,
+    s3logdir: &Option<S3LogDir>,
 ) -> Result<Job> {
     let mut volume_mounts = vec![VolumeMount {
         name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
         mount_path: VOLUME_MOUNT_PATH_POD_TEMPLATES.into(),
         ..VolumeMount::default()
     }];
-    volume_mounts.extend(spark_application.driver_volume_mounts(s3bucket));
+    volume_mounts.extend(spark_application.driver_volume_mounts(s3conn, s3logdir));
 
-    let mut cb = ContainerBuilder::new("spark-submit");
+    let mut cb =
+        ContainerBuilder::new("spark-submit").with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
+    let resources = spark_application
+        .job_resources()
+        .context(FailedToResolveResourceConfigSnafu)?;
+
     cb.image(spark_image)
         .command(vec!["/bin/sh".to_string()])
+        .resources(resources.into())
         .args(vec!["-c".to_string(), job_commands.join(" ")])
         .add_volume_mounts(volume_mounts)
         .add_env_vars(env.to_vec())
@@ -351,13 +412,15 @@ fn spark_job(
         }),
         ..Volume::default()
     }];
-    volumes.extend(spark_application.volumes(s3bucket));
+    volumes.extend(spark_application.volumes(s3conn, s3logdir));
 
     let pod = PodTemplateSpec {
         metadata: Some(
             ObjectMetaBuilder::new()
                 .name("spark-submit")
-                .with_labels(spark_application.recommended_labels())
+                .with_recommended_labels(
+                    spark_application.build_recommended_labels("spark-job-template"),
+                )
                 .build(),
         ),
         spec: Some(PodSpec {
@@ -378,7 +441,7 @@ fn spark_job(
             .name_and_namespace(spark_application)
             .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_labels(spark_application.recommended_labels())
+            .with_recommended_labels(spark_application.build_recommended_labels("spark-job"))
             .build(),
         spec: Some(JobSpec {
             template: pod,
@@ -405,7 +468,7 @@ fn build_spark_role_serviceaccount(
             .name(&sa_name)
             .ownerreference_from_resource(spark_app, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_labels(spark_app.recommended_labels())
+            .with_recommended_labels(spark_app.build_recommended_labels("service-account"))
             .build(),
         ..ServiceAccount::default()
     };
@@ -416,7 +479,7 @@ fn build_spark_role_serviceaccount(
             .name(binding_name)
             .ownerreference_from_resource(spark_app, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_labels(spark_app.recommended_labels())
+            .with_recommended_labels(spark_app.build_recommended_labels("role-binding"))
             .build(),
         role_ref: RoleRef {
             api_group: ClusterRole::GROUP.to_string(),
@@ -434,19 +497,14 @@ fn build_spark_role_serviceaccount(
 }
 
 fn security_context() -> PodSecurityContext {
-    PodSecurityContextBuilder::new()
-        .fs_group(1000)
-        // OpenShift generates UIDs for processes inside Pods. Setting the UID is optional,
-        // *but* if specified, OpenShift will check that the value is within the
-        // valid range generated by the SCC (security context constraints) for this Pod.
-        // On the other hand, it is *required* to set the process UID in KinD, K3S as soon
-        // as the runAsGroup property is set.
-        .run_as_user(SPARK_UID)
-        // Required to access files in mounted volumes on OpenShift.
-        .run_as_group(0)
-        .build()
+    PodSecurityContext {
+        run_as_user: Some(1000),
+        run_as_group: Some(1000),
+        fs_group: Some(1000),
+        ..PodSecurityContext::default()
+    }
 }
 
-pub fn error_policy(_error: &Error, _ctx: Arc<Ctx>) -> Action {
+pub fn error_policy(_obj: Arc<SparkApplication>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
 }

@@ -1,0 +1,21 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-pi-s3-1
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+  sparkImagePullPolicy: IfNotPresent
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
+  s3connection:
+    reference: spark-data-s3-connection
+  logFileDirectory:
+    s3:
+      prefix: eventlogs/
+      bucket:
+        reference: spark-history-s3-bucket
+  executor:
+    instances: 1

@@ -5,8 +5,8 @@ metadata:
   name: spark-history
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['spark'] }}"
-    stackableVersion: "{{ test_scenario['values']['stackable'] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
   logFileDirectory:
     s3:
       prefix: eventlogs/

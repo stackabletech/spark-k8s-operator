@@ -5,10 +5,10 @@ metadata:
   name: spark-examples
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+  sparkImage: "docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkALS
-  mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-{{ test_scenario['values']['spark'] }}.jar
+  mainApplicationFile: "local:///stackable/spark/examples/jars/spark-examples_2.12-{{ test_scenario['values']['examples'] }}.jar"
   executor:
     instances: 1

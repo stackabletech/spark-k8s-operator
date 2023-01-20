@@ -6,8 +6,8 @@ metadata:
 spec:
   version: "1.0"
   # everything under /jobs will be copied to /stackable/spark/jobs
-  image: docker.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'] }}-stackable{{ test_scenario['values']['stackable'] }}
+  image: "docker.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}"
+  sparkImage: "docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py

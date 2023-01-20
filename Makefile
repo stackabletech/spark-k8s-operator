@@ -7,16 +7,17 @@
 # It is available from Nixpkgs as `yq-go` (`nix shell nixpkgs#yq-go`)
 # This script also requires `jq` https://stedolan.github.io/jq/
 
-.PHONY: docker chart-lint compile-chart
+.PHONY: build publish
 
 TAG    := $(shell git rev-parse --short HEAD)
+OPERATOR_NAME := spark-k8s-operator
+VERSION := $(shell cargo metadata --format-version 1 | jq -r '.packages[] | select(.name=="stackable-${OPERATOR_NAME}") | .version')
 
-VERSION := $(shell cargo metadata --format-version 1 | jq -r '.packages[] | select(.name=="stackable-spark-k8s-operator") | .version')
-IS_NIGHTLY := $(shell echo "${VERSION}" | grep -- '-nightly$$')
-# When rendering docs we want to simplify the version number slightly, only rendering "nightly" for nightly branches
-# (since we only render nightlies for the active development trunk anyway) and chopping off the semver patch version otherwise
-DOCS_VERSION := $(if ${IS_NIGHTLY},nightly,$(shell echo "${VERSION}" | sed 's/^\([0-9]\+\.[0-9]\+\)\..*$$/\1/'))
-export VERSION IS_NIGHTLY DOCS_VERSION
+DOCKER_REPO := docker.stackable.tech
+ORGANIZATION := stackable
+# this will be overwritten by an environmental variable if called from the github action
+HELM_REPO := https://repo.stackable.tech/repository/helm-dev
+HELM_CHART_ARTIFACT := target/helm/${OPERATOR_NAME}-${VERSION}.tgz
 
 SHELL=/usr/bin/env bash -euo pipefail
 
@@ -25,50 +26,50 @@ render-readme:
 
 ## Docker related targets
 docker-build:
-	docker build --force-rm --build-arg VERSION=${VERSION} -t "docker.stackable.tech/stackable/spark-k8s-operator:${VERSION}" -f docker/Dockerfile .
-
-docker-build-latest: docker-build
-	docker tag "docker.stackable.tech/stackable/spark-k8s-operator:${VERSION}" \
-	           "docker.stackable.tech/stackable/spark-k8s-operator:latest"
+	docker build --force-rm --build-arg VERSION=${VERSION} -t "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}" -f docker/Dockerfile .
 
 docker-publish:
-	echo "${NEXUS_PASSWORD}" | docker login --username github --password-stdin docker.stackable.tech
-	docker push --all-tags docker.stackable.tech/stackable/spark-k8s-operator
+	echo "${NEXUS_PASSWORD}" | docker login --username github --password-stdin "${DOCKER_REPO}"
+	docker push --all-tags "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}"
 
+# TODO remove if not used/needed
 docker: docker-build docker-publish
 
-docker-release: docker-build-latest docker-publish
+helm-publish:
+	curl --fail -u "github:${NEXUS_PASSWORD}" --upload-file "${HELM_CHART_ARTIFACT}" "${HELM_REPO}/"
+
+helm-package:
+	mkdir -p target/helm && helm package --destination target/helm deploy/helm/${OPERATOR_NAME}
 
 ## Chart related targets
 compile-chart: version crds config
 
 chart-clean:
-	rm -rf deploy/helm/spark-k8s-operator/configs
-	rm -rf deploy/helm/spark-k8s-operator/crds
+	rm -rf "deploy/helm/${OPERATOR_NAME}/configs"
+	rm -rf "deploy/helm/${OPERATOR_NAME}/crds"
 
 version:
-	yq eval -i '.version = strenv(VERSION) | .appVersion = strenv(VERSION)' /dev/stdin < deploy/helm/spark-k8s-operator/Chart.yaml
-	yq eval -i '.version = strenv(DOCS_VERSION) | .prerelease = strenv(IS_NIGHTLY) != ""' /dev/stdin < docs/antora.yml
+	yq eval -i ".version = \"${VERSION}\" | .appVersion = \"${VERSION}\"" /dev/stdin < "deploy/helm/${OPERATOR_NAME}/Chart.yaml"
 
 config:
 	if [ -d "deploy/config-spec/" ]; then\
-		mkdir -p deploy/helm/spark-k8s-operator/configs;\
-		cp -r deploy/config-spec/* deploy/helm/spark-k8s-operator/configs;\
+		mkdir -p "deploy/helm/${OPERATOR_NAME}/configs";\
+		cp -r deploy/config-spec/* "deploy/helm/${OPERATOR_NAME}/configs";\
 	fi
 
 crds:
-	mkdir -p deploy/helm/spark-k8s-operator/crds
-	cargo run --bin stackable-spark-k8s-operator -- crd | yq eval '.metadata.annotations["helm.sh/resource-policy"]="keep"' - > deploy/helm/spark-k8s-operator/crds/crds.yaml
+	mkdir -p deploy/helm/"${OPERATOR_NAME}"/crds
+	cargo run --bin stackable-"${OPERATOR_NAME}" -- crd | yq eval '.metadata.annotations["helm.sh/resource-policy"]="keep"' - > "deploy/helm/${OPERATOR_NAME}/crds/crds.yaml"
 
 chart-lint: compile-chart
 	docker run -it -v $(shell pwd):/build/helm-charts -w /build/helm-charts quay.io/helmpack/chart-testing:v3.5.0  ct lint --config deploy/helm/ct.yaml
 
-## Manifest related targets
-clean-manifests:
-	mkdir -p deploy/manifests
-	rm -rf $$(find deploy/manifests -maxdepth 1 -mindepth 1 -not -name Kustomization)
+clean: chart-clean
+	cargo clean
+	docker rmi --force "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}"
 
-generate-manifests: clean-manifests compile-chart
-	./scripts/generate-manifests.sh
+regenerate-charts: chart-clean compile-chart
 
-regenerate-charts: chart-clean clean-manifests compile-chart generate-manifests
+build: regenerate-charts helm-package docker-build
+
+publish: build docker-publish helm-publish

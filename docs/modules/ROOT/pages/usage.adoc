@@ -92,57 +92,50 @@ include::example$example-sparkapp-configmap.yaml[]
 
 You can specify S3 connection details directly inside the `SparkApplication` specification or by referring to an external `S3Bucket` custom resource.
 
-To specify S3 connection details directly as part of the `SparkApplication` resource you add an inline bucket configuration as shown below.
+To specify S3 connection details directly as part of the `SparkApplication` resource you add an inline connection configuration as shown below.
 
 [source,yaml]
 ----
-s3bucket:  # <1>
+s3connection: # <1>
   inline:
-    bucketName: my-bucket # <2>
-    connection:
-      inline:
-        host: test-minio # <3>
-        port: 9000 # <4>
-        accessStyle: Path
-        credentials:
-          secretClass: s3-credentials-class  # <5>
+    host: test-minio # <2>
+    port: 9000 # <3>
+    accessStyle: Path
+    credentials:
+      secretClass: s3-credentials-class  # <4>
 ----
-<1> Entry point for the bucket configuration.
-<2> Bucket name.
-<3> Bucket host.
-<4> Optional bucket port.
-<5> Name of the `Secret` object expected to contain the following keys: `ACCESS_KEY_ID` and `SECRET_ACCESS_KEY`
+<1> Entry point for the S3 connection configuration.
+<2> Connection host.
+<3> Optional connection port.
+<4> Name of the `Secret` object expected to contain the following keys: `ACCESS_KEY_ID` and `SECRET_ACCESS_KEY`
 
-It is also possible to configure the bucket connection details as a separate Kubernetes resource and only refer to that object from the `SparkApplication` like this:
+It is also possible to configure the  connection details as a separate Kubernetes resource and only refer to that object from the `SparkApplication` like this:
 
 [source,yaml]
 ----
-s3bucket:
-  reference: my-bucket-resource # <1>
+s3connection:
+  reference: s3-connection-resource # <1>
 ----
-<1> Name of the bucket resource with connection details.
+<1> Name of the connection resource with connection details.
 
-The resource named `my-bucket-resource` is then defined as shown below:
+The resource named `s3-connection-resource` is then defined as shown below:
 
 [source,yaml]
 ----
 ---
 apiVersion: s3.stackable.tech/v1alpha1
-kind: S3Bucket
+kind: S3Connection
 metadata:
-  name: my-bucket-resource
+  name: s3-connection-resource
 spec:
-  bucketName: my-bucket-name
-  connection:
-    inline:
-      host: test-minio
-      port: 9000
-      accessStyle: Path
-      credentials:
-        secretClass: minio-credentials-class
+  host: test-minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: minio-credentials-class
 ----
 
-This has the advantage that bucket configuration can be shared across `SparkApplication`s and reduces the cost of updating these details.
+This has the advantage that one connection configuration can be shared across `SparkApplications` and reduces the cost of updating these details.
 
 == Resource Requests
 
@@ -228,8 +221,8 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.args`
 |Arguments passed directly to the job artifact
 
-|`spec.s3bucket`
-|S3 bucket and connection specification. See the <<S3 bucket specification>> for more details.
+|`spec.s3connection`
+|S3 connection specification. See the <<S3 bucket specification>> for more details.
 
 |`spec.sparkConf`
 |A map of key/value strings that will be passed directly to `spark-submit`

@@ -10,39 +10,44 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.3.0
-  - name: stackable
-    values:
-      - 0.3.0
+      - 3.3.0-stackable0.3.0
   - name: ny-tlc-report
     values:
       - 0.1.0
+  - name: examples
+    values:
+      - 3.3.0
 tests:
   - name: spark-history-server
     dimensions:
       - spark
       - stackable
       - openshift
+      - examples
   - name: spark-pi-private-s3
     dimensions:
       - spark
       - stackable
       - openshift
+      - examples
   - name: spark-pi-public-s3
     dimensions:
       - spark
       - stackable
       - openshift
+      - examples
   - name: spark-ny-public-s3
     dimensions:
       - spark
       - stackable
       - openshift
+      - examples
   - name: spark-examples
     dimensions:
       - spark
       - stackable
       - openshift
+      - examples
   - name: pyspark-ny-public-s3
     dimensions:
       - spark
@@ -59,3 +64,4 @@ tests:
       - spark
       - stackable
       - openshift
+      - examples

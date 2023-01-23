@@ -16,24 +16,24 @@ fi
 
 case "$1" in
 "helm")
-echo "Adding 'stackable-dev' Helm Chart repository"
+echo "Adding 'stackable-stable' Helm Chart repository"
 # tag::helm-add-repo[]
-helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
+helm repo add stackable-stable https://repo.stackable.tech/repository/helm-stable/
 # end::helm-add-repo[]
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.5.0-nightly
-helm install --wait secret-operator stackable-dev/secret-operator --version 0.7.0-nightly
-helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version 0.7.0-nightly
+helm install --wait commons-operator stackable-stable/commons-operator --version 23.1.0
+helm install --wait secret-operator stackable-stable/secret-operator --version 23.1.0
+helm install --wait spark-k8s-operator stackable-stable/spark-k8s-operator --version 23.1.0
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.5.0-nightly \
-  secret=0.7.0-nightly \
-  spark-k8s=0.7.0-nightly
+  commons=23.1.0 \
+  secret=23.1.0 \
+  spark-k8s=23.1.0
 # end::stackablectl-install-operators[]
 ;;
 *)

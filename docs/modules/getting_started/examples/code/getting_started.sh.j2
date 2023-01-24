@@ -62,7 +62,7 @@ spec:
         min: "1"
         max: "1200m"
       memory:
-        limit: "512Mi"
+        limit: "1Gi"
   executor:
     instances: 3
     resources:
@@ -70,7 +70,7 @@ spec:
         min: "1"
         max: "1200m"
       memory:
-        limit: "512Mi"
+        limit: "1Gi"
 EOF
 # end::install-sparkapp[]
 

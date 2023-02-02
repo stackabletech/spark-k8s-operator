@@ -1,29 +1,24 @@
 #!/usr/bin/env bash
+
+# Check if the test expansion tool beku is installed
+set +e
+which beku > /dev/null 2>&1
+beku_installed=$?
 set -e
+if [ $beku_installed -ne 0 ]; then
+  echo "Please install beku.py to run the tests, see https://github.com/stackabletech/beku.py"
+  exit 1
+fi
 
-# Register absolute paths to pass to Ansible so the location of the role is irrelevant
-# for the run
-TESTDIR="$(pwd)/tests"
-WORKDIR="$(pwd)/tests/_work"
+echo "Using beku version: $(beku --version)"
 
-# Create dirs
-mkdir -p tests/ansible/roles
-mkdir -p "$WORKDIR"
+# cleanup any old tests
+rm -rf tests/_work
 
-# Install Ansible role if needed
-pushd tests/ansible
-ansible-galaxy role install -r requirements.yaml -p ./roles
+# Expand the tests
+beku
 
-# TODO: create pipenv in files for script thingy
-
-# Funnel via JSON to ensure that values are escaped properly
-echo '{}' | jq '{work_dir: $WORKDIR, test_dir: $TESTDIR}' --arg WORKDIR "$WORKDIR" --arg TESTDIR "$TESTDIR" > "${WORKDIR}"/vars.json
-
-# Run playbook to generate test scenarios
-ansible-playbook playbook.yaml --extra-vars "@${WORKDIR}/vars.json"
-popd
-
-# Run tests
+# Run tests, pass the params
 pushd tests/_work
 kubectl kuttl test "$@"
 popd

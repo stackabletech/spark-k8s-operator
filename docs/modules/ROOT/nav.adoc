@@ -1,5 +1,0 @@
-* xref:configuration.adoc[]
-* xref:usage.adoc[]
-* xref:job_dependencies.adoc[]
-* xref:rbac.adoc[]
-* xref:history_server.adoc[]

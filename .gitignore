@@ -1,4 +1,3 @@
-tests/ansible/roles/
 tests/_work/
 debug/
 target/

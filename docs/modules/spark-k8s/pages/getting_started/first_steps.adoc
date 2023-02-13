@@ -1,6 +1,6 @@
 = First steps
 
-Once you have followed the steps in the xref:installation.adoc[] section to install the operator and its dependencies, you will now create a Spark job. Afterwards you can <<_verify_that_it_works, verify that it works>> by looking at the logs from the driver pod.
+Once you have followed the steps in the xref:getting_started/installation.adoc[] section to install the operator and its dependencies, you will now create a Spark job. Afterwards you can <<_verify_that_it_works, verify that it works>> by looking at the logs from the driver pod.
 
 == Starting a Spark job
 
@@ -14,7 +14,7 @@ Create a `SparkApplication`:
 
 [source,bash]
 ----
-include::example$code/getting_started.sh[tag=install-sparkapp]
+include::example$getting_started/getting_started.sh[tag=install-sparkapp]
 ----
 
 Where:
@@ -31,7 +31,7 @@ Where:
 
 As mentioned above, the `SparkApplication` that has just been created will build a `spark-submit` command and pass it to the driver pod, which in turn will create executor pods that run for the duration of the job before being clean up. A running process will look like this:
 
-image::spark_running.png[Spark job]
+image::getting_started/spark_running.png[Spark job]
 
 - `pyspark-pi-xxxx`: this is the initialising job that creates the spark-submit command (named as `metadata.name` with a unique suffix)
 - `pyspark-pi-xxxxxxx-driver`: the driver pod that drives the execution
@@ -40,13 +40,13 @@ image::spark_running.png[Spark job]
 Job progress can be followed by issuing this command:
 
 ----
-include::example$code/getting_started.sh[tag=wait-for-job]
+include::example$getting_started/getting_started.sh[tag=wait-for-job]
 ----
 
 When the job completes the driver cleans up the executor. The initial job is persisted for several minutes before being removed. The completed state will look like this:
 
-image::spark_complete.png[Completed job]
+image::getting_started/spark_complete.png[Completed job]
 
 The driver logs can be inspected for more information about the results of the job. In this case we expect to find the results of our (approximate!) pi calculation:
 
-image::spark_log.png[Driver log]
+image::getting_started/spark_log.png[Driver log]

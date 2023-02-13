@@ -1,3 +1,0 @@
-* xref:index.adoc[]
-** xref:installation.adoc[]
-** xref:first_steps.adoc[]

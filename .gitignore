@@ -13,3 +13,5 @@ Cargo.nix
 crate-hashes.json
 result
 image.tar
+
+tilt_options.json

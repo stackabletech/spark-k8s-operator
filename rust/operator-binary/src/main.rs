@@ -4,7 +4,7 @@ mod spark_k8s_controller;
 
 use std::sync::Arc;
 
-use clap::Parser;
+use clap::{crate_description, crate_version, Parser};
 use futures::StreamExt;
 use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
@@ -24,10 +24,11 @@ use tracing_futures::Instrument;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
+    pub const TARGET_PLATFORM: Option<&str> = option_env!("TARGET");
 }
 
 #[derive(Parser)]
-#[clap(about = built_info::PKG_DESCRIPTION, author = stackable_operator::cli::AUTHOR)]
+#[clap(about, author)]
 struct Opts {
     #[clap(subcommand)]
     cmd: Command,
@@ -52,10 +53,10 @@ async fn main() -> anyhow::Result<()> {
                 tracing_target,
             );
             stackable_operator::utils::print_startup_string(
-                built_info::PKG_DESCRIPTION,
-                built_info::PKG_VERSION,
+                crate_description!(),
+                crate_version!(),
                 built_info::GIT_VERSION,
-                built_info::TARGET,
+                built_info::TARGET_PLATFORM.unwrap_or("unknown target"),
                 built_info::BUILT_TIME_UTC,
                 built_info::RUSTC_VERSION,
             );

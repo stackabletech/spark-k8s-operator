@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Revert openshift settings ([#207])
+- BUGFIX: assign service account to history pods ([#207])
 
 [#207]: https://github.com/stackabletech/spark-k8s-operator/pull/207
 

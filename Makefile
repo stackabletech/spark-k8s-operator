@@ -73,3 +73,6 @@ regenerate-charts: chart-clean compile-chart
 build: regenerate-charts helm-package docker-build
 
 publish: build docker-publish helm-publish
+
+run-dev:
+	nix run -f. tilt -- up --port 5441

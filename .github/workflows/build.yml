@@ -35,7 +35,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install protobuf-compiler
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -43,7 +43,7 @@ jobs:
           profile: minimal
           toolchain: "1.65.0"
           override: true
-      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
+      - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: udeps
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -111,10 +111,10 @@ jobs:
     continue-on-error: ${{ matrix.checks == 'advisories' }}
 
     steps:
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: EmbarkStudios/cargo-deny-action@7257a18a9c2fe3f92b85d41ae473520dff953c97 # tag=v1.3.2
+      - uses: EmbarkStudios/cargo-deny-action@8a8607bd8e2b3a514d5a40174cc7c55b229d9ba7 # v1.4.0
         with:
           command: check ${{ matrix.checks }}
 
@@ -122,7 +122,7 @@ jobs:
     name: Run Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -144,7 +144,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install protobuf-compiler
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -153,7 +153,7 @@ jobs:
           toolchain: "1.65.0"
           components: clippy
           override: true
-      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
+      - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: clippy
       - name: Run clippy action to produce annotations
@@ -178,7 +178,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install protobuf-compiler
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -187,7 +187,7 @@ jobs:
           toolchain: "1.65.0"
           components: rustfmt
           override: true
-      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
+      - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: doc
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -203,7 +203,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install protobuf-compiler
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
@@ -211,7 +211,7 @@ jobs:
           profile: minimal
           toolchain: "1.65.0"
           override: true
-      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
+      - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: test
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
@@ -226,10 +226,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435 # v4
         with:
           python-version: '3.10'
       - name: Install jinja2-cli
@@ -240,7 +240,7 @@ jobs:
         run: git diff --exit-code
       - name: Git Diff showed uncommitted changes
         if: ${{ failure() }}
-        uses: actions/github-script@d50f485531ba88479582bc2da03ff424389af5c1 # tag=v6
+        uses: actions/github-script@d556feaca394842dc55e4734bf3bb9f685482fa0 # v6
         with:
           script: |
             core.setFailed('Committed README are not up to date, please make sure to apply them to the templated partials, and re-commit!')
@@ -264,11 +264,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install protobuf-compiler
       - name: Checkout
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
       - name: Set up Helm
-        uses: azure/setup-helm@b5b231a831f96336bbfeccc1329990f0005c5bb1 # tag=v3.3
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78 # v3.5
         with:
           version: v3.6.2
       - name: Set up cargo
@@ -278,7 +278,7 @@ jobs:
           toolchain: "1.65.0"
           override: true
       - name: Set up rust-cache
-        uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # tag=v2.0.0
+        uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: charts
       - name: Regenerate charts
@@ -287,7 +287,7 @@ jobs:
         run: git diff --exit-code
       - name: Git Diff showed uncommitted changes
         if: ${{ failure() }}
-        uses: actions/github-script@7dff1a87643417cf3b95bb10b29f4c4bc60d8ebd # tag=v6
+        uses: actions/github-script@d556feaca394842dc55e4734bf3bb9f685482fa0 # v6
         with:
           script: |
             core.setFailed('Committed charts were not up to date, please regenerate and re-commit!')
@@ -324,10 +324,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install protobuf-compiler
       - name: Checkout
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3.0.2
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: actions/setup-python@b55428b1882923874294fa556849718a1d7f2ca5 # tag=v4
+      - uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435 # v4
         if: ${{ github.event_name == 'pull_request' }}
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
         with:

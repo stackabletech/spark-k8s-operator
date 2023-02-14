@@ -202,6 +202,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &rgr,
                 s3_log_dir.as_ref().unwrap(),
                 &config.resources,
+                &serviceaccount,
             )?;
             cluster_resources
                 .add(client, &sts)
@@ -255,6 +256,7 @@ fn build_stateful_set(
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
     s3_log_dir: &S3LogDir,
     resources: &Resources<HistoryStorageConfig, NoRuntimeLimits>,
+    serviceaccount: &ServiceAccount,
 ) -> Result<StatefulSet, Error> {
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
@@ -274,6 +276,7 @@ fn build_stateful_set(
         .build();
 
     let template = PodBuilder::new()
+        .service_account_name(serviceaccount.name_unchecked())
         .add_container(container)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(

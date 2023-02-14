@@ -1,0 +1,3 @@
+= Stackable Operator for Apache Spark on Kubernetes
+
+The docs can now be found at: xref:home:spark-k8s:index.adoc[]

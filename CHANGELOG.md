@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Revert openshift settings ([#207])
+
+[#207]: https://github.com/stackabletech/spark-k8s-operator/pull/207
+
+## [23.1.0] - 2023-01-23
+
 ### Added
 
 - Create and manage history servers ([#187])

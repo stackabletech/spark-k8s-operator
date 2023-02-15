@@ -38,21 +38,12 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
-        with:
-          profile: minimal
-          toolchain: "1.65.0"
-          override: true
+      - uses: dtolnay/rust-toolchain@1.65.0
       - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: udeps
-      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
-        with:
-          command: install
-          args: cargo-udeps --locked
-      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
-        with:
-          command: udeps
+      - run: cargo install --udeps
+      - run: cargo udeps
 
   # This job evaluates the github environment to determine why this action is running and selects the appropriate
   # target repository for published Helm charts based on this.
@@ -86,16 +77,16 @@ jobs:
         run: |
           if [[ $TRIGGER == "pull_request" ]]; then
             echo "exporting test as target helm repo: ${{ env.TEST_REPO_HELM_URL }}"
-            echo "::set-output name=helm_repo::${{ env.TEST_REPO_HELM_URL }}"
+            echo "helm_repo=${{ env.TEST_REPO_HELM_URL }}" >> $GITHUB_OUTPUT
           elif [[ $TRIGGER == "push" && $GITHUB_REF == "refs/heads/main" ]]; then
             echo "exporting dev as target helm repo: ${{ env.DEV_REPO_HELM_URL }}"
-            echo "::set-output name=helm_repo::${{ env.DEV_REPO_HELM_URL }}"
+            echo "helm_repo=${{ env.DEV_REPO_HELM_URL }}" >> $GITHUB_OUTPUT
           elif [[ ( $TRIGGER == "create" || $TRIGGER == "push" ) && $GITHUB_REF == refs/tags/* ]]; then
             echo "exporting stable as target helm repo: ${{ env.STABLE_REPO_HELM_URL }}"
-            echo "::set-output name=helm_repo::${{ env.STABLE_REPO_HELM_URL }}"
+            echo "helm_repo=${{ env.STABLE_REPO_HELM_URL }}" >> $GITHUB_OUTPUT
           else
             echo "Unknown trigger and ref combination encountered, skipping publish step: $TRIGGER $GITHUB_REF"
-            echo "::set-output name=helm_repo::skip"
+            echo "helm_repo=skip" >> $GITHUB_OUTPUT
           fi
 
   run_cargodeny:
@@ -125,16 +116,10 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+      - uses: dtolnay/rust-toolchain@1.65.0
         with:
-          profile: minimal
-          toolchain: "1.65.0"
           components: rustfmt
-          override: true
-      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check
 
   run_clippy:
     name: Run Clippy
@@ -147,12 +132,9 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+      - uses: dtolnay/rust-toolchain@1.65.0
         with:
-          profile: minimal
-          toolchain: "1.65.0"
           components: clippy
-          override: true
       - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: clippy
@@ -181,19 +163,13 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+      - uses: dtolnay/rust-toolchain@1.65.0
         with:
-          profile: minimal
-          toolchain: "1.65.0"
           components: rustfmt
-          override: true
       - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: doc
-      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
-        with:
-          command: doc
-          args: --document-private-items
+      - run: cargo doc --document-private-items
 
   run_tests:
     name: Run Cargo Tests
@@ -206,17 +182,12 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
-        with:
-          profile: minimal
-          toolchain: "1.65.0"
-          override: true
+      - uses: dtolnay/rust-toolchain@1.65.0
       - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: test
-      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # renovate: tag=v1.0.3
-        with:
-          command: test
+      - run: cargo test
+
 
   # Similar to check_charts, this tries to render the README, and see if there are unintended changes.
   # This will save us from merging changes to the wrong file (instead of the templated source), and from
@@ -272,11 +243,7 @@ jobs:
         with:
           version: v3.6.2
       - name: Set up cargo
-        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
-        with:
-          profile: minimal
-          toolchain: "1.65.0"
-          override: true
+        uses: dtolnay/rust-toolchain@1.65.0
       - name: Set up rust-cache
         uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
@@ -329,12 +296,9 @@ jobs:
           submodules: recursive
       - uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435 # v4
         if: ${{ github.event_name == 'pull_request' }}
-      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # renovate: tag=v1.0.7
+      - uses: dtolnay/rust-toolchain@1.65.0
         with:
-          profile: minimal
-          toolchain: "1.65.0"
           components: rustfmt
-          override: true
       - name: Install requirements for version tool
         if: ${{ github.event_name == 'pull_request' }}
         run: pip install -r python/requirements.txt

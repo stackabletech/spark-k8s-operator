@@ -3,7 +3,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   # give minio enough time to start
-  - command: sleep 5
+  - command: sleep 10
   - command: kubectl cp -n $NAMESPACE spark-examples_2.12-{{ test_scenario['values']['examples'] }}.jar minio-client:/tmp
   - command: kubectl exec -n $NAMESPACE minio-client -- sh -c 'mc alias set test-minio http://test-minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'
   - command: kubectl exec -n $NAMESPACE minio-client -- mc mb test-minio/my-bucket

@@ -14,6 +14,8 @@ then
   exit 1
 fi
 
+cd "$(dirname "$0")"
+
 case "$1" in
 "helm")
 echo "Adding 'stackable-dev' Helm Chart repository"

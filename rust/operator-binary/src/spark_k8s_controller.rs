@@ -5,15 +5,15 @@ use stackable_operator::commons::s3::S3ConnectionSpec;
 use stackable_operator::commons::tls::{CaCert, TlsVerification};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    ConfigMap, ConfigMapVolumeSource, Container, EnvVar, Pod, PodSecurityContext, PodSpec,
-    PodTemplateSpec, ServiceAccount, Volume, VolumeMount,
+    Affinity, ConfigMap, ConfigMapVolumeSource, Container, EnvVar, Pod, PodSecurityContext,
+    PodSpec, PodTemplateSpec, ServiceAccount, Volume, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
 use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::logging::controller::ReconcilerError;
-use stackable_spark_k8s_crd::constants::*;
 use stackable_spark_k8s_crd::SparkApplication;
+use stackable_spark_k8s_crd::{constants::*, SparkApplicationRole};
 use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -249,6 +249,7 @@ fn pod_template(
     volume_mounts: &[VolumeMount],
     env: &[EnvVar],
     node_selector: Option<BTreeMap<String, String>>,
+    affinity: Option<Affinity>,
 ) -> Result<Pod> {
     let mut cb =
         ContainerBuilder::new(container_name).with_context(|_| IllegalContainerNameSnafu {
@@ -324,6 +325,7 @@ fn pod_template_config_map(
             .as_ref(),
         env,
         spark_application.driver_node_selector(),
+        spark_application.affinity(SparkApplicationRole::Driver),
     )?;
     let executor_template = pod_template(
         spark_application,
@@ -335,6 +337,7 @@ fn pod_template_config_map(
             .as_ref(),
         env,
         spark_application.executor_node_selector(),
+        spark_application.affinity(SparkApplicationRole::Executor),
     )?;
 
     ConfigMapBuilder::new()
@@ -432,6 +435,7 @@ fn spark_job(
             image_pull_secrets: spark_application.spark_image_pull_secrets(),
             security_context: Some(security_context()),
             node_selector: spark_application.driver_node_selector(),
+            affinity: spark_application.affinity(SparkApplicationRole::Driver),
             ..PodSpec::default()
         }),
     };

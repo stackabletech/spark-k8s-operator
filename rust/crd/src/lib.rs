@@ -8,9 +8,10 @@ use constants::*;
 use history::LogFileDirectorySpec;
 use s3logdir::S3LogDir;
 use stackable_operator::builder::VolumeBuilder;
+use stackable_operator::commons::affinity::StackableAffinity;
 use stackable_operator::commons::s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
+    Affinity, EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
 use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
 use std::cmp::max;
@@ -63,6 +64,11 @@ pub enum Error {
     FailedParseToFloatConversion,
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+}
+
+pub enum SparkApplicationRole {
+    Driver,
+    Executor,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
@@ -601,6 +607,30 @@ impl SparkApplication {
         e
     }
 
+    pub fn affinity(&self, role: SparkApplicationRole) -> Option<Affinity> {
+        let opt_stackable_affinity = match role {
+            SparkApplicationRole::Driver => self
+                .spec
+                .driver
+                .as_ref()
+                .and_then(|driver_config| driver_config.affinity.clone()),
+            SparkApplicationRole::Executor => self
+                .spec
+                .executor
+                .as_ref()
+                .and_then(|executor_config| executor_config.affinity.clone()),
+        };
+        if let Some(stackable_affinity) = opt_stackable_affinity {
+            Some(Affinity {
+                node_affinity: stackable_affinity.node_affinity.clone(),
+                pod_affinity: stackable_affinity.pod_affinity.clone(),
+                pod_anti_affinity: stackable_affinity.pod_anti_affinity,
+            })
+        } else {
+            None
+        }
+    }
+
     pub fn driver_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
         self.spec
             .driver
@@ -692,6 +722,8 @@ pub struct DriverConfig {
     pub volume_mounts: Option<Vec<VolumeMount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_selector: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affinity: Option<StackableAffinity>,
 }
 
 impl DriverConfig {
@@ -729,6 +761,8 @@ pub struct ExecutorConfig {
     pub volume_mounts: Option<Vec<VolumeMount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_selector: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affinity: Option<StackableAffinity>,
 }
 
 impl ExecutorConfig {

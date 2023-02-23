@@ -9,7 +9,7 @@ version = "0.0.0-dev"
 publish = false
 
 [dependencies]
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.30.2" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.36.0" }
 stackable-spark-k8s-crd = { path = "../crd" }
 anyhow = "1.0"
 clap = "4.0"
@@ -24,5 +24,5 @@ tracing-futures = { version = "0.2", features = ["futures-03"] }
 
 [build-dependencies]
 built = { version =  "0.5", features = ["chrono", "git2"] }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.30.2" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.36.0" }
 stackable-spark-k8s-crd = { path = "../crd" }

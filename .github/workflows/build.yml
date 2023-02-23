@@ -285,6 +285,8 @@ jobs:
       NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
       HELM_REPO: ${{ needs.select_helm_repo.outputs.helm_repository }}
     if: needs.select_helm_repo.outputs.helm_repository != 'skip'
+    outputs:
+      IMAGE_TAG: ${{ steps.printtag.outputs.IMAGE_TAG }}
     steps:
       - name: Install protoc
         run: |
@@ -310,8 +312,28 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: python/cargo_version.py -m pr${{ github.event.pull_request.number }}
 
-      # Recreate charts and publish charts and docker image. The "-e" is needed as we want to override the
-      # default value in the makefile if called from this action, but not otherwise (i.e. when called locally).
-      # This is needed for the HELM_REPO variable.
+        # Recreate charts and publish charts and docker image. The "-e" is needed as we want to override the
+        # default value in the makefile if called from this action, but not otherwise (i.e. when called locally).
+        # This is needed for the HELM_REPO variable.
       - name: Publish Docker image and Helm chart
         run: make -e publish
+        # Output the name of the published image to the Job output for later use
+      - id: printtag
+        name: Output image name and tag
+        run: echo "IMAGE_TAG=$(make -e print-docker-tag)" >> $GITHUB_OUTPUT
+  openshift_preflight:
+    name: Run the OpenShift Preflight check on the published images
+    needs:
+      - package_and_publish
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ needs.package_and_publish.outputs.IMAGE_TAG }}
+    steps:
+      - name: Install preflight
+        run: |
+          wget https://github.com/redhat-openshift-ecosystem/openshift-preflight/releases/latest/download/preflight-linux-amd64
+          chmod +x preflight-linux-amd64
+      - name: Check container
+        run: ./preflight-linux-amd64 check container "$IMAGE_TAG" > preflight.out
+      - name: "Passed?"
+        run: '[ "$(./preflight-linux-amd64 check container "$IMAGE_TAG" | jq -r .passed)" == true ]'

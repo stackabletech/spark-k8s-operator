@@ -1,5 +1,6 @@
 //! This module provides all required CRD definitions and additional helper methods.
 
+pub mod affinity;
 pub mod constants;
 pub mod history;
 pub mod s3logdir;

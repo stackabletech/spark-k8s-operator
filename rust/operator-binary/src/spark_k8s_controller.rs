@@ -241,6 +241,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     Ok(Action::await_change())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn pod_template(
     spark_application: &SparkApplication,
     container_name: &str,
@@ -280,6 +281,8 @@ fn pod_template(
         containers: vec![cb.build()],
         volumes: Some(volumes.to_vec()),
         security_context: Some(security_context()),
+        node_selector,
+        affinity,
         ..PodSpec::default()
     };
 
@@ -288,9 +291,6 @@ fn pod_template(
     }
     if let Some(image_pull_secrets) = spark_application.spark_image_pull_secrets() {
         pod_spec.image_pull_secrets = Some(image_pull_secrets);
-    }
-    if node_selector.is_some() {
-        pod_spec.node_selector = node_selector;
     }
     Ok(Pod {
         metadata: ObjectMetaBuilder::new()

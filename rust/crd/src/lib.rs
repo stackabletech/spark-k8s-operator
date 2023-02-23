@@ -13,7 +13,7 @@ use stackable_operator::commons::s3::{S3AccessStyle, S3ConnectionDef, S3Connecti
 use stackable_operator::k8s_openapi::api::core::v1::{
     Affinity, EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
-use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
+use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 use std::cmp::max;
 
 use std::collections::{BTreeMap, HashMap};
@@ -579,16 +579,25 @@ impl SparkApplication {
         } else {
             1.0 / (1.0 + NON_JVM_OVERHEAD_FACTOR)
         };
-        let original_memory = to_java_heap_value(limit, 1.0, BinaryMultiple::Mebi).context(
-            FailedToConvertJavaHeapSnafu {
-                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-            },
-        )?;
-        let reduced_memory = to_java_heap_value(limit, non_jvm_factor, BinaryMultiple::Mebi)
+
+        let original_memory = MemoryQuantity::try_from(limit)
             .context(FailedToConvertJavaHeapSnafu {
                 unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-            })?;
+            })?
+            .scale_to(BinaryMultiple::Mebi)
+            .floor()
+            .value as u32;
+
+        let reduced_memory =
+            (MemoryQuantity::try_from(limit).context(FailedToConvertJavaHeapSnafu {
+                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+            })? * non_jvm_factor)
+                .scale_to(BinaryMultiple::Mebi)
+                .floor()
+                .value as u32;
+
         let deduction = max(MIN_MEMORY_OVERHEAD, original_memory - reduced_memory);
+
         Ok(format!("{}m", original_memory - deduction))
     }
 

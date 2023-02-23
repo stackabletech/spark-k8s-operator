@@ -1,0 +1,16 @@
+= Pod Placement
+
+== Spark Applications
+
+You can configure pod placement of application drivers and executors by adding an `affininty` property to the corresponding configuration section.
+
+By default, the operator doen't configure any affinity.
+
+== Spark History Server
+
+You can configure the Pod placement of Spark History Server pods as described in xref:concepts:pod_placement.adoc[].
+
+The default affinities created by the operator are:
+
+1. Co-locate all the history pods (weight 20)
+2. Distribute all pods within the same role (weight 70)

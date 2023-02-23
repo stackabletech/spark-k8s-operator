@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Deploy default and support custom affinities ([217])
+- Deploy default and support custom affinities ([#217])
 
 ### Changed
 

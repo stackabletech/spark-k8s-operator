@@ -561,11 +561,6 @@ spec:
                               type: array
                           type: object
                       type: object
-                    nodeSelector:
-                      additionalProperties:
-                        type: string
-                      nullable: true
-                      type: object
                     resources:
                       nullable: true
                       properties:

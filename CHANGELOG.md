@@ -4,12 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Deploy default and support custom affinities ([#217])
+- BREAKING: Dropped support for old spec.{driver,executor}.nodeSelector field. Use spec.{driver,executor}.affinity.nodeSelector instead ([#217])
+
 ### Changed
 
 - Revert openshift settings ([#207])
 - BUGFIX: assign service account to history pods ([#207])
 
 [#207]: https://github.com/stackabletech/spark-k8s-operator/pull/207
+[#217]: https://github.com/stackabletech/spark-k8s-operator/pull/217
 
 ## [23.1.0] - 2023-01-23
 

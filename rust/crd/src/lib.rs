@@ -1,5 +1,6 @@
 //! This module provides all required CRD definitions and additional helper methods.
 
+pub mod affinity;
 pub mod constants;
 pub mod history;
 pub mod s3logdir;
@@ -8,11 +9,12 @@ use constants::*;
 use history::LogFileDirectorySpec;
 use s3logdir::S3LogDir;
 use stackable_operator::builder::VolumeBuilder;
+use stackable_operator::commons::affinity::StackableAffinity;
 use stackable_operator::commons::s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
     EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
-use stackable_operator::memory::{to_java_heap_value, BinaryMultiple};
+use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 use std::cmp::max;
 
 use std::collections::{BTreeMap, HashMap};
@@ -63,6 +65,11 @@ pub enum Error {
     FailedParseToFloatConversion,
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+}
+
+pub enum SparkApplicationRole {
+    Driver,
+    Executor,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
@@ -573,16 +580,25 @@ impl SparkApplication {
         } else {
             1.0 / (1.0 + NON_JVM_OVERHEAD_FACTOR)
         };
-        let original_memory = to_java_heap_value(limit, 1.0, BinaryMultiple::Mebi).context(
-            FailedToConvertJavaHeapSnafu {
-                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-            },
-        )?;
-        let reduced_memory = to_java_heap_value(limit, non_jvm_factor, BinaryMultiple::Mebi)
+
+        let original_memory = MemoryQuantity::try_from(limit)
             .context(FailedToConvertJavaHeapSnafu {
                 unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-            })?;
+            })?
+            .scale_to(BinaryMultiple::Mebi)
+            .floor()
+            .value as u32;
+
+        let reduced_memory =
+            (MemoryQuantity::try_from(limit).context(FailedToConvertJavaHeapSnafu {
+                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+            })? * non_jvm_factor)
+                .scale_to(BinaryMultiple::Mebi)
+                .floor()
+                .value as u32;
+
         let deduction = max(MIN_MEMORY_OVERHEAD, original_memory - reduced_memory);
+
         Ok(format!("{}m", original_memory - deduction))
     }
 
@@ -601,18 +617,19 @@ impl SparkApplication {
         e
     }
 
-    pub fn driver_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
-        self.spec
-            .driver
-            .as_ref()
-            .and_then(|driver_config| driver_config.node_selector.clone())
-    }
-
-    pub fn executor_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
-        self.spec
-            .executor
-            .as_ref()
-            .and_then(|executor_config| executor_config.node_selector.clone())
+    pub fn affinity(&self, role: SparkApplicationRole) -> Option<StackableAffinity> {
+        match role {
+            SparkApplicationRole::Driver => self
+                .spec
+                .driver
+                .as_ref()
+                .and_then(|driver_config| driver_config.affinity.clone()),
+            SparkApplicationRole::Executor => self
+                .spec
+                .executor
+                .as_ref()
+                .and_then(|executor_config| executor_config.affinity.clone()),
+        }
     }
 
     pub fn job_resources(&self) -> Result<Resources<SparkStorageConfig, NoRuntimeLimits>, Error> {
@@ -691,7 +708,7 @@ pub struct DriverConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub node_selector: Option<std::collections::BTreeMap<String, String>>,
+    pub affinity: Option<StackableAffinity>,
 }
 
 impl DriverConfig {
@@ -729,6 +746,8 @@ pub struct ExecutorConfig {
     pub volume_mounts: Option<Vec<VolumeMount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_selector: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affinity: Option<StackableAffinity>,
 }
 
 impl ExecutorConfig {

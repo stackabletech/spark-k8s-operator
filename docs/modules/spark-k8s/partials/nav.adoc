@@ -6,3 +6,4 @@
 * xref:spark-k8s:job_dependencies.adoc[]
 * xref:spark-k8s:rbac.adoc[]
 * xref:spark-k8s:history_server.adoc[]
+* xref:spark-k8s:pod_placement.adoc[]

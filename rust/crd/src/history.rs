@@ -1,4 +1,6 @@
+use crate::affinity::history_affinity;
 use crate::constants::*;
+use stackable_operator::commons::affinity::StackableAffinity;
 use stackable_operator::commons::product_image_selection::{ProductImage, ResolvedProductImage};
 use stackable_operator::commons::resources::{
     CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimitsFragment,
@@ -7,6 +9,7 @@ use stackable_operator::commons::s3::S3BucketDef;
 use stackable_operator::config::fragment::ValidationError;
 use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use stackable_operator::kube::runtime::reflector::ObjectRef;
+use stackable_operator::kube::ResourceExt;
 use stackable_operator::product_config::types::PropertyNameKind;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
@@ -71,7 +74,7 @@ impl SparkHistoryServer {
         rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
     ) -> Result<HistoryConfig, Error> {
         // Initialize the result with all default values as baseline
-        let conf_defaults = HistoryConfig::default_config();
+        let conf_defaults = HistoryConfig::default_config(&self.name_any());
 
         let role = &self.spec.nodes;
 
@@ -196,10 +199,12 @@ pub struct HistoryConfig {
     pub cleaner: Option<bool>,
     #[fragment_attrs(serde(default))]
     pub resources: Resources<HistoryStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
 }
 
 impl HistoryConfig {
-    fn default_config() -> HistoryConfigFragment {
+    fn default_config(cluster_name: &str) -> HistoryConfigFragment {
         HistoryConfigFragment {
             cleaner: None,
             resources: ResourcesFragment {
@@ -213,6 +218,7 @@ impl HistoryConfig {
                 },
                 storage: HistoryStorageConfigFragment {},
             },
+            affinity: history_affinity(cluster_name),
         }
     }
 }

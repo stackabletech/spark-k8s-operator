@@ -12,7 +12,7 @@ use stackable_operator::builder::VolumeBuilder;
 use stackable_operator::commons::affinity::StackableAffinity;
 use stackable_operator::commons::s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Affinity, EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
+    EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount,
 };
 use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 use std::cmp::max;
@@ -617,8 +617,8 @@ impl SparkApplication {
         e
     }
 
-    pub fn affinity(&self, role: SparkApplicationRole) -> Option<Affinity> {
-        let opt_stackable_affinity = match role {
+    pub fn affinity(&self, role: SparkApplicationRole) -> Option<StackableAffinity> {
+        match role {
             SparkApplicationRole::Driver => self
                 .spec
                 .driver
@@ -629,30 +629,7 @@ impl SparkApplication {
                 .executor
                 .as_ref()
                 .and_then(|executor_config| executor_config.affinity.clone()),
-        };
-        if let Some(stackable_affinity) = opt_stackable_affinity {
-            Some(Affinity {
-                node_affinity: stackable_affinity.node_affinity.clone(),
-                pod_affinity: stackable_affinity.pod_affinity.clone(),
-                pod_anti_affinity: stackable_affinity.pod_anti_affinity,
-            })
-        } else {
-            None
         }
-    }
-
-    pub fn driver_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
-        self.spec
-            .driver
-            .as_ref()
-            .and_then(|driver_config| driver_config.node_selector.clone())
-    }
-
-    pub fn executor_node_selector(&self) -> Option<std::collections::BTreeMap<String, String>> {
-        self.spec
-            .executor
-            .as_ref()
-            .and_then(|executor_config| executor_config.node_selector.clone())
     }
 
     pub fn job_resources(&self) -> Result<Resources<SparkStorageConfig, NoRuntimeLimits>, Error> {
@@ -730,8 +707,6 @@ pub struct DriverConfig {
     pub resources: Option<ResourcesFragment<SparkStorageConfig, NoRuntimeLimits>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volume_mounts: Option<Vec<VolumeMount>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub node_selector: Option<std::collections::BTreeMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub affinity: Option<StackableAffinity>,
 }

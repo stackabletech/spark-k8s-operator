@@ -1,12 +1,15 @@
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder};
+use stackable_operator::builder::{
+    ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder,
+};
 
+use stackable_operator::commons::affinity::StackableAffinity;
 use stackable_operator::commons::s3::S3ConnectionSpec;
 use stackable_operator::commons::tls::{CaCert, TlsVerification};
 use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobSpec};
 use stackable_operator::k8s_openapi::api::core::v1::{
-    Affinity, ConfigMap, ConfigMapVolumeSource, Container, EnvVar, Pod, PodSecurityContext,
-    PodSpec, PodTemplateSpec, ServiceAccount, Volume, VolumeMount,
+    ConfigMap, ConfigMapVolumeSource, Container, EnvVar, Pod, PodSecurityContext, PodSpec,
+    PodTemplateSpec, ServiceAccount, Volume, VolumeMount,
 };
 use stackable_operator::k8s_openapi::api::rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject};
 use stackable_operator::k8s_openapi::Resource;
@@ -14,7 +17,6 @@ use stackable_operator::kube::runtime::controller::Action;
 use stackable_operator::logging::controller::ReconcilerError;
 use stackable_spark_k8s_crd::SparkApplication;
 use stackable_spark_k8s_crd::{constants::*, SparkApplicationRole};
-use std::collections::BTreeMap;
 use std::{sync::Arc, time::Duration};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -249,16 +251,8 @@ fn pod_template(
     volumes: &[Volume],
     volume_mounts: &[VolumeMount],
     env: &[EnvVar],
-    node_selector: Option<BTreeMap<String, String>>,
-    affinity: Option<Affinity>,
+    affinity: Option<StackableAffinity>,
 ) -> Result<Pod> {
-    let mut cb =
-        ContainerBuilder::new(container_name).with_context(|_| IllegalContainerNameSnafu {
-            container_name: APP_NAME.to_string(),
-        })?;
-    cb.add_volume_mounts(volume_mounts.to_vec())
-        .add_env_vars(env.to_vec());
-
     // N.B. this may be ignored by spark as preference is given to spark
     // configuration settings.
     let resources = match container_name {
@@ -271,29 +265,21 @@ fn pod_template(
         _ => return UnrecognisedContainerNameSnafu.fail(),
     };
 
-    cb.resources(resources.into());
+    let mut cb =
+        ContainerBuilder::new(container_name).with_context(|_| IllegalContainerNameSnafu {
+            container_name: APP_NAME.to_string(),
+        })?;
+    cb.add_volume_mounts(volume_mounts.to_vec())
+        .add_env_vars(env.to_vec())
+        .resources(resources.into());
 
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
         cb.image_pull_policy(image_pull_policy.to_string());
     }
 
-    let mut pod_spec = PodSpec {
-        containers: vec![cb.build()],
-        volumes: Some(volumes.to_vec()),
-        security_context: Some(security_context()),
-        node_selector,
-        affinity,
-        ..PodSpec::default()
-    };
-
-    if !init_containers.is_empty() {
-        pod_spec.init_containers = Some(init_containers.to_vec());
-    }
-    if let Some(image_pull_secrets) = spark_application.spark_image_pull_secrets() {
-        pod_spec.image_pull_secrets = Some(image_pull_secrets);
-    }
-    Ok(Pod {
-        metadata: ObjectMetaBuilder::new()
+    let mut pb = PodBuilder::new();
+    pb.metadata(
+        ObjectMetaBuilder::new()
             .name(container_name)
             // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
             // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
@@ -301,9 +287,28 @@ fn pod_template(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(spark_application.build_recommended_labels(container_name))
             .build(),
-        spec: Some(pod_spec),
-        ..Pod::default()
-    })
+    )
+    .add_container(cb.build())
+    .add_volumes(volumes.to_vec())
+    .security_context(security_context());
+
+    if let Some(affinity) = affinity {
+        pb.affinity(&affinity);
+    }
+
+    for init_container in init_containers {
+        pb.add_init_container(init_container.clone());
+    }
+
+    if let Some(image_pull_secrets) = spark_application.spark_image_pull_secrets() {
+        pb.image_pull_secrets(
+            image_pull_secrets
+                .iter()
+                .flat_map(|secret| secret.name.clone()),
+        );
+    }
+
+    pb.build().context(PodTemplateConfigMapSnafu)
 }
 
 fn pod_template_config_map(
@@ -324,7 +329,6 @@ fn pod_template_config_map(
             .driver_volume_mounts(s3conn, s3logdir)
             .as_ref(),
         env,
-        spark_application.driver_node_selector(),
         spark_application.affinity(SparkApplicationRole::Driver),
     )?;
     let executor_template = pod_template(
@@ -336,7 +340,6 @@ fn pod_template_config_map(
             .executor_volume_mounts(s3conn, s3logdir)
             .as_ref(),
         env,
-        spark_application.executor_node_selector(),
         spark_application.affinity(SparkApplicationRole::Executor),
     )?;
 
@@ -434,8 +437,6 @@ fn spark_job(
             volumes: Some(volumes),
             image_pull_secrets: spark_application.spark_image_pull_secrets(),
             security_context: Some(security_context()),
-            node_selector: spark_application.driver_node_selector(),
-            affinity: spark_application.affinity(SparkApplicationRole::Driver),
             ..PodSpec::default()
         }),
     };

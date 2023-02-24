@@ -1,24 +1,16 @@
 use stackable_operator::{
-    commons::affinity::{
-        affinity_between_cluster_pods, affinity_between_role_pods, StackableAffinityFragment,
-    },
-    k8s_openapi::api::core::v1::{PodAffinity, PodAntiAffinity},
+    commons::affinity::{affinity_between_role_pods, StackableAffinityFragment},
+    k8s_openapi::api::core::v1::PodAntiAffinity,
 };
 
 use crate::constants::{APP_NAME, HISTORY_ROLE_NAME};
 
 pub fn history_affinity(cluster_name: &str) -> StackableAffinityFragment {
-    let affinity_between_cluster_pods = affinity_between_cluster_pods(APP_NAME, cluster_name, 20);
     let affinity_between_role_pods =
         affinity_between_role_pods(APP_NAME, cluster_name, HISTORY_ROLE_NAME, 70);
 
     StackableAffinityFragment {
-        pod_affinity: Some(PodAffinity {
-            preferred_during_scheduling_ignored_during_execution: Some(vec![
-                affinity_between_cluster_pods,
-            ]),
-            required_during_scheduling_ignored_during_execution: None,
-        }),
+        pod_affinity: None,
         pod_anti_affinity: Some(PodAntiAffinity {
             preferred_during_scheduling_ignored_during_execution: Some(vec![
                 affinity_between_role_pods,
@@ -39,9 +31,7 @@ mod test {
     use stackable_operator::{
         commons::affinity::StackableAffinity,
         k8s_openapi::{
-            api::core::v1::{
-                PodAffinity, PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm,
-            },
+            api::core::v1::{PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm},
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
         kube::runtime::reflector::ObjectRef,
@@ -76,32 +66,7 @@ mod test {
         let expected: StackableAffinity = StackableAffinity {
             node_affinity: None,
             node_selector: None,
-            pod_affinity: Some(PodAffinity {
-                required_during_scheduling_ignored_during_execution: None,
-                preferred_during_scheduling_ignored_during_execution: Some(vec![
-                    WeightedPodAffinityTerm {
-                        pod_affinity_term: PodAffinityTerm {
-                            label_selector: Some(LabelSelector {
-                                match_expressions: None,
-                                match_labels: Some(BTreeMap::from([
-                                    (
-                                        "app.kubernetes.io/name".to_string(),
-                                        "spark-k8s".to_string(),
-                                    ),
-                                    (
-                                        "app.kubernetes.io/instance".to_string(),
-                                        "spark-history".to_string(),
-                                    ),
-                                ])),
-                            }),
-                            namespace_selector: None,
-                            namespaces: None,
-                            topology_key: "kubernetes.io/hostname".to_string(),
-                        },
-                        weight: 20,
-                    },
-                ]),
-            }),
+            pod_affinity: None,
             pod_anti_affinity: Some(PodAntiAffinity {
                 required_during_scheduling_ignored_during_execution: None,
                 preferred_during_scheduling_ignored_during_execution: Some(vec![

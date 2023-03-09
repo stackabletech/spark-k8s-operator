@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use stackable_spark_k8s_crd::{
-    constants::*, s3logdir::S3LogDir, SparkApplication, SparkApplicationRole,
+    constants::*, s3logdir::S3LogDir, DriverContainer, SparkApplication, SparkApplicationRole,
 };
 
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -9,6 +9,7 @@ use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder},
     commons::{
         affinity::StackableAffinity,
+        product_image_selection::ResolvedProductImage,
         s3::S3ConnectionSpec,
         tls::{CaCert, TlsVerification},
     },
@@ -23,10 +24,13 @@ use stackable_operator::{
         },
         Resource,
     },
-    kube::runtime::controller::Action,
+    kube::runtime::{controller::Action, reflector::ObjectRef},
     logging::controller::ReconcilerError,
+    product_logging::framework::vector_container,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+use crate::product_logging::{self, resolve_vector_aggregator_address};
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -88,6 +92,10 @@ pub enum Error {
     FailedToResolveConfig {
         source: stackable_spark_k8s_crd::Error,
     },
+    #[snafu(display("failed to resolve and merge logging config"))]
+    FailedToResolveLoggingConfig {
+        source: stackable_spark_k8s_crd::Error,
+    },
     #[snafu(display("failed to recognise the container name"))]
     UnrecognisedContainerName,
     #[snafu(display("illegal container name: [{container_name}]"))]
@@ -98,6 +106,15 @@ pub enum Error {
     #[snafu(display("failed to resolve the s3 log dir configuration"))]
     S3LogDir {
         source: stackable_spark_k8s_crd::s3logdir::Error,
+    },
+    #[snafu(display("failed to resolve the Vector aggregator address"))]
+    ResolveVectorAggregatorAddress {
+        source: crate::product_logging::Error,
+    },
+    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
+    InvalidLoggingConfig {
+        source: crate::product_logging::Error,
+        cm_name: String,
     },
 }
 
@@ -160,6 +177,10 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .await
         .context(ApplyRoleBindingSnafu)?;
 
+    let vector_aggregator_address = resolve_vector_aggregator_address(&spark_application, client)
+        .await
+        .context(ResolveVectorAggregatorAddressSnafu)?;
+
     let spark_image = spark_application
         .spec
         .spark_image
@@ -213,6 +234,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &env_vars,
         &opt_s3conn,
         &s3logdir,
+        vector_aggregator_address.as_deref(),
     )?;
     client
         .apply_patch(
@@ -320,6 +342,28 @@ fn pod_template(
         );
     }
 
+    let driver_config = spark_application
+        .driver_config()
+        .context(FailedToResolveConfigSnafu)?;
+
+    if driver_config.logging.enable_vector_agent {
+        pb.add_container(vector_container(
+            &ResolvedProductImage {
+                product_version: "".into(),
+                app_version_label: "".into(),
+                image: spark_application.spec.spark_image.clone().unwrap(),
+                image_pull_policy: "".into(),
+                pull_secrets: None,
+            },
+            VOLUME_MOUNT_NAME_LOG_CONFIG,
+            VOLUME_MOUNT_NAME_LOG,
+            driver_config
+                .logging
+                .containers
+                .get(&DriverContainer::SparkDriver),
+        ));
+    }
+
     pb.build().context(PodTemplateConfigMapSnafu)
 }
 
@@ -329,8 +373,18 @@ fn pod_template_config_map(
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
+    vector_aggregator_address: Option<&str>,
 ) -> Result<ConfigMap> {
-    let volumes = spark_application.volumes(s3conn, s3logdir);
+    let driver_config = spark_application
+        .driver_config()
+        .context(FailedToResolveConfigSnafu)?;
+
+    let driver_container_log_config = driver_config
+        .logging
+        .containers
+        .get(&DriverContainer::SparkDriver)
+        .cloned();
+    let volumes = spark_application.volumes(s3conn, s3logdir, driver_container_log_config.as_ref());
 
     let driver_template = pod_template(
         spark_application,
@@ -359,7 +413,19 @@ fn pod_template_config_map(
             .ok(),
     )?;
 
-    ConfigMapBuilder::new()
+    let mut cm_builder = ConfigMapBuilder::new();
+
+    product_logging::extend_config_map(
+        ObjectRef::from_obj(spark_application),
+        vector_aggregator_address,
+        &driver_config.logging,
+        &mut cm_builder,
+    )
+    .context(InvalidLoggingConfigSnafu {
+        cm_name: spark_application.pod_template_config_map_name(),
+    })?;
+
+    cm_builder
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(spark_application)
@@ -434,7 +500,7 @@ fn spark_job(
         }),
         ..Volume::default()
     }];
-    volumes.extend(spark_application.volumes(s3conn, s3logdir));
+    volumes.extend(spark_application.volumes(s3conn, s3logdir, None));
 
     let pod = PodTemplateSpec {
         metadata: Some(

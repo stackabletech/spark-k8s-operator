@@ -40,10 +40,17 @@ use stackable_operator::{
     kube::{CustomResource, ResourceExt},
     labels::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
+    product_logging::{
+        self,
+        spec::{
+            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
+            CustomContainerLogConfig, Logging,
+        },
+    },
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
-use strum::{Display, EnumString};
+use strum::{Display, EnumIter, EnumString};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -173,6 +180,10 @@ pub struct SparkApplicationSpec {
     pub spark_image_pull_policy: Option<ImagePullPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_image_pull_secrets: Option<Vec<LocalObjectReference>>,
+    /// Name of the Vector aggregator discovery ConfigMap.
+    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vector_aggregator_config_map_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<SparkConfigFragment>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -268,6 +279,7 @@ impl SparkApplication {
         &self,
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
+        log_config: Option<&ContainerLogConfig>,
     ) -> Vec<Volume> {
         let mut result: Vec<Volume> = self
             .spec
@@ -305,6 +317,33 @@ impl SparkApplication {
         if let Some(v) = s3logdir.as_ref().and_then(|o| o.credentials_volume()) {
             result.push(v);
         }
+
+        let log_config_map = if let Some(ContainerLogConfig {
+            choice:
+                Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                    custom: ConfigMapLogConfig { config_map },
+                })),
+        }) = log_config
+        {
+            config_map.into()
+        } else {
+            self.pod_template_config_map_name()
+        };
+
+        result.push(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                .with_config_map(log_config_map)
+                .build(),
+        );
+
+        result.push(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+                .with_empty_dir(
+                    None::<String>,
+                    Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
+                )
+                .build(),
+        );
 
         result
     }
@@ -385,6 +424,18 @@ impl SparkApplication {
             mounts.push(vm);
         }
 
+        mounts.push(VolumeMount {
+            name: VOLUME_MOUNT_NAME_LOG_CONFIG.into(),
+            mount_path: VOLUME_MOUNT_PATH_LOG_CONFIG.into(),
+            ..VolumeMount::default()
+        });
+
+        mounts.push(VolumeMount {
+            name: VOLUME_MOUNT_NAME_LOG.into(),
+            mount_path: VOLUME_MOUNT_PATH_LOG.into(),
+            ..VolumeMount::default()
+        });
+
         mounts
     }
 
@@ -426,6 +477,9 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
+            format!("--conf spark.driver.extraJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+            format!("--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*"),
+            "--conf spark.driver.userClassPathFirst=true".to_string(),
         ]);
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
@@ -734,6 +788,28 @@ pub struct CommonConfig {
     pub enable_monitoring: Option<bool>,
 }
 
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    Eq,
+    EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum DriverContainer {
+    Job,
+    Requirements,
+    SparkDriver,
+    Vector,
+}
+
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -751,6 +827,8 @@ pub struct CommonConfig {
 pub struct DriverConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default))]
+    pub logging: Logging<DriverContainer>,
     #[fragment_attrs(serde(default, flatten))]
     pub volume_mounts: VolumeMounts,
     #[fragment_attrs(serde(default))]
@@ -771,6 +849,7 @@ impl DriverConfig {
                 },
                 storage: SparkStorageConfigFragment {},
             },
+            logging: product_logging::spec::default_logging(),
             volume_mounts: Some(VolumeMounts::default()),
             affinity: StackableAffinityFragment::default(),
         }

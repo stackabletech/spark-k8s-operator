@@ -11,11 +11,19 @@ pub const CONTAINER_NAME_REQ: &str = "requirements";
 pub const VOLUME_MOUNT_NAME_REQ: &str = "req-files";
 pub const VOLUME_MOUNT_PATH_REQ: &str = "/stackable/spark/requirements";
 
+pub const VOLUME_MOUNT_NAME_LOG_CONFIG: &str = "log-config";
+pub const VOLUME_MOUNT_PATH_LOG_CONFIG: &str = "/stackable/log_config";
+
+pub const VOLUME_MOUNT_NAME_LOG: &str = "log";
+pub const VOLUME_MOUNT_PATH_LOG: &str = "/stackable/log";
+
 pub const CONTAINER_IMAGE_NAME_DRIVER: &str = "dummy-overwritten-by-command-line";
 pub const CONTAINER_NAME_DRIVER: &str = "spark-driver";
 
 pub const CONTAINER_IMAGE_NAME_EXECUTOR: &str = "dummy-overwritten-by-command-line";
 pub const CONTAINER_NAME_EXECUTOR: &str = "spark-executor";
+
+pub const LOG4J2_CONFIG_FILE: &str = "log4j2.properties";
 
 pub const ACCESS_KEY_ID: &str = "accessKey";
 pub const SECRET_ACCESS_KEY: &str = "secretKey";
@@ -24,6 +32,9 @@ pub const S3_SECRET_DIR_NAME: &str = "/stackable/secrets";
 pub const MIN_MEMORY_OVERHEAD: u32 = 384;
 pub const JVM_OVERHEAD_FACTOR: f32 = 0.1;
 pub const NON_JVM_OVERHEAD_FACTOR: f32 = 0.4;
+
+pub const MAX_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+pub const LOG_VOLUME_SIZE_IN_MIB: u32 = MAX_LOG_FILES_SIZE_IN_MIB;
 
 pub const OPERATOR_NAME: &str = "spark.stackable.tech";
 pub const CONTROLLER_NAME: &str = "sparkapplication";

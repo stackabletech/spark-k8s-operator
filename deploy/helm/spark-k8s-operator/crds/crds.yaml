@@ -87,9 +87,13 @@ spec:
                   nullable: true
                   properties:
                     affinity:
-                      nullable: true
+                      default:
+                        podAffinity: null
+                        podAntiAffinity: null
+                        nodeAffinity: null
+                        nodeSelector: null
                       properties:
-                        node_affinity:
+                        nodeAffinity:
                           description: Node affinity is a group of node affinity scheduling rules.
                           nullable: true
                           properties:
@@ -217,10 +221,10 @@ spec:
                                 - nodeSelectorTerms
                               type: object
                           type: object
-                        node_selector:
+                        nodeSelector:
                           nullable: true
                           type: object
-                        pod_affinity:
+                        podAffinity:
                           description: Pod affinity is a group of inter pod affinity scheduling rules.
                           nullable: true
                           properties:
@@ -390,7 +394,7 @@ spec:
                                 type: object
                               type: array
                           type: object
-                        pod_anti_affinity:
+                        podAntiAffinity:
                           description: Pod anti affinity is a group of inter pod anti affinity scheduling rules.
                           nullable: true
                           properties:
@@ -562,7 +566,14 @@ spec:
                           type: object
                       type: object
                     resources:
-                      nullable: true
+                      default:
+                        memory:
+                          limit: null
+                          runtimeLimits: {}
+                        cpu:
+                          min: null
+                          max: null
+                        storage: {}
                       properties:
                         cpu:
                           default:
@@ -704,9 +715,13 @@ spec:
                   nullable: true
                   properties:
                     affinity:
-                      nullable: true
+                      default:
+                        podAffinity: null
+                        podAntiAffinity: null
+                        nodeAffinity: null
+                        nodeSelector: null
                       properties:
-                        node_affinity:
+                        nodeAffinity:
                           description: Node affinity is a group of node affinity scheduling rules.
                           nullable: true
                           properties:
@@ -834,10 +849,10 @@ spec:
                                 - nodeSelectorTerms
                               type: object
                           type: object
-                        node_selector:
+                        nodeSelector:
                           nullable: true
                           type: object
-                        pod_affinity:
+                        podAffinity:
                           description: Pod affinity is a group of inter pod affinity scheduling rules.
                           nullable: true
                           properties:
@@ -1007,7 +1022,7 @@ spec:
                                 type: object
                               type: array
                           type: object
-                        pod_anti_affinity:
+                        podAntiAffinity:
                           description: Pod anti affinity is a group of inter pod anti affinity scheduling rules.
                           nullable: true
                           properties:
@@ -1189,7 +1204,14 @@ spec:
                       nullable: true
                       type: object
                     resources:
-                      nullable: true
+                      default:
+                        memory:
+                          limit: null
+                          runtimeLimits: {}
+                        cpu:
+                          min: null
+                          max: null
+                        storage: {}
                       properties:
                         cpu:
                           default:
@@ -1253,7 +1275,14 @@ spec:
                   nullable: true
                   properties:
                     resources:
-                      nullable: true
+                      default:
+                        memory:
+                          limit: null
+                          runtimeLimits: {}
+                        cpu:
+                          min: null
+                          max: null
+                        storage: {}
                       properties:
                         cpu:
                           default:

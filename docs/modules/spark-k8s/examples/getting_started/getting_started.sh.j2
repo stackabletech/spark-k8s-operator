@@ -22,6 +22,9 @@ echo "Adding '{{ helm.repo_name }}' Helm Chart repository"
 # tag::helm-add-repo[]
 helm repo add {{ helm.repo_name }} {{ helm.repo_url }}
 # end::helm-add-repo[]
+echo "Updating Helm repo"
+helm repo update
+
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
 helm install --wait commons-operator {{ helm.repo_name }}/commons-operator --version {{ versions.commons }}

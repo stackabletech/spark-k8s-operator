@@ -22,20 +22,23 @@ echo "Adding 'stackable-dev' Helm Chart repository"
 # tag::helm-add-repo[]
 helm repo add stackable-dev https://repo.stackable.tech/repository/helm-dev/
 # end::helm-add-repo[]
+echo "Updating Helm repo"
+helm repo update
+
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator stackable-dev/commons-operator --version 0.5.0-nightly
-helm install --wait secret-operator stackable-dev/secret-operator --version 0.7.0-nightly
-helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version 0.7.0-nightly
+helm install --wait commons-operator stackable-dev/commons-operator --version 0.0.0-dev
+helm install --wait secret-operator stackable-dev/secret-operator --version 0.0.0-dev
+helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version 0.0.0-dev
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=0.5.0-nightly \
-  secret=0.7.0-nightly \
-  spark-k8s=0.7.0-nightly
+  commons=0.0.0-dev \
+  secret=0.0.0-dev \
+  spark-k8s=0.0.0-dev
 # end::stackablectl-install-operators[]
 ;;
 *)

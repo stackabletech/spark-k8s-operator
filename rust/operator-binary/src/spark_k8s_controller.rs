@@ -26,7 +26,7 @@ use stackable_operator::{
     },
     kube::runtime::{controller::Action, reflector::ObjectRef},
     logging::controller::ReconcilerError,
-    product_logging::framework::vector_container,
+    product_logging::framework::{shutdown_vector_command, vector_container},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -281,15 +281,14 @@ fn pod_template(
     env: &[EnvVar],
     affinity: Option<StackableAffinity>,
 ) -> Result<Pod> {
+    let driver_config = spark_application
+        .driver_config()
+        .context(FailedToResolveConfigSnafu)?;
+
     // N.B. this may be ignored by spark as preference is given to spark
     // configuration settings.
     let resources = match container_name {
-        CONTAINER_NAME_DRIVER => {
-            spark_application
-                .driver_config()
-                .context(FailedToResolveConfigSnafu)?
-                .resources
-        }
+        CONTAINER_NAME_DRIVER => driver_config.resources,
         CONTAINER_NAME_EXECUTOR => {
             spark_application
                 .executor_config()
@@ -306,6 +305,13 @@ fn pod_template(
     cb.add_volume_mounts(volume_mounts.to_vec())
         .add_env_vars(env.to_vec())
         .resources(resources.into());
+
+    if driver_config.logging.enable_vector_agent {
+        cb.add_env_var(
+            "_STACKABLE_POST_HOOK",
+            shutdown_vector_command(VOLUME_MOUNT_PATH_LOG),
+        );
+    }
 
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
         cb.image_pull_policy(image_pull_policy.to_string());
@@ -341,10 +347,6 @@ fn pod_template(
                 .flat_map(|secret| secret.name.clone()),
         );
     }
-
-    let driver_config = spark_application
-        .driver_config()
-        .context(FailedToResolveConfigSnafu)?;
 
     if driver_config.logging.enable_vector_agent {
         pb.add_container(vector_container(

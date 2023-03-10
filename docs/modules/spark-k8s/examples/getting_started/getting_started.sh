@@ -79,6 +79,8 @@ spec:
 EOF
 # end::install-sparkapp[]
 
+sleep 15
+
 echo "Waiting for job to complete ..."
 # tag::wait-for-job[]
 kubectl wait pods -l 'job-name=pyspark-pi' \

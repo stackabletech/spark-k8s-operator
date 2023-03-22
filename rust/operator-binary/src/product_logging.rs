@@ -12,7 +12,7 @@ use stackable_operator::{
 };
 use stackable_spark_k8s_crd::{
     constants::{LOG4J2_CONFIG_FILE, MAX_LOG_FILES_SIZE_IN_MIB, VOLUME_MOUNT_PATH_LOG},
-    DriverContainer, SparkApplication,
+    SparkApplication, SparkContainer,
 };
 
 #[derive(Snafu, Debug)]
@@ -82,19 +82,19 @@ pub async fn resolve_vector_aggregator_address(
 pub fn extend_config_map(
     spark_application_ref: ObjectRef<SparkApplication>,
     vector_aggregator_address: Option<&str>,
-    logging: &Logging<DriverContainer>,
+    logging: &Logging<SparkContainer>,
     cm_builder: &mut ConfigMapBuilder,
 ) -> Result<()> {
     if let Some(ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = logging.containers.get(&DriverContainer::SparkDriver)
+    }) = logging.containers.get(&SparkContainer::Spark)
     {
         cm_builder.add_data(
             LOG4J2_CONFIG_FILE,
             product_logging::framework::create_log4j2_config(
                 &format!(
                     "{VOLUME_MOUNT_PATH_LOG}/{container}",
-                    container = DriverContainer::SparkDriver
+                    container = SparkContainer::Spark
                 ),
                 LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
@@ -106,7 +106,7 @@ pub fn extend_config_map(
 
     let vector_log_config = if let Some(ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = logging.containers.get(&DriverContainer::Vector)
+    }) = logging.containers.get(&SparkContainer::Vector)
     {
         Some(log_config)
     } else {

@@ -1,7 +1,13 @@
 pub const APP_NAME: &str = "spark-k8s";
 
-pub const VOLUME_MOUNT_NAME_POD_TEMPLATES: &str = "pod-template";
-pub const VOLUME_MOUNT_PATH_POD_TEMPLATES: &str = "/stackable/spark/pod-templates";
+pub const VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES: &str = "driver-pod-template";
+pub const VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES: &str = "/stackable/spark/driver-pod-templates";
+
+pub const VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES: &str = "executor-pod-template";
+pub const VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES: &str =
+    "/stackable/spark/executor-pod-templates";
+
+pub const POD_TEMPLATE_FILE: &str = "template.yaml";
 
 pub const CONTAINER_NAME_JOB: &str = "job";
 pub const VOLUME_MOUNT_NAME_JOB: &str = "job-files";
@@ -18,10 +24,8 @@ pub const VOLUME_MOUNT_NAME_LOG: &str = "log";
 pub const VOLUME_MOUNT_PATH_LOG: &str = "/stackable/log";
 
 pub const CONTAINER_IMAGE_NAME_DRIVER: &str = "dummy-overwritten-by-command-line";
-pub const CONTAINER_NAME_DRIVER: &str = "spark-driver";
 
 pub const CONTAINER_IMAGE_NAME_EXECUTOR: &str = "dummy-overwritten-by-command-line";
-pub const CONTAINER_NAME_EXECUTOR: &str = "spark-executor";
 
 pub const LOG4J2_CONFIG_FILE: &str = "log4j2.properties";
 

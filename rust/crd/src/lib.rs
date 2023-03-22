@@ -40,13 +40,7 @@ use stackable_operator::{
     kube::{CustomResource, ResourceExt},
     labels::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
-    product_logging::{
-        self,
-        spec::{
-            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
-            CustomContainerLogConfig, Logging,
-        },
-    },
+    product_logging::{self, spec::Logging},
     role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
 };
@@ -81,6 +75,8 @@ pub enum Error {
     FragmentValidationFailure { source: ValidationError },
 }
 
+#[derive(Clone, Debug, Deserialize, Display, PartialEq, Serialize, JsonSchema)]
+#[strum(serialize_all = "kebab-case")]
 pub enum SparkApplicationRole {
     Driver,
     Executor,
@@ -239,8 +235,11 @@ impl SparkApplication {
             .and_then(|common_config| common_config.enable_monitoring)
     }
 
-    pub fn pod_template_config_map_name(&self) -> String {
-        format!("{}-pod-template", self.name_unchecked())
+    pub fn pod_template_config_map_name(&self, role: SparkApplicationRole) -> String {
+        format!(
+            "{app_name}-{role}-pod-template",
+            app_name = self.name_unchecked()
+        )
     }
 
     pub fn mode(&self) -> Option<&str> {
@@ -279,7 +278,7 @@ impl SparkApplication {
         &self,
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
-        log_config: Option<&ContainerLogConfig>,
+        log_config_map: Option<&str>,
     ) -> Vec<Volume> {
         let mut result: Vec<Volume> = self
             .spec
@@ -318,23 +317,13 @@ impl SparkApplication {
             result.push(v);
         }
 
-        let log_config_map = if let Some(ContainerLogConfig {
-            choice:
-                Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
-                    custom: ConfigMapLogConfig { config_map },
-                })),
-        }) = log_config
-        {
-            config_map.into()
-        } else {
-            self.pod_template_config_map_name()
-        };
-
-        result.push(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
-                .with_config_map(log_config_map)
-                .build(),
-        );
+        if let Some(log_config_map) = log_config_map {
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                    .with_config_map(log_config_map)
+                    .build(),
+            );
+        }
 
         result.push(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
@@ -469,10 +458,10 @@ impl SparkApplication {
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
             format!("--deploy-mode {mode}"),
             format!("--name {name}"),
-            format!("--conf spark.kubernetes.driver.podTemplateFile={VOLUME_MOUNT_PATH_POD_TEMPLATES}/driver.yml"),
-            format!("--conf spark.kubernetes.executor.podTemplateFile={VOLUME_MOUNT_PATH_POD_TEMPLATES}/executor.yml"),
-            format!("--conf spark.kubernetes.driver.podTemplateContainerName={CONTAINER_NAME_DRIVER}"),
-            format!("--conf spark.kubernetes.executor.podTemplateContainerName={CONTAINER_NAME_EXECUTOR}"),
+            format!("--conf spark.kubernetes.driver.podTemplateFile={VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES}/{POD_TEMPLATE_FILE}"),
+            format!("--conf spark.kubernetes.executor.podTemplateFile={VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES}/{POD_TEMPLATE_FILE}"),
+            format!("--conf spark.kubernetes.driver.podTemplateContainerName={container_name}", container_name = SparkContainer::Spark),
+            format!("--conf spark.kubernetes.executor.podTemplateContainerName={container_name}", container_name = SparkContainer::Spark),
             format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
@@ -480,6 +469,9 @@ impl SparkApplication {
             format!("--conf spark.driver.extraJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
             format!("--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*"),
             "--conf spark.driver.userClassPathFirst=true".to_string(),
+            format!("--conf spark.executor.extraJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+            format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
+            "--conf spark.executor.userClassPathFirst=true".to_string(),
         ]);
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
@@ -803,10 +795,10 @@ pub struct CommonConfig {
 )]
 #[serde(rename_all = "kebab-case")]
 #[strum(serialize_all = "kebab-case")]
-pub enum DriverContainer {
+pub enum SparkContainer {
     Job,
     Requirements,
-    SparkDriver,
+    Spark,
     Vector,
 }
 
@@ -828,7 +820,7 @@ pub struct DriverConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
-    pub logging: Logging<DriverContainer>,
+    pub logging: Logging<SparkContainer>,
     #[fragment_attrs(serde(default, flatten))]
     pub volume_mounts: VolumeMounts,
     #[fragment_attrs(serde(default))]
@@ -875,6 +867,8 @@ pub struct ExecutorConfig {
     pub instances: Option<usize>,
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default))]
+    pub logging: Logging<SparkContainer>,
     #[fragment_attrs(serde(default, flatten))]
     pub volume_mounts: VolumeMounts,
     #[fragment_attrs(serde(default, flatten))]
@@ -898,6 +892,7 @@ impl ExecutorConfig {
                 },
                 storage: SparkStorageConfigFragment {},
             },
+            logging: product_logging::spec::default_logging(),
             volume_mounts: Default::default(),
             node_selector: Default::default(),
             affinity: Default::default(),

@@ -1,0 +1,22 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-runner
+  labels:
+    app: test-runner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-runner
+  template:
+    metadata:
+      labels:
+        app: test-runner
+    spec:
+      containers:
+        - name: test-runner
+          image: docker.stackable.tech/stackable/testing-tools:0.1.0-stackable0.1.0
+          stdin: true
+          tty: true

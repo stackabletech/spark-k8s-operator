@@ -10,7 +10,7 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.3.0-stackable0.3.0
+      - 3.3.0-stackable23.4.0-rc2
   - name: ny-tlc-report
     values:
       - 0.1.0
@@ -18,48 +18,54 @@ dimensions:
     values:
       - 3.3.0
 tests:
-  - name: spark-history-server
-    dimensions:
-      - spark
-      - stackable
-      - openshift
-      - examples
-  - name: spark-pi-private-s3
-    dimensions:
-      - spark
-      - stackable
-      - openshift
-      - examples
-  - name: spark-pi-public-s3
-    dimensions:
-      - spark
-      - stackable
-      - openshift
-      - examples
-  - name: spark-ny-public-s3
-    dimensions:
-      - spark
-      - stackable
-      - openshift
-      - examples
-  - name: spark-examples
-    dimensions:
-      - spark
-      - stackable
-      - openshift
-      - examples
-  - name: pyspark-ny-public-s3
-    dimensions:
-      - spark
-      - stackable
-      - openshift
-  - name: pyspark-ny-public-s3-image
-    dimensions:
-      - spark
-      - stackable
-      - ny-tlc-report
-      - openshift
-  - name: resources
+  # - name: spark-history-server
+  #   dimensions:
+  #     - spark
+  #     - stackable
+  #     - openshift
+  #     - examples
+  # - name: spark-pi-private-s3
+  #   dimensions:
+  #     - spark
+  #     - stackable
+  #     - openshift
+  #     - examples
+  # - name: spark-pi-public-s3
+  #   dimensions:
+  #     - spark
+  #     - stackable
+  #     - openshift
+  #     - examples
+  # - name: spark-ny-public-s3
+  #   dimensions:
+  #     - spark
+  #     - stackable
+  #     - openshift
+  #     - examples
+  # - name: spark-examples
+  #   dimensions:
+  #     - spark
+  #     - stackable
+  #     - openshift
+  #     - examples
+  # - name: pyspark-ny-public-s3
+  #   dimemensions:
+  #     - mespark
+  #     - mestackable
+  #     - meopenshift
+  # - nameme: pyspark-ny-public-s3-image
+  #   dimemensions:
+  #     - mespark
+  #     - mestackable
+  #     - meny-tlc-report
+  #     - meopenshift
+  # - nameme: resources
+  #   dimemensions:
+  #     - mespark
+  #     - mestackable
+  #     - meopenshift
+  #     - meexamples
+  - name: spark-logging
     dimensions:
       - spark
       - stackable

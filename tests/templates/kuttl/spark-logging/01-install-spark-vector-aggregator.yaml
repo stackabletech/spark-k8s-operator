@@ -1,0 +1,17 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >-
+      helm install spark-vector-aggregator vector
+      --namespace $NAMESPACE
+      --version 0.20.1
+      --repo https://helm.vector.dev
+      --values spark-vector-aggregator-values.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-vector-aggregator-discovery
+data:
+  ADDRESS: spark-vector-aggregator:6123

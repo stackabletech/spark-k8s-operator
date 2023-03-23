@@ -1,0 +1,79 @@
+---
+role: Aggregator
+service:
+  ports:
+  - name: api
+    port: 8686
+    protocol: TCP
+    targetPort: 8686
+  - name: vector
+    port: 6123
+    protocol: TCP
+    targetPort: 6000
+customConfig:
+  api:
+    address: 0.0.0.0:8686
+    enabled: true
+  sources:
+    vector:
+      address: 0.0.0.0:6000
+      type: vector
+      version: "2"
+  transforms:
+    automaticLogConfigSubmitSpark:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^automatic-log-config-[^-]+$') &&
+        .container == "spark"
+    automaticLogConfigSubmitVector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^automatic-log-config-[^-]+$') &&
+        .container == "vector"
+    automaticLogConfigDriverSpark:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^automatic-log-config-.+-driver$') &&
+        .container == "spark"
+    automaticLogConfigDriverJob:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^automatic-log-config-.+-driver$') &&
+        .container == "job"
+    automaticLogConfigDriverVector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^automatic-log-config-.+-driver$') &&
+        .container == "vector"
+    automaticLogConfigExecutorSpark:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^automatic-log-config-.+-exec-1$') &&
+        .container == "spark"
+    automaticLogConfigExecutorJob:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^automatic-log-config-.+-exec-1$') &&
+        .container == "job"
+    automaticLogConfigExecutorVector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^automatic-log-config-.+-exec-1$') &&
+        .container == "vector"
+  sinks:
+    out:
+      inputs: [automaticLogConfig*, vector]
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+      type: vector
+      address: {{ lookup('env', 'VECTOR_AGGREGATOR') }}
+{% else %}
+      type: blackhole
+{% endif %}

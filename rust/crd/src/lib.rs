@@ -124,6 +124,8 @@ pub struct SparkStorageConfig {}
 pub struct SparkConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default))]
+    pub logging: Logging<SparkContainer>,
 }
 
 impl SparkConfig {
@@ -140,6 +142,7 @@ impl SparkConfig {
                 },
                 storage: SparkStorageConfigFragment {},
             },
+            logging: product_logging::spec::default_logging(),
         }
     }
 }
@@ -233,6 +236,10 @@ impl SparkApplication {
             .as_ref()
             .map(|common_configuration| &common_configuration.config)
             .and_then(|common_config| common_config.enable_monitoring)
+    }
+
+    pub fn submit_job_config_map_name(&self) -> String {
+        format!("{app_name}-submit-job", app_name = self.name_unchecked())
     }
 
     pub fn pod_template_config_map_name(&self, role: SparkApplicationRole) -> String {
@@ -686,17 +693,6 @@ impl SparkApplication {
             });
         }
         e
-    }
-
-    pub fn affinity(&self, role: SparkApplicationRole) -> Result<StackableAffinity, Error> {
-        match role {
-            SparkApplicationRole::Driver => self
-                .driver_config()
-                .map(|driver_config| driver_config.affinity),
-            SparkApplicationRole::Executor => self
-                .executor_config()
-                .map(|executor_config| executor_config.affinity),
-        }
     }
 
     pub fn job_config(&self) -> Result<SparkConfig, Error> {

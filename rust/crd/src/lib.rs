@@ -285,7 +285,7 @@ impl SparkApplication {
         &self,
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
-        log_config_map: Option<&str>,
+        log_config_map: &str,
     ) -> Vec<Volume> {
         let mut result: Vec<Volume> = self
             .spec
@@ -324,13 +324,11 @@ impl SparkApplication {
             result.push(v);
         }
 
-        if let Some(log_config_map) = log_config_map {
-            result.push(
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
-                    .with_config_map(log_config_map)
-                    .build(),
-            );
-        }
+        result.push(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                .with_config_map(log_config_map)
+                .build(),
+        );
 
         result.push(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)

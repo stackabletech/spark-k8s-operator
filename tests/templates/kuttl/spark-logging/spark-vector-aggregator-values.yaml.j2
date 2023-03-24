@@ -36,41 +36,101 @@ customConfig:
       type: filter
       inputs: [vector]
       condition: >-
-        match(string!(.pod), r'^automatic-log-config-.+-driver$') &&
+        .cluster == "automatic-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
         .container == "spark"
     automaticLogConfigDriverJob:
       type: filter
       inputs: [vector]
       condition: >-
-        match(string!(.pod), r'^automatic-log-config-.+-driver$') &&
+        .cluster == "automatic-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
         .container == "job"
     automaticLogConfigDriverVector:
       type: filter
       inputs: [vector]
       condition: >-
-        match(string!(.pod), r'^automatic-log-config-.+-driver$') &&
+        .cluster == "automatic-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
         .container == "vector"
     automaticLogConfigExecutorSpark:
       type: filter
       inputs: [vector]
       condition: >-
-        match(string!(.pod), r'^automatic-log-config-.+-exec-1$') &&
+        .cluster == "automatic-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
         .container == "spark"
     automaticLogConfigExecutorJob:
       type: filter
       inputs: [vector]
       condition: >-
-        match(string!(.pod), r'^automatic-log-config-.+-exec-1$') &&
+        .cluster == "automatic-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
         .container == "job"
     automaticLogConfigExecutorVector:
       type: filter
       inputs: [vector]
       condition: >-
-        match(string!(.pod), r'^automatic-log-config-.+-exec-1$') &&
+        .cluster == "automatic-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
+        .container == "vector"
+    customLogConfigSubmitSpark:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^custom-log-config-[^-]+$') &&
+        .container == "spark"
+    customLogConfigSubmitVector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        match(string!(.pod), r'^custom-log-config-[^-]+$') &&
+        .container == "vector"
+    customLogConfigDriverSpark:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .cluster == "custom-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
+        .container == "spark"
+    customLogConfigDriverJob:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .cluster == "custom-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
+        .container == "job"
+    customLogConfigDriverVector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .cluster == "custom-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
+        .container == "vector"
+    customLogConfigExecutorSpark:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .cluster == "custom-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
+        .container == "spark"
+    customLogConfigExecutorJob:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .cluster == "custom-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
+        .container == "job"
+    customLogConfigExecutorVector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .cluster == "custom-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
         .container == "vector"
   sinks:
     out:
-      inputs: [automaticLogConfig*, vector]
+      inputs: [automaticLogConfig*, customLogConfig*]
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       type: vector
       address: {{ lookup('env', 'VECTOR_AGGREGATOR') }}

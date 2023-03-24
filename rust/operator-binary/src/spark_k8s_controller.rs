@@ -381,7 +381,7 @@ fn pod_template(
     if config.logging.enable_vector_agent {
         cb.add_env_var(
             "_STACKABLE_POST_HOOK",
-            ["sleep 3", &shutdown_vector_command(VOLUME_MOUNT_PATH_LOG)].join("; "),
+            ["sleep 5", &shutdown_vector_command(VOLUME_MOUNT_PATH_LOG)].join("; "),
         );
     }
 
@@ -429,7 +429,7 @@ fn pod_template(
                 image_pull_policy: "".into(),
                 pull_secrets: None,
             },
-            VOLUME_MOUNT_NAME_LOG_CONFIG,
+            VOLUME_MOUNT_NAME_CONFIG,
             VOLUME_MOUNT_NAME_LOG,
             config.logging.containers.get(&SparkContainer::Vector),
         ));
@@ -460,7 +460,12 @@ fn pod_template_config_map(
         cm_name.clone()
     };
 
-    let volumes = spark_application.volumes(s3conn, s3logdir, Some(&log_config_map));
+    let mut volumes = spark_application.volumes(s3conn, s3logdir, &log_config_map);
+    volumes.push(
+        VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
+            .with_config_map(&cm_name)
+            .build(),
+    );
 
     let template = pod_template(spark_application, config, volumes.as_ref(), env)?;
 
@@ -572,7 +577,7 @@ fn spark_job(
 
     let args = vec![
         job_commands.join(" "),
-        "sleep 3".into(),
+        "sleep 5".into(),
         shutdown_vector_command(VOLUME_MOUNT_PATH_LOG),
     ]
     .join(" && ");
@@ -600,6 +605,9 @@ fn spark_job(
     }
 
     let mut volumes = vec![
+        VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
+            .with_config_map(spark_application.submit_job_config_map_name())
+            .build(),
         VolumeBuilder::new(VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES)
             .with_config_map(
                 spark_application.pod_template_config_map_name(SparkApplicationRole::Driver),
@@ -611,7 +619,7 @@ fn spark_job(
             )
             .build(),
     ];
-    volumes.extend(spark_application.volumes(s3conn, s3logdir, Some(&log_config_map)));
+    volumes.extend(spark_application.volumes(s3conn, s3logdir, &log_config_map));
 
     let mut containers = vec![cb.build()];
 
@@ -624,7 +632,7 @@ fn spark_job(
                 image_pull_policy: "".into(),
                 pull_secrets: None,
             },
-            VOLUME_MOUNT_NAME_LOG_CONFIG,
+            VOLUME_MOUNT_NAME_CONFIG,
             VOLUME_MOUNT_NAME_LOG,
             job_config.logging.containers.get(&SparkContainer::Vector),
         ));

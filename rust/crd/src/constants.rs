@@ -9,6 +9,8 @@ pub const VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES: &str =
 
 pub const POD_TEMPLATE_FILE: &str = "template.yaml";
 
+pub const VOLUME_MOUNT_NAME_CONFIG: &str = "config";
+
 pub const CONTAINER_NAME_JOB: &str = "job";
 pub const VOLUME_MOUNT_NAME_JOB: &str = "job-files";
 pub const VOLUME_MOUNT_PATH_JOB: &str = "/stackable/spark/jobs";

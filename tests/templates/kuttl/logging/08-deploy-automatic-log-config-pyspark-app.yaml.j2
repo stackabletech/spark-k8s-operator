@@ -1,0 +1,92 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: pyspark-automatic-log-config
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}
+  sparkImagePullPolicy: IfNotPresent
+  vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/examples/src/main/python/als.py
+  deps:
+    requirements:
+      - numpy==1.24.2
+  job:
+    logging:
+      enableVectorAgent: true
+      containers:
+        spark:
+          console:
+            level: INFO
+          file:
+            level: INFO
+          loggers:
+            ROOT:
+              level: INFO
+        vector:
+          console:
+            level: INFO
+          file:
+            level: INFO
+          loggers:
+            ROOT:
+              level: INFO
+  driver:
+    logging:
+      enableVectorAgent: true
+      containers:
+        spark:
+          console:
+            level: INFO
+          file:
+            level: INFO
+          loggers:
+            ROOT:
+              level: INFO
+        requirements:
+          console:
+            level: INFO
+          file:
+            level: INFO
+          loggers:
+            ROOT:
+              level: INFO
+        vector:
+          console:
+            level: INFO
+          file:
+            level: INFO
+          loggers:
+            ROOT:
+              level: INFO
+  executor:
+    instances: 1
+    logging:
+      enableVectorAgent: true
+      containers:
+        spark:
+          console:
+            level: INFO
+          file:
+            level: INFO
+          loggers:
+            ROOT:
+              level: INFO
+        requirements:
+          console:
+            level: INFO
+          file:
+            level: INFO
+          loggers:
+            ROOT:
+              level: INFO
+        vector:
+          console:
+            level: INFO
+          file:
+            level: INFO
+          loggers:
+            ROOT:
+              level: INFO

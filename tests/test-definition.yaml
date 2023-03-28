@@ -49,25 +49,26 @@ tests:
   #     - openshift
   #     - examples
   # - name: pyspark-ny-public-s3
-  #   dimemensions:
-  #     - mespark
-  #     - mestackable
-  #     - meopenshift
-  # - nameme: pyspark-ny-public-s3-image
-  #   dimemensions:
-  #     - mespark
-  #     - mestackable
-  #     - meny-tlc-report
-  #     - meopenshift
-  # - nameme: resources
-  #   dimemensions:
-  #     - mespark
-  #     - mestackable
-  #     - meopenshift
-  #     - meexamples
-  - name: spark-logging
+  #   dimensions:
+  #     - spark
+  #     - stackable
+  #     - openshift
+  # - name: pyspark-ny-public-s3-image
+  #   dimensions:
+  #     - spark
+  #     - stackable
+  #     - ny-tlc-report
+  #     - openshift
+  # - name: resources
+  #   dimensions:
+  #     - spark
+  #     - stackable
+  #     - openshift
+  #     - examples
+  - name: logging
     dimensions:
       - spark
       - stackable
+      - ny-tlc-report
       - openshift
       - examples

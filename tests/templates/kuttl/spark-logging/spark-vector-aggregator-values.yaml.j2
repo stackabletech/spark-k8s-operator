@@ -20,6 +20,36 @@ customConfig:
       type: vector
       version: "2"
   transforms:
+
+    # SparkHistoryServer
+
+    automaticLogConfigHistorySpark:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "spark-history-node-automatic-log-config-0" &&
+        .container == "spark-history"
+    automaticLogConfigHistoryVector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "spark-history-node-automatic-log-config-0" &&
+        .container == "vector"
+    customLogConfigHistorySpark:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "spark-history-node-custom-log-config-0" &&
+        .container == "spark-history"
+    customLogConfigHistoryVector:
+      type: filter
+      inputs: [vector]
+      condition: >-
+        .pod == "spark-history-node-custom-log-config-0" &&
+        .container == "vector"
+
+    # SparkApplication automatic-log-config
+
     automaticLogConfigSubmitSpark:
       type: filter
       inputs: [vector]
@@ -74,6 +104,9 @@ customConfig:
         .cluster == "automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "vector"
+
+    # SparkApplication custom-log-config
+
     customLogConfigSubmitSpark:
       type: filter
       inputs: [vector]

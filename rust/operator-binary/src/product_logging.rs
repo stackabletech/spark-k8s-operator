@@ -1,24 +1,23 @@
+use std::fmt::Display;
+
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::ConfigMapBuilder,
     client::Client,
     k8s_openapi::api::core::v1::ConfigMap,
-    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    kube::Resource,
     product_logging::{
         self,
         spec::{ContainerLogConfig, ContainerLogConfigChoice, Logging},
     },
     role_utils::RoleGroupRef,
 };
-use stackable_spark_k8s_crd::{
-    constants::{LOG4J2_CONFIG_FILE, MAX_LOG_FILES_SIZE_IN_MIB, VOLUME_MOUNT_PATH_LOG},
-    SparkApplication, SparkContainer,
+use stackable_spark_k8s_crd::constants::{
+    LOG4J2_CONFIG_FILE, MAX_LOG_FILES_SIZE_IN_MIB, VOLUME_MOUNT_PATH_LOG,
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("object has no namespace"))]
-    ObjectHasNoNamespace,
     #[snafu(display("failed to retrieve the ConfigMap {cm_name}"))]
     ConfigMapNotFound {
         source: stackable_operator::error::Error,
@@ -43,59 +42,53 @@ const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %p [%t] %c - %m%n";
 /// Return the address of the Vector aggregator if the corresponding ConfigMap name is given in the
 /// cluster spec
 pub async fn resolve_vector_aggregator_address(
-    spark_application: &SparkApplication,
     client: &Client,
+    namespace: &str,
+    vector_aggregator_config_map_name: Option<&str>,
 ) -> Result<Option<String>> {
-    let vector_aggregator_address = if let Some(vector_aggregator_config_map_name) =
-        &spark_application
-            .spec
-            .vector_aggregator_config_map_name
-            .as_ref()
-    {
-        let vector_aggregator_address = client
-            .get::<ConfigMap>(
-                vector_aggregator_config_map_name,
-                spark_application
-                    .namespace()
-                    .as_deref()
-                    .context(ObjectHasNoNamespaceSnafu)?,
-            )
-            .await
-            .context(ConfigMapNotFoundSnafu {
-                cm_name: vector_aggregator_config_map_name.to_string(),
-            })?
-            .data
-            .and_then(|mut data| data.remove(VECTOR_AGGREGATOR_CM_ENTRY))
-            .context(MissingConfigMapEntrySnafu {
-                entry: VECTOR_AGGREGATOR_CM_ENTRY,
-                cm_name: vector_aggregator_config_map_name.to_string(),
-            })?;
-        Some(vector_aggregator_address)
-    } else {
-        None
-    };
+    let vector_aggregator_address =
+        if let Some(vector_aggregator_config_map_name) = vector_aggregator_config_map_name {
+            let vector_aggregator_address = client
+                .get::<ConfigMap>(vector_aggregator_config_map_name, namespace)
+                .await
+                .context(ConfigMapNotFoundSnafu {
+                    cm_name: vector_aggregator_config_map_name.to_string(),
+                })?
+                .data
+                .and_then(|mut data| data.remove(VECTOR_AGGREGATOR_CM_ENTRY))
+                .context(MissingConfigMapEntrySnafu {
+                    entry: VECTOR_AGGREGATOR_CM_ENTRY,
+                    cm_name: vector_aggregator_config_map_name.to_string(),
+                })?;
+            Some(vector_aggregator_address)
+        } else {
+            None
+        };
 
     Ok(vector_aggregator_address)
 }
 
 /// Extend a ConfigMap with logging and Vector configurations
-pub fn extend_config_map(
-    spark_application_ref: ObjectRef<SparkApplication>,
+pub fn extend_config_map<C, K>(
+    role_group: &RoleGroupRef<K>,
     vector_aggregator_address: Option<&str>,
-    logging: &Logging<SparkContainer>,
+    logging: &Logging<C>,
+    main_container: C,
+    vector_container: C,
     cm_builder: &mut ConfigMapBuilder,
-) -> Result<()> {
+) -> Result<()>
+where
+    C: Clone + Ord + Display,
+    K: Resource,
+{
     if let Some(ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = logging.containers.get(&SparkContainer::Spark)
+    }) = logging.containers.get(&main_container)
     {
         cm_builder.add_data(
             LOG4J2_CONFIG_FILE,
             product_logging::framework::create_log4j2_config(
-                &format!(
-                    "{VOLUME_MOUNT_PATH_LOG}/{container}",
-                    container = SparkContainer::Spark
-                ),
+                &format!("{VOLUME_MOUNT_PATH_LOG}/{main_container}"),
                 LOG_FILE,
                 MAX_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
@@ -106,7 +99,7 @@ pub fn extend_config_map(
 
     let vector_log_config = if let Some(ContainerLogConfig {
         choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = logging.containers.get(&SparkContainer::Vector)
+    }) = logging.containers.get(&vector_container)
     {
         Some(log_config)
     } else {
@@ -117,11 +110,7 @@ pub fn extend_config_map(
         cm_builder.add_data(
             product_logging::framework::VECTOR_CONFIG_FILE,
             product_logging::framework::create_vector_config(
-                &RoleGroupRef {
-                    cluster: spark_application_ref,
-                    role: String::new(),
-                    role_group: String::new(),
-                },
+                role_group,
                 vector_aggregator_address.context(MissingVectorAggregatorAddressSnafu)?,
                 vector_log_config,
             ),

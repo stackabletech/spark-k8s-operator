@@ -26,7 +26,10 @@ use stackable_operator::{
         },
         Resource,
     },
-    kube::runtime::{controller::Action, reflector::ObjectRef},
+    kube::{
+        runtime::{controller::Action, reflector::ObjectRef},
+        ResourceExt,
+    },
     logging::controller::ReconcilerError,
     product_logging::{
         framework::{capture_shell_output, shutdown_vector_command, vector_container},
@@ -35,6 +38,7 @@ use stackable_operator::{
             CustomContainerLogConfig, Logging,
         },
     },
+    role_utils::RoleGroupRef,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -48,6 +52,8 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("object has no namespace"))]
+    ObjectHasNoNamespace,
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::error::Error,
@@ -190,9 +196,19 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let vector_aggregator_address = resolve_vector_aggregator_address(&spark_application, client)
-        .await
-        .context(ResolveVectorAggregatorAddressSnafu)?;
+    let vector_aggregator_address = resolve_vector_aggregator_address(
+        client,
+        spark_application
+            .namespace()
+            .as_deref()
+            .context(ObjectHasNoNamespaceSnafu)?,
+        spark_application
+            .spec
+            .vector_aggregator_config_map_name
+            .as_deref(),
+    )
+    .await
+    .context(ResolveVectorAggregatorAddressSnafu)?;
 
     let spark_image = spark_application
         .spec
@@ -489,9 +505,15 @@ fn pod_template_config_map(
         );
 
     product_logging::extend_config_map(
-        ObjectRef::from_obj(spark_application),
+        &RoleGroupRef {
+            cluster: ObjectRef::from_obj(spark_application),
+            role: String::new(),
+            role_group: String::new(),
+        },
         vector_aggregator_address,
         &config.logging,
+        SparkContainer::Spark,
+        SparkContainer::Vector,
         &mut cm_builder,
     )
     .context(InvalidLoggingConfigSnafu { cm_name })?;
@@ -523,9 +545,15 @@ fn submit_job_config_map(
     );
 
     product_logging::extend_config_map(
-        ObjectRef::from_obj(spark_application),
+        &RoleGroupRef {
+            cluster: ObjectRef::from_obj(spark_application),
+            role: String::new(),
+            role_group: String::new(),
+        },
         vector_aggregator_address,
         &config.logging,
+        SparkContainer::Spark,
+        SparkContainer::Vector,
         &mut cm_builder,
     )
     .context(InvalidLoggingConfigSnafu { cm_name })?;

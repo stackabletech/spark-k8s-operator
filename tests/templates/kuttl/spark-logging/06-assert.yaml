@@ -1,7 +1,12 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-commands:
-  - script: >-
-      kubectl exec --namespace=$NAMESPACE test-runner-0 --
-      python /tmp/test_log_aggregation.py -n $NAMESPACE
+timeout: 900
+---
+# The Job starting the whole process
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: automatic-log-config
+status:
+  phase: Succeeded

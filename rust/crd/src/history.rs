@@ -16,6 +16,8 @@ use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
     ValidatedRoleConfigByPropertyKind,
 };
+use stackable_operator::product_logging;
+use stackable_operator::product_logging::spec::Logging;
 use stackable_operator::role_utils::{Role, RoleGroupRef};
 
 use std::collections::{BTreeMap, HashMap};
@@ -30,7 +32,7 @@ use stackable_operator::{
     kube::CustomResource,
     schemars::{self, JsonSchema},
 };
-use strum::Display;
+use strum::{Display, EnumIter};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -62,6 +64,10 @@ pub enum Error {
 #[serde(rename_all = "camelCase")]
 pub struct SparkHistoryServerSpec {
     pub image: ProductImage,
+    /// Name of the Vector aggregator discovery ConfigMap.
+    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vector_aggregator_config_map_name: Option<String>,
     pub log_file_directory: LogFileDirectorySpec,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spark_conf: Option<BTreeMap<String, String>>,
@@ -91,7 +97,7 @@ impl SparkHistoryServer {
         conf_role.merge(&conf_defaults);
         conf_rolegroup.merge(&conf_role);
 
-        fragment::validate(conf_defaults).context(FragmentValidationFailureSnafu)
+        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
 
     pub fn replicas(&self, rolegroup_ref: &RoleGroupRef<Self>) -> Option<i32> {
@@ -180,6 +186,26 @@ pub struct S3LogFileDirectorySpec {
 )]
 pub struct HistoryStorageConfig {}
 
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    Eq,
+    EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum SparkHistoryServerContainer {
+    SparkHistory,
+    Vector,
+}
+
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
 #[fragment_attrs(
     derive(
@@ -200,6 +226,8 @@ pub struct HistoryConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<HistoryStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
+    pub logging: Logging<SparkHistoryServerContainer>,
+    #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
 }
 
@@ -218,6 +246,7 @@ impl HistoryConfig {
                 },
                 storage: HistoryStorageConfigFragment {},
             },
+            logging: product_logging::spec::default_logging(),
             affinity: history_affinity(cluster_name),
         }
     }

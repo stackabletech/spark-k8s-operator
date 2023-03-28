@@ -1,12 +1,18 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 300
+timeout: 900
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: test-runner
+  name: spark-history-node-automatic-log-config
 status:
   readyReplicas: 1
-  replicas: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spark-history-node-custom-log-config
+status:
+  readyReplicas: 1

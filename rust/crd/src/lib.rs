@@ -347,6 +347,7 @@ impl SparkApplication {
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
+        // TODO Use volume_mounts from merged config
         let result: Vec<VolumeMount> = self
             .spec
             .executor
@@ -365,6 +366,7 @@ impl SparkApplication {
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
+        // TODO Use volume_mounts from merged config
         let result: Vec<VolumeMount> = self
             .spec
             .driver
@@ -816,7 +818,7 @@ pub struct DriverConfig {
     #[fragment_attrs(serde(default))]
     pub logging: Logging<SparkContainer>,
     #[fragment_attrs(serde(default, flatten))]
-    pub volume_mounts: VolumeMounts,
+    pub volume_mounts: Option<VolumeMounts>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
 }
@@ -864,9 +866,9 @@ pub struct ExecutorConfig {
     #[fragment_attrs(serde(default))]
     pub logging: Logging<SparkContainer>,
     #[fragment_attrs(serde(default, flatten))]
-    pub volume_mounts: VolumeMounts,
+    pub volume_mounts: Option<VolumeMounts>,
     #[fragment_attrs(serde(default, flatten))]
-    pub node_selector: NodeSelector,
+    pub node_selector: Option<NodeSelector>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
 }
@@ -887,7 +889,7 @@ impl ExecutorConfig {
                 storage: SparkStorageConfigFragment {},
             },
             logging: product_logging::spec::default_logging(),
-            volume_mounts: Default::default(),
+            volume_mounts: Some(VolumeMounts::default()),
             node_selector: Default::default(),
             affinity: Default::default(),
         }

@@ -26,7 +26,7 @@ metadata:
   name: resources-crd-driver
 spec:
   containers:
-    - name: spark-driver
+    - name: spark
       resources:
         limits:
           cpu: "2"
@@ -41,7 +41,7 @@ metadata:
   name: resources-crd-exec-1
 spec:
   containers:
-    - name: spark-executor
+    - name: spark
       resources:
         limits:
           cpu: "3"

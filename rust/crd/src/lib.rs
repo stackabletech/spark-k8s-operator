@@ -342,6 +342,26 @@ impl SparkApplication {
         result
     }
 
+    pub fn spark_job_volume_mounts(
+        &self,
+        s3conn: &Option<S3ConnectionSpec>,
+        s3logdir: &Option<S3LogDir>,
+    ) -> Vec<VolumeMount> {
+        let volume_mounts = vec![
+            VolumeMount {
+                name: VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES.into(),
+                mount_path: VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES.into(),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                name: VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES.into(),
+                mount_path: VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES.into(),
+                ..VolumeMount::default()
+            },
+        ];
+        self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
+    }
+
     pub fn executor_volume_mounts(
         &self,
         s3conn: &Option<S3ConnectionSpec>,

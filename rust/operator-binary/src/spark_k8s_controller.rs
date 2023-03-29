@@ -295,7 +295,6 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &spark_application,
         spark_image,
         &serviceaccount,
-        // &job_container,
         &env_vars,
         &job_commands,
         &opt_s3conn,
@@ -566,26 +565,11 @@ fn spark_job(
     spark_application: &SparkApplication,
     spark_image: &str,
     serviceaccount: &ServiceAccount,
-    // job_container: &Option<Container>,
     env: &[EnvVar],
     job_commands: &[String],
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
 ) -> Result<Job> {
-    let volume_mounts = vec![
-        VolumeMount {
-            name: VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES.into(),
-            mount_path: VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES.into(),
-            ..VolumeMount::default()
-        },
-        VolumeMount {
-            name: VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES.into(),
-            mount_path: VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES.into(),
-            ..VolumeMount::default()
-        },
-    ];
-    // volume_mounts.extend(spark_application.driver_volume_mounts(s3conn, s3logdir));
-
     let mut cb = ContainerBuilder::new("spark-submit").context(IllegalContainerNameSnafu)?;
     let job_config = spark_application
         .job_config()
@@ -614,9 +598,7 @@ fn spark_job(
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![args])
         .resources(job_config.resources.into())
-        .add_volume_mounts(volume_mounts)
-        .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
-        .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+        .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, s3logdir))
         .add_env_vars(env.to_vec())
         .add_env_var(
             "SPARK_SUBMIT_OPTS",
@@ -677,7 +659,6 @@ fn spark_job(
         ),
         spec: Some(PodSpec {
             containers,
-            // init_containers: job_container.as_ref().map(|c| vec![c.clone()]),
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),

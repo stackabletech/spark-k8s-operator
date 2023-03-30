@@ -51,12 +51,8 @@ pub enum Error {
     NoNamespace,
     #[snafu(display("object defines no deploy mode"))]
     ObjectHasNoDeployMode,
-    #[snafu(display("object defines no main class"))]
-    ObjectHasNoMainClass,
     #[snafu(display("object defines no application artifact"))]
     ObjectHasNoArtifact,
-    #[snafu(display("object defines no pod image"))]
-    ObjectHasNoImage,
     #[snafu(display("object has no name"))]
     ObjectHasNoName,
     #[snafu(display("application has no Spark image"))]

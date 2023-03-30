@@ -52,10 +52,6 @@ pub enum Error {
     ApplyApplication {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("failed to update status"))]
-    ApplyStatus {
-        source: stackable_operator::error::Error,
-    },
     #[snafu(display("failed to build stark-submit command"))]
     BuildCommand {
         source: stackable_spark_k8s_crd::Error,
@@ -64,14 +60,8 @@ pub enum Error {
     PodTemplateConfigMap {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("no job image specified"))]
-    ObjectHasNoImage,
     #[snafu(display("no spark base image specified"))]
     ObjectHasNoSparkImage,
-    #[snafu(display("invalid pod template"))]
-    PodTemplate {
-        source: stackable_operator::error::Error,
-    },
     #[snafu(display("driver pod template serialization"))]
     DriverPodTemplateSerde { source: serde_yaml::Error },
     #[snafu(display("executor pod template serialization"))]

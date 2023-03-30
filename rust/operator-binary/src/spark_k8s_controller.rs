@@ -310,7 +310,8 @@ fn init_containers(
     spark_application: &SparkApplication,
     logging: &Logging<SparkContainer>,
 ) -> Result<Vec<Container>> {
-    let mut jcb = ContainerBuilder::new(CONTAINER_NAME_JOB).context(IllegalContainerNameSnafu)?;
+    let mut jcb = ContainerBuilder::new(&SparkContainer::Job.to_string())
+        .context(IllegalContainerNameSnafu)?;
     let job_container = spark_application.spec.image.as_ref().map(|job_image| {
         let mut args = Vec::new();
         if let Some(ContainerLogConfig {
@@ -319,7 +320,7 @@ fn init_containers(
         {
             args.push(capture_shell_output(
                 VOLUME_MOUNT_PATH_LOG,
-                CONTAINER_NAME_JOB,
+                &SparkContainer::Job.to_string(),
                 log_config,
             ));
         };
@@ -340,7 +341,8 @@ fn init_containers(
         .as_deref()
         .context(ObjectHasNoSparkImageSnafu)?;
 
-    let mut rcb = ContainerBuilder::new(CONTAINER_NAME_REQ).context(IllegalContainerNameSnafu)?;
+    let mut rcb = ContainerBuilder::new(&SparkContainer::Requirements.to_string())
+        .context(IllegalContainerNameSnafu)?;
     let requirements_container = spark_application.requirements().map(|req| {
         let mut args = Vec::new();
         if let Some(ContainerLogConfig {
@@ -349,7 +351,7 @@ fn init_containers(
         {
             args.push(capture_shell_output(
                 VOLUME_MOUNT_PATH_LOG,
-                CONTAINER_NAME_REQ,
+                &SparkContainer::Requirements.to_string(),
                 log_config,
             ));
         };

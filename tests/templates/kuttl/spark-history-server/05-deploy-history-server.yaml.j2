@@ -7,6 +7,9 @@ spec:
   image:
     productVersion: "{{ test_scenario['values']['spark'].split('-stackable')[0] }}"
     stackableVersion: "{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
   logFileDirectory:
     s3:
       prefix: eventlogs/
@@ -15,6 +18,9 @@ spec:
   # For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
   #sparkConf:
   nodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
     roleGroups:
       cleaner:
         replicas: 1

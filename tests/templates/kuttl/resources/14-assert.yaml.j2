@@ -19,6 +19,9 @@ spec:
         requests:
           cpu: 500m
           memory: 1Gi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    - name: vector
+{% endif %}
 ---
 apiVersion: v1
 kind: Pod
@@ -26,6 +29,9 @@ metadata:
   name: resources-defaults-driver
 spec:
   containers:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    - name: vector
+{% endif %}
     - name: spark
       resources:
         limits:
@@ -41,6 +47,9 @@ metadata:
   name: resources-defaults-exec-1
 spec:
   containers:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    - name: vector
+{% endif %}
     - name: spark
       resources:
         limits:
@@ -56,6 +65,9 @@ metadata:
   name: resources-defaults-exec-2
 spec:
   containers:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    - name: vector
+{% endif %}
     - name: spark
       resources:
         limits:

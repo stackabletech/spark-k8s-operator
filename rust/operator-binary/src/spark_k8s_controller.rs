@@ -322,26 +322,32 @@ fn pod_template_config_map(
 ) -> Result<ConfigMap> {
     let volumes = spark_application.volumes(s3conn, s3logdir);
 
+    let driver_config = spark_application
+        .driver_config()
+        .context(FailedToResolveConfigSnafu)?;
     let driver_template = pod_template(
         spark_application,
         CONTAINER_NAME_DRIVER,
         init_containers,
         volumes.as_ref(),
         spark_application
-            .driver_volume_mounts(s3conn, s3logdir)
+            .driver_volume_mounts(&driver_config, s3conn, s3logdir)
             .as_ref(),
         env,
         spark_application
             .affinity(SparkApplicationRole::Driver)
             .ok(),
     )?;
+    let executor_config = spark_application
+        .executor_config()
+        .context(FailedToResolveConfigSnafu)?;
     let executor_template = pod_template(
         spark_application,
         CONTAINER_NAME_EXECUTOR,
         init_containers,
         volumes.as_ref(),
         spark_application
-            .executor_volume_mounts(s3conn, s3logdir)
+            .executor_volume_mounts(&executor_config, s3conn, s3logdir)
             .as_ref(),
         env,
         spark_application
@@ -384,13 +390,6 @@ fn spark_job(
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
 ) -> Result<Job> {
-    let mut volume_mounts = vec![VolumeMount {
-        name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
-        mount_path: VOLUME_MOUNT_PATH_POD_TEMPLATES.into(),
-        ..VolumeMount::default()
-    }];
-    volume_mounts.extend(spark_application.driver_volume_mounts(s3conn, s3logdir));
-
     let mut cb =
         ContainerBuilder::new("spark-submit").with_context(|_| IllegalContainerNameSnafu {
             container_name: APP_NAME.to_string(),
@@ -403,7 +402,7 @@ fn spark_job(
         .command(vec!["/bin/sh".to_string()])
         .resources(job_config.resources.into())
         .args(vec!["-c".to_string(), job_commands.join(" ")])
-        .add_volume_mounts(volume_mounts)
+        .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, s3logdir))
         .add_env_vars(env.to_vec())
         // TODO: move this to the image
         .add_env_vars(vec![EnvVar {

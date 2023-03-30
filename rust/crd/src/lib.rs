@@ -305,40 +305,37 @@ impl SparkApplication {
         result
     }
 
-    pub fn executor_volume_mounts(
+    pub fn spark_job_volume_mounts(
         &self,
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
-        let result: Vec<VolumeMount> = self
-            .spec
-            .executor
-            .as_ref()
-            .and_then(|executor_conf| executor_conf.volume_mounts.clone())
-            .iter()
-            .flat_map(|v| v.into_iter())
-            .cloned()
-            .collect();
+        let volume_mounts = vec![VolumeMount {
+            name: VOLUME_MOUNT_NAME_POD_TEMPLATES.into(),
+            mount_path: VOLUME_MOUNT_PATH_POD_TEMPLATES.into(),
+            ..VolumeMount::default()
+        }];
+        self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
+    }
 
-        self.add_common_volume_mounts(result, s3conn, s3logdir)
+    pub fn executor_volume_mounts(
+        &self,
+        config: &ExecutorConfig,
+        s3conn: &Option<S3ConnectionSpec>,
+        s3logdir: &Option<S3LogDir>,
+    ) -> Vec<VolumeMount> {
+        let volume_mounts = config.volume_mounts.clone().unwrap_or_default().into();
+        self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
     }
 
     pub fn driver_volume_mounts(
         &self,
+        config: &DriverConfig,
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
-        let result: Vec<VolumeMount> = self
-            .spec
-            .driver
-            .as_ref()
-            .and_then(|driver_conf| driver_conf.volume_mounts.clone())
-            .iter()
-            .flat_map(|v| v.into_iter())
-            .cloned()
-            .collect();
-
-        self.add_common_volume_mounts(result, s3conn, s3logdir)
+        let volume_mounts = config.volume_mounts.clone().unwrap_or_default().into();
+        self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
     }
 
     fn add_common_volume_mounts(
@@ -469,10 +466,10 @@ impl SparkApplication {
         // then added to the vector once complete.
         let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();
 
-        // resource limits, either declared or taken from defaults
         let driver_config = self.driver_config()?;
         let executor_config = self.executor_config()?;
 
+        // resource limits, either declared or taken from defaults
         if let Resources {
             cpu: CpuLimits { max: Some(max), .. },
             ..

@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, SparkApplication, SparkApplicationRole, SparkContainer,
-    SparkStorageConfig,
+    SparkStorageConfig, SubmitJobContainer,
 };
 
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -524,7 +524,6 @@ fn submit_job_config_map(
 ) -> Result<ConfigMap> {
     let cm_name = spark_application.submit_job_config_map_name();
 
-    // TODO Do not use SparkContainer for submit job
     let config = spark_application
         .job_config()
         .context(FailedToResolveConfigSnafu)?;
@@ -549,8 +548,8 @@ fn submit_job_config_map(
         },
         vector_aggregator_address,
         &config.logging,
-        SparkContainer::Spark,
-        SparkContainer::Vector,
+        SubmitJobContainer::SparkSubmit,
+        SubmitJobContainer::Vector,
         &mut cm_builder,
     )
     .context(InvalidLoggingConfigSnafu { cm_name })?;
@@ -568,7 +567,8 @@ fn spark_job(
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
 ) -> Result<Job> {
-    let mut cb = ContainerBuilder::new("spark-submit").context(IllegalContainerNameSnafu)?;
+    let mut cb = ContainerBuilder::new(&SubmitJobContainer::SparkSubmit.to_string())
+        .context(IllegalContainerNameSnafu)?;
     let job_config = spark_application
         .job_config()
         .context(FailedToResolveConfigSnafu)?;
@@ -578,7 +578,10 @@ fn spark_job(
             Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
                 custom: ConfigMapLogConfig { config_map },
             })),
-    }) = job_config.logging.containers.get(&SparkContainer::Spark)
+    }) = job_config
+        .logging
+        .containers
+        .get(&SubmitJobContainer::SparkSubmit)
     {
         config_map.into()
     } else {
@@ -642,7 +645,10 @@ fn spark_job(
             },
             VOLUME_MOUNT_NAME_CONFIG,
             VOLUME_MOUNT_NAME_LOG,
-            job_config.logging.containers.get(&SparkContainer::Vector),
+            job_config
+                .logging
+                .containers
+                .get(&SubmitJobContainer::Vector),
         ));
     }
 

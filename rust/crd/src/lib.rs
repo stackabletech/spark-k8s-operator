@@ -121,7 +121,7 @@ pub struct SparkConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
-    pub logging: Logging<SparkContainer>,
+    pub logging: Logging<SubmitJobContainer>,
 }
 
 impl SparkConfig {
@@ -772,6 +772,26 @@ pub struct CommonConfig {
     pub log_dir: Option<String>,
     pub max_port_retries: Option<usize>,
     pub enable_monitoring: Option<bool>,
+}
+
+#[derive(
+    Clone,
+    Debug,
+    Deserialize,
+    Display,
+    Eq,
+    EnumIter,
+    JsonSchema,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum SubmitJobContainer {
+    SparkSubmit,
+    Vector,
 }
 
 #[derive(

@@ -710,7 +710,7 @@ impl From<VolumeMounts> for Vec<VolumeMount> {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeSelector {
     pub node_selector: Option<BTreeMap<String, String>>,

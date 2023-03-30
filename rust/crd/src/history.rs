@@ -91,7 +91,7 @@ impl SparkHistoryServer {
         conf_role.merge(&conf_defaults);
         conf_rolegroup.merge(&conf_role);
 
-        fragment::validate(conf_defaults).context(FragmentValidationFailureSnafu)
+        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
     }
 
     pub fn replicas(&self, rolegroup_ref: &RoleGroupRef<Self>) -> Option<i32> {

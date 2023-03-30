@@ -752,7 +752,7 @@ pub struct DriverConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default, flatten))]
-    pub volume_mounts: VolumeMounts,
+    pub volume_mounts: Option<VolumeMounts>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
 }
@@ -797,9 +797,9 @@ pub struct ExecutorConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default, flatten))]
-    pub volume_mounts: VolumeMounts,
+    pub volume_mounts: Option<VolumeMounts>,
     #[fragment_attrs(serde(default, flatten))]
-    pub node_selector: NodeSelector,
+    pub node_selector: Option<NodeSelector>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
 }

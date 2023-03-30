@@ -13,9 +13,12 @@ All notable changes to this project will be documented in this file.
 
 - Revert openshift settings ([#207])
 - BUGFIX: assign service account to history pods ([#207])
+- Merging and validation of the configuration refactored ([#223])
+- `operator-rs` `0.36.0` → `0.38.0` ([#223])
 
 [#207]: https://github.com/stackabletech/spark-k8s-operator/pull/207
 [#217]: https://github.com/stackabletech/spark-k8s-operator/pull/217
+[#223]: https://github.com/stackabletech/spark-k8s-operator/pull/223
 
 ## [23.1.0] - 2023-01-23
 

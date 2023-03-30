@@ -1,35 +1,34 @@
-use crate::affinity::history_affinity;
-use crate::constants::*;
-use stackable_operator::commons::affinity::StackableAffinity;
-use stackable_operator::commons::product_image_selection::{ProductImage, ResolvedProductImage};
-use stackable_operator::commons::resources::{
-    CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimitsFragment,
-};
-use stackable_operator::commons::s3::S3BucketDef;
-use stackable_operator::config::fragment::ValidationError;
-use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
-use stackable_operator::kube::runtime::reflector::ObjectRef;
-use stackable_operator::kube::ResourceExt;
-use stackable_operator::product_config::types::PropertyNameKind;
-use stackable_operator::product_config::ProductConfigManager;
-use stackable_operator::product_config_utils::{
-    transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
-    ValidatedRoleConfigByPropertyKind,
-};
-use stackable_operator::product_logging;
-use stackable_operator::product_logging::spec::Logging;
-use stackable_operator::role_utils::{Role, RoleGroupRef};
+use crate::{affinity::history_affinity, constants::*};
 
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    commons::resources::{NoRuntimeLimits, Resources, ResourcesFragment},
-    config::{fragment, fragment::Fragment, merge::Merge},
-};
-use stackable_operator::{
+    commons::{
+        affinity::StackableAffinity,
+        product_image_selection::{ProductImage, ResolvedProductImage},
+        resources::{
+            CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
+            Resources, ResourcesFragment,
+        },
+        s3::S3BucketDef,
+    },
+    config::{
+        fragment,
+        fragment::{Fragment, ValidationError},
+        merge::Merge,
+    },
+    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
+    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    product_config::{types::PropertyNameKind, ProductConfigManager},
+    product_config_utils::{
+        transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
+        ValidatedRoleConfigByPropertyKind,
+    },
+    product_logging::{self, spec::Logging},
+    role_utils::{Role, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
 use strum::{Display, EnumIter};

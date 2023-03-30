@@ -70,10 +70,6 @@ pub enum Error {
     ApplyApplication {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("failed to update status"))]
-    ApplyStatus {
-        source: stackable_operator::error::Error,
-    },
     #[snafu(display("failed to build stark-submit command"))]
     BuildCommand {
         source: stackable_spark_k8s_crd::Error,
@@ -82,14 +78,8 @@ pub enum Error {
     PodTemplateConfigMap {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("no job image specified"))]
-    ObjectHasNoImage,
     #[snafu(display("no spark base image specified"))]
     ObjectHasNoSparkImage,
-    #[snafu(display("invalid pod template"))]
-    PodTemplate {
-        source: stackable_operator::error::Error,
-    },
     #[snafu(display("pod template serialization"))]
     PodTemplateSerde { source: serde_yaml::Error },
     #[snafu(display("s3 bucket error"))]
@@ -223,9 +213,13 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .context(FailedToResolveConfigSnafu)?;
     let driver_pod_template_config = PodTemplateConfig {
         role: SparkApplicationRole::Driver,
-        resources: driver_config.resources,
-        logging: driver_config.logging,
-        volume_mounts: spark_application.driver_volume_mounts(&opt_s3conn, &s3logdir),
+        resources: driver_config.resources.clone(),
+        logging: driver_config.logging.clone(),
+        volume_mounts: spark_application.driver_volume_mounts(
+            &driver_config,
+            &opt_s3conn,
+            &s3logdir,
+        ),
         affinity: driver_config.affinity,
     };
     let driver_pod_template_config_map = pod_template_config_map(
@@ -250,9 +244,13 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .context(FailedToResolveConfigSnafu)?;
     let executor_pod_template_config = PodTemplateConfig {
         role: SparkApplicationRole::Executor,
-        resources: executor_config.resources,
-        logging: executor_config.logging,
-        volume_mounts: spark_application.executor_volume_mounts(&opt_s3conn, &s3logdir),
+        resources: executor_config.resources.clone(),
+        logging: executor_config.logging.clone(),
+        volume_mounts: spark_application.executor_volume_mounts(
+            &executor_config,
+            &opt_s3conn,
+            &s3logdir,
+        ),
         affinity: executor_config.affinity,
     };
     let executor_pod_template_config_map = pod_template_config_map(

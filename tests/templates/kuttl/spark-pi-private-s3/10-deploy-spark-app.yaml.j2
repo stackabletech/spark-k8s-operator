@@ -19,7 +19,7 @@ spec:
       port: 9000
       accessStyle: Path
       credentials:
-        secretClass: s3-credentials-class
+        secretClass: spark-pi-private-s3-credentials-class
   job:
     logging:
       enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}

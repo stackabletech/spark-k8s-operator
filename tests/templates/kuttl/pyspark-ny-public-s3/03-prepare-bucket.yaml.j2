@@ -1,0 +1,13 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # give minio enough time to start
+  - command: sleep 10
+  - command: kubectl cp -n $NAMESPACE ny_tlc_report.py minio-client:/tmp
+  - command: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv minio-client:/tmp
+  - command: kubectl exec -n $NAMESPACE minio-client -- sh -c 'mc alias set test-minio http://test-minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc mb test-minio/my-bucket
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc policy set public test-minio/my-bucket
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc cp /tmp/ny_tlc_report.py test-minio/my-bucket
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc cp /tmp/yellow_tripdata_2021-07.csv test-minio/my-bucket

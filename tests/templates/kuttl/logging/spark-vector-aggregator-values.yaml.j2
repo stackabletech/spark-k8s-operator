@@ -55,7 +55,7 @@ customConfig:
       inputs: [vector]
       condition: >-
         match(string!(.pod), r'^spark-automatic-log-config-[^-]+$') &&
-        .container == "spark"
+        .container == "spark-submit"
     filteredSparkAutomaticLogConfigSubmitVector:
       type: filter
       inputs: [vector]
@@ -112,7 +112,7 @@ customConfig:
       inputs: [vector]
       condition: >-
         match(string!(.pod), r'^spark-custom-log-config-[^-]+$') &&
-        .container == "spark"
+        .container == "spark-submit"
     filteredSparkCustomLogConfigSubmitVector:
       type: filter
       inputs: [vector]
@@ -169,7 +169,7 @@ customConfig:
       inputs: [vector]
       condition: >-
         match(string!(.pod), r'^pyspark-automatic-log-config-[^-]+$') &&
-        .container == "spark"
+        .container == "spark-submit"
     filteredPysparkAutomaticLogConfigSubmitVector:
       type: filter
       inputs: [vector]
@@ -226,7 +226,7 @@ customConfig:
       inputs: [vector]
       condition: >-
         match(string!(.pod), r'^pyspark-custom-log-config-[^-]+$') &&
-        .container == "spark"
+        .container == "spark-submit"
     filteredPysparkCustomLogConfigSubmitVector:
       type: filter
       inputs: [vector]

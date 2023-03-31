@@ -16,6 +16,23 @@ data:
     rootLogger.appenderRefs = FILE
     rootLogger.appenderRef.FILE.ref = FILE
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-submit-log-config
+data:
+  log4j2.properties: |-
+    appenders = FILE
+
+    appender.FILE.type = File
+    appender.FILE.name = FILE
+    appender.FILE.fileName = /stackable/log/spark-submit/spark.log4j2.xml
+    appender.FILE.layout.type = XMLLayout
+
+    rootLogger.level = INFO
+    rootLogger.appenderRefs = FILE
+    rootLogger.appenderRef.FILE.ref = FILE
+---
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
@@ -35,7 +52,7 @@ spec:
       containers:
         spark-submit:
           custom:
-            configMap: spark-log-config
+            configMap: spark-submit-log-config
   driver:
     logging:
       enableVectorAgent: true

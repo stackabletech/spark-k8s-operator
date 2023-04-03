@@ -71,7 +71,7 @@ pub enum Error {
     FragmentValidationFailure { source: ValidationError },
 }
 
-#[derive(Clone, Debug, Deserialize, Display, PartialEq, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
 #[strum(serialize_all = "kebab-case")]
 pub enum SparkApplicationRole {
     Driver,

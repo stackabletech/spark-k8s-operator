@@ -326,6 +326,8 @@ fn init_containers(
         };
         args.push(format!("echo Copying job files to {VOLUME_MOUNT_PATH_JOB}"));
         args.push(format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"));
+        // Wait until the log file is written.
+        args.push("sleep 1".into());
 
         jcb.image(job_image)
             .command(vec!["/bin/bash".to_string(), "-c".to_string()])
@@ -396,7 +398,12 @@ fn pod_template(
     if config.logging.enable_vector_agent {
         cb.add_env_var(
             "_STACKABLE_POST_HOOK",
-            ["sleep 5", &shutdown_vector_command(VOLUME_MOUNT_PATH_LOG)].join("; "),
+            [
+                // Wait for Vector to gather the logs.
+                "sleep 10",
+                &shutdown_vector_command(VOLUME_MOUNT_PATH_LOG),
+            ]
+            .join("; "),
         );
     }
 
@@ -590,16 +597,16 @@ fn spark_job(
         spark_application.submit_job_config_map_name()
     };
 
-    let args = vec![
-        job_commands.join(" "),
-        "sleep 5".into(),
-        shutdown_vector_command(VOLUME_MOUNT_PATH_LOG),
-    ]
-    .join(" && ");
+    let mut args = vec![job_commands.join(" ")];
+    if job_config.logging.enable_vector_agent {
+        // Wait for Vector to gather the logs.
+        args.push("sleep 10".into());
+        args.push(shutdown_vector_command(VOLUME_MOUNT_PATH_LOG));
+    }
 
     cb.image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-        .args(vec![args])
+        .args(vec![args.join(" && ")])
         .resources(job_config.resources.into())
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, s3logdir))
         .add_env_vars(env.to_vec())

@@ -14,7 +14,7 @@ kind: Secret
 metadata:
   name: history-credentials
   labels:
-    secrets.stackable.tech/class: history-credentials-class
+    secrets.stackable.tech/class: logging-history-credentials-class
 stringData:
   accessKey: eventLogAccessKey
   secretKey: eventLogSecretKey
@@ -26,7 +26,7 @@ stringData:
 apiVersion: secrets.stackable.tech/v1alpha1
 kind: SecretClass
 metadata:
-  name: history-credentials-class
+  name: logging-history-credentials-class
 spec:
   backend:
     k8sSearch:
@@ -42,7 +42,7 @@ spec:
   port: 9000
   accessStyle: Path
   credentials:
-    secretClass: history-credentials-class
+    secretClass: logging-history-credentials-class
 ---
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Bucket

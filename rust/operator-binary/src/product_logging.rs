@@ -13,7 +13,7 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 use stackable_spark_k8s_crd::constants::{
-    LOG4J2_CONFIG_FILE, MAX_LOG_FILES_SIZE_IN_MIB, VOLUME_MOUNT_PATH_LOG,
+    LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE_IN_MIB, VOLUME_MOUNT_PATH_LOG,
 };
 
 #[derive(Snafu, Debug)]
@@ -90,7 +90,7 @@ where
             product_logging::framework::create_log4j2_config(
                 &format!("{VOLUME_MOUNT_PATH_LOG}/{main_container}"),
                 LOG_FILE,
-                MAX_LOG_FILES_SIZE_IN_MIB,
+                MAX_SPARK_LOG_FILES_SIZE_IN_MIB,
                 CONSOLE_CONVERSION_PATTERN,
                 log_config,
             ),

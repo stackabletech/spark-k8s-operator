@@ -33,8 +33,10 @@ pub const MIN_MEMORY_OVERHEAD: u32 = 384;
 pub const JVM_OVERHEAD_FACTOR: f32 = 0.1;
 pub const NON_JVM_OVERHEAD_FACTOR: f32 = 0.4;
 
-pub const MAX_LOG_FILES_SIZE_IN_MIB: u32 = 10;
-pub const LOG_VOLUME_SIZE_IN_MIB: u32 = MAX_LOG_FILES_SIZE_IN_MIB;
+pub const MAX_SPARK_LOG_FILES_SIZE_IN_MIB: u32 = 10;
+pub const MAX_INIT_CONTAINER_LOG_FILES_SIZE_IN_MIB: u32 = 1;
+pub const LOG_VOLUME_SIZE_IN_MIB: u32 =
+    MAX_SPARK_LOG_FILES_SIZE_IN_MIB + MAX_INIT_CONTAINER_LOG_FILES_SIZE_IN_MIB;
 
 pub const OPERATOR_NAME: &str = "spark.stackable.tech";
 pub const CONTROLLER_NAME: &str = "sparkapplication";

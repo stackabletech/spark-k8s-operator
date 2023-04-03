@@ -177,6 +177,28 @@ Spark allocates a default amount of non-heap memory based on the type of job (JV
 
 NOTE: It is possible to define Spark resources either directly by setting configuration properties listed under `sparkConf`, or by using resource limits. If both are used, then `sparkConf` properties take precedence. It is recommended for the sake of clarity to use *_either_* one *_or_* the other.
 
+== Log aggregation
+
+The logs can be forwarded to a Vector log aggregator by providing a discovery
+ConfigMap for the aggregator and by enabling the log agent:
+
+[source,yaml]
+----
+spec:
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+  job:
+    logging:
+      enableVectorAgent: true
+  driver:
+    logging:
+      enableVectorAgent: true
+  executor:
+    logging:
+      enableVectorAgent: true
+----
+
+Further information on how to configure logging, can be found in
+xref:home:concepts:logging.adoc[].
 
 == CRD argument coverage
 

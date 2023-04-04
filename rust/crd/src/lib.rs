@@ -235,14 +235,11 @@ impl SparkApplication {
     }
 
     pub fn submit_job_config_map_name(&self) -> String {
-        format!("{app_name}-submit-job", app_name = self.name_unchecked())
+        format!("{app_name}-submit-job", app_name = self.name_any())
     }
 
     pub fn pod_template_config_map_name(&self, role: SparkApplicationRole) -> String {
-        format!(
-            "{app_name}-{role}-pod-template",
-            app_name = self.name_unchecked()
-        )
+        format!("{app_name}-{role}-pod-template", app_name = self.name_any())
     }
 
     pub fn mode(&self) -> Option<&str> {

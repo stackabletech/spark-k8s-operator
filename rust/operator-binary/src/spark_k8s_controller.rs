@@ -447,7 +447,11 @@ fn pod_template(
             &ResolvedProductImage {
                 product_version: "".into(),
                 app_version_label: "".into(),
-                image: spark_application.spec.spark_image.clone().unwrap(),
+                image: spark_application
+                    .spec
+                    .spark_image
+                    .clone()
+                    .context(ObjectHasNoSparkImageSnafu)?,
                 image_pull_policy: "".into(),
                 pull_secrets: None,
             },
@@ -648,7 +652,11 @@ fn spark_job(
             &ResolvedProductImage {
                 product_version: "".into(),
                 app_version_label: "".into(),
-                image: spark_application.spec.spark_image.clone().unwrap(),
+                image: spark_application
+                    .spec
+                    .spark_image
+                    .clone()
+                    .context(ObjectHasNoSparkImageSnafu)?,
                 image_pull_policy: "".into(),
                 pull_secrets: None,
             },

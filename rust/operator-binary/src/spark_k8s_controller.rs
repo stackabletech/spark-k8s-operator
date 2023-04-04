@@ -94,10 +94,6 @@ pub enum Error {
     FailedToResolveConfig {
         source: stackable_spark_k8s_crd::Error,
     },
-    #[snafu(display("failed to resolve and merge logging config"))]
-    FailedToResolveLoggingConfig {
-        source: stackable_spark_k8s_crd::Error,
-    },
     #[snafu(display("failed to recognise the container name"))]
     UnrecognisedContainerName,
     #[snafu(display("illegal container name"))]

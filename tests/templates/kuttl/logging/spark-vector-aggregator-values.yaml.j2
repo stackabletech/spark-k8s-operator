@@ -281,6 +281,8 @@ customConfig:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       type: vector
       address: {{ lookup('env', 'VECTOR_AGGREGATOR') }}
+      buffer:
+        when_full: drop_newest
 {% else %}
       type: blackhole
 {% endif %}

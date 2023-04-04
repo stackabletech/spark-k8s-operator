@@ -53,14 +53,14 @@ spec:
       containers:
         spark-submit:
           custom:
-            configMap: spark-submit-log-config
+            configMap: pyspark-submit-log-config
   driver:
     logging:
       enableVectorAgent: true
       containers:
         spark:
           custom:
-            configMap: spark-log-config
+            configMap: pyspark-log-config
   executor:
     instances: 1
     logging:
@@ -68,4 +68,4 @@ spec:
       containers:
         spark:
           custom:
-            configMap: spark-log-config
+            configMap: pyspark-log-config

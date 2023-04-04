@@ -57,10 +57,9 @@ pub enum Error {
         source: stackable_operator::error::Error,
         name: String,
     },
-    #[snafu(display("invalid history container name {name}"))]
+    #[snafu(display("invalid history container name"))]
     InvalidContainerName {
         source: stackable_operator::error::Error,
-        name: String,
     },
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
@@ -355,9 +354,7 @@ fn build_stateful_set(
 
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
-        .context(InvalidContainerNameSnafu {
-            name: String::from(container_name),
-        })?
+        .context(InvalidContainerNameSnafu)?
         .image_from_product_image(resolved_product_image)
         .resources(config.resources.clone().into())
         .command(vec!["/bin/bash".to_string()])

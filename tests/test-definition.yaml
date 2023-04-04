@@ -10,7 +10,7 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.3.0-stackable0.3.0
+      - 3.3.0-stackable23.4.0-rc2
   - name: ny-tlc-report
     values:
       - 0.1.0
@@ -63,5 +63,12 @@ tests:
     dimensions:
       - spark
       - stackable
+      - openshift
+      - examples
+  - name: logging
+    dimensions:
+      - spark
+      - stackable
+      - ny-tlc-report
       - openshift
       - examples

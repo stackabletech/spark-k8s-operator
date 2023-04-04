@@ -1,10 +1,7 @@
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     cluster_resources::ClusterResources,
-    commons::{
-        product_image_selection::ResolvedProductImage,
-        resources::{NoRuntimeLimits, Resources},
-    },
+    commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
@@ -13,7 +10,7 @@ use stackable_operator::{
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
-        apimachinery::pkg::apis::meta::v1::LabelSelector,
+        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
     },
     kube::{
         runtime::{controller::Action, reflector::ObjectRef},
@@ -21,19 +18,28 @@ use stackable_operator::{
     },
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     product_config::ProductConfigManager,
+    product_logging::{
+        framework::vector_container,
+        spec::{
+            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
+            CustomContainerLogConfig,
+        },
+    },
     role_utils::RoleGroupRef,
 };
 use stackable_spark_k8s_crd::{
     constants::*,
-    history::{HistoryStorageConfig, SparkHistoryServer},
+    history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
     s3logdir::S3LogDir,
 };
 use std::time::Duration;
 use std::{collections::BTreeMap, sync::Arc};
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+use crate::product_logging::{self, resolve_vector_aggregator_address};
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -44,15 +50,16 @@ pub struct Ctx {
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("object has no namespace"))]
+    ObjectHasNoNamespace,
     #[snafu(display("invalid config map {name}"))]
     InvalidConfigMap {
         source: stackable_operator::error::Error,
         name: String,
     },
-    #[snafu(display("invalid history container name {name}"))]
+    #[snafu(display("invalid history container name"))]
     InvalidContainerName {
         source: stackable_operator::error::Error,
-        name: String,
     },
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
@@ -102,6 +109,15 @@ pub enum Error {
     DeleteOrphanedResources {
         source: stackable_operator::error::Error,
     },
+    #[snafu(display("failed to resolve the Vector aggregator address"))]
+    ResolveVectorAggregatorAddress {
+        source: crate::product_logging::Error,
+    },
+    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
+    InvalidLoggingConfig {
+        source: crate::product_logging::Error,
+        cm_name: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -133,6 +149,16 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     )
     .await
     .context(S3LogDirSnafu)?;
+
+    let vector_aggregator_address = resolve_vector_aggregator_address(
+        client,
+        shs.namespace()
+            .as_deref()
+            .context(ObjectHasNoNamespaceSnafu)?,
+        shs.spec.vector_aggregator_config_map_name.as_deref(),
+    )
+    .await
+    .context(ResolveVectorAggregatorAddressSnafu)?;
 
     // Use a dedicated service account for history server pods.
     let (serviceaccount, rolebinding) =
@@ -187,9 +213,11 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
 
             let config_map = build_config_map(
                 &shs,
+                &config,
                 &resolved_product_image.app_version_label,
                 &rgr,
                 s3_log_dir.as_ref().unwrap(),
+                vector_aggregator_address.as_deref(),
             )?;
             cluster_resources
                 .add(client, &config_map)
@@ -201,7 +229,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &resolved_product_image,
                 &rgr,
                 s3_log_dir.as_ref().unwrap(),
-                &config.resources,
+                &config,
                 &serviceaccount,
             )?;
             cluster_resources
@@ -225,29 +253,43 @@ pub fn error_policy(_obj: Arc<SparkHistoryServer>, _error: &Error, _ctx: Arc<Ctx
 
 fn build_config_map(
     shs: &SparkHistoryServer,
+    config: &HistoryConfig,
     app_version_label: &str,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
     s3_log_dir: &S3LogDir,
+    vector_aggregator_address: Option<&str>,
 ) -> Result<ConfigMap, Error> {
+    let cm_name = rolegroupref.object_name();
+
     let spark_config = spark_config(shs, s3_log_dir, rolegroupref)?;
 
-    let result = ConfigMapBuilder::new()
+    let mut cm_builder = ConfigMapBuilder::new();
+
+    cm_builder
         .metadata(
             ObjectMetaBuilder::new()
                 .name_and_namespace(shs)
-                .name(rolegroupref.object_name())
+                .name(&cm_name)
                 .ownerreference_from_resource(shs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(labels(shs, app_version_label, &rolegroupref.role_group))
                 .build(),
         )
-        .add_data(HISTORY_CONFIG_FILE_NAME, spark_config)
-        .build()
-        .context(InvalidConfigMapSnafu {
-            name: "spark-history-config".to_string(),
-        })?;
+        .add_data(HISTORY_CONFIG_FILE_NAME, spark_config);
 
-    Ok(result)
+    product_logging::extend_config_map(
+        rolegroupref,
+        vector_aggregator_address,
+        &config.logging,
+        SparkHistoryServerContainer::SparkHistory,
+        SparkHistoryServerContainer::Vector,
+        &mut cm_builder,
+    )
+    .context(InvalidLoggingConfigSnafu { cm_name: &cm_name })?;
+
+    cm_builder
+        .build()
+        .context(InvalidConfigMapSnafu { name: cm_name })
 }
 
 fn build_stateful_set(
@@ -255,33 +297,44 @@ fn build_stateful_set(
     resolved_product_image: &ResolvedProductImage,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
     s3_log_dir: &S3LogDir,
-    resources: &Resources<HistoryStorageConfig, NoRuntimeLimits>,
+    config: &HistoryConfig,
     serviceaccount: &ServiceAccount,
 ) -> Result<StatefulSet, Error> {
-    let container_name = "spark-history";
-    let container = ContainerBuilder::new(container_name)
-        .context(InvalidContainerNameSnafu {
-            name: String::from(container_name),
-        })?
-        .image_from_product_image(resolved_product_image)
-        .resources(resources.clone().into())
-        .command(vec!["/bin/bash".to_string()])
-        .args(command_args(s3_log_dir))
-        .add_container_port("http", 18080)
-        // This env var prevents the history server from detaching itself from the
-        // start script because this leads to the Pod terminating immediately.
-        .add_env_var("SPARK_NO_DAEMONIZE", "true")
-        .add_volume_mounts(s3_log_dir.credentials_volume_mount().into_iter())
-        .add_volume_mount("config", "/stackable/spark/conf")
-        .build();
+    let log_config_map = if let Some(ContainerLogConfig {
+        choice:
+            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                custom: ConfigMapLogConfig { config_map },
+            })),
+    }) = config
+        .logging
+        .containers
+        .get(&SparkHistoryServerContainer::SparkHistory)
+    {
+        config_map.into()
+    } else {
+        rolegroupref.object_name()
+    };
 
-    let template = PodBuilder::new()
-        .service_account_name(serviceaccount.name_unchecked())
-        .add_container(container)
+    let mut pb = PodBuilder::new();
+
+    pb.service_account_name(serviceaccount.name_unchecked())
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
             VolumeBuilder::new("config")
                 .with_config_map(rolegroupref.object_name())
+                .build(),
+        )
+        .add_volume(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                .with_config_map(log_config_map)
+                .build(),
+        )
+        .add_volume(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+                .with_empty_dir(
+                    None::<String>,
+                    Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
+                )
                 .build(),
         )
         .add_volumes(s3_log_dir.credentials_volume().into_iter().collect())
@@ -297,12 +350,49 @@ fn build_stateful_set(
             run_as_group: Some(1000),
             fs_group: Some(1000),
             ..PodSecurityContext::default()
-        })
-        .build_template();
+        });
+
+    let container_name = "spark-history";
+    let container = ContainerBuilder::new(container_name)
+        .context(InvalidContainerNameSnafu)?
+        .image_from_product_image(resolved_product_image)
+        .resources(config.resources.clone().into())
+        .command(vec!["/bin/bash".to_string()])
+        .args(command_args(s3_log_dir))
+        .add_container_port("http", 18080)
+        // This env var prevents the history server from detaching itself from the
+        // start script because this leads to the Pod terminating immediately.
+        .add_env_var("SPARK_NO_DAEMONIZE", "true")
+        .add_env_var("SPARK_DAEMON_CLASSPATH", "/stackable/spark/extra-jars/*")
+        .add_env_var(
+            "SPARK_HISTORY_OPTS",
+            format!(
+                "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
+            ),
+        )
+        .add_volume_mounts(s3_log_dir.credentials_volume_mount().into_iter())
+        .add_volume_mount("config", "/stackable/spark/conf")
+        .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
+        .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+        .build();
+    pb.add_container(container);
+
+    if config.logging.enable_vector_agent {
+        pb.add_container(vector_container(
+            resolved_product_image,
+            VOLUME_MOUNT_NAME_CONFIG,
+            VOLUME_MOUNT_NAME_LOG,
+            config
+                .logging
+                .containers
+                .get(&SparkHistoryServerContainer::Vector),
+        ));
+    }
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(shs)
+            .name(rolegroupref.object_name())
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(labels(
@@ -312,7 +402,7 @@ fn build_stateful_set(
             ))
             .build(),
         spec: Some(StatefulSetSpec {
-            template,
+            template: pb.build_template(),
             replicas: shs.replicas(rolegroupref),
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(

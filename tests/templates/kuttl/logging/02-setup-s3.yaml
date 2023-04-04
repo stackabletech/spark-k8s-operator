@@ -1,0 +1,88 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >-
+      helm install eventlog-minio
+      --namespace $NAMESPACE
+      --version 12.2.2
+      -f helm-bitnami-eventlog-minio-values.yaml
+      --repo https://charts.bitnami.com/bitnami minio
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: history-credentials
+  labels:
+    secrets.stackable.tech/class: logging-history-credentials-class
+stringData:
+  accessKey: eventLogAccessKey
+  secretKey: eventLogSecretKey
+  # The following two entries are used by the Bitnami chart for MinIO to
+  # set up credentials for accessing buckets managed by the MinIO tenant.
+  root-user: eventLogAccessKey
+  root-password: eventLogSecretKey
+---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: logging-history-credentials-class
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        pod: {}
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: spark-history-s3-connection
+spec:
+  host: eventlog-minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: logging-history-credentials-class
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Bucket
+metadata:
+  name: spark-history-s3-bucket
+spec:
+  bucketName: spark-logs
+  connection:
+    reference: spark-history-s3-connection
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: eventlog-minio-client
+  labels:
+    app: eventlog-minio-client
+spec:
+  restartPolicy: Never
+  containers:
+    - name: minio-client
+      image: docker.io/bitnami/minio-client:2023.3.20-debian-11-r1
+      command: ["bash", "-c", "sleep infinity"]
+      stdin: true
+      tty: true
+      env:
+        - name: MINIO_SERVER_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: history-credentials
+              key: root-user
+              optional: false
+        - name: MINIO_SERVER_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: history-credentials
+              key: root-password
+              optional: false
+        - name: MINIO_SERVER_HOST
+          value: eventlog-minio
+        - name: MINIO_SERVER_PORT_NUMBER
+          value: "9000"
+        - name: MINIO_SERVER_SCHEME
+          value: http

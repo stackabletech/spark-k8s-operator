@@ -1,0 +1,12 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # Give MinIO enough time to start
+  - command: sleep 10
+  - command: |-
+      kubectl exec -n $NAMESPACE eventlog-minio-client -- sh -c
+      'mc alias set eventlog-minio http://eventlog-minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'
+  - command: |-
+      kubectl exec -n $NAMESPACE eventlog-minio-client --
+      mc mb eventlog-minio/spark-logs/eventlogs

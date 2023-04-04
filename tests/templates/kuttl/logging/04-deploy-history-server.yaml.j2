@@ -1,0 +1,65 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-history-log-config
+data:
+  log4j2.properties: |-
+    appenders = FILE
+
+    appender.FILE.type = File
+    appender.FILE.name = FILE
+    appender.FILE.fileName = /stackable/log/spark-history/spark.log4j2.xml
+    appender.FILE.layout.type = XMLLayout
+
+    rootLogger.level = INFO
+    rootLogger.appenderRefs = FILE
+    rootLogger.appenderRef.FILE.ref = FILE
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+metadata:
+  name: spark-history
+spec:
+  image:
+    productVersion: "{{ test_scenario['values']['spark'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
+  vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
+  logFileDirectory:
+    s3:
+      prefix: eventlogs/
+      bucket:
+        reference: spark-history-s3-bucket
+  nodes:
+    roleGroups:
+      automatic-log-config:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              spark-history:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+              vector:
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+      custom-log-config:
+        replicas: 1
+        config:
+          logging:
+            enableVectorAgent: true
+            containers:
+              spark-history:
+                custom:
+                  configMap: spark-history-log-config

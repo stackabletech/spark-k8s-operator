@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Deploy default and support custom affinities ([#217])
 - BREAKING: Dropped support for old spec.{driver,executor}.nodeSelector field. Use spec.{driver,executor}.affinity.nodeSelector instead ([#217])
+- Log aggregation added ([#226]).
 
 ### Changed
 
@@ -19,6 +20,7 @@ All notable changes to this project will be documented in this file.
 [#207]: https://github.com/stackabletech/spark-k8s-operator/pull/207
 [#217]: https://github.com/stackabletech/spark-k8s-operator/pull/217
 [#223]: https://github.com/stackabletech/spark-k8s-operator/pull/223
+[#226]: https://github.com/stackabletech/spark-k8s-operator/pull/226
 
 ## [23.1.0] - 2023-01-23
 

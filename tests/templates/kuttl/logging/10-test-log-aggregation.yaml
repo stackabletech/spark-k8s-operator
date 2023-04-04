@@ -1,0 +1,6 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      kubectl cp ./test_log_aggregation.py $NAMESPACE/test-runner-0:/tmp

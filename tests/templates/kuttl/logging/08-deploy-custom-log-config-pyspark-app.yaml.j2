@@ -1,0 +1,71 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pyspark-log-config
+data:
+  log4j2.properties: |-
+    appenders = FILE
+
+    appender.FILE.type = File
+    appender.FILE.name = FILE
+    appender.FILE.fileName = /stackable/log/spark/spark.log4j2.xml
+    appender.FILE.layout.type = XMLLayout
+
+    rootLogger.level = INFO
+    rootLogger.appenderRefs = FILE
+    rootLogger.appenderRef.FILE.ref = FILE
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pyspark-submit-log-config
+data:
+  log4j2.properties: |-
+    appenders = FILE
+
+    appender.FILE.type = File
+    appender.FILE.name = FILE
+    appender.FILE.fileName = /stackable/log/spark-submit/spark.log4j2.xml
+    appender.FILE.layout.type = XMLLayout
+
+    rootLogger.level = INFO
+    rootLogger.appenderRefs = FILE
+    rootLogger.appenderRef.FILE.ref = FILE
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: pyspark-custom-log-config
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}
+  sparkImagePullPolicy: IfNotPresent
+  vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/examples/src/main/python/als.py
+  deps:
+    requirements:
+      - numpy==1.24.2
+  job:
+    logging:
+      enableVectorAgent: true
+      containers:
+        spark-submit:
+          custom:
+            configMap: pyspark-submit-log-config
+  driver:
+    logging:
+      enableVectorAgent: true
+      containers:
+        spark:
+          custom:
+            configMap: pyspark-log-config
+  executor:
+    instances: 1
+    logging:
+      enableVectorAgent: true
+      containers:
+        spark:
+          custom:
+            configMap: pyspark-log-config

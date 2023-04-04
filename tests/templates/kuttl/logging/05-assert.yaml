@@ -3,16 +3,9 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 900
 ---
-apiVersion: apps/v1
-kind: StatefulSet
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
 metadata:
-  name: spark-history-node-automatic-log-config
+  name: spark-automatic-log-config
 status:
-  readyReplicas: 1
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: spark-history-node-custom-log-config
-status:
-  readyReplicas: 1
+  phase: Succeeded

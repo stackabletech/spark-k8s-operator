@@ -23,7 +23,7 @@ spec:
   sparkConf:  # <4>
   nodes:
     roleGroups:
-      cleaner:
+      default:
         replicas: 1  # <5>
         config:
           cleaner: true # <6>

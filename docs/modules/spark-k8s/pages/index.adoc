@@ -8,7 +8,23 @@ This is an operator for Kubernetes that can manage https://spark.apache.org/[Apa
 
 Follow the xref:getting_started/index.adoc[] guide to get started with Apache Spark using the Stackable Operator. The guide will lead you through the installation of the Operator and running your first Spark job on Kubernetes.
 
-== RBAC
+== How the Operator works
+
+The Stackable Operator for Apache Spark reads a _SparkApplication custom resource_ which you use to define your spark job/application. The Operator creates the relevant Kubernetes resources for the job to run.
+
+=== SparkApplication custom resource
+
+The SparkApplication resource is the main point of interaction with the Operator. An exhaustive list of options is given on the xref:crd-reference.adoc[] page. You can specify a custom image etc.etc (TODO)
+
+=== Kubernetes resources
+
+For every SparkApplication deployed to the cluster the Operator creates a Job
+
+image::spark_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the operator]
+
+The Job ...
+
+=== RBAC
 
 The https://spark.apache.org/docs/latest/running-on-kubernetes.html#rbac[Spark-Kubernetes RBAC documentation] describes what is needed for `spark-submit` jobs to run successfully: minimally a role/cluster-role to allow the driver pod to create and manage executor pods.
 

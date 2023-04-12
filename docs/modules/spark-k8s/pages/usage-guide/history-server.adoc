@@ -1,4 +1,5 @@
 = Spark History Server
+:page-aliases: history_server.adoc
 
 == Overview
 
@@ -48,23 +49,6 @@ include::example$example-history-app.yaml[]
 <6> Credentials used to write event logs. These can, of course, differ from the credentials used to process data.
 
 
-== Log aggregation
-
-The logs can be forwarded to a Vector log aggregator by providing a discovery
-ConfigMap for the aggregator and by enabling the log agent:
-
-[source,yaml]
-----
-spec:
-  vectorAggregatorConfigMapName: vector-aggregator-discovery
-  nodes:
-    config:
-      logging:
-        enableVectorAgent: true
-----
-
-Further information on how to configure logging, can be found in
-xref:home:concepts:logging.adoc[].
 
 == History Web UI
 

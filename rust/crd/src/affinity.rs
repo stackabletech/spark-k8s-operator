@@ -56,7 +56,7 @@ mod test {
                 reference: spark-history-s3-bucket
           nodes:
             roleGroups:
-              cleaner:
+              default:
                 replicas: 1
                 config:
                   cleaner: true
@@ -102,7 +102,7 @@ mod test {
         let rolegroup_ref = RoleGroupRef {
             cluster: ObjectRef::from_obj(&history),
             role: HISTORY_ROLE_NAME.to_string(),
-            role_group: "cleaner".to_string(),
+            role_group: "default".to_string(),
         };
 
         let affinity = history.merged_config(&rolegroup_ref).unwrap().affinity;

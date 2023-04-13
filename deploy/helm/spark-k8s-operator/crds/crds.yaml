@@ -2933,6 +2933,27 @@ spec:
           properties:
             spec:
               properties:
+                clusterConfig:
+                  default:
+                    listenerClass: cluster-internal
+                  description: Global Spark history server configuration that applies to all roles and role groups
+                  properties:
+                    listenerClass:
+                      default: cluster-internal
+                      description: |-
+                        In the future this setting will control, which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service. Currently only a subset of the ListenerClasses are supported by choosing the type of the created Services by looking at the ListenerClass name specified, In a future release support for custom ListenerClasses will be introduced without a breaking change:
+
+                        * cluster-internal: Use a ClusterIP service
+
+                        * external-unstable: Use a NodePort service
+
+                        * external-stable: Use a LoadBalancer service
+                      enum:
+                        - cluster-internal
+                        - external-unstable
+                        - external-stable
+                      type: string
+                  type: object
                 image:
                   anyOf:
                     - required:

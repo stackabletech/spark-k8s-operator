@@ -430,11 +430,16 @@ fn build_service(
         None => "global".to_owned(),
     };
 
-    let (service_name, service_type) = match group {
-        Some(rgr) => (rgr.object_name(), "ClusterIP".to_string()),
+    let (service_name, service_type, service_cluster_ip) = match group {
+        Some(rgr) => (
+            rgr.object_name(),
+            "ClusterIP".to_string(),
+            Some("None".to_string()),
+        ),
         None => (
             format!("{}-{}", shs.metadata.name.as_ref().unwrap(), role),
-            "NodePort".to_string(),
+            shs.spec.cluster_config.listener_class.k8s_service_type(),
+            None,
         ),
     };
 
@@ -452,13 +457,14 @@ fn build_service(
             .with_recommended_labels(labels(shs, app_version_label, &group_name))
             .build(),
         spec: Some(ServiceSpec {
+            type_: Some(service_type),
+            cluster_ip: service_cluster_ip,
             ports: Some(vec![ServicePort {
                 name: Some(String::from("http")),
                 port: 18080,
                 ..ServicePort::default()
             }]),
             selector: Some(selector),
-            type_: Some(service_type),
             ..ServiceSpec::default()
         }),
         status: None,

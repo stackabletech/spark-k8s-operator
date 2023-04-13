@@ -7,11 +7,16 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Deploy default and support custom affinities ([#217])
-- BREAKING: Dropped support for old spec.{driver,executor}.nodeSelector field. Use spec.{driver,executor}.affinity.nodeSelector instead ([#217])
 - Log aggregation added ([#226]).
 
 ### Changed
 
+- [BREAKING] Support specifying Service type for HistoryServer.
+  This enables us to later switch non-breaking to using `ListenerClasses` for the exposure of Services.
+  This change is breaking, because - for security reasons - we default to the `cluster-internal` `ListenerClass`.
+  If you need your cluster to be accessible from outside of Kubernetes you need to set `clusterConfig.listenerClass`
+  to `external-unstable` or `external-stable` ([#228]).
+- [BREAKING]: Dropped support for old `spec.{driver,executor}.nodeSelector` field. Use `spec.{driver,executor}.affinity.nodeSelector` instead ([#217])
 - Revert openshift settings ([#207])
 - BUGFIX: assign service account to history pods ([#207])
 - Merging and validation of the configuration refactored ([#223])
@@ -21,6 +26,7 @@ All notable changes to this project will be documented in this file.
 [#217]: https://github.com/stackabletech/spark-k8s-operator/pull/217
 [#223]: https://github.com/stackabletech/spark-k8s-operator/pull/223
 [#226]: https://github.com/stackabletech/spark-k8s-operator/pull/226
+[#228]: https://github.com/stackabletech/spark-k8s-operator/pull/228
 
 ## [23.1.0] - 2023-01-23
 

@@ -6,6 +6,6 @@ timeout: 900
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: spark-history-node-cleaner
+  name: spark-history-node-default
 status:
   readyReplicas: 1

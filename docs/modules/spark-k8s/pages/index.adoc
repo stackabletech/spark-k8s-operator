@@ -6,7 +6,7 @@ This is an operator manages https://spark.apache.org/[Apache Spark] on Kubernete
 
 == Getting Started
 
-Follow the xref:getting_started/index.adoc[] guide to get started with Apache Spark using the Stackable Operator. The guide will lead you through the installation of the Operator and running your first Spark job on Kubernetes.
+Follow the xref:getting_started/index.adoc[] guide to get started with Apache Spark using the Stackable Operator. The guide will lead you through the installation of the Operator and running your first Spark application on Kubernetes.
 
 == How the Operator works
 

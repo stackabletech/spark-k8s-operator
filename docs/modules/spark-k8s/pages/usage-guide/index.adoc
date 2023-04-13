@@ -1,3 +1,3 @@
 = Usage guide
 
-Learn how to load your own xref:usage-guide/job-dependencies.adoc[] or configure an xref:usage-guide/s3.adoc[S3 connection]. Have a look at the xref:usage-guide/examples.adoc[] to learn more about different operatoring modes.
+Learn how to load your own xref:usage-guide/job-dependencies.adoc[] or configure an xref:usage-guide/s3.adoc[S3 connection] to access data. Have a look at the xref:usage-guide/examples.adoc[] to learn more about different usage scenarios.

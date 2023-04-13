@@ -12,10 +12,10 @@ Below are listed the CRD fields that can be defined by the user:
 |`SparkApplication`
 
 |`metadata.name`
-| Job name
+|Application name
 
 |`spec.version`
-|"1.0"
+|Application version
 
 |`spec.mode`
 | `cluster` or `client`. Currently only `cluster` is supported
@@ -42,7 +42,7 @@ Below are listed the CRD fields that can be defined by the user:
 |Arguments passed directly to the job artifact
 
 |`spec.s3connection`
-|S3 connection specification. See the <<S3 bucket specification>> for more details.
+|S3 connection specification. See the xref:concepts:s3.adoc[] for more details.
 
 |`spec.sparkConf`
 |A map of key/value strings that will be passed directly to `spark-submit`
@@ -83,8 +83,11 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.driver.volumeMounts.mountPath`
 |Volume mount path
 
-|`spec.driver.nodeSelector`
-|A dictionary of labels to use for node selection when scheduling the driver N.B. this assumes there are no implicit node dependencies (e.g. `PVC`, `VolumeMount`) defined elsewhere.
+|`spec.driver.affinity`
+|Driver Pod placement affinity. See xref:pod-placement.adoc[] for details
+
+|`spec.driver.logging`
+|Logging aggregation for the driver Pod. See xref:concepts:logging.adoc[] for details
 
 |`spec.executor.resources`
 |Resources specification for the executor Pods
@@ -101,6 +104,16 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.executor.volumeMounts.mountPath`
 |Volume mount path
 
-|`spec.executor.nodeSelector`
-|A dictionary of labels to use for node selection when scheduling the executors N.B. this assumes there are no implicit node dependencies (e.g. `PVC`, `VolumeMount`) defined elsewhere.
+|`spec.executor.affinity`
+|Driver Pod placement affinity. See xref:pod-placement.adoc[] for details.
+
+|`spec.executor.logging`
+|Logging aggregation for the executor Pods. See xref:concepts:logging.adoc[] for details
+
+|`spec.logFileDirectory.bucket`
+|S3 bucket definition where applications should publish events for the Spark History server.
+
+|`spec.logFileDirectory.prefix`
+|Prefix to use when storing events for the Spark History server.
+
 |===

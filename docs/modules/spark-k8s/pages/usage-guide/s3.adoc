@@ -1,0 +1,48 @@
+= S3 bucket specification
+
+You can specify S3 connection details directly inside the `SparkApplication` specification or by referring to an external `S3Bucket` custom resource.
+
+To specify S3 connection details directly as part of the `SparkApplication` resource you add an inline connection configuration as shown below.
+
+[source,yaml]
+----
+s3connection: # <1>
+  inline:
+    host: test-minio # <2>
+    port: 9000 # <3>
+    accessStyle: Path
+    credentials:
+      secretClass: s3-credentials-class  # <4>
+----
+<1> Entry point for the S3 connection configuration.
+<2> Connection host.
+<3> Optional connection port.
+<4> Name of the `Secret` object expected to contain the following keys: `ACCESS_KEY_ID` and `SECRET_ACCESS_KEY`
+
+It is also possible to configure the  connection details as a separate Kubernetes resource and only refer to that object from the `SparkApplication` like this:
+
+[source,yaml]
+----
+s3connection:
+  reference: s3-connection-resource # <1>
+----
+<1> Name of the connection resource with connection details.
+
+The resource named `s3-connection-resource` is then defined as shown below:
+
+[source,yaml]
+----
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: s3-connection-resource
+spec:
+  host: test-minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: minio-credentials-class
+----
+
+This has the advantage that one connection configuration can be shared across `SparkApplications` and reduces the cost of updating these details.

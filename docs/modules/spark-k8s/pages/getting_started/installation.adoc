@@ -8,7 +8,7 @@ Spark applications almost always require dependencies like database drivers, RES
 
 More information about the different ways to define Spark jobs and their dependencies is given on the following pages:
 
-- xref:usage.adoc[]
+- xref:usage-guide/index.adoc[]
 - xref:job_dependencies.adoc[]
 
 == Stackable Operators

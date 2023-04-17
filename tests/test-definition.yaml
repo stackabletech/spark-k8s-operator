@@ -10,7 +10,7 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.3.0-stackable23.4.0-rc2
+      - 3.3.0-stackable23.4.0
   - name: ny-tlc-report
     values:
       - 0.1.0

@@ -1,18 +1,59 @@
-= Stackable Operator for Apache Spark on Kubernetes
+= Stackable Operator for Apache Spark
+:description: The Stackable Operator for Apache Spark is a Kubernetes operator that can manage Apache Spark clusters. Learn about its features, resources, dependencies and demos, and see the list of supported Spark versions.
+:keywords: Stackable Operator, Apache Spark, Kubernetes, operator, data science, engineer, big data, CRD, StatefulSet, ConfigMap, Service, S3, demo, version
 
-This is an operator for Kubernetes that can manage https://spark.apache.org/[Apache Spark] kubernetes clusters.
+This is an operator manages https://spark.apache.org/[Apache Spark] on Kubernetes clusters. Apache Spark is a powerful open-source big data processing framework that allows for efficient and flexible distributed computing. Its in-memory processing and fault-tolerant architecture make it ideal for a variety of use cases, including batch processing, real-time streaming, machine learning, and graph processing.
 
-WARNING: This operator only works with images from the https://repo.stackable.tech/#browse/browse:docker:v2%2Fstackable%2Fspark[Stackable] repository
+== Getting Started
+
+Follow the xref:getting_started/index.adoc[] guide to get started with Apache Spark using the Stackable Operator. The guide will lead you through the installation of the Operator and running your first Spark application on Kubernetes.
+
+== How the Operator works
+
+The Stackable Operator for Apache Spark reads a _SparkApplication custom resource_ which you use to define your spark job/application. The Operator creates the relevant Kubernetes resources for the job to run.
+
+=== Custom resources
+
+The Operator manages two custom resource kinds: The _SparkApplication_ and the _SparkHistoryServer_.
+
+The SparkApplication resource is the main point of interaction with the Operator. Unlike other Stackable Operator custom resources, the SparkApplication does not have xref:concepts:roles-and-role-groups.adoc[roles]. An exhaustive list of options is given on the xref:crd-reference.adoc[] page.
+
+The xref:usage-guide/history-server.adoc[SparkHistoryServer] does have a single `node` role. It is used to deploy a https://spark.apache.org/docs/latest/monitoring.html#viewing-after-the-fact[Spark history server]. It reads data from an S3 bucket that you configure. Your applications need to write their logs to the same bucket.
+
+=== Kubernetes resources
+
+For every SparkApplication deployed to the cluster the Operator creates a Job, A ServiceAccout and a few ConfigMaps.
+
+image::spark_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the operator]
+
+The Job runs `spark-submit` in a Pod which then creates a Spark driver Pod. The driver creates its own Executors based on the configuration in the SparkApplication. The Job, driver and executors all use the same image, which is configured in the SparkApplication resource.
+
+The two main ConfigMaps are the `<name>-driver-pod-template` and `<name>-executor-pod-template` which define how the driver and executor Pods should be created.
+
+The Spark history server deploys like other Stackable-supported applications: A Statefulset is created for every role group. A role group can have multiple replicas (Pods). A ConfigMap supplies the necessary configuration, and there is a service to connect to.
+
+=== RBAC
+
+The https://spark.apache.org/docs/latest/running-on-kubernetes.html#rbac[Spark-Kubernetes RBAC documentation] describes what is needed for `spark-submit` jobs to run successfully: minimally a role/cluster-role to allow the driver pod to create and manage executor pods.
+
+However, to add security, each `spark-submit` job launched by the spark-k8s operator will be assigned its own ServiceAccount.
+
+When the spark-k8s operator is installed via Helm, a cluster role named `spark-k8s-clusterrole` is created with pre-defined permissions.
+
+When a new Spark application is submitted, the operator creates a new service account with the same name as the application and binds this account to the cluster role `spark-k8s-clusterrole` created by Helm.
+
+== Integrations
+
+You can read and write data from xref:usage-guide/s3.adoc[s3 buckets], load xref:usage-guide/job-dependencies[custom job dependencies]. Spark also supports easy integration with Apache Kafka which is also supported xref:kafka:index.adoc[on the Stackable Data Platform]. Have a look at the demos below to see it in action.
+
+== [[demos]]Demos
+
+The xref:stackablectl::demos/data-lakehouse-iceberg-trino-spark.adoc[] demo connects multiple components and datasets into a data Lakehouse. A Spark application with https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html[structured streaming] is used to stream data from Apache Kafka into the Lakehouse.
+
+In the xref:stackablectl::demos/spark-k8s-anomaly-detection-taxi-data.adoc[] demo Spark is used to read training data from S3 and train an anomaly detection model on the data. The model is then stored in a Trino table.
 
 == Supported Versions
 
 The Stackable Operator for Apache Spark on Kubernetes currently supports the following versions of Spark:
 
 include::partial$supported-versions.adoc[]
-
-== Getting the Docker image
-
-[source]
-----
-docker pull docker.stackable.tech/stackable/spark-k8s:<version>
-----

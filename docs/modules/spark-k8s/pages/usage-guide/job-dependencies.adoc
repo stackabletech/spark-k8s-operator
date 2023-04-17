@@ -1,4 +1,5 @@
 = Job Dependencies
+:page-aliases: job_dependencies.adoc
 
 == Overview
 

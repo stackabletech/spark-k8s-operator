@@ -52,7 +52,8 @@ chart-clean:
 	rm -rf "deploy/helm/${OPERATOR_NAME}/crds"
 
 version:
-	yq eval -i ".version = \"${VERSION}\" | .appVersion = \"${VERSION}\"" /dev/stdin < "deploy/helm/${OPERATOR_NAME}/Chart.yaml"
+	cat "deploy/helm/${OPERATOR_NAME}/Chart.yaml" | yq ".version = \"${VERSION}\" | .appVersion = \"${VERSION}\"" > "deploy/helm/${OPERATOR_NAME}/Chart.yaml.new"
+	mv "deploy/helm/${OPERATOR_NAME}/Chart.yaml.new" "deploy/helm/${OPERATOR_NAME}/Chart.yaml"
 
 config:
 	if [ -d "deploy/config-spec/" ]; then\
@@ -78,4 +79,5 @@ build: regenerate-charts helm-package docker-build
 publish: build docker-publish helm-publish
 
 run-dev:
-	nix run -f. tilt -- up --port 5441
+	kubectl apply -f deploy/stackable-operators-ns.yaml
+	nix run -f. tilt -- up --port 5441 --namespace stackable-operators

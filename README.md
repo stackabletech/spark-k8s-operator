@@ -58,7 +58,7 @@ We develop and test our operators on the following cloud platforms:
 * GKE on Google Cloud Platform (GCP)
 * [IONOS Cloud Managed Kubernetes](https://cloud.ionos.com/managed/kubernetes)
 * K3s
-* Kubernetes 1.21-1.25
+* Kubernetes 1.23-1.26
 
 We are currently working to support:
 

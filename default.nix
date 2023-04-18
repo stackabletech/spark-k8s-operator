@@ -10,6 +10,15 @@
       tonic-reflection = attrs: {
         buildInputs = [ pkgs.rustfmt ];
       };
+      stackable-secret-operator = attrs: {
+        buildInputs = [ pkgs.protobuf pkgs.rustfmt ];
+      };
+      krb5-sys = attrs: {
+        nativeBuildInputs = [ pkgs.pkg-config ];
+        buildInputs = [ (pkgs.enableDebugging pkgs.krb5) ];
+        LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+        BINDGEN_EXTRA_CLANG_ARGS = "-I${pkgs.glibc.dev}/include -I${pkgs.clang.cc.lib}/lib/clang/${pkgs.lib.getVersion pkgs.clang.cc}/include";
+      };
     };
   }
 , meta ? pkgs.lib.importJSON ./nix/meta.json
@@ -27,14 +36,21 @@ rec {
   dockerImage = pkgs.dockerTools.streamLayeredImage {
     name = dockerName;
     tag = dockerTag;
-    contents = [ pkgs.bashInteractive pkgs.coreutils pkgs.util-linuxMinimal ];
+    contents = [
+      # Common debugging tools
+      pkgs.bashInteractive pkgs.coreutils pkgs.util-linuxMinimal
+      # Kerberos 5 must be installed globally to load plugins correctly
+      pkgs.krb5
+      # Make the whole cargo workspace available on $PATH
+      build
+    ];
     config = {
-    Env =
-      let
-        fileRefVars = {
-          PRODUCT_CONFIG = deploy/config-spec/properties.yaml;
-        };
-      in pkgs.lib.concatLists (pkgs.lib.mapAttrsToList (env: path: pkgs.lib.optional (pkgs.lib.pathExists path) "${env}=${path}") fileRefVars);
+      Env =
+        let
+          fileRefVars = {
+            PRODUCT_CONFIG = deploy/config-spec/properties.yaml;
+          };
+        in pkgs.lib.concatLists (pkgs.lib.mapAttrsToList (env: path: pkgs.lib.optional (pkgs.lib.pathExists path) "${env}=${path}") fileRefVars);
       Entrypoint = [ entrypoint ];
       Cmd = [ "run" ];
     };

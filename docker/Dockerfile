@@ -23,14 +23,17 @@ RUN microdnf install -y yum \
   && yum clean all \
   && microdnf clean all
 
+# Install kerberos client libraries
+RUN microdnf install -y krb5-libs libkadm5 && microdnf clean all
+
 COPY LICENSE /licenses/LICENSE
 
-COPY --from=builder /app/stackable-spark-k8s-operator /
+COPY --from=builder /app/* /usr/local/bin/
 COPY deploy/config-spec/properties.yaml /etc/stackable/spark-k8s-operator/config-spec/properties.yaml
 
 RUN groupadd -g 1000 stackable && adduser -u 1000 -g stackable -c 'Stackable Operator' stackable
 
 USER stackable:stackable
 
-ENTRYPOINT ["/stackable-spark-k8s-operator"]
+ENTRYPOINT ["stackable-spark-k8s-operator"]
 CMD ["run"]

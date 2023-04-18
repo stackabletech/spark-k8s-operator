@@ -1,6 +1,0 @@
----
-- name: Expand test templates into test scenarios by applying input dimensions
-  hosts: localhost
-  connection: local
-  roles:
-    - expand-tests

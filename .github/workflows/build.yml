@@ -31,19 +31,19 @@ jobs:
     env:
       RUSTC_BOOTSTRAP: 1
     steps:
-      - name: Install protoc
+      - name: Install host dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install protobuf-compiler
+          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.65.0
+      - uses: dtolnay/rust-toolchain@1.68.2
       - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: udeps
       - run: cargo install cargo-udeps
-      - run: cargo udeps
+      - run: cargo udeps --workspace
 
   # This job evaluates the github environment to determine why this action is running and selects the appropriate
   # target repository for published Helm charts based on this.
@@ -116,7 +116,7 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.65.0
+      - uses: dtolnay/rust-toolchain@1.68.2
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
@@ -125,14 +125,14 @@ jobs:
     name: Run Clippy
     runs-on: ubuntu-latest
     steps:
-      - name: Install protoc
+      - name: Install host dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install protobuf-compiler
+          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.65.0
+      - uses: dtolnay/rust-toolchain@1.68.2
         with:
           components: clippy
       - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
@@ -156,14 +156,14 @@ jobs:
     name: Run RustDoc
     runs-on: ubuntu-latest
     steps:
-      - name: Install protoc
+      - name: Install host dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install protobuf-compiler
+          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.65.0
+      - uses: dtolnay/rust-toolchain@1.68.2
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
@@ -175,14 +175,14 @@ jobs:
     name: Run Cargo Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Install protoc
+      - name: Install host dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install protobuf-compiler
+          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.65.0
+      - uses: dtolnay/rust-toolchain@1.68.2
       - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: test
@@ -230,10 +230,10 @@ jobs:
     name: Check if committed Helm charts are up to date
     runs-on: ubuntu-latest
     steps:
-      - name: Install protoc
+      - name: Install host dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install protobuf-compiler
+          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
       - name: Checkout
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
@@ -243,7 +243,7 @@ jobs:
         with:
           version: v3.6.2
       - name: Set up cargo
-        uses: dtolnay/rust-toolchain@1.65.0
+        uses: dtolnay/rust-toolchain@1.68.2
       - name: Set up rust-cache
         uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
@@ -288,17 +288,17 @@ jobs:
     outputs:
       IMAGE_TAG: ${{ steps.printtag.outputs.IMAGE_TAG }}
     steps:
-      - name: Install protoc
+      - name: Install host dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install protobuf-compiler
+          sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
       - name: Checkout
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
       - uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435 # v4
         if: ${{ github.event_name == 'pull_request' }}
-      - uses: dtolnay/rust-toolchain@1.65.0
+      - uses: dtolnay/rust-toolchain@1.68.2
         with:
           components: rustfmt
       - name: Install requirements for version tool

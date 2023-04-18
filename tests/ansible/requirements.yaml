@@ -1,4 +1,0 @@
----
-- name: expand-tests
-  src: https://github.com/stackabletech/expand-tests.git
-  scm: git

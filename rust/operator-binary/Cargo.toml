@@ -23,6 +23,6 @@ tracing = "0.1"
 tracing-futures = { version = "0.2", features = ["futures-03"] }
 
 [build-dependencies]
-built = { version =  "0.5", features = ["chrono", "git2"] }
+built = { version =  "0.6", features = ["chrono", "git2"] }
 stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.38.0" }
 stackable-spark-k8s-crd = { path = "../crd" }

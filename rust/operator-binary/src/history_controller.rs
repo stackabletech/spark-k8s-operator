@@ -1,6 +1,6 @@
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
-    cluster_resources::ClusterResources,
+    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::{
@@ -138,6 +138,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
         OPERATOR_NAME,
         HISTORY_CONTROLLER_NAME,
         &shs.object_ref(&()),
+        ClusterResourceApplyStrategy::Default,
     )
     .context(CreateClusterResourcesSnafu)?;
 
@@ -163,12 +164,12 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     // Use a dedicated service account for history server pods.
     let (serviceaccount, rolebinding) =
         build_history_role_serviceaccount(&shs, &resolved_product_image.app_version_label)?;
-    cluster_resources
-        .add(client, &serviceaccount)
+    let serviceaccount = cluster_resources
+        .add(client, serviceaccount)
         .await
         .context(ApplyServiceAccountSnafu)?;
     cluster_resources
-        .add(client, &rolebinding)
+        .add(client, rolebinding)
         .await
         .context(ApplyRoleBindingSnafu)?;
 
@@ -185,7 +186,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
             None,
         )?;
         cluster_resources
-            .add(client, &service)
+            .add(client, service)
             .await
             .context(ApplyServiceSnafu)?;
 
@@ -207,7 +208,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 Some(&rgr),
             )?;
             cluster_resources
-                .add(client, &service)
+                .add(client, service)
                 .await
                 .context(ApplyServiceSnafu)?;
 
@@ -220,7 +221,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 vector_aggregator_address.as_deref(),
             )?;
             cluster_resources
-                .add(client, &config_map)
+                .add(client, config_map)
                 .await
                 .context(ApplyConfigMapSnafu)?;
 
@@ -233,7 +234,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &serviceaccount,
             )?;
             cluster_resources
-                .add(client, &sts)
+                .add(client, sts)
                 .await
                 .context(ApplyDeploymentSnafu)?;
         }

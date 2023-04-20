@@ -11,8 +11,7 @@ use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;
 use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
-use stackable_operator::kube::api::ListParams;
-use stackable_operator::kube::runtime::controller::Controller;
+use stackable_operator::kube::runtime::{controller::Controller, watcher};
 use stackable_operator::logging::controller::report_controller_reconciled;
 use stackable_operator::CustomResourceExt;
 use stackable_spark_k8s_crd::constants::{
@@ -72,11 +71,11 @@ async fn main() -> anyhow::Result<()> {
 
             let app_controller = Controller::new(
                 watch_namespace.get_api::<SparkApplication>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<ConfigMap>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .shutdown_on_signal()
             .run(
@@ -97,12 +96,12 @@ async fn main() -> anyhow::Result<()> {
 
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<Pod>(&client),
-                ListParams::default()
+                watcher::Config::default()
                     .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
                 watch_namespace.get_api::<Pod>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .shutdown_on_signal()
             .run(
@@ -117,23 +116,23 @@ async fn main() -> anyhow::Result<()> {
 
             let history_controller = Controller::new(
                 watch_namespace.get_api::<SparkHistoryServer>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<SparkHistoryServer>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<StatefulSet>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<Service>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<ConfigMap>(&client),
-                ListParams::default(),
+                watcher::Config::default(),
             )
             .shutdown_on_signal()
             .run(

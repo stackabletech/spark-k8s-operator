@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `operator-rs` `0.38.0` -> `0.41.0` ([#235]).
+
+[#235]: https://github.com/stackabletech/spark-k8s-operator/pull/235
+
 ## [23.4.0] - 2023-04-17
 
 ### Added

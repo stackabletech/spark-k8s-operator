@@ -1,0 +1,10 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # give juicefs enough time to start
+  - command: sleep 10
+  - command: kubectl cp -n $NAMESPACE ny_tlc_report.py s3-client:/tmp
+  - command: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv s3-client:/tmp
+  - command: kubectl exec -n $NAMESPACE s3-client -- sh -c 'aws s3 cp --endpoint-url $$ENDPOINT_URL /tmp/ny_tlc_report.py s3://my-bucket'
+  - command: kubectl exec -n $NAMESPACE s3-client -- sh -c 'aws s3 cp --endpoint-url $$ENDPOINT_URL /tmp/yellow_tripdata_2021-07.csv s3://my-bucket'

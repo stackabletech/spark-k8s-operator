@@ -12,15 +12,15 @@ spec:
   sparkImage: "docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
-  mainApplicationFile: s3a://my-bucket/ny_tlc_report.py
+  mainApplicationFile: s3://my-bucket/ny_tlc_report.py
   args:
-    - "--input 's3a://my-bucket/yellow_tripdata_2021-07.csv'"
+    - "--input 's3://my-bucket/yellow_tripdata_2021-07.csv'"
   deps:
     requirements:
       - tabulate==0.8.9
   s3connection:
     inline:
-      host: test-minio
+      host: juicefs-s3-gateway
       port: 9000
       accessStyle: Path
   job:

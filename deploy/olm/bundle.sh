@@ -5,7 +5,7 @@
 set -euo pipefail
 set -x
 
-OPERATOR_NAME="spark-operator"
+OPERATOR_NAME="spark-k8s-operator"
 
 bundle-clean() {
 	rm -rf "deploy/olm/${VERSION}/bundle"

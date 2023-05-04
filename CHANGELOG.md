@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Generate OLM bundle for Release 23.4.0 ([#238]).
+
 ### Changed
 
 - `operator-rs` `0.38.0` -> `0.41.0` ([#235]).
@@ -12,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 [#235]: https://github.com/stackabletech/spark-k8s-operator/pull/235
 [#236]: https://github.com/stackabletech/spark-k8s-operator/pull/236
+[#238]: https://github.com/stackabletech/spark-k8s-operator/pull/238
 
 ## [23.4.0] - 2023-04-17
 

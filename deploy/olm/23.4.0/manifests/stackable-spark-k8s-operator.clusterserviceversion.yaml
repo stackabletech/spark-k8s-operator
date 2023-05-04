@@ -15,7 +15,7 @@ spec:
 
   displayName: Stackable Operator for Apache Spark
   description: |-
-    This is a Kubernetes operator to manage [Apache spark](https://spark.apache.org/) ensembles. The Stackable Apache Spark Operator
+    This is a Kubernetes operator to manage [Apache Spark](https://spark.apache.org/) ensembles. The Stackable Apache Spark Operator
     is part of the Stackable Data Platform, a curated selection of the best open source data apps like Kafka, Druid, Trino or Spark, all
     working together seamlessly. Based on Kubernetes, it runs everywhere – on prem or in the cloud.
 

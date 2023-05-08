@@ -346,8 +346,8 @@ fn build_stateful_set(
             ))
         })
         .security_context(PodSecurityContext {
-            run_as_user: Some(1000),
-            run_as_group: Some(1000),
+            run_as_user: Some(SPARK_UID),
+            run_as_group: Some(0),
             fs_group: Some(1000),
             ..PodSecurityContext::default()
         });

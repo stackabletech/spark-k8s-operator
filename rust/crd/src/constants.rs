@@ -51,3 +51,4 @@ pub const HISTORY_CONFIG_FILE_NAME: &str = "spark-defaults.conf";
 pub const HISTORY_CONFIG_FILE_NAME_FULL: &str = "/stackable/spark/conf/spark-defaults.conf";
 
 pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
+pub const SPARK_UID: i64 = 1000;

@@ -13,7 +13,7 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
         s3::S3ConnectionSpec,
-        tls::{CaCert, TlsVerification},
+        tls::{TlsVerification},
     },
     k8s_openapi::{
         api::{
@@ -152,17 +152,21 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         if let Some(tls) = &conn.tls {
             match &tls.verification {
                 TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                TlsVerification::Server(server_verification) => {
-                    match &server_verification.ca_cert {
-                        CaCert::WebPki {} => {}
-                        CaCert::SecretClass(_) => {
-                            return S3TlsCaVerificationNotSupportedSnafu.fail()
-                        }
-                    }
-                }
+                TlsVerification::Server(_) => {}
             }
         }
-    }
+    } 
+
+    // TODO: Look up tomorrow at Trino and Druid how they handle this. (Focus on how the SecretClass(String) is used) 
+    //      - ca.crt is just a string as well as the tls.key, therefore we can use the SecretClass.
+
+    // TODO:  Questions:
+    //          - If you only got the SecretClass(ca.crt), how to retrieve the tls.key from it?
+    //          - Where to implement the SecretClass(ca.cert) functionality? 
+    //          - How does the string of Secret class look like? IMHO the string is the certificate from the user.
+    //              => It's the ca.cert or the tls.key
+
+
 
     let s3logdir = S3LogDir::resolve(
         spark_application.spec.log_file_directory.as_ref(),
@@ -243,7 +247,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         resources: executor_config.resources.clone(),
         logging: executor_config.logging.clone(),
         volume_mounts: spark_application.executor_volume_mounts(
-            &executor_config,
+           &executor_config,
             &opt_s3conn,
             &s3logdir,
         ),

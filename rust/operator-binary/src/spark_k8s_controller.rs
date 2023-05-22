@@ -365,7 +365,9 @@ fn init_containers(
             .args(vec![args.join(" && ")])
             .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
             .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG);
-        rcb.image_pull_policy(spark_application.spark_image_pull_policy().to_string());
+        if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+            rcb.image_pull_policy(image_pull_policy.to_string());
+        }
         rcb.build()
     });
 
@@ -400,7 +402,10 @@ fn pod_template(
             .join("; "),
         );
     }
-    cb.image_pull_policy(spark_application.spark_image_pull_policy().to_string());
+
+    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+        cb.image_pull_policy(image_pull_policy.to_string());
+    }
 
     let mut pb = PodBuilder::new();
     pb.metadata(
@@ -425,12 +430,13 @@ fn pod_template(
         pb.add_init_container(init_container.clone());
     }
 
-    pb.image_pull_secrets(
-        spark_application
-            .spark_image_pull_secrets()
-            .iter()
-            .flat_map(|secret| secret.name.clone()),
-    );
+    if let Some(image_pull_secrets) = spark_application.spark_image_pull_secrets() {
+        pb.image_pull_secrets(
+            image_pull_secrets
+                .iter()
+                .flat_map(|secret| secret.name.clone()),
+        );
+    }
 
     if config.logging.enable_vector_agent {
         pb.add_container(vector_container(
@@ -614,7 +620,9 @@ fn spark_job(
         // TODO: move this to the image
         .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");
 
-    cb.image_pull_policy(spark_application.spark_image_pull_policy().to_string());
+    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+        cb.image_pull_policy(image_pull_policy.to_string());
+    }
 
     let mut volumes = vec![
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
@@ -671,7 +679,7 @@ fn spark_job(
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
-            image_pull_secrets: Some(spark_application.spark_image_pull_secrets()),
+            image_pull_secrets: spark_application.spark_image_pull_secrets(),
             security_context: Some(security_context()),
             ..PodSpec::default()
         }),

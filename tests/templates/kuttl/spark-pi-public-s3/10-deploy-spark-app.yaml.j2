@@ -12,7 +12,7 @@ spec:
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: s3a://my-bucket/spark-examples_2.12-{{ test_scenario['values']['examples'] }}.jar
+  mainApplicationFile: s3a://my-bucket/spark-examples.jar
   s3connection:
     inline:
       host: test-minio

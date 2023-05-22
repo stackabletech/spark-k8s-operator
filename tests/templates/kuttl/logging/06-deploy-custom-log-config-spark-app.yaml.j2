@@ -46,6 +46,8 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkALS
   mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples.jar
+  sparkConf:
+    spark.kubernetes.container.image.pullPolicy: Always
   job:
     logging:
       enableVectorAgent: true

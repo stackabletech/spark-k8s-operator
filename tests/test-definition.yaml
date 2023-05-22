@@ -9,66 +9,47 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.3.0-stackable0.0.0-dev
+      - 3.3.0-stackable0.0.0-dev # We need to rebuild the image to have the symlink for spark-examples, so everything is green
       - 3.4.0-stackable0.0.0-dev
   - name: ny-tlc-report
     values:
       - 0.1.0
-  - name: examples
-    values:
-      - 3.3.0
 tests:
   - name: spark-history-server
     dimensions:
       - spark
-      - stackable
       - openshift
-      - examples
   - name: spark-pi-private-s3
     dimensions:
       - spark
-      - stackable
       - openshift
-      - examples
   - name: spark-pi-public-s3
     dimensions:
       - spark
-      - stackable
       - openshift
-      - examples
   - name: spark-ny-public-s3
     dimensions:
       - spark
-      - stackable
       - openshift
-      - examples
   - name: spark-examples
     dimensions:
       - spark
-      - stackable
       - openshift
-      - examples
   - name: pyspark-ny-public-s3
     dimensions:
       - spark
-      - stackable
       - openshift
   - name: pyspark-ny-public-s3-image
     dimensions:
       - spark
-      - stackable
       - ny-tlc-report
       - openshift
   - name: resources
     dimensions:
       - spark
-      - stackable
       - openshift
-      - examples
   - name: logging
     dimensions:
       - spark
-      - stackable
       - ny-tlc-report
       - openshift
-      - examples

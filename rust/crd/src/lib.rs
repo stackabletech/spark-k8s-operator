@@ -618,7 +618,7 @@ impl SparkApplication {
         }
         // ...before being added to the command collection
         for (key, value) in submit_conf {
-            submit_cmd.push(format!("--conf {key}={value}"));
+            submit_cmd.push(format!("--conf \"{key}={value}\""));
         }
 
         submit_cmd.extend(

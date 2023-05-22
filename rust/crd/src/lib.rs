@@ -171,10 +171,10 @@ pub struct SparkApplicationSpec {
     pub image: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_image: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_image_pull_policy: Option<ImagePullPolicy>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_image_pull_secrets: Option<Vec<LocalObjectReference>>,
+    #[serde(default)]
+    pub spark_image_pull_policy: ImagePullPolicy,
+    #[serde(default)]
+    pub spark_image_pull_secrets: Vec<LocalObjectReference>,
     /// Name of the Vector aggregator discovery ConfigMap.
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -205,9 +205,12 @@ pub struct SparkApplicationSpec {
     pub log_file_directory: Option<LogFileDirectorySpec>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Display, EnumString)]
+#[derive(
+    Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Display, EnumString,
+)]
 pub enum ImagePullPolicy {
     Always,
+    #[default]
     IfNotPresent,
     Never,
 }
@@ -250,11 +253,11 @@ impl SparkApplication {
         self.spec.image.as_deref()
     }
 
-    pub fn spark_image_pull_policy(&self) -> Option<ImagePullPolicy> {
+    pub fn spark_image_pull_policy(&self) -> ImagePullPolicy {
         self.spec.spark_image_pull_policy.clone()
     }
 
-    pub fn spark_image_pull_secrets(&self) -> Option<Vec<LocalObjectReference>> {
+    pub fn spark_image_pull_secrets(&self) -> Vec<LocalObjectReference> {
         self.spec.spark_image_pull_secrets.clone()
     }
 
@@ -466,6 +469,7 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.executor.podTemplateContainerName={container_name}", container_name = SparkContainer::Spark),
             format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
             format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
+            format!("--conf spark.kubernetes.container.image.pullPolicy={}", self.spark_image_pull_policy()),
             format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
             format!("--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
@@ -1129,13 +1133,13 @@ spec:
         .unwrap();
 
         assert_eq!(
-            Some(vec![LocalObjectReference {
+            vec![LocalObjectReference {
                 name: Some("myregistrykey".to_string())
-            }]),
+            }],
             spark_application.spark_image_pull_secrets()
         );
         assert_eq!(
-            Some(ImagePullPolicy::Always),
+            ImagePullPolicy::Always,
             spark_application.spark_image_pull_policy()
         );
     }

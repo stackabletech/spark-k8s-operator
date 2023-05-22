@@ -18,7 +18,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Fix quoting issues when spark config values contain spaces ([#243])
+- Fix quoting issues when spark config values contain spaces ([#243]).
+- Fix Spark driver not getting imagePullPolicy set ([#243]).
 
 [#235]: https://github.com/stackabletech/spark-k8s-operator/pull/235
 [#236]: https://github.com/stackabletech/spark-k8s-operator/pull/236

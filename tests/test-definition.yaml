@@ -9,7 +9,7 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.3.0-stackable0.0.0-dev # We need to rebuild the image to have the symlink for spark-examples, so everything is green
+      - 3.3.0-stackable0.0.0-dev
       - 3.4.0-stackable0.0.0-dev
   - name: ny-tlc-report
     values:

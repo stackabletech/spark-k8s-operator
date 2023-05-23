@@ -1,0 +1,71 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: write-iceberg-table
+spec:
+  version: "1.0"
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.4.0-stackable0.0.0-dev
+  sparkImagePullPolicy: Always
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/jobs/write-iceberg-table.py
+  deps:
+    packages:
+    # - org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:1.2.1 # there is no Iceberg for Spark 3.4 yet
+    # - org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0
+      - org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:0.14.1
+  sparkConf:
+    spark.hadoop.fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider
+    spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.catalog.spark_catalog: org.apache.iceberg.spark.SparkSessionCatalog
+    spark.sql.catalog.spark_catalog.type: hive
+    spark.sql.catalog.local: org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.local.type: hadoop
+    spark.sql.catalog.local.warehouse: /tmp/warehouse
+    spark.jars.ivy: /tmp
+    # spark.driver.extraJavaOptions: "-Divy.cache.dir=/tmp -Divy.home=/tmp"
+    # spark.executor.extraJavaOptions: "-Divy.cache.dir=/tmp -Divy.home=/tmp"
+  volumes:
+    - name: script
+      configMap:
+        name: write-iceberg-table-script
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "512m"
+    volumeMounts:
+      - name: script
+        mountPath: /stackable/spark/jobs
+  executor:
+    cores: 1
+    instances: 1
+    memory: "512m"
+    volumeMounts:
+      - name: script
+        mountPath: /stackable/spark/jobs
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: write-iceberg-table-script
+data:
+  write-iceberg-table.py: |
+    from pyspark.sql import SparkSession
+    spark = SparkSession.builder.appName("write-iceberg-table").getOrCreate()
+
+    #df = spark.read.parquet("s3a://public-backup-nyc-tlc/trip-data/yellow_tripdata_2020-04.parquet")
+    #df.show(10)
+
+    print("Creating table")
+    spark.sql("CREATE TABLE local.db.table (id bigint, data string) USING iceberg")
+    spark.sql("INSERT INTO local.db.table VALUES (1, 'a'), (2, 'b'), (3, 'c')")
+    spark.sql("SELECT * FROM local.db.table")
+    spark.sql("SELECT * FROM local.db.table.snapshots")
+
+    # df = spark \
+    #   .readStream \
+    #   .format("kafka") \
+    #   .option("kafka.bootstrap.servers", "does-not-exist:8082") \
+    #   .option("subscribe", "does-not-exist") \
+    #   .load()
+    # df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")

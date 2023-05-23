@@ -429,6 +429,13 @@ fn pod_template(
             }
         }
     }
+    // Create truststore that will be used when talking to external tools like S3
+    // It will be populated from the system truststore so that connections against public services like AWS S3 are still possible
+    cb.command(pod_driver_controller::create_truststore_from_system_truststore(
+        STACKABLE_CLIENT_TLS_DIR,
+    ));
+
+
     // Andrew wurde einen test starten, irgendwas hard codieren und sehen ob das gemounted wird. was wir in cb.add_volume_mount
     // Die mounts und zertifikate konnen wir 1:1 von Trino/Druid übernehmen
     // irgendwo in druid/trino sagen wir okay wir haben das, bei Spark haben wir das nicht in der Hand, wir konnen nur argumente liefern. Wir mussen schauen dass spark das automatisch nutzt, das ist zumindest die Hoffnung

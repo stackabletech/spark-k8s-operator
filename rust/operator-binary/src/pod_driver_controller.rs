@@ -108,16 +108,17 @@ pub fn create_key_and_trust_store(
     cert_directory: &str,
     stackable_cert_directory: &str,
     alias_name: &str,
+    secret_class: &str
 ) -> Vec<String> {
     vec![
         format!("echo [{stackable_cert_directory}] Cleaning up truststore - just in case"),
         format!("rm -f {stackable_cert_directory}/truststore.p12"),
         format!("echo [{stackable_cert_directory}] Creating truststore"),
-        format!("keytool -importcert -file {cert_directory}/ca.crt -keystore {stackable_cert_directory}/truststore.p12 -storetype pkcs12 -noprompt -alias {alias_name} -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
+        format!("keytool -importcert -file {cert_directory}/{secret_class}-tls-certificate/ca.cert -keystore {stackable_cert_directory}/truststore.p12 -storetype pkcs12 -noprompt -alias {alias_name} -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
         format!("echo [{stackable_cert_directory}] Creating certificate chain"),
-        format!("cat {cert_directory}/ca.crt {cert_directory}/tls.crt > {stackable_cert_directory}/chain.crt"),
+        format!("cat {cert_directory}/{secret_class}-tls-certificate/ca.crt {cert_directory}/{secret_class}-tls-certificate/tls.crt > {stackable_cert_directory}/{secret_class}/chain.crt"),
         format!("echo [{stackable_cert_directory}] Creating keystore"),
-        format!("openssl pkcs12 -export -in {stackable_cert_directory}/chain.crt -inkey {cert_directory}/tls.key -out {stackable_cert_directory}/keystore.p12 --passout pass:{STACKABLE_TLS_STORE_PASSWORD}")
+        format!("openssl pkcs12 -export -in {stackable_cert_directory}/{secret_class}/chain.crt -inkey {cert_directory}/{secret_class}/tls.key -out {stackable_cert_directory}/keystore.p12 --passout pass:{STACKABLE_TLS_STORE_PASSWORD}")
     ]
 }
 

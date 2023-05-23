@@ -1,6 +1,7 @@
 use stackable_operator::{k8s_openapi::api::core::v1::Pod, kube::runtime::controller::Action};
 use stackable_spark_k8s_crd::{
-    constants::POD_DRIVER_CONTROLLER_NAME, SparkApplication, SparkApplicationStatus,
+    constants::POD_DRIVER_CONTROLLER_NAME, SparkApplication, SparkApplicationStatus, 
+    constants::SYSTEM_TRUST_STORE, constants::SYSTEM_TRUST_STORE_PASSWORD, constants::STACKABLE_TLS_STORE_PASSWORD, 
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -99,4 +100,41 @@ pub async fn reconcile(pod: Arc<Pod>, ctx: Arc<Ctx>) -> Result<Action> {
 
 pub fn error_policy(_obj: Arc<Pod>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(Duration::from_secs(5))
+}
+
+/// Generates the shell script to create key and truststores from the certificates provided
+/// by the secret operator.
+pub fn create_key_and_trust_store(
+    cert_directory: &str,
+    stackable_cert_directory: &str,
+    alias_name: &str,
+) -> Vec<String> {
+    vec![
+        format!("echo [{stackable_cert_directory}] Cleaning up truststore - just in case"),
+        format!("rm -f {stackable_cert_directory}/truststore.p12"),
+        format!("echo [{stackable_cert_directory}] Creating truststore"),
+        format!("keytool -importcert -file {cert_directory}/ca.crt -keystore {stackable_cert_directory}/truststore.p12 -storetype pkcs12 -noprompt -alias {alias_name} -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
+        format!("echo [{stackable_cert_directory}] Creating certificate chain"),
+        format!("cat {cert_directory}/ca.crt {cert_directory}/tls.crt > {stackable_cert_directory}/chain.crt"),
+        format!("echo [{stackable_cert_directory}] Creating keystore"),
+        format!("openssl pkcs12 -export -in {stackable_cert_directory}/chain.crt -inkey {cert_directory}/tls.key -out {stackable_cert_directory}/keystore.p12 --passout pass:{STACKABLE_TLS_STORE_PASSWORD}")
+    ]
+}
+
+pub fn create_truststore_from_system_truststore(truststore_directory: &str) -> Vec<String> {
+    vec![
+        format!("echo [{truststore_directory}] Creating truststore {truststore_directory}/truststore.p12 from system truststore {SYSTEM_TRUST_STORE}"),
+        format!("keytool -importkeystore -srckeystore {SYSTEM_TRUST_STORE} -srcstoretype jks -srcstorepass {SYSTEM_TRUST_STORE_PASSWORD} -destkeystore {truststore_directory}/truststore.p12 -deststoretype pkcs12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
+    ]
+}
+
+pub fn add_cert_to_stackable_truststore(
+    cert_file: &str,
+    truststore_directory: &str,
+    alias_name: &str,
+) -> Vec<String> {
+    vec![
+        format!("echo [{truststore_directory}] Adding cert from {cert_file} to truststore {truststore_directory}/truststore.p12"),
+        format!("keytool -importcert -file {cert_file} -keystore {truststore_directory}/truststore.p12 -storetype pkcs12 -noprompt -alias {alias_name} -storepass {STACKABLE_TLS_STORE_PASSWORD}"),
+    ]
 }

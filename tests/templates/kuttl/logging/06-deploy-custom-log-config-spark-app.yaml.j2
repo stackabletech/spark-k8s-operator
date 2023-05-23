@@ -40,14 +40,11 @@ metadata:
 spec:
   version: "1.0"
   sparkImage: docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}
-  sparkImagePullPolicy: Always
   image: docker.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}
   vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
   mode: cluster
   mainClass: org.apache.spark.examples.SparkALS
   mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples.jar
-  sparkConf:
-    spark.kubernetes.container.image.pullPolicy: Always
   job:
     logging:
       enableVectorAgent: true

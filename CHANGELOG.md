@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Generate OLM bundle for Release 23.4.0 ([#238]).
-- Add support for Spark 3.4.0 ([#243])
+- Add support for Spark 3.4.0 ([#243]).
 
 ### Changed
 

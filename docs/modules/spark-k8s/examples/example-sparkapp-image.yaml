@@ -7,7 +7,7 @@ metadata:
 spec:
   version: "1.0"
   image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0 # <1>
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.3.0
+  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.0.0-dev
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py # <2>
   args:

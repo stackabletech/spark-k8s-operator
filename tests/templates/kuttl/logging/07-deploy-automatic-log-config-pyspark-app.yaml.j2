@@ -5,7 +5,7 @@ metadata:
   name: pyspark-automatic-log-config
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}
+  sparkImage: docker.stackable.tech/sandbox/sbernauer/pyspark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}
   sparkImagePullPolicy: Always
   vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
   mode: cluster

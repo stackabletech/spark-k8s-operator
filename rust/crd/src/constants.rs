@@ -32,6 +32,17 @@ pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const STACKABLE_TLS_STORE_PASSWORD: &str = "changeit";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 
+pub const STACKABLE_SERVER_TLS_DIR: &str = "/stackable/server_tls";
+pub const STACKABLE_CLIENT_TLS_DIR: &str = "/stackable/client_tls";
+pub const STACKABLE_INTERNAL_TLS_DIR: &str = "/stackable/internal_tls";
+pub const STACKABLE_MOUNT_SERVER_TLS_DIR: &str = "/stackable/mount_server_tls";
+pub const STACKABLE_MOUNT_CLIENT_TLS_DIR: &str = "/stackable/mount_client_tls";
+pub const STACKABLE_MOUNT_INTERNAL_TLS_DIR: &str = "/stackable/mount_internal_tls";
+
+pub const STACKABLE_CLIENT_CA_CERT: &str = "stackable-client-ca-cert";
+pub const STACKABLE_SERVER_CA_CERT: &str = "stackable-server-ca-cert";
+pub const STACKABLE_INTERNAL_CA_CERT: &str = "stackable-internal-ca-cert";
+
 pub const MIN_MEMORY_OVERHEAD: u32 = 384;
 pub const JVM_OVERHEAD_FACTOR: f32 = 0.1;
 pub const NON_JVM_OVERHEAD_FACTOR: f32 = 0.4;

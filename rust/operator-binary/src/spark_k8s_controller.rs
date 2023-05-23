@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration, vec};
 
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, SparkApplication, SparkApplicationRole, SparkContainer,
@@ -12,8 +12,8 @@ use stackable_operator::{
         affinity::StackableAffinity,
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
-        s3::S3ConnectionSpec,
-        tls::{TlsVerification},
+        s3::{S3ConnectionSpec, S3ConnectionDef},
+        tls::{TlsVerification, CaCert},
     },
     k8s_openapi::{
         api::{
@@ -42,7 +42,7 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::product_logging::{self, resolve_vector_aggregator_address};
+use crate::{product_logging::{self, resolve_vector_aggregator_address}, pod_driver_controller};
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -163,10 +163,6 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     // TODO:  Questions:
     //          - If you only got the SecretClass(ca.crt), how to retrieve the tls.key from it?
     //          - Where to implement the SecretClass(ca.cert) functionality? 
-    //          - How does the string of Secret class look like? IMHO the string is the certificate from the user.
-    //              => It's the ca.cert or the tls.key
-
-
 
     let s3logdir = S3LogDir::resolve(
         spark_application.spec.log_file_directory.as_ref(),
@@ -393,6 +389,12 @@ fn pod_template(
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
     cb.add_volume_mounts(config.volume_mounts.clone())
         .add_env_vars(env.to_vec())
+        // Tested this and it get's executed whenever a spark container starts, so maybe that's sufficient here
+        // .command(vec!["Test-it".to_string()]) //This command arrives in the pod in the end. Awesome
+        // .command(get-me-my-cert-stuff-from-command as vec[String]) 
+        // ob das in dem container oder im INIT brauchen wissen wir noch nicht. Kann sein dass es INIT ist
+        // wenn das implementiert ist werden wir das im Template sehen.
+        // Das command[vec] kommt an dieser Stelle
         .resources(config.resources.clone().into());
 
     if config.logging.enable_vector_agent {
@@ -406,6 +408,31 @@ fn pod_template(
             .join("; "),
         );
     }
+    // if TLS is enabled and custom, create key and trust store
+    if let Some(conn) = spark_application.spec.s3connection.as_ref() {
+        if let S3ConnectionDef::Inline(s3_spec) = conn {
+            if let Some(tls) = s3_spec.tls.as_ref() {
+                if let TlsVerification::Server(server) = &tls.verification {
+                    if let CaCert::SecretClass(_) = &server.ca_cert {
+                       cb.command(pod_driver_controller::create_key_and_trust_store(
+                        STACKABLE_MOUNT_SERVER_TLS_DIR,
+                        STACKABLE_SERVER_TLS_DIR,
+                        STACKABLE_SERVER_CA_CERT));
+
+                        cb.command(pod_driver_controller::add_cert_to_stackable_truststore(
+                            format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/ca.crt").as_str(),
+                            STACKABLE_INTERNAL_TLS_DIR,
+                            STACKABLE_CLIENT_CA_CERT,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    // Andrew wurde einen test starten, irgendwas hard codieren und sehen ob das gemounted wird. was wir in cb.add_volume_mount
+    // Die mounts und zertifikate konnen wir 1:1 von Trino/Druid übernehmen
+    // irgendwo in druid/trino sagen wir okay wir haben das, bei Spark haben wir das nicht in der Hand, wir konnen nur argumente liefern. Wir mussen schauen dass spark das automatisch nutzt, das ist zumindest die Hoffnung
+    // Spark schaut automatisch in den Trusted Store, wenn das nicht geht kann es sein dass es überhaupt nicht geht.
 
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
         cb.image_pull_policy(image_pull_policy.to_string());
@@ -620,6 +647,8 @@ fn spark_job(
                 "-cp /stackable/spark/extra-jars/*:/stackable/spark/jars/* \
                 -Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
             ),
+            // This is the same stuff like we had above. Looks like this could be the trust store thingy right? 
+        
         )
         // TODO: move this to the image
         .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");

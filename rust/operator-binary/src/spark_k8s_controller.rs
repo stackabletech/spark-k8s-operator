@@ -367,7 +367,7 @@ fn init_containers(
                     if let TlsVerification::Server(server) = &tls.verification {
                         // the string is here is the name of the secretclass
                         if let CaCert::SecretClass(secretclass) = &server.ca_cert {
-                        args.extend(pod_driver_controller::create_key_and_trust_store(
+                            args.extend(pod_driver_controller::create_key_and_trust_store(
                             STACKABLE_MOUNT_SERVER_TLS_DIR,
                             STACKABLE_SERVER_TLS_DIR,
                             format!("stackable-{secretclass}").as_str(),

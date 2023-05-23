@@ -389,12 +389,6 @@ fn pod_template(
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
     cb.add_volume_mounts(config.volume_mounts.clone())
         .add_env_vars(env.to_vec())
-        // Tested this and it get's executed whenever a spark container starts, so maybe that's sufficient here
-        // .command(vec!["Test-it".to_string()]) //This command arrives in the pod in the end. Awesome
-        // .command(get-me-my-cert-stuff-from-command as vec[String]) 
-        // ob das in dem container oder im INIT brauchen wissen wir noch nicht. Kann sein dass es INIT ist
-        // wenn das implementiert ist werden wir das im Template sehen.
-        // Das command[vec] kommt an dieser Stelle
         .resources(config.resources.clone().into());
 
     if config.logging.enable_vector_agent {
@@ -434,13 +428,7 @@ fn pod_template(
     cb.command(pod_driver_controller::create_truststore_from_system_truststore(
         STACKABLE_CLIENT_TLS_DIR,
     ));
-
-
-    // Andrew wurde einen test starten, irgendwas hard codieren und sehen ob das gemounted wird. was wir in cb.add_volume_mount
-    // Die mounts und zertifikate konnen wir 1:1 von Trino/Druid übernehmen
-    // irgendwo in druid/trino sagen wir okay wir haben das, bei Spark haben wir das nicht in der Hand, wir konnen nur argumente liefern. Wir mussen schauen dass spark das automatisch nutzt, das ist zumindest die Hoffnung
-    // Spark schaut automatisch in den Trusted Store, wenn das nicht geht kann es sein dass es überhaupt nicht geht.
-
+ 
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
         cb.image_pull_policy(image_pull_policy.to_string());
     }

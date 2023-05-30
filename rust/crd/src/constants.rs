@@ -1,5 +1,8 @@
 pub const APP_NAME: &str = "spark-k8s";
 
+pub const VOLUME_MOUNT_NAME_IVY2: &str = "ivy2";
+pub const VOLUME_MOUNT_PATH_IVY2: &str = "/ivy2";
+
 pub const VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES: &str = "driver-pod-template";
 pub const VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES: &str = "/stackable/spark/driver-pod-templates";
 

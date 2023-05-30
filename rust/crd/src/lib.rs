@@ -274,6 +274,14 @@ impl SparkApplication {
             .map(|req| req.join(" "))
     }
 
+    pub fn packages(&self) -> Vec<String> {
+        self.spec
+            .deps
+            .as_ref()
+            .and_then(|deps| deps.packages.clone())
+            .unwrap_or_default()
+    }
+
     pub fn volumes(
         &self,
         s3conn: &Option<S3ConnectionSpec>,
@@ -331,6 +339,14 @@ impl SparkApplication {
                 )
                 .build(),
         );
+
+        if !self.packages().is_empty() {
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_IVY2)
+                    .empty_dir(EmptyDirVolumeSource::default())
+                    .build(),
+            );
+        }
 
         result
     }
@@ -427,6 +443,13 @@ impl SparkApplication {
             ..VolumeMount::default()
         });
 
+        if !self.packages().is_empty() {
+            mounts.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_IVY2.into(),
+                mount_path: VOLUME_MOUNT_PATH_IVY2.into(),
+                ..VolumeMount::default()
+            });
+        }
         mounts
     }
 
@@ -610,6 +633,10 @@ impl SparkApplication {
 
         if let Some(log_dir) = s3_log_dir {
             submit_conf.extend(log_dir.application_spark_config());
+        }
+
+        if !self.packages().is_empty() {
+            submit_cmd.push(format!("--conf spark.jars.ivy={VOLUME_MOUNT_PATH_IVY2}"))
         }
 
         // conf arguments: these should follow - and thus override - values set from resource limits above

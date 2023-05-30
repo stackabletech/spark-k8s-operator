@@ -14,6 +14,12 @@ dimensions:
   - name: ny-tlc-report
     values:
       - 0.1.0
+  - name: spark-latest
+    values:
+      - 3.4.0-stackable0.0.0-dev
+  - name: postgresql
+    values:
+      - 42.6.0
 tests:
   - name: spark-history-server
     dimensions:
@@ -52,4 +58,9 @@ tests:
     dimensions:
       - spark
       - ny-tlc-report
+      - openshift
+  - name: postgresql
+    dimensions:
+      - spark-latest
+      - postgresql
       - openshift

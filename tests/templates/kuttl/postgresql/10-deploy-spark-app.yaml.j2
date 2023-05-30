@@ -1,0 +1,56 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-examples
+spec:
+  version: "1.0"
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  sparkImage: "docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark-latest'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark-latest'].split('-stackable')[1] }}"
+  sparkImagePullPolicy: IfNotPresent
+  mode: cluster
+  mainApplicationFile: "local:///stackable/spark/jobs/write-to-postgresql.py"
+  job:
+    logging:
+      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+  driver:
+    logging:
+      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    volumeMounts:
+      - name: script
+        mountPath: /stackable/spark/jobs
+  executor:
+    instances: 1
+    logging:
+      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    volumeMounts:
+      - name: script
+        mountPath: /stackable/spark/jobs
+  deps:
+    packages:
+      - org.postgresql:postgresql:42.6.0
+  volumes:
+    - name: script
+      configMap:
+        name: write-to-postgresql
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: write-to-postgresql
+data:
+  write-to-postgresql.py: |
+    from pyspark.sql import SparkSession
+    from pyspark.sql.types import *
+
+    spark = SparkSession.builder.appName("write-to-postgresql").getOrCreate()
+
+    df = spark.createDataFrame([1,2,3], IntegerType())
+    
+    # Specifying create table column data types on write
+    df.write \
+    .option("createTableColumnTypes", "value INTEGER") \
+    .jdbc("jdbc:postgresql://spark-postgresql/spark", "sparktest",
+          properties={"user": "spark", "password": "spark"})

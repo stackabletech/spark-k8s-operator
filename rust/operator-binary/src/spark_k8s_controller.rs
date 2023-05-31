@@ -156,15 +156,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         if let Some(tls) = &conn.tls {
             match &tls.verification {
                 TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                TlsVerification::Server(connection) => {
-                    match &connection.ca_cert {
-                        CaCert::WebPki {} => {}
-                        // SecretClass is carrying the secret name
-                        CaCert::SecretClass(secret) => {
-                        //   secret_name = secret;
-                        } 
-                    }
-                }
+                TlsVerification::Server(_) => {}
             } 
         }
     }
@@ -339,9 +331,9 @@ fn init_containers(
                             if let TlsVerification::Server(verification) = &tls.verification {
                                 if let CaCert::SecretClass(secret_name) = &verification.ca_cert {
                                     args.extend(pod_driver_controller::create_key_and_trust_store(
+                                        STACKABLE_MOUNT_SERVER_TLS_DIR, 
                                         STACKABLE_SERVER_TLS_DIR, 
-                                        STACKABLE_INTERNAL_TLS_DIR, 
-                                        STACKABLE_INTERNAL_CA_CERT, 
+                                        STACKABLE_SERVER_CA_CERT, 
                                         secret_name));
                             
                                     args.extend(pod_driver_controller::add_cert_to_stackable_truststore(

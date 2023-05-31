@@ -329,7 +329,8 @@ fn init_containers(
         args.push(format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"));
         // Wait until the log file is written.
         args.push("sleep 1".into());
-    
+        
+        // if TLS is enabled, build TrustStore and put secret inside. 
         match spark_application.spec.s3connection.as_ref() {
             Some(conn) => {
                 if let S3ConnectionDef::Inline(s3spec) = conn {
@@ -387,36 +388,6 @@ fn init_containers(
             "pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"
         ));
 
-    //// if TLS is enabled and custom, create key and trust store
-    //if let Some(conn) = spark_application.spec.s3connection.as_ref() {
-        //if let S3ConnectionDef::Inline(s3_spec) = conn {
-            //if let Some(tls) = s3_spec.tls.as_ref() {
-                //if let TlsVerification::Server(server) = &tls.verification {
-                    //// the string is here is the name of the secretclass
-                    //if let CaCert::SecretClass(secretclass) = &server.ca_cert {
-                        //args.extend(pod_driver_controller::create_key_and_trust_store(
-                        //STACKABLE_MOUNT_SERVER_TLS_DIR,
-                        //STACKABLE_SERVER_TLS_DIR,
-                        //format!("stackable-{secretclass}").as_str(),
-                        //secretclass));
-
-                        //args.extend(pod_driver_controller::add_cert_to_stackable_truststore(
-                            //format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/ca.crt").as_str(),
-                            //STACKABLE_INTERNAL_TLS_DIR,
-                            //STACKABLE_CLIENT_CA_CERT,
-                        //));
-
-                        //// Create truststore that will be used when talking to external tools like S3
-                        //// It will be populated from the system truststore so that connections against public services like AWS S3 are still possible
-                        //args.extend(pod_driver_controller::create_truststore_from_system_truststore(
-                            //STACKABLE_CLIENT_TLS_DIR,
-                        //));
-                    //}
-                //}
-            //}
-        //}
-    //}
-
     rcb.image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![args.join(" && ")])
@@ -462,35 +433,6 @@ fn pod_template(
         );
     }
 
-    // if TLS is enabled and custom, create key and trust store
-    //if let Some(conn) = spark_application.spec.s3connection.as_ref() {
-        //if let S3ConnectionDef::Inline(s3_spec) = conn {
-            //if let Some(tls) = s3_spec.tls.as_ref() {
-                //if let TlsVerification::Server(server) = &tls.verification {
-                    //// the string is here is the name of the secretclass
-                    //if let CaCert::SecretClass(_) = &server.ca_cert {
-                       //cb.command(pod_driver_controller::create_key_and_trust_store(
-                        //STACKABLE_MOUNT_SERVER_TLS_DIR,
-                        //STACKABLE_SERVER_TLS_DIR,
-                        //STACKABLE_SERVER_CA_CERT));
-
-                        //cb.command(pod_driver_controller::add_cert_to_stackable_truststore(
-                            //format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/ca.crt").as_str(),
-                            //STACKABLE_INTERNAL_TLS_DIR,
-                            //STACKABLE_CLIENT_CA_CERT,
-                        //));
-                    //}
-                //}
-            //}
-        //}
-    //}
-
-    // Create truststore that will be used when talking to external tools like S3
-    // It will be populated from the system truststore so that connections against public services like AWS S3 are still possible
-    //cb.command(pod_driver_controller::create_truststore_from_system_truststore(
-    //    STACKABLE_CLIENT_TLS_DIR,
-    //));
- 
     if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
         cb.image_pull_policy(image_pull_policy.to_string());
     }

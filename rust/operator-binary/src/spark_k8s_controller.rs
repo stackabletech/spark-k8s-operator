@@ -42,7 +42,9 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::{product_logging::{self, resolve_vector_aggregator_address}, pod_driver_controller};
+use crate::pod_driver_controller;
+
+use crate::{product_logging::{self, resolve_vector_aggregator_address}};
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -148,21 +150,24 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         _ => None,
     };
 
+//    let mut secret_name = &String::new();
+
     if let Some(conn) = opt_s3conn.as_ref() {
         if let Some(tls) = &conn.tls {
             match &tls.verification {
                 TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                TlsVerification::Server(_) => {}
-            }
+                TlsVerification::Server(connection) => {
+                    match &connection.ca_cert {
+                        CaCert::WebPki {} => {}
+                        // SecretClass is carrying the secret name
+                        CaCert::SecretClass(secret) => {
+                        //   secret_name = secret;
+                        } 
+                    }
+                }
+            } 
         }
-    } 
-
-    // TODO: Look up tomorrow at Trino and Druid how they handle this. (Focus on how the SecretClass(String) is used) 
-    //      - ca.crt is just a string as well as the tls.key, therefore we can use the SecretClass.
-
-    // TODO:  Questions:
-    //          - If you only got the SecretClass(ca.crt), how to retrieve the tls.key from it?
-    //          - Where to implement the SecretClass(ca.cert) functionality? 
+    }
 
     let s3logdir = S3LogDir::resolve(
         spark_application.spec.log_file_directory.as_ref(),
@@ -324,7 +329,29 @@ fn init_containers(
         args.push(format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"));
         // Wait until the log file is written.
         args.push("sleep 1".into());
-
+    
+        match spark_application.spec.s3connection.as_ref() {
+            Some(conn) => {
+                if let S3ConnectionDef::Inline(s3spec) = conn {
+                    if let TlsVerification::Server(verification) = &s3spec.tls.as_ref().unwrap().verification {
+                        if let CaCert::SecretClass(secret_name) = &verification.ca_cert {
+                            args.extend(pod_driver_controller::create_key_and_trust_store(
+                                STACKABLE_SERVER_TLS_DIR, 
+                                STACKABLE_INTERNAL_TLS_DIR, 
+                                STACKABLE_INTERNAL_CA_CERT, 
+                                secret_name));
+                    
+                            args.extend(pod_driver_controller::add_cert_to_stackable_truststore(
+                                format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/{secret_name}/ca.crt").as_str(), 
+                                STACKABLE_INTERNAL_TLS_DIR, 
+                                STACKABLE_CLIENT_CA_CERT));
+                        }
+                    }
+                }
+            }
+            None => {}
+        }  
+ 
         jcb.image(job_image)
             .command(vec!["/bin/bash".to_string(), "-c".to_string()])
             .args(vec![args.join(" && ")])
@@ -360,45 +387,47 @@ fn init_containers(
             "pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"
         ));
 
-        // if TLS is enabled and custom, create key and trust store
-        if let Some(conn) = spark_application.spec.s3connection.as_ref() {
-            if let S3ConnectionDef::Inline(s3_spec) = conn {
-                if let Some(tls) = s3_spec.tls.as_ref() {
-                    if let TlsVerification::Server(server) = &tls.verification {
-                        // the string is here is the name of the secretclass
-                        if let CaCert::SecretClass(secretclass) = &server.ca_cert {
-                            args.extend(pod_driver_controller::create_key_and_trust_store(
-                            STACKABLE_MOUNT_SERVER_TLS_DIR,
-                            STACKABLE_SERVER_TLS_DIR,
-                            format!("stackable-{secretclass}").as_str(),
-                            secretclass));
+    //// if TLS is enabled and custom, create key and trust store
+    //if let Some(conn) = spark_application.spec.s3connection.as_ref() {
+        //if let S3ConnectionDef::Inline(s3_spec) = conn {
+            //if let Some(tls) = s3_spec.tls.as_ref() {
+                //if let TlsVerification::Server(server) = &tls.verification {
+                    //// the string is here is the name of the secretclass
+                    //if let CaCert::SecretClass(secretclass) = &server.ca_cert {
+                        //args.extend(pod_driver_controller::create_key_and_trust_store(
+                        //STACKABLE_MOUNT_SERVER_TLS_DIR,
+                        //STACKABLE_SERVER_TLS_DIR,
+                        //format!("stackable-{secretclass}").as_str(),
+                        //secretclass));
 
-                            args.extend(pod_driver_controller::add_cert_to_stackable_truststore(
-                                format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/ca.crt").as_str(),
-                                STACKABLE_INTERNAL_TLS_DIR,
-                                STACKABLE_CLIENT_CA_CERT,
-                            ));
+                        //args.extend(pod_driver_controller::add_cert_to_stackable_truststore(
+                            //format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/ca.crt").as_str(),
+                            //STACKABLE_INTERNAL_TLS_DIR,
+                            //STACKABLE_CLIENT_CA_CERT,
+                        //));
 
-                            // Create truststore that will be used when talking to external tools like S3
-                            // It will be populated from the system truststore so that connections against public services like AWS S3 are still possible
-                            args.extend(pod_driver_controller::create_truststore_from_system_truststore(
-                                STACKABLE_CLIENT_TLS_DIR,
-                            ));
-                        }
-                    }
-                }
-            }
-        }
+                        //// Create truststore that will be used when talking to external tools like S3
+                        //// It will be populated from the system truststore so that connections against public services like AWS S3 are still possible
+                        //args.extend(pod_driver_controller::create_truststore_from_system_truststore(
+                            //STACKABLE_CLIENT_TLS_DIR,
+                        //));
+                    //}
+                //}
+            //}
+        //}
+    //}
 
-        rcb.image(spark_image)
-            .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-            .args(vec![args.join(" && ")])
-            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG);
-        if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-            rcb.image_pull_policy(image_pull_policy.to_string());
-        }
-        rcb.build()
+    rcb.image(spark_image)
+        .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+        .args(vec![args.join(" && ")])
+        .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+        .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG);
+    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+        rcb.image_pull_policy(image_pull_policy.to_string());
+    }
+
+    rcb.build()
+    
     });
 
     Ok(vec![job_container, requirements_container]

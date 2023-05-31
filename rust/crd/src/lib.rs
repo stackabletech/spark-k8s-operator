@@ -25,7 +25,7 @@ use stackable_operator::{
             CpuLimits, CpuLimitsFragment, MemoryLimits, MemoryLimitsFragment, NoRuntimeLimits,
             NoRuntimeLimitsFragment, Resources, ResourcesFragment,
         },
-        s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec},
+        s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec}, tls::{TlsServerVerification, TlsVerification, CaCert},
     },
     config::{
         fragment,
@@ -475,6 +475,19 @@ impl SparkApplication {
             format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
             "--conf spark.executor.userClassPathFirst=true".to_string(),
         ]);
+
+        if let Some(spec) = s3conn {
+            match &spec.tls {
+                Some(tls) => {
+                    if let TlsVerification::Server(verfication) = &tls.verification {
+                        if let CaCert::SecretClass(secret_name) = &verfication.ca_cert {
+                            submit_cmd.push(format!{"--conf spark.kubernetes.authenticate.driver.caCertFile={STACKABLE_MOUNT_SERVER_TLS_DIR}/{secret_name}/ca.cert"})
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
         // for possible S3 related properties

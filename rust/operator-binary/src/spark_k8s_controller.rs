@@ -334,19 +334,24 @@ fn init_containers(
         match spark_application.spec.s3connection.as_ref() {
             Some(conn) => {
                 if let S3ConnectionDef::Inline(s3spec) = conn {
-                    if let TlsVerification::Server(verification) = &s3spec.tls.as_ref().unwrap().verification {
-                        if let CaCert::SecretClass(secret_name) = &verification.ca_cert {
-                            args.extend(pod_driver_controller::create_key_and_trust_store(
-                                STACKABLE_SERVER_TLS_DIR, 
-                                STACKABLE_INTERNAL_TLS_DIR, 
-                                STACKABLE_INTERNAL_CA_CERT, 
-                                secret_name));
-                    
-                            args.extend(pod_driver_controller::add_cert_to_stackable_truststore(
-                                format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/{secret_name}/ca.crt").as_str(), 
-                                STACKABLE_INTERNAL_TLS_DIR, 
-                                STACKABLE_CLIENT_CA_CERT));
+                    match &s3spec.tls {
+                        Some(tls) => {
+                            if let TlsVerification::Server(verification) = &tls.verification {
+                                if let CaCert::SecretClass(secret_name) = &verification.ca_cert {
+                                    args.extend(pod_driver_controller::create_key_and_trust_store(
+                                        STACKABLE_SERVER_TLS_DIR, 
+                                        STACKABLE_INTERNAL_TLS_DIR, 
+                                        STACKABLE_INTERNAL_CA_CERT, 
+                                        secret_name));
+                            
+                                    args.extend(pod_driver_controller::add_cert_to_stackable_truststore(
+                                        format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/{secret_name}/ca.crt").as_str(), 
+                                        STACKABLE_INTERNAL_TLS_DIR, 
+                                        STACKABLE_CLIENT_CA_CERT));
+                                }
+                            }
                         }
+                        None => {}
                     }
                 }
             }

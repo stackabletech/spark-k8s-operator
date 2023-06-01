@@ -15,6 +15,9 @@ disableWebUI: true
 persistence:
   enabled: false
 
+auth:
+  existingSecret: minio-credentials
+
 resources:
   requests:
     memory: 1Gi

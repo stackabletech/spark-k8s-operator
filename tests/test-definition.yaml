@@ -16,6 +16,10 @@ dimensions:
   - name: examples
     values:
       - 3.3.0
+  - name: s3-use-tls
+    values: 
+      - "false"
+      - "true"
 tests:
   - name: spark-history-server
     dimensions:
@@ -38,6 +42,7 @@ tests:
   - name: spark-ny-public-s3
     dimensions:
       - spark
+      - s3-use-tls
       - stackable
       - openshift
       - examples

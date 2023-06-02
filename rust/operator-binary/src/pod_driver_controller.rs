@@ -122,13 +122,6 @@ pub fn create_key_and_trust_store(
     ]
 }
 
-pub fn create_truststore_from_system_truststore(truststore_directory: &str) -> Vec<String> {
-    vec![
-        format!("echo [{truststore_directory}] Creating truststore {truststore_directory}/truststore.p12 from system truststore {SYSTEM_TRUST_STORE}"),
-        format!("keytool -importkeystore -srckeystore {SYSTEM_TRUST_STORE} -srcstoretype jks -srcstorepass {SYSTEM_TRUST_STORE_PASSWORD} -destkeystore {truststore_directory}/truststore.p12 -deststoretype pkcs12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
-    ]
-}
-
 pub fn add_cert_to_stackable_truststore(
     cert_file: &str,
     truststore_directory: &str,

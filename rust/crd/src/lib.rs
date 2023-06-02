@@ -618,7 +618,7 @@ impl SparkApplication {
         }
         // ...before being added to the command collection
         for (key, value) in submit_conf {
-            submit_cmd.push(format!("--conf {key}={value}"));
+            submit_cmd.push(format!("--conf \"{key}={value}\""));
         }
 
         submit_cmd.extend(
@@ -939,7 +939,7 @@ spec:
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar
+  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples.jar
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
   driver:
@@ -960,7 +960,7 @@ spec:
             spark_application.spec.main_class
         );
         assert_eq!(
-            Some("s3a://stackable-spark-k8s-jars/jobs/spark-examples_2.12-3.2.1.jar".to_string()),
+            Some("s3a://stackable-spark-k8s-jars/jobs/spark-examples.jar".to_string()),
             spark_application.spec.main_application_file
         );
         assert_eq!(
@@ -1113,7 +1113,7 @@ spec:
     - name: myregistrykey
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples_2.12-3.2.1.jar
+  mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples.jar
   sparkConf:
     spark.kubernetes.node.selector.node: "2"
   driver:

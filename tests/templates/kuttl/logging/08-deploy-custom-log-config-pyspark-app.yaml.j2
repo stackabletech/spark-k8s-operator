@@ -40,7 +40,6 @@ metadata:
 spec:
   version: "1.0"
   sparkImage: docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}
-  sparkImagePullPolicy: IfNotPresent
   vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/als.py

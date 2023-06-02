@@ -20,7 +20,7 @@ spec:
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
   mainClass: tech.stackable.demo.spark.NYTLCReport
-  mainApplicationFile: "s3a://my-bucket/ny-tlc-report-1.1.0-{{ test_scenario['values']['examples'] }}.jar"
+  mainApplicationFile: "s3a://my-bucket/ny-tlc-report.jar"
   volumes:
     - name: cm-job-arguments
       configMap:

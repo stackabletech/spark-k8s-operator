@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Generate OLM bundle for Release 23.4.0 ([#238]).
+- Add support for Spark 3.4.0 ([#243]).
 
 ### Changed
 
@@ -15,10 +16,15 @@ All notable changes to this project will be documented in this file.
 - Use testing-tools 0.2.0 ([#236])
 - Run as root group ([#241]).
 
+### Fixed
+
+- Fix quoting issues when spark config values contain spaces ([#243]).
+
 [#235]: https://github.com/stackabletech/spark-k8s-operator/pull/235
 [#236]: https://github.com/stackabletech/spark-k8s-operator/pull/236
 [#238]: https://github.com/stackabletech/spark-k8s-operator/pull/238
 [#241]: https://github.com/stackabletech/spark-k8s-operator/pull/241
+[#243]: https://github.com/stackabletech/spark-k8s-operator/pull/243
 
 ## [23.4.0] - 2023-04-17
 

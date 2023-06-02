@@ -42,7 +42,7 @@ jobs:
       - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
         with:
           key: udeps
-      - run: cargo install cargo-udeps
+      - run: cargo install --locked cargo-udeps@0.1.39
       - run: cargo udeps --workspace
 
   # This job evaluates the github environment to determine why this action is running and selects the appropriate
@@ -139,18 +139,19 @@ jobs:
         with:
           key: clippy
       - name: Run clippy action to produce annotations
+        uses: giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0 # v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: actions-rs/clippy-check@b5b5f21f4797c02da247df37026fcd0a5024aa4d # renovate: tag=v1.0.7
         if: env.GITHUB_TOKEN != null
         with:
-          args: --all-targets -- -D warnings
-          token: ${{ secrets.GITHUB_TOKEN }}
+          clippy_flags: --all-targets -- -D warnings
+          reporter: 'github-pr-review'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run clippy manually without annotations
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         if: env.GITHUB_TOKEN == null
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --color never -q --all-targets -- -D warnings
 
   run_rustdoc:
     name: Run RustDoc
@@ -200,9 +201,9 @@ jobs:
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435 # v4
+      - uses: actions/setup-python@13ae5bb136fac2878aff31522b9efb785519f984 # v4.6.1
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       - name: Install jinja2-cli
         run: pip install jinja2-cli==0.8.2
       - name: Regenerate charts
@@ -296,21 +297,17 @@ jobs:
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
           submodules: recursive
-      - uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435 # v4
-        if: ${{ github.event_name == 'pull_request' }}
       - uses: dtolnay/rust-toolchain@1.68.2
         with:
           components: rustfmt
-      - name: Install requirements for version tool
-        if: ${{ github.event_name == 'pull_request' }}
-        run: pip install -r python/requirements.txt
-
         # This step checks if the current run was triggered by a push to a pr (or a pr being created).
         # If this is the case it changes the version of this project in all Cargo.toml files to include the suffix
         # "-pr<prnumber>" so that the published artifacts can be linked to this PR.
       - name: Update version if PR
         if: ${{ github.event_name == 'pull_request' }}
-        run: python/cargo_version.py -m pr${{ github.event.pull_request.number }}
+        run: |
+          cargo install cargo-edit --version 0.11.11
+          cargo set-version --offline --workspace 0.0.0-pr${{ github.event.pull_request.number }}
 
         # Recreate charts and publish charts and docker image. The "-e" is needed as we want to override the
         # default value in the makefile if called from this action, but not otherwise (i.e. when called locally).

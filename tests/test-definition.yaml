@@ -15,7 +15,7 @@ dimensions:
     values:
       - 0.1.0
   - name: s3-use-tls
-    values: 
+    values:
       - "false"
       - "true"
 tests:

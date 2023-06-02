@@ -12,8 +12,8 @@ use stackable_operator::{
         affinity::StackableAffinity,
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
-        s3::{S3ConnectionSpec, S3ConnectionDef},
-        tls::{TlsVerification, CaCert},
+        s3::{S3ConnectionDef, S3ConnectionSpec},
+        tls::{CaCert, TlsVerification},
     },
     k8s_openapi::{
         api::{
@@ -44,7 +44,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::pod_driver_controller;
 
-use crate::{product_logging::{self, resolve_vector_aggregator_address}};
+use crate::product_logging::{self, resolve_vector_aggregator_address};
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -150,14 +150,14 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         _ => None,
     };
 
-//    let mut secret_name = &String::new();
+    //    let mut secret_name = &String::new();
 
     if let Some(conn) = opt_s3conn.as_ref() {
         if let Some(tls) = &conn.tls {
             match &tls.verification {
                 TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
                 TlsVerification::Server(_) => {}
-            } 
+            }
         }
     }
 
@@ -240,7 +240,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         resources: executor_config.resources.clone(),
         logging: executor_config.logging.clone(),
         volume_mounts: spark_application.executor_volume_mounts(
-           &executor_config,
+            &executor_config,
             &opt_s3conn,
             &s3logdir,
         ),
@@ -321,35 +321,32 @@ fn init_containers(
         args.push(format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"));
         // Wait until the log file is written.
         args.push("sleep 1".into());
-        
-        // if TLS is enabled, build TrustStore and put secret inside. 
-        match spark_application.spec.s3connection.as_ref() {
-            Some(conn) => {
-                if let S3ConnectionDef::Inline(s3spec) = conn {
-                    match &s3spec.tls {
-                        Some(tls) => {
-                            if let TlsVerification::Server(verification) = &tls.verification {
-                                if let CaCert::SecretClass(secret_name) = &verification.ca_cert {
-                                    args.extend(pod_driver_controller::create_key_and_trust_store(
-                                        STACKABLE_MOUNT_SERVER_TLS_DIR, 
-                                        STACKABLE_SERVER_TLS_DIR, 
-                                        STACKABLE_SERVER_CA_CERT, 
-                                        secret_name));
-                            
-                                    args.extend(pod_driver_controller::add_cert_to_stackable_truststore(
-                                        format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/{secret_name}/ca.crt").as_str(), 
-                                        STACKABLE_INTERNAL_TLS_DIR, 
-                                        STACKABLE_CLIENT_CA_CERT));
-                                }
-                            }
+
+        // if TLS is enabled, build TrustStore and put secret inside.
+        if let Some(S3ConnectionDef::Inline(s3spec)) = spark_application.spec.s3connection.as_ref()
+        {
+            match &s3spec.tls {
+                Some(tls) => {
+                    if let TlsVerification::Server(verification) = &tls.verification {
+                        if let CaCert::SecretClass(secret_name) = &verification.ca_cert {
+                            args.extend(pod_driver_controller::create_key_and_trust_store(
+                                STACKABLE_MOUNT_SERVER_TLS_DIR,
+                                STACKABLE_SERVER_TLS_DIR,
+                                STACKABLE_SERVER_CA_CERT,
+                                secret_name,
+                            ));
+                            args.extend(pod_driver_controller::add_cert_to_stackable_truststore(
+                                format!("{STACKABLE_MOUNT_SERVER_TLS_DIR}/{secret_name}/ca.crt")
+                                    .as_str(),
+                                STACKABLE_INTERNAL_TLS_DIR,
+                                STACKABLE_CLIENT_CA_CERT,
+                            ));
                         }
-                        None => {}
                     }
                 }
+                None => {}
             }
-            None => {}
-        }  
- 
+        }
         jcb.image(job_image)
             .command(vec!["/bin/bash".to_string(), "-c".to_string()])
             .args(vec![args.join(" && ")])
@@ -385,17 +382,16 @@ fn init_containers(
             "pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"
         ));
 
-    rcb.image(spark_image)
-        .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-        .args(vec![args.join(" && ")])
-        .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
-        .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG);
-    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-        rcb.image_pull_policy(image_pull_policy.to_string());
-    }
+        rcb.image(spark_image)
+            .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+            .args(vec![args.join(" && ")])
+            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG);
+        if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
+            rcb.image_pull_policy(image_pull_policy.to_string());
+        }
 
-    rcb.build()
-    
+        rcb.build()
     });
 
     Ok(vec![job_container, requirements_container]
@@ -643,8 +639,7 @@ fn spark_job(
                 "-cp /stackable/spark/extra-jars/*:/stackable/spark/jars/* \
                 -Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
             ),
-            // This is the same stuff like we had above. Looks like this could be the trust store thingy right? 
-        
+            // This is the same stuff like we had above. Looks like this could be the trust store thingy right?
         )
         // TODO: move this to the image
         .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");

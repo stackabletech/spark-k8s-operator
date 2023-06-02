@@ -1,7 +1,7 @@
 use stackable_operator::{k8s_openapi::api::core::v1::Pod, kube::runtime::controller::Action};
 use stackable_spark_k8s_crd::{
-    constants::POD_DRIVER_CONTROLLER_NAME, SparkApplication, SparkApplicationStatus, 
-    constants::SYSTEM_TRUST_STORE, constants::SYSTEM_TRUST_STORE_PASSWORD, constants::STACKABLE_TLS_STORE_PASSWORD, 
+    constants::POD_DRIVER_CONTROLLER_NAME, constants::STACKABLE_TLS_STORE_PASSWORD,
+    SparkApplication, SparkApplicationStatus,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -108,7 +108,7 @@ pub fn create_key_and_trust_store(
     cert_directory: &str,
     stackable_cert_directory: &str,
     alias_name: &str,
-    secret_class: &str
+    secret_class: &str,
 ) -> Vec<String> {
     vec![
         format!("echo [{stackable_cert_directory}] Cleaning up truststore - just in case"),

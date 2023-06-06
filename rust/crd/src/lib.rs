@@ -4,6 +4,7 @@ pub mod affinity;
 pub mod constants;
 pub mod history;
 pub mod s3logdir;
+pub mod tlscerts;
 
 use std::{
     cmp::max,
@@ -18,7 +19,7 @@ use s3logdir::S3LogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder::VolumeBuilder,
+    builder::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::{
         affinity::{StackableAffinity, StackableAffinityFragment},
         resources::{
@@ -332,6 +333,19 @@ impl SparkApplication {
                 .build(),
         );
 
+        if let Some(secret_name) = tlscerts::tls_secret_name(s3conn) {
+            result.push(
+                VolumeBuilder::new(secret_name)
+                    .ephemeral(SecretOperatorVolumeSourceBuilder::new(secret_name).build())
+                    .build(),
+            );
+            result.push(
+                VolumeBuilder::new(STACKABLE_TRUST_STORE_NAME)
+                    .with_empty_dir(None::<String>, Some(Quantity("5Mi".to_string())))
+                    .build(),
+            );
+        }
+
         result
     }
 
@@ -427,6 +441,21 @@ impl SparkApplication {
             ..VolumeMount::default()
         });
 
+        if let Some(secret_name) = tlscerts::tls_secret_name(s3conn) {
+            let secret_dir = format!("{STACKABLE_MOUNT_PATH_TLS}/{secret_name}");
+
+            mounts.push(VolumeMount {
+                name: secret_name.to_string(),
+                mount_path: secret_dir,
+                ..VolumeMount::default()
+            });
+            mounts.push(VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.into(),
+                mount_path: STACKABLE_TRUST_STORE.into(),
+                ..VolumeMount::default()
+            });
+        }
+
         mounts
     }
 
@@ -474,6 +503,8 @@ impl SparkApplication {
             format!("--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
             format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
             "--conf spark.executor.userClassPathFirst=true".to_string(),
+            format!("--conf spark.driver.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword=$(STACKABLE_TLS_STORE_PASSWORD) -Djavax.net.ssl.trustStoreType=pkcs12\""),
+            format!("--conf spark.executor.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword=$(STACKABLE_TLS_STORE_PASSWORD)  -Djavax.net.ssl.trustStoreType=pkcs12\""),
         ]);
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
@@ -675,7 +706,7 @@ impl SparkApplication {
         Ok(format!("{}m", original_memory - deduction))
     }
 
-    pub fn env(&self) -> Vec<EnvVar> {
+    pub fn env(&self, s3conn: &Option<S3ConnectionSpec>) -> Vec<EnvVar> {
         let tmp = self.spec.env.as_ref();
         let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
         if self.requirements().is_some() {
@@ -684,6 +715,18 @@ impl SparkApplication {
                 value: Some(format!(
                     "$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"
                 )),
+                value_from: None,
+            });
+        }
+        if tlscerts::tls_secret_name(s3conn).is_some() {
+            e.push(EnvVar {
+                name: "STACKABLE_TLS_STORE_PASSWORD".to_string(),
+                value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),
+                value_from: None,
+            });
+            e.push(EnvVar {
+                name: "SYSTEM_TRUST_STORE_PASSWORD".to_string(),
+                value: Some(SYSTEM_TRUST_STORE_PASSWORD.to_string()),
                 value_from: None,
             });
         }
@@ -811,6 +854,7 @@ pub enum SparkContainer {
     Requirements,
     Spark,
     Vector,
+    Tls,
 }
 
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]

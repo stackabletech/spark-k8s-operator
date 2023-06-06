@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Generate OLM bundle for Release 23.4.0 ([#238]).
 - Add support for Spark 3.4.0 ([#243]).
-- Add support for resource quotas ([#xxx]).
+- Add support for resource quotas ([#249]).
 
 ### Changed
 
@@ -26,7 +26,7 @@ All notable changes to this project will be documented in this file.
 [#238]: https://github.com/stackabletech/spark-k8s-operator/pull/238
 [#241]: https://github.com/stackabletech/spark-k8s-operator/pull/241
 [#243]: https://github.com/stackabletech/spark-k8s-operator/pull/243
-[#xxx]: https://github.com/stackabletech/spark-k8s-operator/pull/xxx
+[#249]: https://github.com/stackabletech/spark-k8s-operator/pull/249
 
 ## [23.4.0] - 2023-04-17
 

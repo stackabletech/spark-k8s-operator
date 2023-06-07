@@ -4,7 +4,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   - script: >-
-      helm install test-minio
+      helm install minio
       --namespace $NAMESPACE
       --version 5.0.5
       --set mode=standalone
@@ -27,7 +27,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   - script: >-
-      helm install test-minio
+      helm install minio
       --namespace $NAMESPACE
       --version 11.9.2
       -f helm-bitnami-minio-values.yaml
@@ -57,18 +57,18 @@ spec:
         - name: MINIO_SERVER_ACCESS_KEY
           valueFrom:
             secretKeyRef:
-              name: test-minio
+              name: minio
               key: root-user
               optional: false
         - name: MINIO_SERVER_SECRET_KEY
           valueFrom:
             secretKeyRef:
-              name: test-minio
+              name: minio
               key: root-password
               optional: false
 {% endif %}
         - name: MINIO_SERVER_HOST
-          value: test-minio
+          value: minio
         - name: MINIO_SERVER_PORT_NUMBER
           value: "9000"
         - name: MINIO_SERVER_SCHEME
@@ -78,9 +78,9 @@ spec:
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Connection
 metadata:
-  name: test-minio
+  name: minio
 spec:
-  host: test-minio
+  host: minio
   port: 9000
   accessStyle: Path
   credentials:

@@ -57,13 +57,13 @@ spec:
         - name: MINIO_SERVER_ACCESS_KEY
           valueFrom:
             secretKeyRef:
-              name: minio
+              name: minio-credentials
               key: root-user
               optional: false
         - name: MINIO_SERVER_SECRET_KEY
           valueFrom:
             secretKeyRef:
-              name: minio
+              name: minio-credentials
               key: root-password
               optional: false
 {% endif %}

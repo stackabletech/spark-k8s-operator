@@ -7,7 +7,8 @@ commands:
 {% if test_scenario['values']['openshift'] == 'true' %}
   - command: kubectl exec -n $NAMESPACE minio-client -- sh -c 'mc --insecure alias set minio http://minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'
   - command: kubectl exec -n $NAMESPACE minio-client -- mc mb minio/my-bucket
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc policy set public minio/my-bucket
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc admin user add minio spark sparkspark
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc admin policy set minio readwrite user=spark
 {% else %}
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
   - command: kubectl exec -n $NAMESPACE minio-client -- sh -c 'mc --insecure alias set minio https://minio:9000 spark sparkspark'

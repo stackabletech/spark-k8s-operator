@@ -18,3 +18,9 @@ persistence:
 resources:
   requests:
     memory: 1Gi
+
+auth:
+  existingSecret: minio-credentials
+
+service:
+  type: NodePort

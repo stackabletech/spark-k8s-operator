@@ -19,7 +19,14 @@ spec:
   port: 9000
   accessStyle: Path
   credentials:
-    secretClass: history-credentials-class
+    secretClass: history-credentials
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+  tls:
+    verification:
+      server:
+        caCert:
+          secretClass: minio-tls-eventlog
+{% endif %}
 ---
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Bucket

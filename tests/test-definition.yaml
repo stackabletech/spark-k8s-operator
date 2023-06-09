@@ -28,6 +28,7 @@ tests:
   - name: spark-history-server
     dimensions:
       - spark
+      - s3-use-tls
       - openshift
   - name: spark-pi-private-s3
     dimensions:

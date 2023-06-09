@@ -1,18 +1,44 @@
+{% if test_scenario['values']['openshift'] == 'false' %}
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   - script: >-
-      helm install test-minio
+      helm install eventlog-minio
       --namespace $NAMESPACE
-      --version 11.9.2
-      -f helm-bitnami-minio-values.yaml
-      --repo https://charts.bitnami.com/bitnami minio
+      --version 5.0.5
+      --set mode=standalone
+      --set replicas=1
+      --set persistence.enabled=true
+      --set resources.requests.memory=1Gi
+      --set buckets[0].name=spark-logs/eventlogs,buckets[0].policy=none
+      --set users[0].accessKey=spark,users[0].secretKey=sparkspark,users[0].policy=readwrite
+      --set service.type=NodePort,service.nodePort=null
+      --set consoleService.type=NodePort,consoleService.nodePort=null
+      --set securityContext.enabled=true
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+      --set tls.enabled=true,tls.certSecret=minio-tls-eventlog,tls.publicCrt=tls.crt,tls.privateKey=tls.key
+{% endif %}
+      --repo https://charts.min.io/ minio
+    timeout: 240
+{% else %}
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
   - script: >-
       helm install eventlog-minio
       --namespace $NAMESPACE
       --version 11.9.2
       -f helm-bitnami-eventlog-minio-values.yaml
+      --repo https://charts.bitnami.com/bitnami minio
+    timeout: 240
+{% endif %}
+  - script: >-
+      helm install test-minio
+      --namespace $NAMESPACE
+      --version 11.9.2
+      -f helm-bitnami-minio-values.yaml
       --repo https://charts.bitnami.com/bitnami minio
 ---
 apiVersion: v1
@@ -64,6 +90,7 @@ spec:
       stdin: true
       tty: true
       env:
+{% if test_scenario['values']['openshift'] == 'true' %}
         - name: MINIO_SERVER_ACCESS_KEY
           valueFrom:
             secretKeyRef:
@@ -76,6 +103,7 @@ spec:
               name: history-credentials
               key: root-password
               optional: false
+{% endif %}
         - name: MINIO_SERVER_HOST
           value: eventlog-minio
         - name: MINIO_SERVER_PORT_NUMBER

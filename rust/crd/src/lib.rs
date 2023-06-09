@@ -333,17 +333,19 @@ impl SparkApplication {
                 .build(),
         );
 
-        if let Some(secret_name) = tlscerts::tls_secret_name(s3conn) {
-            result.push(
-                VolumeBuilder::new(secret_name)
-                    .ephemeral(SecretOperatorVolumeSourceBuilder::new(secret_name).build())
-                    .build(),
-            );
+        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, s3logdir) {
             result.push(
                 VolumeBuilder::new(STACKABLE_TRUST_STORE_NAME)
                     .with_empty_dir(None::<String>, Some(Quantity("5Mi".to_string())))
                     .build(),
             );
+            for cert_secret in cert_secrets {
+                result.push(
+                    VolumeBuilder::new(cert_secret)
+                        .ephemeral(SecretOperatorVolumeSourceBuilder::new(cert_secret).build())
+                        .build(),
+                );
+            }
         }
 
         result
@@ -441,19 +443,20 @@ impl SparkApplication {
             ..VolumeMount::default()
         });
 
-        if let Some(secret_name) = tlscerts::tls_secret_name(s3conn) {
-            let secret_dir = format!("{STACKABLE_MOUNT_PATH_TLS}/{secret_name}");
-
-            mounts.push(VolumeMount {
-                name: secret_name.to_string(),
-                mount_path: secret_dir,
-                ..VolumeMount::default()
-            });
+        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, s3logdir) {
             mounts.push(VolumeMount {
                 name: STACKABLE_TRUST_STORE_NAME.into(),
                 mount_path: STACKABLE_TRUST_STORE.into(),
                 ..VolumeMount::default()
             });
+            for cert_secret in cert_secrets {
+                let secret_dir = format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}");
+                mounts.push(VolumeMount {
+                    name: cert_secret.to_string(),
+                    mount_path: secret_dir,
+                    ..VolumeMount::default()
+                });
+            }
         }
 
         mounts
@@ -706,7 +709,11 @@ impl SparkApplication {
         Ok(format!("{}m", original_memory - deduction))
     }
 
-    pub fn env(&self, s3conn: &Option<S3ConnectionSpec>) -> Vec<EnvVar> {
+    pub fn env(
+        &self,
+        s3conn: &Option<S3ConnectionSpec>,
+        s3logdir: &Option<S3LogDir>,
+    ) -> Vec<EnvVar> {
         let tmp = self.spec.env.as_ref();
         let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
         if self.requirements().is_some() {
@@ -718,7 +725,7 @@ impl SparkApplication {
                 value_from: None,
             });
         }
-        if tlscerts::tls_secret_name(s3conn).is_some() {
+        if tlscerts::tls_secret_names(s3conn, s3logdir).is_some() {
             e.push(EnvVar {
                 name: "STACKABLE_TLS_STORE_PASSWORD".to_string(),
                 value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),
@@ -730,6 +737,18 @@ impl SparkApplication {
                 value_from: None,
             });
         }
+        if let Some(s3logdir) = s3logdir {
+            if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
+                e.push(EnvVar {
+                    name: "SPARK_DAEMON_JAVA_OPTS".to_string(),
+                    value: Some(format!(
+                        "\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword=$(STACKABLE_TLS_STORE_PASSWORD) -Djavax.net.ssl.trustStoreType=pkcs12\""
+                    )),
+                    value_from: None,
+                });
+            }
+        }
+
         e
     }
 

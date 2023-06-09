@@ -14,6 +14,7 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         resources::{NoRuntimeLimits, Resources},
         s3::S3ConnectionSpec,
+        tls::{CaCert, TlsVerification},
     },
     k8s_openapi::{
         api::{
@@ -146,6 +147,21 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         _ => None,
     };
 
+    // check early for valid verification options
+    if let Some(conn) = opt_s3conn.as_ref() {
+        if let Some(tls) = &conn.tls {
+            match &tls.verification {
+                TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
+                TlsVerification::Server(server_verification) => {
+                    match &server_verification.ca_cert {
+                        CaCert::WebPki {} => {}
+                        CaCert::SecretClass(_) => {}
+                    }
+                }
+            }
+        }
+    }
+
     let s3logdir = S3LogDir::resolve(
         spark_application.spec.log_file_directory.as_ref(),
         spark_application.metadata.namespace.clone(),
@@ -184,7 +200,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .as_deref()
         .context(ObjectHasNoSparkImageSnafu)?;
 
-    let env_vars = spark_application.env(&opt_s3conn);
+    let env_vars = spark_application.env(&opt_s3conn, &s3logdir);
 
     let driver_config = spark_application
         .driver_config()
@@ -288,6 +304,7 @@ fn init_containers(
     spark_application: &SparkApplication,
     logging: &Logging<SparkContainer>,
     s3conn: &Option<S3ConnectionSpec>,
+    s3logdir: &Option<S3LogDir>,
 ) -> Result<Vec<Container>> {
     let mut jcb = ContainerBuilder::new(&SparkContainer::Job.to_string())
         .context(IllegalContainerNameSnafu)?;
@@ -360,21 +377,18 @@ fn init_containers(
         .context(IllegalContainerNameSnafu)?;
     let mut args = Vec::new();
 
-    let tls_container = tlscerts::tls_secret_name(s3conn).map(|secret_name| {
+    let tls_container = tlscerts::tls_secret_names(s3conn, s3logdir).map(|cert_secrets| {
         args.extend(tlscerts::create_key_and_trust_store());
-        args.extend(tlscerts::add_cert_to_stackable_truststore(
-            STACKABLE_MOUNT_PATH_TLS,
-            secret_name,
-            STACKABLE_TRUST_STORE,
-            STACKABLE_TLS_STORE_PASSWORD,
-        ));
+        for cert_secret in cert_secrets {
+            args.extend(tlscerts::add_cert_to_stackable_truststore(cert_secret));
+            tcb.add_volume_mount(
+                cert_secret,
+                format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}"),
+            );
+        }
         tcb.image(spark_image);
         tcb.command(vec!["/bin/bash".to_string(), "-c".to_string()]);
         tcb.args(vec![args.join(" && ")]);
-        tcb.add_volume_mount(
-            secret_name,
-            format!("{STACKABLE_MOUNT_PATH_TLS}/{secret_name}"),
-        );
         tcb.add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE);
         tcb.build()
     });
@@ -393,6 +407,7 @@ fn pod_template(
     volumes: &[Volume],
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
+    s3logdir: &Option<S3LogDir>,
 ) -> Result<Pod> {
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
@@ -433,7 +448,8 @@ fn pod_template(
 
     pb.affinity(&config.affinity);
 
-    let init_containers = init_containers(spark_application, &config.logging, s3conn).unwrap();
+    let init_containers =
+        init_containers(spark_application, &config.logging, s3conn, s3logdir).unwrap();
 
     for init_container in init_containers {
         pb.add_init_container(init_container.clone());
@@ -498,7 +514,14 @@ fn pod_template_config_map(
             .build(),
     );
 
-    let template = pod_template(spark_application, config, volumes.as_ref(), env, s3conn)?;
+    let template = pod_template(
+        spark_application,
+        config,
+        volumes.as_ref(),
+        env,
+        s3conn,
+        s3logdir,
+    )?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 

@@ -4,8 +4,10 @@ use crate::{
         LogFileDirectorySpec::{self, S3},
         S3LogFileDirectorySpec,
     },
+    tlscerts,
 };
 use stackable_operator::{
+    builder::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::{
         s3::{InlinedS3BucketSpec, S3AccessStyle},
         secret_class::SecretClassVolume,
@@ -79,9 +81,7 @@ impl S3LogDir {
                     TlsVerification::Server(server_verification) => {
                         match &server_verification.ca_cert {
                             CaCert::WebPki {} => {}
-                            CaCert::SecretClass(_) => {
-                                return S3TlsCaVerificationNotSupportedSnafu.fail()
-                            }
+                            CaCert::SecretClass(_) => {}
                         }
                     }
                 }
@@ -120,6 +120,13 @@ impl S3LogDir {
                 );
             }
         }
+        // if tlscerts::tls_secret_name(&self.bucket.connection).is_some() {
+        //     result.insert("spark.ssl.historyServer.enabled".to_string(), "true".to_string(),);
+        //     result.insert("spark.ssl.historyServer.protocol".to_string(), "TLS".to_string(),);
+        //     result.insert("spark.ssl.historyServer.trustStore".to_string(), format!("{STACKABLE_TRUST_STORE}/truststore.p12"));
+        //     result.insert("spark.ssl.historyServer.trustStorePassword".to_string(), format!("{STACKABLE_TLS_STORE_PASSWORD}"));
+        //     result.insert("spark.ssl.historyServer.trustStoreType".to_string(), "pkcs12".to_string(),);
+        // }
         result
     }
 
@@ -175,6 +182,35 @@ impl S3LogDir {
             self.bucket.bucket_name.as_ref().unwrap().clone(), // this is guaranteed to exist at this point
             self.prefix
         )
+    }
+
+    pub fn volumes(&self) -> Vec<Volume> {
+        let mut volumes: Vec<Volume> = self.credentials_volume().into_iter().collect();
+
+        if let Some(secret_name) = tlscerts::tls_secret_name(&self.bucket.connection) {
+            volumes.push(
+                VolumeBuilder::new(secret_name)
+                    .ephemeral(SecretOperatorVolumeSourceBuilder::new(secret_name).build())
+                    .build(),
+            );
+        }
+        volumes
+    }
+
+    pub fn volume_mounts(&self) -> Vec<VolumeMount> {
+        let mut volume_mounts: Vec<VolumeMount> =
+            self.credentials_volume_mount().into_iter().collect();
+
+        if let Some(secret_name) = tlscerts::tls_secret_name(&self.bucket.connection) {
+            let secret_dir = format!("{STACKABLE_MOUNT_PATH_TLS}/{secret_name}");
+
+            volume_mounts.push(VolumeMount {
+                name: secret_name.to_string(),
+                mount_path: secret_dir,
+                ..VolumeMount::default()
+            });
+        }
+        volume_mounts
     }
 
     pub fn credentials_volume(&self) -> Option<Volume> {

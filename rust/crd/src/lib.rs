@@ -506,8 +506,8 @@ impl SparkApplication {
             format!("--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
             format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
             "--conf spark.executor.userClassPathFirst=true".to_string(),
-            format!("--conf spark.driver.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword=$(STACKABLE_TLS_STORE_PASSWORD) -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""),
-            format!("--conf spark.executor.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword=$(STACKABLE_TLS_STORE_PASSWORD)  -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""),
+            format!("--conf spark.driver.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""),
+            format!("--conf spark.executor.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}  -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""),
         ]);
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
@@ -731,18 +731,13 @@ impl SparkApplication {
                 value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),
                 value_from: None,
             });
-            e.push(EnvVar {
-                name: "SYSTEM_TRUST_STORE_PASSWORD".to_string(),
-                value: Some(SYSTEM_TRUST_STORE_PASSWORD.to_string()),
-                value_from: None,
-            });
         }
         if let Some(s3logdir) = s3logdir {
             if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
                 e.push(EnvVar {
                     name: "SPARK_DAEMON_JAVA_OPTS".to_string(),
                     value: Some(format!(
-                        "\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword=$(STACKABLE_TLS_STORE_PASSWORD) -Djavax.net.ssl.trustStoreType=pkcs12\""
+                        "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12"
                     )),
                     value_from: None,
                 });

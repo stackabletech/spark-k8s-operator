@@ -577,16 +577,6 @@ fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
                 )),
                 value_from: None,
             });
-        vars.push(EnvVar {
-            name: "STACKABLE_TLS_STORE_PASSWORD".to_string(),
-            value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),
-            value_from: None,
-        });
-        vars.push(EnvVar {
-            name: "STACKABLE_TRUST_STORE".to_string(),
-            value: Some(STACKABLE_TRUST_STORE.to_string()),
-            value_from: None,
-        });
     }
 
     vars

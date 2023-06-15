@@ -7,18 +7,7 @@ commands:
       helm install eventlog-minio
       --namespace $NAMESPACE
       --version 5.0.5
-      --set mode=standalone
-      --set replicas=1
-      --set persistence.enabled=true
-      --set resources.requests.memory=1Gi
-      --set buckets[0].name=spark-logs/eventlogs,buckets[0].policy=none
-      --set users[0].accessKey=spark,users[0].secretKey=sparkspark,users[0].policy=readwrite
-      --set service.type=NodePort,service.nodePort=null
-      --set consoleService.type=NodePort,consoleService.nodePort=null
-      --set securityContext.enabled=true
-{% if test_scenario['values']['s3-use-tls'] == 'true' %}
-      --set tls.enabled=true,tls.certSecret=minio-tls-eventlog,tls.publicCrt=tls.crt,tls.privateKey=tls.key
-{% endif %}
+      --values helm-minio-eventlog-minio-values.yaml
       --repo https://charts.min.io/ minio
     timeout: 240
 {% else %}

@@ -1,4 +1,24 @@
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-history-log-config
+data:
+  log4j2.properties: |-
+    appenders = CONSOLE
+
+    appender.CONSOLE.type = Console
+    appender.CONSOLE.name = CONSOLE
+    appender.CONSOLE.target = SYSTEM_ERR
+    appender.CONSOLE.layout.type = PatternLayout
+    appender.CONSOLE.layout.pattern = %d{ISO8601} %p [%t] %c - %m%n
+    appender.CONSOLE.filter.threshold.type = ThresholdFilter
+    appender.CONSOLE.filter.threshold.level = DEBUG
+
+    rootLogger.level=DEBUG
+    rootLogger.appenderRefs = CONSOLE
+    rootLogger.appenderRef.CONSOLE.ref = CONSOLE
+---
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkHistoryServer
 metadata:
@@ -21,6 +41,10 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          spark-history:
+            custom:
+              configMap: spark-history-log-config
     roleGroups:
       default:
         replicas: 1

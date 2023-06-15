@@ -541,9 +541,7 @@ fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
     }
 
     command.extend(vec![
-        "/stackable/spark/sbin/start-history-server.sh".to_string(),
-        "--properties-file".to_string(),
-        HISTORY_CONFIG_FILE_NAME_FULL.to_string(),
+        format!("/stackable/spark/sbin/start-history-server.sh --properties-file {HISTORY_CONFIG_FILE_NAME_FULL}"),
     ]);
 
     vec![String::from("-c"), command.join(" && ")]
@@ -575,7 +573,7 @@ fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
         vars.push(EnvVar {
                 name: "SPARK_DAEMON_JAVA_OPTS".to_string(),
                 value: Some(format!(
-                    "\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword=$(STACKABLE_TLS_STORE_PASSWORD) -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""
+                    "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake"
                 )),
                 value_from: None,
             });

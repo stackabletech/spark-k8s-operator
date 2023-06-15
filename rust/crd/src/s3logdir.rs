@@ -120,6 +120,7 @@ impl S3LogDir {
                 );
             }
         }
+        result.insert("spark.hadoop.fs.s3a.connection.ssl.enabled".to_string(), "true".to_string());
         // if tlscerts::tls_secret_name(&self.bucket.connection).is_some() {
         //     result.insert("spark.ssl.historyServer.enabled".to_string(), "true".to_string(),);
         //     result.insert("spark.ssl.historyServer.protocol".to_string(), "TLS".to_string(),);

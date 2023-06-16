@@ -120,14 +120,11 @@ impl S3LogDir {
                 );
             }
         }
-        result.insert("spark.hadoop.fs.s3a.connection.ssl.enabled".to_string(), "true".to_string());
-        // if tlscerts::tls_secret_name(&self.bucket.connection).is_some() {
-        //     result.insert("spark.ssl.historyServer.enabled".to_string(), "true".to_string(),);
-        //     result.insert("spark.ssl.historyServer.protocol".to_string(), "TLS".to_string(),);
-        //     result.insert("spark.ssl.historyServer.trustStore".to_string(), format!("{STACKABLE_TRUST_STORE}/truststore.p12"));
-        //     result.insert("spark.ssl.historyServer.trustStorePassword".to_string(), format!("{STACKABLE_TLS_STORE_PASSWORD}"));
-        //     result.insert("spark.ssl.historyServer.trustStoreType".to_string(), "pkcs12".to_string(),);
-        // }
+        // might be unnecessary, tests are more stable with this option enabled  
+        if tlscerts::tls_secret_name(&self.bucket.connection).is_some() {
+            result.insert("spark.hadoop.fs.s3a.connection.ssl.enabled".to_string(), "true".to_string());
+        }
+
         result
     }
 

@@ -569,6 +569,7 @@ fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
         )),
         value_from: None,
     });
+    // if TLS is enabled build truststore
     if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
         vars.push(EnvVar {
                 name: "SPARK_DAEMON_JAVA_OPTS".to_string(),

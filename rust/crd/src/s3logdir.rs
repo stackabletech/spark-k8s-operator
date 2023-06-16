@@ -120,11 +120,11 @@ impl S3LogDir {
                 );
             }
         }
-        // might be unnecessary, tests are more stable with this option enabled  
+        // might be unnecessary, tests are more stable with this option enabled
         if tlscerts::tls_secret_name(&self.bucket.connection).is_some() {
             result.insert(
-                "spark.hadoop.fs.s3a.connection.ssl.enabled".to_string(), 
-                "true".to_string()
+                "spark.hadoop.fs.s3a.connection.ssl.enabled".to_string(),
+                "true".to_string(),
             );
         }
 

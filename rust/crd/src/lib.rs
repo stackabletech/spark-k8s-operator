@@ -506,8 +506,6 @@ impl SparkApplication {
             format!("--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
             format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
             "--conf spark.executor.userClassPathFirst=true".to_string(),
-            format!("--conf spark.driver.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""),
-            format!("--conf spark.executor.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}  -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""),
         ]);
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
@@ -540,6 +538,12 @@ impl SparkApplication {
             } else {
                 submit_cmd.push("--conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider".to_string());
             }
+        }
+
+        // s3 with TLS
+        if tlscerts::tls_secret_names(s3conn, s3_log_dir).is_some() {
+            submit_cmd.push(format!("--conf spark.driver.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""));
+            submit_cmd.push(format!("--conf spark.executor.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}  -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""));
         }
 
         // repositories and packages arguments

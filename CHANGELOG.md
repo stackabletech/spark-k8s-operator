@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Generate OLM bundle for Release 23.4.0 ([#238]).
 - Add support for Spark 3.4.0 ([#243]).
 - Add support for using custom certificates when accessing S3 with TLS ([#247]).
+- Use bitnami charts for testing S3 access with TLS ([#247]).
 
 ### Changed
 

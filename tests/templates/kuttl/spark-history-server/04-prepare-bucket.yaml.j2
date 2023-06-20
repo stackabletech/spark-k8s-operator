@@ -5,19 +5,12 @@ commands:
   # give minio enough time to start
   - command: sleep 10
   - command: kubectl cp -n $NAMESPACE spark-examples_{{ test_scenario['values']['spark'].split('-stackable')[0] }}.jar minio-client:/tmp/spark-examples.jar
-  - command: kubectl exec -n $NAMESPACE minio-client -- sh -c 'mc alias set test-minio http://test-minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc mb test-minio/my-bucket
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure alias set test-minio http://test-minio:9000 spark sparkspark
   - command: kubectl exec -n $NAMESPACE minio-client -- mc cp /tmp/spark-examples.jar test-minio/my-bucket
 
-{% if test_scenario['values']['openshift'] == 'true' %}
-  - command: kubectl exec -n $NAMESPACE eventlog-minio-client -- sh -c 'mc alias set eventlog-minio http://eventlog-minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'
-  - command: kubectl exec -n $NAMESPACE eventlog-minio-client -- mc mb eventlog-minio/spark-logs/eventlogs
-  - command: kubectl exec -n $NAMESPACE eventlog-minio-client -- mc admin user add eventlog-minio spark sparkspark
-  - command: kubectl exec -n $NAMESPACE eventlog-minio-client -- mc admin policy set eventlog-minio readwrite user=spark
-{% else %}
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
-  - command: kubectl exec -n $NAMESPACE eventlog-minio-client -- sh -c 'mc --insecure alias set eventlog-minio https://eventlog-minio:9000 spark sparkspark'
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure alias set eventlog-minio https://eventlog-minio:9000 spark sparkspark
 {% else %}
-  - command: kubectl exec -n $NAMESPACE eventlog-minio-client -- sh -c 'mc --insecure alias set eventlog-minio http://eventlog-minio:9000 spark sparkspark'
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure alias set eventlog-minio http://eventlog-minio:9000 spark sparkspark
 {% endif %}
-{% endif %}
+

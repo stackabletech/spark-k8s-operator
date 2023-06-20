@@ -8,7 +8,7 @@ spec:
   port: 9000
   accessStyle: Path
   credentials:
-    secretClass: spark-history-server-s3-credentials-class
+    secretClass: s3-credentials-class
 ---
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Connection
@@ -19,7 +19,7 @@ spec:
   port: 9000
   accessStyle: Path
   credentials:
-    secretClass: history-credentials
+    secretClass: history-credentials-class
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
   tls:
     verification:

@@ -1,0 +1,32 @@
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >-
+      helm install eventlog-minio
+      --namespace $NAMESPACE
+      --version 12.6.4
+      -f helm-bitnami-eventlog-minio-values.yaml
+      --repo https://charts.bitnami.com/bitnami minio
+    timeout: 240
+  - script: >-
+      helm install test-minio
+      --namespace $NAMESPACE
+      --version 12.6.4
+      -f helm-bitnami-minio-values.yaml
+      --repo https://charts.bitnami.com/bitnami minio
+    timeout: 240
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minio-client
+  labels:
+    app: minio-client
+spec:
+  restartPolicy: Never
+  containers:
+    - name: minio-client
+      image: docker.io/bitnami/minio-client:2023.5.18-debian-11-r2
+      command: ["bash", "-c", "sleep infinity"]

@@ -1,10 +1,11 @@
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration, vec};
 
 use stackable_spark_k8s_crd::{
-    constants::*, s3logdir::S3LogDir, SparkApplication, SparkApplicationRole, SparkContainer,
-    SparkStorageConfig, SubmitJobContainer,
+    constants::*, s3logdir::S3LogDir, tlscerts, SparkApplication, SparkApplicationRole,
+    SparkContainer, SparkStorageConfig, SubmitJobContainer,
 };
 
+use crate::product_logging::{self, resolve_vector_aggregator_address};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
@@ -41,8 +42,6 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-use crate::product_logging::{self, resolve_vector_aggregator_address};
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -148,6 +147,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         _ => None,
     };
 
+    // check early for valid verification options
     if let Some(conn) = opt_s3conn.as_ref() {
         if let Some(tls) = &conn.tls {
             match &tls.verification {
@@ -155,9 +155,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
                 TlsVerification::Server(server_verification) => {
                     match &server_verification.ca_cert {
                         CaCert::WebPki {} => {}
-                        CaCert::SecretClass(_) => {
-                            return S3TlsCaVerificationNotSupportedSnafu.fail()
-                        }
+                        CaCert::SecretClass(_) => {}
                     }
                 }
             }
@@ -202,7 +200,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .as_deref()
         .context(ObjectHasNoSparkImageSnafu)?;
 
-    let env_vars = spark_application.env();
+    let env_vars = spark_application.env(&opt_s3conn, &s3logdir);
 
     let driver_config = spark_application
         .driver_config()
@@ -305,6 +303,8 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 fn init_containers(
     spark_application: &SparkApplication,
     logging: &Logging<SparkContainer>,
+    s3conn: &Option<S3ConnectionSpec>,
+    s3logdir: &Option<S3LogDir>,
 ) -> Result<Vec<Container>> {
     let mut jcb = ContainerBuilder::new(&SparkContainer::Job.to_string())
         .context(IllegalContainerNameSnafu)?;
@@ -368,10 +368,33 @@ fn init_containers(
         if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
             rcb.image_pull_policy(image_pull_policy.to_string());
         }
+
         rcb.build()
     });
 
-    Ok(vec![job_container, requirements_container]
+    // if TLS is enabled, build TrustStore and put secret inside.
+    let mut tcb = ContainerBuilder::new(&SparkContainer::Tls.to_string())
+        .context(IllegalContainerNameSnafu)?;
+    let mut args = Vec::new();
+
+    let tls_container = tlscerts::tls_secret_names(s3conn, s3logdir).map(|cert_secrets| {
+        args.extend(tlscerts::create_key_and_trust_store());
+        for cert_secret in cert_secrets {
+            args.extend(tlscerts::add_cert_to_stackable_truststore(cert_secret));
+            tcb.add_volume_mount(
+                cert_secret,
+                format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}"),
+            );
+        }
+        tcb.image(spark_image);
+        tcb.command(vec!["/bin/bash".to_string(), "-c".to_string()]);
+        tcb.args(vec![args.join(" && ")]);
+        tcb.add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE);
+        tcb.build()
+    });
+    tracing::info!("Args [{:#?}]", args);
+
+    Ok(vec![job_container, requirements_container, tls_container]
         .into_iter()
         .flatten()
         .collect())
@@ -383,9 +406,10 @@ fn pod_template(
     config: &PodTemplateConfig,
     volumes: &[Volume],
     env: &[EnvVar],
+    s3conn: &Option<S3ConnectionSpec>,
+    s3logdir: &Option<S3LogDir>,
 ) -> Result<Pod> {
     let container_name = SparkContainer::Spark.to_string();
-
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
     cb.add_volume_mounts(config.volume_mounts.clone())
         .add_env_vars(env.to_vec())
@@ -424,7 +448,8 @@ fn pod_template(
 
     pb.affinity(&config.affinity);
 
-    let init_containers = init_containers(spark_application, &config.logging).unwrap();
+    let init_containers =
+        init_containers(spark_application, &config.logging, s3conn, s3logdir).unwrap();
 
     for init_container in init_containers {
         pb.add_init_container(init_container.clone());
@@ -489,7 +514,14 @@ fn pod_template_config_map(
             .build(),
     );
 
-    let template = pod_template(spark_application, config, volumes.as_ref(), env)?;
+    let template = pod_template(
+        spark_application,
+        config,
+        volumes.as_ref(),
+        env,
+        s3conn,
+        s3logdir,
+    )?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 

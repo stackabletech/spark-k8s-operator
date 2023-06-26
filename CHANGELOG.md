@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - Use 0.0.0-dev product images for testing ([#236])
 - Use testing-tools 0.2.0 ([#236])
 - Run as root group ([#241]).
+- Added kuttl test suites ([#252])
 
 ### Fixed
 
@@ -28,6 +29,7 @@ All notable changes to this project will be documented in this file.
 [#241]: https://github.com/stackabletech/spark-k8s-operator/pull/241
 [#243]: https://github.com/stackabletech/spark-k8s-operator/pull/243
 [#247]: https://github.com/stackabletech/spark-k8s-operator/pull/247
+[#252]: https://github.com/stackabletech/spark-k8s-operator/pull/252
 
 ## [23.4.0] - 2023-04-17
 

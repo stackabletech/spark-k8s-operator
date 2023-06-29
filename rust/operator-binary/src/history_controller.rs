@@ -6,7 +6,8 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, PodSecurityContext, Service, ServiceAccount, ServicePort, ServiceSpec,
+                ConfigMap, EnvVar, PodSecurityContext, Service, ServiceAccount, ServicePort,
+                ServiceSpec,
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
@@ -31,6 +32,7 @@ use stackable_spark_k8s_crd::{
     constants::*,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
     s3logdir::S3LogDir,
+    tlscerts,
 };
 use std::time::Duration;
 use std::{collections::BTreeMap, sync::Arc};
@@ -338,7 +340,7 @@ fn build_stateful_set(
                 )
                 .build(),
         )
-        .add_volumes(s3_log_dir.credentials_volume().into_iter().collect())
+        .add_volumes(s3_log_dir.volumes())
         .metadata_builder(|m| {
             m.with_recommended_labels(labels(
                 shs,
@@ -361,17 +363,8 @@ fn build_stateful_set(
         .command(vec!["/bin/bash".to_string()])
         .args(command_args(s3_log_dir))
         .add_container_port("http", 18080)
-        // This env var prevents the history server from detaching itself from the
-        // start script because this leads to the Pod terminating immediately.
-        .add_env_var("SPARK_NO_DAEMONIZE", "true")
-        .add_env_var("SPARK_DAEMON_CLASSPATH", "/stackable/spark/extra-jars/*")
-        .add_env_var(
-            "SPARK_HISTORY_OPTS",
-            format!(
-                "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
-            ),
-        )
-        .add_volume_mounts(s3_log_dir.credentials_volume_mount().into_iter())
+        .add_env_vars(env_vars(s3_log_dir))
+        .add_volume_mounts(s3_log_dir.volume_mounts())
         .add_volume_mount("config", "/stackable/spark/conf")
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
@@ -537,18 +530,57 @@ fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
     if let Some(secret_dir) = s3logdir.credentials_mount_path() {
         command.extend(vec![
             format!("export AWS_ACCESS_KEY_ID=\"$(cat {secret_dir}/{ACCESS_KEY_ID})\""),
-            "&&".to_string(),
             format!("export AWS_SECRET_ACCESS_KEY=\"$(cat {secret_dir}/{SECRET_ACCESS_KEY})\""),
-            "&&".to_string(),
         ]);
     }
+
+    if let Some(secret_name) = tlscerts::tls_secret_name(&s3logdir.bucket.connection) {
+        command.extend(vec![format!("mkdir -p {STACKABLE_TRUST_STORE}")]);
+        command.extend(tlscerts::create_key_and_trust_store());
+        command.extend(tlscerts::add_cert_to_stackable_truststore(secret_name));
+    }
+
     command.extend(vec![
-        "/stackable/spark/sbin/start-history-server.sh".to_string(),
-        "--properties-file".to_string(),
-        HISTORY_CONFIG_FILE_NAME_FULL.to_string(),
+        format!("/stackable/spark/sbin/start-history-server.sh --properties-file {HISTORY_CONFIG_FILE_NAME_FULL}"),
     ]);
 
-    vec![String::from("-c"), command.join(" ")]
+    vec![String::from("-c"), command.join(" && ")]
+}
+
+fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
+    let mut vars: Vec<EnvVar> = vec![];
+
+    // This env var prevents the history server from detaching itself from the
+    // start script because this leads to the Pod terminating immediately.
+    vars.push(EnvVar {
+        name: "SPARK_NO_DAEMONIZE".to_string(),
+        value: Some("true".into()),
+        value_from: None,
+    });
+    vars.push(EnvVar {
+        name: "SPARK_DAEMON_CLASSPATH".to_string(),
+        value: Some("/stackable/spark/extra-jars/*".into()),
+        value_from: None,
+    });
+    vars.push(EnvVar {
+        name: "SPARK_HISTORY_OPTS".to_string(),
+        value: Some(format!(
+            "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
+        )),
+        value_from: None,
+    });
+    // if TLS is enabled build truststore
+    if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
+        vars.push(EnvVar {
+                name: "SPARK_DAEMON_JAVA_OPTS".to_string(),
+                value: Some(format!(
+                    "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake"
+                )),
+                value_from: None,
+            });
+    }
+
+    vars
 }
 
 fn labels<'a, T>(

@@ -10,7 +10,7 @@ extraEnvVars:
 provisioning:
   enabled: true
   buckets:
-    - name: my-bucket
+    - name: spark-logs/eventlogs
   usersExistingSecrets:
     - centralized-minio-users
   resources:
@@ -47,3 +47,9 @@ resources:
 
 service:
   type: NodePort
+
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+tls:
+  enabled: true
+  existingSecret: minio-tls-eventlog
+{% endif %}

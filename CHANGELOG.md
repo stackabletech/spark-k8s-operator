@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 
 - Generate OLM bundle for Release 23.4.0 ([#238]).
 - Add support for Spark 3.4.0 ([#243]).
+- Add support for using custom certificates when accessing S3 with TLS ([#247]).
+- Use bitnami charts for testing S3 access with TLS ([#247]).
 - Add support for resource quotas ([#249]).
 
 ### Changed
@@ -16,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - Use 0.0.0-dev product images for testing ([#236])
 - Use testing-tools 0.2.0 ([#236])
 - Run as root group ([#241]).
+- Added kuttl test suites ([#252])
 
 ### Fixed
 
@@ -26,6 +29,8 @@ All notable changes to this project will be documented in this file.
 [#238]: https://github.com/stackabletech/spark-k8s-operator/pull/238
 [#241]: https://github.com/stackabletech/spark-k8s-operator/pull/241
 [#243]: https://github.com/stackabletech/spark-k8s-operator/pull/243
+[#247]: https://github.com/stackabletech/spark-k8s-operator/pull/247
+[#252]: https://github.com/stackabletech/spark-k8s-operator/pull/252
 [#249]: https://github.com/stackabletech/spark-k8s-operator/pull/249
 
 ## [23.4.0] - 2023-04-17

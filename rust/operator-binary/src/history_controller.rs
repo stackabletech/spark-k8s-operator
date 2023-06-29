@@ -38,6 +38,7 @@ use std::time::Duration;
 use std::{collections::BTreeMap, sync::Arc};
 
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::builder::resources::ResourceRequirementsBuilder;
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -112,12 +113,10 @@ pub enum Error {
         source: stackable_operator::error::Error,
     },
     #[snafu(display("failed to resolve the Vector aggregator address"))]
-    ResolveVectorAggregatorAddress {
-        source: crate::product_logging::Error,
-    },
+    ResolveVectorAggregatorAddress { source: product_logging::Error },
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
-        source: crate::product_logging::Error,
+        source: product_logging::Error,
         cm_name: String,
     },
 }
@@ -380,6 +379,12 @@ fn build_stateful_set(
                 .logging
                 .containers
                 .get(&SparkHistoryServerContainer::Vector),
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("250m")
+                .with_cpu_limit("500m")
+                .with_memory_request("128Mi")
+                .with_memory_limit("128Mi")
+                .build(),
         ));
     }
 

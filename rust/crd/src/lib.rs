@@ -981,10 +981,10 @@ mod tests {
     use crate::{cores_from_quantity, ImagePullPolicy};
     use rstest::rstest;
     use stackable_operator::builder::ObjectMetaBuilder;
+    use stackable_operator::commons::authentication::tls::{Tls, TlsVerification};
     use stackable_operator::commons::s3::{
         S3AccessStyle, S3BucketSpec, S3ConnectionDef, S3ConnectionSpec,
     };
-    use stackable_operator::commons::tls::{Tls, TlsVerification};
     use std::str::FromStr;
 
     #[test]

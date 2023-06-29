@@ -11,7 +11,7 @@ use stackable_operator::{
     commons::{
         s3::{InlinedS3BucketSpec, S3AccessStyle},
         secret_class::SecretClassVolume,
-        tls::{CaCert, TlsVerification},
+        authentication::tls::{CaCert, TlsVerification},
     },
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
 };

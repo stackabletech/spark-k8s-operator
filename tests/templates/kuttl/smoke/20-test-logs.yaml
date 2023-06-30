@@ -18,3 +18,11 @@ spec:
               "-c",
               "test 1 == $(curl http://spark-history-node-default:18080/api/v1/applications | jq length)",
             ]
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 200m
+              memory: 128Mi
+

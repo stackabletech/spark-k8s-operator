@@ -134,7 +134,7 @@ impl SparkConfig {
                     max: Some(Quantity("400m".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("128Mi".to_owned())),
+                    limit: Some(Quantity("512Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: SparkStorageConfigFragment {},
@@ -909,7 +909,7 @@ impl DriverConfig {
                     max: Some(Quantity("1".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("512Mi".to_owned())),
+                    limit: Some(Quantity("1Gi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: SparkStorageConfigFragment {},

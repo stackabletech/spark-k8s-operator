@@ -329,6 +329,14 @@ fn init_containers(
             .args(vec![args.join(" && ")])
             .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
             .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+            .resources(
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("500m")
+                    .with_memory_request("128Mi")
+                    .with_memory_limit("128Mi")
+                    .build(),
+            )
             .build()
     });
 
@@ -368,6 +376,15 @@ fn init_containers(
             rcb.image_pull_policy(image_pull_policy.to_string());
         }
 
+        rcb.resources(
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("250m")
+                .with_cpu_limit("1000m")
+                .with_memory_request("1024Mi")
+                .with_memory_limit("1024Mi")
+                .build(),
+        );
+
         rcb.build()
     });
 
@@ -385,11 +402,19 @@ fn init_containers(
                 format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}"),
             );
         }
-        tcb.image(spark_image);
-        tcb.command(vec!["/bin/bash".to_string(), "-c".to_string()]);
-        tcb.args(vec![args.join(" && ")]);
-        tcb.add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE);
-        tcb.build()
+        tcb.image(spark_image)
+            .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+            .args(vec![args.join(" && ")])
+            .add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE)
+            .resources(
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("1000m")
+                    .with_memory_request("1024Mi")
+                    .with_memory_limit("1024Mi")
+                    .build(),
+            )
+            .build()
     });
     tracing::info!("Args [{:#?}]", args);
 

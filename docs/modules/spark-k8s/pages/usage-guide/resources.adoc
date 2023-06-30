@@ -9,22 +9,22 @@ If no resources are configured explicitly, the operator uses the following defau
 job:
   resources:
     cpu:
-      min: '500m'
-      max: "1"
+      min: '100m'
+      max: "400m"
     memory:
-      limit: '1Gi'
+      limit: '512Mi'
 driver:
   resources:
     cpu:
-      min: '1'
-      max: "2"
+      min: '200m'
+      max: "1"
     memory:
-      limit: '2Gi'
+      limit: '1Gi'
 executor:
   resources:
     cpu:
-      min: '1'
-      max: "4"
+      min: '250m'
+      max: "1"
     memory:
       limit: '4Gi'
 ----

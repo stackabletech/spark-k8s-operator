@@ -126,6 +126,7 @@ pub struct SparkConfig {
 }
 
 impl SparkConfig {
+    /// The resources requested here are applied to the spark-submit Pod.
     fn default_config() -> SparkConfigFragment {
         SparkConfigFragment {
             resources: ResourcesFragment {
@@ -905,7 +906,7 @@ impl DriverConfig {
         DriverConfigFragment {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("200m".to_owned())),
+                    min: Some(Quantity("250m".to_owned())),
                     max: Some(Quantity("1".to_owned())),
                 },
                 memory: MemoryLimitsFragment {

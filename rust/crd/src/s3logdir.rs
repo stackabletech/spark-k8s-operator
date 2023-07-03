@@ -9,9 +9,9 @@ use crate::{
 use stackable_operator::{
     builder::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::{
+        authentication::tls::{CaCert, TlsVerification},
         s3::{InlinedS3BucketSpec, S3AccessStyle},
         secret_class::SecretClassVolume,
-        tls::{CaCert, TlsVerification},
     },
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
 };

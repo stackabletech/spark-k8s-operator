@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Add support for Spark 3.4.0 ([#243]).
 - Add support for using custom certificates when accessing S3 with TLS ([#247]).
 - Use bitnami charts for testing S3 access with TLS ([#247]).
+- Set explicit resources on all containers ([#249]).
 
 ### Changed
 
@@ -30,6 +31,7 @@ All notable changes to this project will be documented in this file.
 [#243]: https://github.com/stackabletech/spark-k8s-operator/pull/243
 [#247]: https://github.com/stackabletech/spark-k8s-operator/pull/247
 [#252]: https://github.com/stackabletech/spark-k8s-operator/pull/252
+[#249]: https://github.com/stackabletech/spark-k8s-operator/pull/249
 
 ## [23.4.0] - 2023-04-17
 

@@ -126,15 +126,16 @@ pub struct SparkConfig {
 }
 
 impl SparkConfig {
+    /// The resources requested here are applied to the spark-submit Pod.
     fn default_config() -> SparkConfigFragment {
         SparkConfigFragment {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("500m".to_owned())),
-                    max: Some(Quantity("1".to_owned())),
+                    min: Some(Quantity("100m".to_owned())),
+                    max: Some(Quantity("400m".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("1Gi".to_owned())),
+                    limit: Some(Quantity("512Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: SparkStorageConfigFragment {},
@@ -905,11 +906,11 @@ impl DriverConfig {
         DriverConfigFragment {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("1".to_owned())),
-                    max: Some(Quantity("2".to_owned())),
+                    min: Some(Quantity("250m".to_owned())),
+                    max: Some(Quantity("1".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("2Gi".to_owned())),
+                    limit: Some(Quantity("1Gi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: SparkStorageConfigFragment {},
@@ -956,8 +957,8 @@ impl ExecutorConfig {
             instances: None,
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("1".to_owned())),
-                    max: Some(Quantity("4".to_owned())),
+                    min: Some(Quantity("250m".to_owned())),
+                    max: Some(Quantity("1".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
                     limit: Some(Quantity("4Gi".to_owned())),
@@ -981,10 +982,10 @@ mod tests {
     use crate::{cores_from_quantity, ImagePullPolicy};
     use rstest::rstest;
     use stackable_operator::builder::ObjectMetaBuilder;
+    use stackable_operator::commons::authentication::tls::{Tls, TlsVerification};
     use stackable_operator::commons::s3::{
         S3AccessStyle, S3BucketSpec, S3ConnectionDef, S3ConnectionSpec,
     };
-    use stackable_operator::commons::tls::{Tls, TlsVerification};
     use std::str::FromStr;
 
     #[test]
@@ -1276,16 +1277,16 @@ spec:
         .unwrap();
 
         let job_resources = &spark_application.job_config().unwrap().resources;
-        assert_eq!("500m", job_resources.cpu.min.as_ref().unwrap().0);
-        assert_eq!("1", job_resources.cpu.max.as_ref().unwrap().0);
+        assert_eq!("100m", job_resources.cpu.min.as_ref().unwrap().0);
+        assert_eq!("400m", job_resources.cpu.max.as_ref().unwrap().0);
 
         let driver_resources = &spark_application.driver_config().unwrap().resources;
-        assert_eq!("1", driver_resources.cpu.min.as_ref().unwrap().0);
-        assert_eq!("2", driver_resources.cpu.max.as_ref().unwrap().0);
+        assert_eq!("250m", driver_resources.cpu.min.as_ref().unwrap().0);
+        assert_eq!("1", driver_resources.cpu.max.as_ref().unwrap().0);
 
         let executor_resources = &spark_application.executor_config().unwrap().resources;
-        assert_eq!("1", executor_resources.cpu.min.as_ref().unwrap().0);
-        assert_eq!("4", executor_resources.cpu.max.as_ref().unwrap().0);
+        assert_eq!("250m", executor_resources.cpu.min.as_ref().unwrap().0);
+        assert_eq!("1", executor_resources.cpu.max.as_ref().unwrap().0);
     }
 
     #[test]

@@ -280,11 +280,11 @@ impl HistoryConfig {
             cleaner: None,
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("200m".to_owned())),
-                    max: Some(Quantity("4".to_owned())),
+                    min: Some(Quantity("250m".to_owned())),
+                    max: Some(Quantity("1".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("2Gi".to_owned())),
+                    limit: Some(Quantity("512Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: HistoryStorageConfigFragment {},

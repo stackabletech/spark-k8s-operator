@@ -1,6 +1,6 @@
 use stackable_operator::commons::{
+    authentication::tls::{CaCert, TlsVerification},
     s3::S3ConnectionSpec,
-    tls::{CaCert, TlsVerification},
 };
 
 use crate::{

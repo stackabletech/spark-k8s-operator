@@ -2,35 +2,50 @@
 
 include::home:concepts:stackable_resource_requests.adoc[]
 
-If no resources are configured explicitly, the operator uses the following defaults:
+If no resources are configured explicitly, the operator uses the following defaults for `SparkApplication`s:
 
 [source,yaml]
 ----
 job:
   resources:
     cpu:
-      min: '500m'
-      max: "1"
+      min: '100m'
+      max: "400m"
     memory:
-      limit: '1Gi'
+      limit: '512Mi'
 driver:
   resources:
     cpu:
-      min: '1'
-      max: "2"
+      min: '250m'
+      max: "1"
     memory:
-      limit: '2Gi'
+      limit: '1Gi'
 executor:
   resources:
     cpu:
-      min: '1'
-      max: "4"
+      min: '250m'
+      max: "1"
     memory:
       limit: '4Gi'
 ----
+
+For `SparkHistoryServer`s the following defaults are used:
+
+[source,yaml]
+----
+nodes:
+  resources:
+    cpu:
+      min: '250m'
+      max: "1"
+    memory:
+      limit: '512Mi'
+----
+
 WARNING: The default values are _most likely_ not sufficient to run a proper cluster in production. Please adapt according to your requirements.
 For more details regarding Kubernetes CPU limits see: https://kubernetes.io/docs/tasks/configure-pod-container/assign-cpu-resource/[Assign CPU Resources to Containers and Pods].
 
 Spark allocates a default amount of non-heap memory based on the type of job (JVM or non-JVM). This is taken into account when defining memory settings based exclusively on the resource limits, so that the "declared" value is the actual total value (i.e. including memory overhead). This may result in minor deviations from the stated resource value due to rounding differences.
 
 NOTE: It is possible to define Spark resources either directly by setting configuration properties listed under `sparkConf`, or by using resource limits. If both are used, then `sparkConf` properties take precedence. It is recommended for the sake of clarity to use *_either_* one *_or_* the other.
+

@@ -25,6 +25,11 @@ dimensions:
       - "false"
       - "true"
 tests:
+  - name: smoke
+    dimensions:
+      - spark
+      - s3-use-tls
+      - openshift
   - name: spark-history-server
     dimensions:
       - spark

@@ -1281,7 +1281,7 @@ spec:
         assert_eq!("400m", job_resources.cpu.max.as_ref().unwrap().0);
 
         let driver_resources = &spark_application.driver_config().unwrap().resources;
-        assert_eq!("200m", driver_resources.cpu.min.as_ref().unwrap().0);
+        assert_eq!("250m", driver_resources.cpu.min.as_ref().unwrap().0);
         assert_eq!("1", driver_resources.cpu.max.as_ref().unwrap().0);
 
         let executor_resources = &spark_application.executor_config().unwrap().resources;

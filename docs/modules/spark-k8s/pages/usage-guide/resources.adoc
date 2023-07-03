@@ -16,7 +16,7 @@ job:
 driver:
   resources:
     cpu:
-      min: '200m'
+      min: '250m'
       max: "1"
     memory:
       limit: '1Gi'
@@ -36,7 +36,7 @@ For `SparkHistoryServer`s the following defaults are used:
 nodes:
   resources:
     cpu:
-      min: '200m'
+      min: '250m'
       max: "1"
     memory:
       limit: '512Mi'

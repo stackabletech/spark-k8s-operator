@@ -22,7 +22,7 @@ use stackable_operator::{
         api::{
             batch::v1::{Job, JobSpec},
             core::v1::{
-                ConfigMap, Container, EnvVar, Pod, PodSecurityContext, PodSpec, PodTemplateSpec,
+                ConfigMap, Container, EnvVar, PodSecurityContext, PodSpec, PodTemplateSpec,
                 ServiceAccount, Volume, VolumeMount,
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},

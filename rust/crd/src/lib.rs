@@ -577,8 +577,8 @@ impl SparkApplication {
                 cpu: CpuLimits { max: Some(max), .. },
                 ..
             } => {
-                let cores = cores_from_quantity(max.0.clone())
-                    .map_err(|_| Error::FailedQuantityConversion)?;
+                let cores =
+                    cores_from_quantity(max.0).map_err(|_| Error::FailedQuantityConversion)?;
                 // will have default value from resources to apply if nothing set specifically
                 submit_conf.insert("spark.driver.cores".to_string(), cores);
             }
@@ -601,8 +601,8 @@ impl SparkApplication {
                 cpu: CpuLimits { max: Some(max), .. },
                 ..
             } => {
-                let cores = cores_from_quantity(max.0.clone())
-                    .map_err(|_| Error::FailedQuantityConversion)?;
+                let cores =
+                    cores_from_quantity(max.0).map_err(|_| Error::FailedQuantityConversion)?;
                 // will have default value from resources to apply if nothing set specifically
                 submit_conf.insert("spark.executor.cores".to_string(), cores);
             }

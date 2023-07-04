@@ -40,3 +40,14 @@ spec:
         replicas: 1
         config:
           cleaner: true
+        podOverrides:
+          spec:
+            containers:
+              - name: spark-history
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi
+                  limits:
+                    cpu: 1500m
+                    memory: 1024Mi

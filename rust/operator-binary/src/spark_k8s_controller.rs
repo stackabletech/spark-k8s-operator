@@ -517,8 +517,6 @@ fn pod_template(
 
     let mut pod_template = pb.build_template();
     pod_template.merge_from(config.pod_overrides.clone());
-    // tracing::info!("pod_template: {:?}", pod_template);
-    // pb.build().context(PodTemplateConfigMapSnafu)
     Ok(pod_template)
 }
 

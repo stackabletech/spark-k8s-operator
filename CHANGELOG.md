@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Add support for using custom certificates when accessing S3 with TLS ([#247]).
 - Use bitnami charts for testing S3 access with TLS ([#247]).
 - Set explicit resources on all containers ([#249]).
+- Support pod overrides ([#xxx])
 
 ### Changed
 

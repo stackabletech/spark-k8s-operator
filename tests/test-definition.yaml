@@ -30,6 +30,10 @@ tests:
       - spark
       - s3-use-tls
       - openshift
+  - name: pod_overrides
+    dimensions:
+      - spark
+      - openshift
   - name: spark-history-server
     dimensions:
       - spark

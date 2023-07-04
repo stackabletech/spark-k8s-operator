@@ -1,0 +1,13 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+metadata:
+  name: history-api-check
+timeout: 180
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: history-api-check
+status:
+  succeeded: 1

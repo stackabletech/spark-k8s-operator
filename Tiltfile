@@ -36,3 +36,4 @@ helm_crds, helm_non_crds = filter_yaml(
    kind = "^CustomResourceDefinition$",
 )
 k8s_yaml(helm_non_crds)
+allow_k8s_contexts('default/api-hlhg53ktxb92994b7c-westeurope-aroapp-io:6443/kube:admin')

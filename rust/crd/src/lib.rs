@@ -35,14 +35,17 @@ use stackable_operator::{
         merge::{Atomic, Merge},
     },
     k8s_openapi::{
-        api::core::v1::{EmptyDirVolumeSource, EnvVar, LocalObjectReference, Volume, VolumeMount},
+        api::core::v1::{
+            EmptyDirVolumeSource, EnvVar, LocalObjectReference, PodTemplateSpec, Volume,
+            VolumeMount,
+        },
         apimachinery::pkg::api::resource::Quantity,
     },
     kube::{CustomResource, ResourceExt},
     labels::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{self, spec::Logging},
-    role_utils::CommonConfiguration,
+    role_utils::{pod_overrides_schema, CommonConfiguration},
     schemars::{self, JsonSchema},
 };
 use strum::{Display, EnumIter, EnumString};
@@ -123,6 +126,9 @@ pub struct SparkConfig {
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<SubmitJobContainer>,
+    #[fragment_attrs(serde(default))]
+    #[fragment_attrs(schemars(schema_with = "pod_overrides_schema"))]
+    pub pod_overrides: PodTemplateSpec,
 }
 
 impl SparkConfig {
@@ -141,6 +147,7 @@ impl SparkConfig {
                 storage: SparkStorageConfigFragment {},
             },
             logging: product_logging::spec::default_logging(),
+            pod_overrides: Some(PodTemplateSpec::default()),
         }
     }
 }
@@ -563,80 +570,55 @@ impl SparkApplication {
         let driver_config = self.driver_config()?;
         let executor_config = self.executor_config()?;
 
-        // resource limits, either declared or taken from defaults
-        if let Resources {
-            cpu: CpuLimits { max: Some(max), .. },
-            ..
-        } = &driver_config.resources
-        {
-            submit_conf.insert(
-                "spark.kubernetes.driver.limit.cores".to_string(),
-                max.0.clone(),
-            );
-            let cores =
-                cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
-            // will have default value from resources to apply if nothing set specifically
-            submit_conf.insert("spark.driver.cores".to_string(), cores);
-        }
-        if let Resources {
-            cpu: CpuLimits { min: Some(min), .. },
-            ..
-        } = &driver_config.resources
-        {
-            submit_conf.insert(
-                "spark.kubernetes.driver.request.cores".to_string(),
-                min.0.clone(),
-            );
-        }
-        if let Resources {
-            memory: MemoryLimits {
-                limit: Some(limit), ..
-            },
-            ..
-        } = &driver_config.resources
-        {
-            let memory = self
-                .subtract_spark_memory_overhead(limit)
-                .map_err(|_| Error::FailedQuantityConversion)?;
-            submit_conf.insert("spark.driver.memory".to_string(), memory);
-        }
+        // Kubernetes resource requests and limits are set container properties.
+        // Here we translate some of them into Spark properties.
+        match driver_config.resources {
+            Resources {
+                cpu: CpuLimits { max: Some(max), .. },
+                ..
+            } => {
+                let cores = cores_from_quantity(max.0.clone())
+                    .map_err(|_| Error::FailedQuantityConversion)?;
+                // will have default value from resources to apply if nothing set specifically
+                submit_conf.insert("spark.driver.cores".to_string(), cores);
+            }
+            Resources {
+                memory: MemoryLimits {
+                    limit: Some(limit), ..
+                },
+                ..
+            } => {
+                let memory = self
+                    .subtract_spark_memory_overhead(&limit)
+                    .map_err(|_| Error::FailedQuantityConversion)?;
+                submit_conf.insert("spark.driver.memory".to_string(), memory);
+            }
+            _ => {}
+        };
 
-        if let Resources {
-            cpu: CpuLimits { max: Some(max), .. },
-            ..
-        } = &executor_config.resources
-        {
-            submit_conf.insert(
-                "spark.kubernetes.executor.limit.cores".to_string(),
-                max.0.clone(),
-            );
-            let cores =
-                cores_from_quantity(max.0.clone()).map_err(|_| Error::FailedQuantityConversion)?;
-            // will have default value from resources to apply if nothing set specifically
-            submit_conf.insert("spark.executor.cores".to_string(), cores);
-        }
-        if let Resources {
-            cpu: CpuLimits { min: Some(min), .. },
-            ..
-        } = &executor_config.resources
-        {
-            submit_conf.insert(
-                "spark.kubernetes.executor.request.cores".to_string(),
-                min.0.clone(),
-            );
-        }
-        if let Resources {
-            memory: MemoryLimits {
-                limit: Some(limit), ..
-            },
-            ..
-        } = &executor_config.resources
-        {
-            let memory = self
-                .subtract_spark_memory_overhead(limit)
-                .map_err(|_| Error::FailedQuantityConversion)?;
-            submit_conf.insert("spark.executor.memory".to_string(), memory);
-        }
+        match executor_config.resources {
+            Resources {
+                cpu: CpuLimits { max: Some(max), .. },
+                ..
+            } => {
+                let cores = cores_from_quantity(max.0.clone())
+                    .map_err(|_| Error::FailedQuantityConversion)?;
+                // will have default value from resources to apply if nothing set specifically
+                submit_conf.insert("spark.executor.cores".to_string(), cores);
+            }
+            Resources {
+                memory: MemoryLimits {
+                    limit: Some(limit), ..
+                },
+                ..
+            } => {
+                let memory = self
+                    .subtract_spark_memory_overhead(&limit)
+                    .map_err(|_| Error::FailedQuantityConversion)?;
+                submit_conf.insert("spark.executor.memory".to_string(), memory);
+            }
+            _ => {}
+        };
 
         if let Some(executors) = &self.spec.executor {
             if let Some(instances) = executors.instances {
@@ -899,6 +881,9 @@ pub struct DriverConfig {
     pub volume_mounts: Option<VolumeMounts>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+    #[fragment_attrs(serde(default))]
+    #[fragment_attrs(schemars(schema_with = "pod_overrides_schema"))]
+    pub pod_overrides: PodTemplateSpec,
 }
 
 impl DriverConfig {
@@ -918,6 +903,7 @@ impl DriverConfig {
             logging: product_logging::spec::default_logging(),
             volume_mounts: Some(VolumeMounts::default()),
             affinity: StackableAffinityFragment::default(),
+            pod_overrides: Some(PodTemplateSpec::default()),
         }
     }
 }
@@ -949,6 +935,9 @@ pub struct ExecutorConfig {
     pub node_selector: Option<NodeSelector>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+    #[fragment_attrs(serde(default))]
+    #[fragment_attrs(schemars(schema_with = "pod_overrides_schema"))]
+    pub pod_overrides: PodTemplateSpec,
 }
 
 impl ExecutorConfig {
@@ -970,6 +959,7 @@ impl ExecutorConfig {
             volume_mounts: Some(VolumeMounts::default()),
             node_selector: Default::default(),
             affinity: Default::default(),
+            pod_overrides: Some(PodTemplateSpec::default()),
         }
     }
 }

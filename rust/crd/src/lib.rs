@@ -45,7 +45,7 @@ use stackable_operator::{
     labels::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging::{self, spec::Logging},
-    role_utils::{pod_overrides_schema, CommonConfiguration},
+    role_utils::pod_overrides_schema,
     schemars::{self, JsonSchema},
 };
 use strum::{Display, EnumIter, EnumString};
@@ -192,8 +192,6 @@ pub struct SparkApplicationSpec {
     pub driver: Option<DriverConfigFragment>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<ExecutorConfigFragment>,
-    #[serde(flatten)]
-    pub config: Option<CommonConfiguration<CommonConfig>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -233,14 +231,6 @@ pub struct JobDependencies {
 }
 
 impl SparkApplication {
-    pub fn enable_monitoring(&self) -> Option<bool> {
-        let spec: &SparkApplicationSpec = &self.spec;
-        spec.config
-            .as_ref()
-            .map(|common_configuration| &common_configuration.config)
-            .and_then(|common_config| common_config.enable_monitoring)
-    }
-
     pub fn submit_job_config_map_name(&self) -> String {
         format!("{app_name}-submit-job", app_name = self.name_any())
     }
@@ -894,7 +884,6 @@ pub struct CommonConfig {
     pub secret: Option<String>,
     pub log_dir: Option<String>,
     pub max_port_retries: Option<usize>,
-    pub enable_monitoring: Option<bool>,
 }
 
 #[derive(

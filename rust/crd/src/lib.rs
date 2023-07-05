@@ -145,7 +145,7 @@ impl SparkConfig {
                 storage: SparkStorageConfigFragment {},
             },
             logging: product_logging::spec::default_logging(),
-            pod_overrides: Some(PodTemplateSpec::default()),
+            pod_overrides: PodTemplateSpec::default(),
         }
     }
 }
@@ -985,7 +985,7 @@ impl DriverConfig {
             logging: product_logging::spec::default_logging(),
             volume_mounts: Some(VolumeMounts::default()),
             affinity: StackableAffinityFragment::default(),
-            pod_overrides: Some(PodTemplateSpec::default()),
+            pod_overrides: PodTemplateSpec::default(),
         }
     }
 }
@@ -1041,7 +1041,7 @@ impl ExecutorConfig {
             volume_mounts: Some(VolumeMounts::default()),
             node_selector: Default::default(),
             affinity: Default::default(),
-            pod_overrides: Some(PodTemplateSpec::default()),
+            pod_overrides: PodTemplateSpec::default(),
         }
     }
 }

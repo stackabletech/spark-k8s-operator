@@ -67,8 +67,6 @@ pub enum Error {
         source: stackable_operator::error::Error,
         unit: String,
     },
-    #[snafu(display("failed to convert to quantity"))]
-    FailedQuantityConversion,
     #[snafu(display("failed to parse value"))]
     FailedParseToFloatConversion,
     #[snafu(display("fragment validation failure"))]
@@ -567,58 +565,18 @@ impl SparkApplication {
         // then added to the vector once complete.
         let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();
 
-        let driver_config = self.driver_config()?;
-        let executor_config = self.executor_config()?;
-
         // Kubernetes resource requests and limits are set container properties.
         // Here we translate some of them into Spark properties.
-        match driver_config.resources {
-            Resources {
-                cpu: CpuLimits { max: Some(max), .. },
-                ..
-            } => {
-                let cores =
-                    cores_from_quantity(max.0).map_err(|_| Error::FailedQuantityConversion)?;
-                // will have default value from resources to apply if nothing set specifically
-                submit_conf.insert("spark.driver.cores".to_string(), cores);
-            }
-            Resources {
-                memory: MemoryLimits {
-                    limit: Some(limit), ..
-                },
-                ..
-            } => {
-                let memory = self
-                    .subtract_spark_memory_overhead(&limit)
-                    .map_err(|_| Error::FailedQuantityConversion)?;
-                submit_conf.insert("spark.driver.memory".to_string(), memory);
-            }
-            _ => {}
-        };
-
-        match executor_config.resources {
-            Resources {
-                cpu: CpuLimits { max: Some(max), .. },
-                ..
-            } => {
-                let cores =
-                    cores_from_quantity(max.0).map_err(|_| Error::FailedQuantityConversion)?;
-                // will have default value from resources to apply if nothing set specifically
-                submit_conf.insert("spark.executor.cores".to_string(), cores);
-            }
-            Resources {
-                memory: MemoryLimits {
-                    limit: Some(limit), ..
-                },
-                ..
-            } => {
-                let memory = self
-                    .subtract_spark_memory_overhead(&limit)
-                    .map_err(|_| Error::FailedQuantityConversion)?;
-                submit_conf.insert("spark.executor.memory".to_string(), memory);
-            }
-            _ => {}
-        };
+        resources_to_driver_props(
+            self.spec.main_class.is_some(),
+            &self.driver_config()?,
+            &mut submit_conf,
+        )?;
+        resources_to_executor_props(
+            self.spec.main_class.is_some(),
+            &self.executor_config()?,
+            &mut submit_conf,
+        )?;
 
         if let Some(executors) = &self.spec.executor {
             if let Some(instances) = executors.instances {
@@ -659,41 +617,6 @@ impl SparkApplication {
         }
 
         Ok(submit_cmd)
-    }
-
-    /// A memory overhead will be applied using a factor of 0.1 (JVM jobs) or 0.4 (non-JVM jobs),
-    /// being not less than 384MB. The resource limit should keep this transparent by reducing the
-    /// declared memory limit accordingly.
-    fn subtract_spark_memory_overhead(&self, limit: &Quantity) -> Result<String, Error> {
-        // determine job-type using class name: scala/java will declare an application and main class;
-        // R and python will just declare the application name/file (for python this could be .zip/.py/.egg).
-        // Spark itself just checks the application name - See e.g.
-        // https://github.com/apache/spark/blob/01c7a46f24fb4bb4287a184a3d69e0e5c904bc50/core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala#L1092
-        let non_jvm_factor = if self.spec.main_class.is_some() {
-            1.0 / (1.0 + JVM_OVERHEAD_FACTOR)
-        } else {
-            1.0 / (1.0 + NON_JVM_OVERHEAD_FACTOR)
-        };
-
-        let original_memory = MemoryQuantity::try_from(limit)
-            .context(FailedToConvertJavaHeapSnafu {
-                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-            })?
-            .scale_to(BinaryMultiple::Mebi)
-            .floor()
-            .value as u32;
-
-        let reduced_memory =
-            (MemoryQuantity::try_from(limit).context(FailedToConvertJavaHeapSnafu {
-                unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-            })? * non_jvm_factor)
-                .scale_to(BinaryMultiple::Mebi)
-                .floor()
-                .value as u32;
-
-        let deduction = max(MIN_MEMORY_OVERHEAD, original_memory - reduced_memory);
-
-        Ok(format!("{}m", original_memory - deduction))
     }
 
     pub fn env(
@@ -773,6 +696,108 @@ fn cores_from_quantity(q: String) -> Result<String, Error> {
             .ceil()
     };
     Ok((cores as u32).to_string())
+}
+
+/// A memory overhead will be applied using a factor of 0.1 (JVM jobs) or 0.4 (non-JVM jobs),
+/// being not less than MIN_MEMORY_OVERHEAD. This implies that `limit` must be greater than
+/// `MIN_MEMORY_OVERHEAD`
+/// The resource limit should keep this transparent by reducing the
+/// declared memory limit accordingly.
+fn subtract_spark_memory_overhead(for_java: bool, limit: &Quantity) -> Result<String, Error> {
+    // determine job-type using class name: scala/java will declare an application and main class;
+    // R and python will just declare the application name/file (for python this could be .zip/.py/.egg).
+    // Spark itself just checks the application name - See e.g.
+    // https://github.com/apache/spark/blob/01c7a46f24fb4bb4287a184a3d69e0e5c904bc50/core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala#L1092
+    let non_jvm_factor = if for_java {
+        //self.spec.main_class.is_some() {
+        1.0 / (1.0 + JVM_OVERHEAD_FACTOR)
+    } else {
+        1.0 / (1.0 + NON_JVM_OVERHEAD_FACTOR)
+    };
+
+    let original_memory = MemoryQuantity::try_from(limit)
+        .context(FailedToConvertJavaHeapSnafu {
+            unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+        })?
+        .scale_to(BinaryMultiple::Mebi)
+        .floor()
+        .value as u32;
+
+    if MIN_MEMORY_OVERHEAD > original_memory {
+        tracing::warn!("Skip memory overhead since not enough memory ({original_memory}m). At least {MIN_MEMORY_OVERHEAD}m required");
+        return Ok(format!("{original_memory}m"));
+    }
+
+    let reduced_memory =
+        (MemoryQuantity::try_from(limit).context(FailedToConvertJavaHeapSnafu {
+            unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+        })? * non_jvm_factor)
+            .scale_to(BinaryMultiple::Mebi)
+            .floor()
+            .value as u32;
+
+    let deduction = max(MIN_MEMORY_OVERHEAD, original_memory - reduced_memory);
+
+    tracing::debug!("subtract_spark_memory_overhead: original_memory ({original_memory}) - deduction ({deduction})");
+    Ok(format!("{}m", original_memory - deduction))
+}
+
+fn resources_to_driver_props(
+    for_java: bool,
+    driver_config: &DriverConfig,
+    props: &mut BTreeMap<String, String>,
+) -> Result<(), Error> {
+    if let Resources {
+        cpu: CpuLimits { max: Some(max), .. },
+        ..
+    } = &driver_config.resources
+    {
+        let cores = cores_from_quantity(max.0.clone())?;
+        // will have default value from resources to apply if nothing set specifically
+        props.insert("spark.driver.cores".to_string(), cores);
+    }
+
+    if let Resources {
+        memory: MemoryLimits {
+            limit: Some(limit), ..
+        },
+        ..
+    } = &driver_config.resources
+    {
+        let memory = subtract_spark_memory_overhead(for_java, limit)?;
+        props.insert("spark.driver.memory".to_string(), memory);
+    }
+
+    Ok(())
+}
+
+fn resources_to_executor_props(
+    for_java: bool,
+    executor_config: &ExecutorConfig,
+    props: &mut BTreeMap<String, String>,
+) -> Result<(), Error> {
+    if let Resources {
+        cpu: CpuLimits { max: Some(max), .. },
+        ..
+    } = &executor_config.resources
+    {
+        let cores = cores_from_quantity(max.0.clone())?;
+        // will have default value from resources to apply if nothing set specifically
+        props.insert("spark.executor.cores".to_string(), cores);
+    }
+
+    if let Resources {
+        memory: MemoryLimits {
+            limit: Some(limit), ..
+        },
+        ..
+    } = &executor_config.resources
+    {
+        let memory = subtract_spark_memory_overhead(for_java, limit)?;
+        props.insert("spark.executor.memory".to_string(), memory);
+    }
+
+    Ok(())
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -966,16 +991,25 @@ impl ExecutorConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::LocalObjectReference;
-    use crate::Quantity;
-    use crate::SparkApplication;
-    use crate::{cores_from_quantity, ImagePullPolicy};
+    use crate::{
+        cores_from_quantity, resources_to_executor_props, ExecutorConfig, ImagePullPolicy,
+    };
+    use crate::{resources_to_driver_props, SparkApplication};
+    use crate::{DriverConfig, LocalObjectReference};
+    use crate::{Quantity, SparkStorageConfig};
     use rstest::rstest;
     use stackable_operator::builder::ObjectMetaBuilder;
+    use stackable_operator::commons::affinity::StackableAffinity;
     use stackable_operator::commons::authentication::tls::{Tls, TlsVerification};
+    use stackable_operator::commons::resources::{
+        CpuLimits, MemoryLimits, NoRuntimeLimits, Resources,
+    };
     use stackable_operator::commons::s3::{
         S3AccessStyle, S3BucketSpec, S3ConnectionDef, S3ConnectionSpec,
     };
+    use stackable_operator::k8s_openapi::api::core::v1::PodTemplateSpec;
+    use stackable_operator::product_logging::spec::Logging;
+    use std::collections::BTreeMap;
     use std::str::FromStr;
 
     #[test]
@@ -1350,5 +1384,81 @@ spec:
         let q = &Quantity(input.to_string());
         let cores = cores_from_quantity(q.0.clone()).unwrap();
         assert_eq!(output, cores);
+    }
+
+    #[test]
+    fn test_resource_to_driver_props() {
+        let driver_config = DriverConfig {
+            resources: Resources {
+                memory: MemoryLimits {
+                    limit: Some(Quantity("128Mi".to_string())),
+                    runtime_limits: NoRuntimeLimits {},
+                },
+                cpu: CpuLimits {
+                    min: Some(Quantity("250m".to_string())),
+                    max: Some(Quantity("1".to_string())),
+                },
+                storage: SparkStorageConfig {},
+            },
+            logging: Logging {
+                enable_vector_agent: false,
+                containers: BTreeMap::new(),
+            },
+            volume_mounts: None,
+            affinity: StackableAffinity::default(),
+            pod_overrides: PodTemplateSpec::default(),
+        };
+
+        let mut props = BTreeMap::new();
+
+        resources_to_driver_props(true, &driver_config, &mut props).expect("blubb");
+
+        let expected: BTreeMap<String, String> = vec![
+            ("spark.driver.cores".to_string(), "1".to_string()),
+            ("spark.driver.memory".to_string(), "128m".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(expected, props);
+    }
+
+    #[test]
+    fn test_resource_to_executor_props() {
+        let executor_config = ExecutorConfig {
+            instances: Some(1),
+            resources: Resources {
+                memory: MemoryLimits {
+                    limit: Some(Quantity("512Mi".to_string())),
+                    runtime_limits: NoRuntimeLimits {},
+                },
+                cpu: CpuLimits {
+                    min: Some(Quantity("250m".to_string())),
+                    max: Some(Quantity("2".to_string())),
+                },
+                storage: SparkStorageConfig {},
+            },
+            logging: Logging {
+                enable_vector_agent: false,
+                containers: BTreeMap::new(),
+            },
+            volume_mounts: None,
+            node_selector: None,
+            affinity: StackableAffinity::default(),
+            pod_overrides: PodTemplateSpec::default(),
+        };
+
+        let mut props = BTreeMap::new();
+
+        resources_to_executor_props(true, &executor_config, &mut props).expect("blubb");
+
+        let expected: BTreeMap<String, String> = vec![
+            ("spark.executor.cores".to_string(), "2".to_string()),
+            ("spark.executor.memory".to_string(), "128m".to_string()), // 128 and not 512 because memory overhead is subtracted
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(expected, props);
     }
 }

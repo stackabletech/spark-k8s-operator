@@ -1965,6 +1965,8 @@ dependencies = [
  "snafu",
  "stackable-operator",
  "strum",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -1975,7 +1977,9 @@ dependencies = [
  "built",
  "clap",
  "futures",
+ "semver",
  "serde",
+ "serde_json",
  "serde_yaml 0.8.26",
  "snafu",
  "stackable-operator",

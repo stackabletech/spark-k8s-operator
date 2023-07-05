@@ -1473,6 +1473,22 @@ spec:
         let expected: BTreeMap<String, String> = vec![
             ("spark.driver.cores".to_string(), "1".to_string()),
             ("spark.driver.memory".to_string(), "128m".to_string()),
+            (
+                "spark.kubernetes.driver.limit.cores".to_string(),
+                "1".to_string(),
+            ),
+            (
+                "spark.kubernetes.driver.limit.memory".to_string(),
+                "128m".to_string(),
+            ),
+            (
+                "spark.kubernetes.driver.request.cores".to_string(),
+                "1".to_string(),
+            ),
+            (
+                "spark.kubernetes.driver.request.memory".to_string(),
+                "128m".to_string(),
+            ),
         ]
         .into_iter()
         .collect();
@@ -1512,6 +1528,22 @@ spec:
         let expected: BTreeMap<String, String> = vec![
             ("spark.executor.cores".to_string(), "2".to_string()),
             ("spark.executor.memory".to_string(), "128m".to_string()), // 128 and not 512 because memory overhead is subtracted
+            (
+                "spark.kubernetes.executor.limit.memory".to_string(),
+                "512m".to_string(),
+            ),
+            (
+                "spark.kubernetes.executor.request.cores".to_string(),
+                "2".to_string(),
+            ),
+            (
+                "spark.kubernetes.executor.request.memory".to_string(),
+                "512m".to_string(),
+            ),
+            (
+                "spark.kubernetes.executors.limit.cores".to_string(),
+                "2".to_string(),
+            ),
         ]
         .into_iter()
         .collect();

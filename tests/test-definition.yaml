@@ -71,17 +71,23 @@ tests:
       - ny-tlc-report
       - openshift
 suites:
-  - name: latest
+  - name: nightly
     patch:
       - dimensions:
           - expr: last
-  - name: smoke
+          - name: s3-use-tls
+            expr: "true"
+  - name: smoke-latest
     select:
       - smoke
+    patch:
+      - dimensions:
+          - expr: last
   - name: openshift
     patch:
       - dimensions:
           - expr: last
-      - dimensions:
           - name: openshift
+            expr: "true"
+          - name: s3-use-tls
             expr: "true"

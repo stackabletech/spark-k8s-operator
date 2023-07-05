@@ -5,9 +5,6 @@ metadata:
   name: resources-sparkconf
 spec:
   version: "1.0"
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-  vectorAggregatorConfigMapName: vector-aggregator-discovery
-{% endif %}
   sparkImage: "docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
   mode: cluster
   mainClass: org.apache.spark.examples.SparkALS
@@ -27,12 +24,3 @@ spec:
     spark.executor.memory: "2g"
     spark.executor.memoryOverheadFactor: "0.4"
     spark.executor.instances: "1"
-  job:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-  driver:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-  executor:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}

@@ -565,8 +565,16 @@ impl SparkApplication {
         // then added to the vector once complete.
         let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();
 
-        // Kubernetes resource requests and limits are set container properties.
-        // Here we translate some of them into Spark properties.
+        // Disable this. We subtract this factor out of the resource requests ourselves
+        // when computing the Spark memory properties below. We do this to because otherwise
+        // Spark computes and applies different container memory limits than the ones the
+        // user has provided.
+        // It can be overwritten by the user with the "sparkConf" property.
+        submit_conf.insert(
+            "spark.kubernetes.memoryOverheadFactor".to_string(),
+            "0.0".to_string(),
+        );
+
         resources_to_driver_props(
             self.spec.main_class.is_some(),
             &self.driver_config()?,
@@ -742,6 +750,8 @@ fn subtract_spark_memory_overhead(for_java: bool, limit: &Quantity) -> Result<St
     Ok(format!("{}m", original_memory - deduction))
 }
 
+/// Translate resource limits to Spark config properties.
+/// Spark will use these and *ignore* the resource limits in pod templates entirely.
 fn resources_to_driver_props(
     for_java: bool,
     driver_config: &DriverConfig,
@@ -754,7 +764,12 @@ fn resources_to_driver_props(
     {
         let cores = cores_from_quantity(max.0.clone())?;
         // will have default value from resources to apply if nothing set specifically
-        props.insert("spark.driver.cores".to_string(), cores);
+        props.insert("spark.driver.cores".to_string(), cores.clone());
+        props.insert(
+            "spark.kubernetes.driver.request.cores".to_string(),
+            cores.clone(),
+        );
+        props.insert("spark.kubernetes.driver.limit.cores".to_string(), cores);
     }
 
     if let Resources {
@@ -766,11 +781,29 @@ fn resources_to_driver_props(
     {
         let memory = subtract_spark_memory_overhead(for_java, limit)?;
         props.insert("spark.driver.memory".to_string(), memory);
+
+        let limit_mb = format!(
+            "{}m",
+            MemoryQuantity::try_from(limit)
+                .context(FailedToConvertJavaHeapSnafu {
+                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+                })?
+                .scale_to(BinaryMultiple::Mebi)
+                .floor()
+                .value as u32
+        );
+        props.insert(
+            "spark.kubernetes.driver.request.memory".to_string(),
+            limit_mb.clone(),
+        );
+        props.insert("spark.kubernetes.driver.limit.memory".to_string(), limit_mb);
     }
 
     Ok(())
 }
 
+/// Translate resource limits to Spark config properties.
+/// Spark will use these and *ignore* the resource limits in pod templates entirely.
 fn resources_to_executor_props(
     for_java: bool,
     executor_config: &ExecutorConfig,
@@ -783,7 +816,12 @@ fn resources_to_executor_props(
     {
         let cores = cores_from_quantity(max.0.clone())?;
         // will have default value from resources to apply if nothing set specifically
-        props.insert("spark.executor.cores".to_string(), cores);
+        props.insert("spark.executor.cores".to_string(), cores.clone());
+        props.insert(
+            "spark.kubernetes.executor.request.cores".to_string(),
+            cores.clone(),
+        );
+        props.insert("spark.kubernetes.executors.limit.cores".to_string(), cores);
     }
 
     if let Resources {
@@ -795,6 +833,25 @@ fn resources_to_executor_props(
     {
         let memory = subtract_spark_memory_overhead(for_java, limit)?;
         props.insert("spark.executor.memory".to_string(), memory);
+
+        let limit_mb = format!(
+            "{}m",
+            MemoryQuantity::try_from(limit)
+                .context(FailedToConvertJavaHeapSnafu {
+                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
+                })?
+                .scale_to(BinaryMultiple::Mebi)
+                .floor()
+                .value as u32
+        );
+        props.insert(
+            "spark.kubernetes.executor.request.memory".to_string(),
+            limit_mb.clone(),
+        );
+        props.insert(
+            "spark.kubernetes.executor.limit.memory".to_string(),
+            limit_mb,
+        );
     }
 
     Ok(())

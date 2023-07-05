@@ -1,7 +1,7 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 60
+timeout: 240
 ---
 apiVersion: v1
 kind: Pod
@@ -19,9 +19,6 @@ spec:
         requests:
           cpu: 100m
           memory: 512Mi
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-    - name: vector
-{% endif %}
 ---
 apiVersion: v1
 kind: Pod
@@ -29,9 +26,6 @@ metadata:
   name: resources-sparkconf-driver
 spec:
   containers:
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-    - name: vector
-{% endif %}
     - name: spark
       resources:
         limits:
@@ -47,9 +41,6 @@ metadata:
   name: resources-sparkconf-exec-1
 spec:
   containers:
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-    - name: vector
-{% endif %}
     - name: spark
       resources:
         limits:

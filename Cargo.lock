@@ -1966,7 +1966,6 @@ dependencies = [
  "stackable-operator",
  "strum",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]

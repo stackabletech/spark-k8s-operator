@@ -11,6 +11,9 @@ metadata:
     app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
 spec:
   containers:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    - name: vector
+{% endif %}
     - name: spark-submit
       resources:
         limits:
@@ -26,6 +29,9 @@ metadata:
   name: resources-crd-driver
 spec:
   containers:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    - name: vector
+{% endif %}
     - name: spark
       resources:
         limits:
@@ -41,6 +47,9 @@ metadata:
   name: resources-crd-exec-1
 spec:
   containers:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    - name: vector
+{% endif %}
     - name: spark
       resources:
         limits:

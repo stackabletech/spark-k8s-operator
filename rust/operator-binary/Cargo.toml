@@ -26,5 +26,5 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [build-dependencies]
 built = { version =  "0.6", features = ["chrono", "git2"] }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.42.2" }
+stackable-operator = { workspace = true }
 stackable-spark-k8s-crd = { path = "../crd" }

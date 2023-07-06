@@ -20,5 +20,5 @@ tokio = "1.24"
 anyhow = "1.0"
 
 [patch."https://github.com/stackabletech/operator-rs.git"]
-stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "feat/pub-overrides-schema"}
+stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "main"}
 #stackable-operator = { path = "../operator-rs" }

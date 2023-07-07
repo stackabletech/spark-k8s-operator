@@ -34,6 +34,7 @@ spec:
 {% endif %}
     - name: spark
       resources:
+      # these resources are set via Spark submit properties like "spark.driver.cores"
         limits:
           cpu: "1"
           memory: 1Gi
@@ -52,6 +53,7 @@ spec:
 {% endif %}
     - name: spark
       resources:
+      # these resources are set via Spark submit properties like "spark.executor.cores"
         limits:
           cpu: "1"
           memory: 1Gi

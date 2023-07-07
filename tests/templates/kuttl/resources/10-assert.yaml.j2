@@ -11,9 +11,6 @@ metadata:
     app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
 spec:
   containers:
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-    - name: vector
-{% endif %}
     - name: spark-submit
       resources:
         limits:
@@ -22,6 +19,9 @@ spec:
         requests:
           cpu: 250m
           memory: 512Mi
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    - name: vector
+{% endif %}
 ---
 apiVersion: v1
 kind: Pod

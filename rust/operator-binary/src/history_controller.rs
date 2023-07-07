@@ -30,6 +30,7 @@ use stackable_operator::{
 };
 use stackable_spark_k8s_crd::{
     constants::*,
+    history,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
     s3logdir::S3LogDir,
     tlscerts,
@@ -39,6 +40,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::resources::ResourceRequirementsBuilder;
+use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -119,6 +121,8 @@ pub enum Error {
         source: product_logging::Error,
         cm_name: String,
     },
+    #[snafu(display("cannot retrieve role group"))]
+    CannotRetrieveRoleGroup { source: history::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -388,6 +392,14 @@ fn build_stateful_set(
         ));
     }
 
+    let mut pod_template = pb.build_template();
+    pod_template.merge_from(shs.role().config.pod_overrides.clone());
+    let role_group = shs
+        .rolegroup(rolegroupref)
+        .with_context(|_| CannotRetrieveRoleGroupSnafu)?;
+
+    pod_template.merge_from(role_group.config.pod_overrides);
+
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(shs)
@@ -401,7 +413,7 @@ fn build_stateful_set(
             ))
             .build(),
         spec: Some(StatefulSetSpec {
-            template: pb.build_template(),
+            template: pod_template,
             replicas: shs.replicas(rolegroupref),
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(

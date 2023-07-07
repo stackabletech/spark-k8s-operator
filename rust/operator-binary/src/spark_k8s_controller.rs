@@ -8,6 +8,7 @@ use stackable_spark_k8s_crd::{
 use crate::product_logging::{self, resolve_vector_aggregator_address};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::resources::ResourceRequirementsBuilder;
+use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     commons::{
@@ -21,7 +22,7 @@ use stackable_operator::{
         api::{
             batch::v1::{Job, JobSpec},
             core::v1::{
-                ConfigMap, Container, EnvVar, Pod, PodSecurityContext, PodSpec, PodTemplateSpec,
+                ConfigMap, Container, EnvVar, PodSecurityContext, PodSpec, PodTemplateSpec,
                 ServiceAccount, Volume, VolumeMount,
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
@@ -127,6 +128,7 @@ pub struct PodTemplateConfig {
     pub logging: Logging<SparkContainer>,
     pub volume_mounts: Vec<VolumeMount>,
     pub affinity: StackableAffinity,
+    pub pod_overrides: PodTemplateSpec,
 }
 
 pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) -> Result<Action> {
@@ -214,6 +216,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             &s3logdir,
         ),
         affinity: driver_config.affinity,
+        pod_overrides: driver_config.pod_overrides.clone(),
     };
     let driver_pod_template_config_map = pod_template_config_map(
         &spark_application,
@@ -245,6 +248,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             &s3logdir,
         ),
         affinity: executor_config.affinity,
+        pod_overrides: executor_config.pod_overrides.clone(),
     };
     let executor_pod_template_config_map = pod_template_config_map(
         &spark_application,
@@ -416,7 +420,6 @@ fn init_containers(
             )
             .build()
     });
-    tracing::info!("Args [{:#?}]", args);
 
     Ok(vec![job_container, requirements_container, tls_container]
         .into_iter()
@@ -432,7 +435,7 @@ fn pod_template(
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
-) -> Result<Pod> {
+) -> Result<PodTemplateSpec> {
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
     cb.add_volume_mounts(config.volume_mounts.clone())
@@ -512,7 +515,9 @@ fn pod_template(
         ));
     }
 
-    pb.build().context(PodTemplateConfigMapSnafu)
+    let mut pod_template = pb.build_template();
+    pod_template.merge_from(config.pod_overrides.clone());
+    Ok(pod_template)
 }
 
 fn pod_template_config_map(
@@ -733,7 +738,7 @@ fn spark_job(
         ));
     }
 
-    let pod = PodTemplateSpec {
+    let mut pod = PodTemplateSpec {
         metadata: Some(
             ObjectMetaBuilder::new()
                 .name("spark-submit")
@@ -752,6 +757,8 @@ fn spark_job(
             ..PodSpec::default()
         }),
     };
+
+    pod.merge_from(job_config.pod_overrides);
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()

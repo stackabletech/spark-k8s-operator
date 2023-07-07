@@ -1,0 +1,53 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-history-log-config
+data:
+  log4j2.properties: |-
+    appenders = CONSOLE
+
+    appender.CONSOLE.type = Console
+    appender.CONSOLE.name = CONSOLE
+    appender.CONSOLE.target = SYSTEM_ERR
+    appender.CONSOLE.layout.type = PatternLayout
+    appender.CONSOLE.layout.pattern = %d{ISO8601} %p [%t] %c - %m%n
+    appender.CONSOLE.filter.threshold.type = ThresholdFilter
+    appender.CONSOLE.filter.threshold.level = DEBUG
+
+    rootLogger.level=DEBUG
+    rootLogger.appenderRefs = CONSOLE
+    rootLogger.appenderRef.CONSOLE.ref = CONSOLE
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+metadata:
+  name: spark-history
+spec:
+  image:
+    productVersion: "{{ test_scenario['values']['spark'].split('-stackable')[0] }}"
+    stackableVersion: "{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
+  logFileDirectory:
+    s3:
+      prefix: eventlogs/
+      bucket:
+        reference: spark-history-s3-bucket
+  # For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
+  #sparkConf:
+  nodes:
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          cleaner: true
+        podOverrides:
+          spec:
+            containers:
+              - name: spark-history
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi
+                  limits:
+                    cpu: 1500m
+                    memory: 1024Mi

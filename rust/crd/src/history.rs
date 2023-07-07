@@ -3,7 +3,8 @@ use crate::{affinity::history_affinity, constants::*};
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::role_utils::RoleGroup;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -45,6 +46,8 @@ pub enum Error {
     },
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+    #[snafu(display("the role group {role_group} is not defined"))]
+    CannotRetrieveRoleGroup { role_group: String },
 }
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
@@ -118,6 +121,26 @@ impl CurrentlySupportedListenerClasses {
 }
 
 impl SparkHistoryServer {
+    /// Returns a reference to the role. Raises an error if the role is not defined.
+    pub fn role(&self) -> &Role<HistoryConfigFragment> {
+        &self.spec.nodes
+    }
+
+    /// Returns a reference to the role group. Raises an error if the role or role group are not defined.
+    pub fn rolegroup(
+        &self,
+        rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
+    ) -> Result<RoleGroup<HistoryConfigFragment>, Error> {
+        self.spec
+            .nodes
+            .role_groups
+            .get(&rolegroup_ref.role_group)
+            .with_context(|| CannotRetrieveRoleGroupSnafu {
+                role_group: rolegroup_ref.role_group.to_owned(),
+            })
+            .cloned()
+    }
+
     pub fn merged_config(
         &self,
         rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,

@@ -58,11 +58,9 @@ We develop and test our operators on the following cloud platforms:
 * GKE on Google Cloud Platform (GCP)
 * [IONOS Cloud Managed Kubernetes](https://cloud.ionos.com/managed/kubernetes)
 * K3s
-* Kubernetes 1.23-1.26
+* Kubernetes (for an up to date list of supported versions please check the release notes in our [docs](https://docs.stackable.tech)
+* Red Hat OpenShift
 
-We are currently working to support:
-
-* OpenShift
 
 ## Other Operators
 
@@ -97,4 +95,4 @@ Contributions are welcome. Follow our [Contributors Guide](https://docs.stackabl
 
 ## Support
 
-You can use this project under different licenses. Get started with the community edition! If you want professional support, [we offer subscription plans](https://stackable.tech/en/plans/).
+Get started with the community edition! If you want professional support, [we offer subscription plans and custom licensing](https://stackable.tech/en/plans/).

@@ -6,6 +6,7 @@ use stackable_operator::{
     client::Client,
     k8s_openapi::api::core::v1::ConfigMap,
     kube::Resource,
+    memory::BinaryMultiple,
     product_logging::{
         self,
         spec::{ContainerLogConfig, ContainerLogConfigChoice, Logging},
@@ -13,7 +14,7 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 use stackable_spark_k8s_crd::constants::{
-    LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE_IN_MIB, VOLUME_MOUNT_PATH_LOG,
+    LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, VOLUME_MOUNT_PATH_LOG,
 };
 
 #[derive(Snafu, Debug)]
@@ -90,7 +91,10 @@ where
             product_logging::framework::create_log4j2_config(
                 &format!("{VOLUME_MOUNT_PATH_LOG}/{main_container}"),
                 LOG_FILE,
-                MAX_SPARK_LOG_FILES_SIZE_IN_MIB,
+                MAX_SPARK_LOG_FILES_SIZE
+                    .scale_to(BinaryMultiple::Mebi)
+                    .floor()
+                    .value as u32,
                 CONSOLE_CONVERSION_PATTERN,
                 log_config,
             ),

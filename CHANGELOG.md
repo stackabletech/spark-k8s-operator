@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [23.7.0] - 2023-07-14
+
 ### Added
 
 - Generate OLM bundle for Release 23.4.0 ([#238]).

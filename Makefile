@@ -30,7 +30,16 @@ docker-build:
 
 docker-publish:
 	echo "${NEXUS_PASSWORD}" | docker login --username github --password-stdin "${DOCKER_REPO}"
-	docker push --all-tags "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}"
+	DOCKER_OUTPUT=$$(docker push --all-tags "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}");\
+	# Obtain the digest of the pushed image from the output of `docker push`, because signing by tag is deprecated and will be removed from cosign in the future\
+	REPO_DIGEST_OF_IMAGE=$$(echo "$$DOCKER_OUTPUT" | awk '/^${VERSION}: digest: sha256:[0-9a-f]{64} size: [0-9]+$$/ { print $$3 }');\
+	if [ -z "$$REPO_DIGEST_OF_IMAGE" ]; then\
+		echo 'Could not find repo digest for container image: ${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}';\
+		exit 1;\
+	fi;\
+	# This generates a signature and publishes it to the registry, next to the image\
+	# Uses the keyless signing flow with Github Actions as identity provider\
+	cosign sign -y ${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:@$$REPO_DIGEST_OF_IMAGE
 
 # TODO remove if not used/needed
 docker: docker-build docker-publish

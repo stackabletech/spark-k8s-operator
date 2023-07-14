@@ -282,6 +282,8 @@ jobs:
       - tests_passed
       - select_helm_repo
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     env:
       NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
       HELM_REPO: ${{ needs.select_helm_repo.outputs.helm_repository }}
@@ -312,6 +314,8 @@ jobs:
         # Recreate charts and publish charts and docker image. The "-e" is needed as we want to override the
         # default value in the makefile if called from this action, but not otherwise (i.e. when called locally).
         # This is needed for the HELM_REPO variable.
+      - name: Set up Cosign
+        uses: sigstore/cosign-installer@v3.0.5
       - name: Publish Docker image and Helm chart
         run: make -e publish
         # Output the name of the published image to the Job output for later use

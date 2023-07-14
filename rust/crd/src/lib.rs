@@ -325,7 +325,7 @@ impl SparkApplication {
                 .with_empty_dir(
                     None::<String>,
                     Some(product_logging::framework::calculate_log_volume_size_limit(
-                        &[MAX_SPARK_LOG_FILES_SIZE],
+                        &[MAX_SPARK_LOG_FILES_SIZE, MAX_INIT_LOG_FILES_SIZE],
                     )),
                 )
                 .build(),

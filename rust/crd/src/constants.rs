@@ -47,6 +47,17 @@ pub const MAX_SPARK_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
     unit: BinaryMultiple::Mebi,
 };
 
+// Spark applications can have up to three init containers.
+// * `job` - copies user's application jar file from a volume to the expected location.
+// * `requirements` - install Python packages.
+// * `tls` - Generates a java trust store.
+// All of these containers have their output captured by Vector via `capture_shell_output`
+// and therefore also need space on the logging volume.
+pub const MAX_INIT_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 3.0, // 1Mib for each possible container.
+    unit: BinaryMultiple::Mebi,
+};
+
 pub const OPERATOR_NAME: &str = "spark.stackable.tech";
 pub const CONTROLLER_NAME: &str = "sparkapplication";
 pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";

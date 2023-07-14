@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.38.0` -> `0.44.0` ([#235]), ([#259]).
+- `operator-rs` `0.38.0` -> `0.44.0` ([#235], [#259]).
 - Use 0.0.0-dev product images for testing ([#236])
 - Use testing-tools 0.2.0 ([#236])
 - Run as root group ([#241]).

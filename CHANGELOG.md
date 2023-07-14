@@ -20,11 +20,11 @@ All notable changes to this project will be documented in this file.
 - Use testing-tools 0.2.0 ([#236])
 - Run as root group ([#241]).
 - Added kuttl test suites ([#252])
-- Increase the size limit of log volumes (#[259])
 
 ### Fixed
 
 - Fix quoting issues when spark config values contain spaces ([#243]).
+- Increase the size limit of log volumes (#[259])
 
 [#235]: https://github.com/stackabletech/spark-k8s-operator/pull/235
 [#236]: https://github.com/stackabletech/spark-k8s-operator/pull/236

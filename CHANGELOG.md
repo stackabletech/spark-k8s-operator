@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `operator-rs` `0.38.0` -> `0.41.0` ([#235]).
+- `operator-rs` `0.38.0` -> `0.44.0` ([#235], [#259]).
 - Use 0.0.0-dev product images for testing ([#236])
 - Use testing-tools 0.2.0 ([#236])
 - Run as root group ([#241]).
@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fix quoting issues when spark config values contain spaces ([#243]).
+- Increase the size limit of log volumes (#[259])
 
 [#235]: https://github.com/stackabletech/spark-k8s-operator/pull/235
 [#236]: https://github.com/stackabletech/spark-k8s-operator/pull/236
@@ -34,6 +35,7 @@ All notable changes to this project will be documented in this file.
 [#252]: https://github.com/stackabletech/spark-k8s-operator/pull/252
 [#249]: https://github.com/stackabletech/spark-k8s-operator/pull/249
 [#256]: https://github.com/stackabletech/spark-k8s-operator/pull/256
+[#259]: https://github.com/stackabletech/spark-k8s-operator/pull/259
 
 ## [23.4.0] - 2023-04-17
 

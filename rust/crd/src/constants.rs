@@ -1,3 +1,5 @@
+use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
+
 pub const APP_NAME: &str = "spark-k8s";
 
 pub const VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES: &str = "driver-pod-template";
@@ -40,10 +42,21 @@ pub const MIN_MEMORY_OVERHEAD: u32 = 384;
 pub const JVM_OVERHEAD_FACTOR: f32 = 0.1;
 pub const NON_JVM_OVERHEAD_FACTOR: f32 = 0.4;
 
-pub const MAX_SPARK_LOG_FILES_SIZE_IN_MIB: u32 = 10;
-pub const MAX_INIT_CONTAINER_LOG_FILES_SIZE_IN_MIB: u32 = 1;
-pub const LOG_VOLUME_SIZE_IN_MIB: u32 =
-    MAX_SPARK_LOG_FILES_SIZE_IN_MIB + MAX_INIT_CONTAINER_LOG_FILES_SIZE_IN_MIB;
+pub const MAX_SPARK_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 10.0,
+    unit: BinaryMultiple::Mebi,
+};
+
+// Spark applications can have up to three init containers.
+// * `job` - copies user's application jar file from a volume to the expected location.
+// * `requirements` - install Python packages.
+// * `tls` - Generates a java trust store.
+// All of these containers have their output captured by Vector via `capture_shell_output`
+// and therefore also need space on the logging volume.
+pub const MAX_INIT_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
+    value: 3.0, // 1Mib for each possible container.
+    unit: BinaryMultiple::Mebi,
+};
 
 pub const OPERATOR_NAME: &str = "spark.stackable.tech";
 pub const CONTROLLER_NAME: &str = "sparkapplication";

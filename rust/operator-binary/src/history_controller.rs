@@ -1,3 +1,4 @@
+use crate::product_logging::{self, resolve_vector_aggregator_address};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -11,7 +12,7 @@ use stackable_operator::{
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
-        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::{
         runtime::{controller::Action, reflector::ObjectRef},
@@ -20,7 +21,7 @@ use stackable_operator::{
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     product_config::ProductConfigManager,
     product_logging::{
-        framework::vector_container,
+        framework::{calculate_log_volume_size_limit, vector_container},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -43,8 +44,6 @@ use stackable_operator::builder::resources::ResourceRequirementsBuilder;
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-use crate::product_logging::{self, resolve_vector_aggregator_address};
 
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
@@ -339,7 +338,7 @@ fn build_stateful_set(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
                 .with_empty_dir(
                     None::<String>,
-                    Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
+                    Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
                 )
                 .build(),
         )

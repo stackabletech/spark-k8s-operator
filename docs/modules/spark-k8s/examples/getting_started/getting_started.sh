@@ -65,15 +65,15 @@ spec:
     resources:
       cpu:
         min: "1"
-        max: "1200m"
+        max: "2"
       memory:
         limit: "1Gi"
   executor:
-    instances: 3
+    instances: 1
     resources:
       cpu:
         min: "1"
-        max: "1200m"
+        max: "2"
       memory:
         limit: "1Gi"
 EOF

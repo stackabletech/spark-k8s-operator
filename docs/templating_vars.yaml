@@ -3,6 +3,6 @@ helm:
   repo_name: stackable-stable
   repo_url: https://repo.stackable.tech/repository/helm-stable/
 versions:
-  commons: "23.7"
-  secret: "23.7"
-  spark: "23.7"
+  commons: "23.7.0"
+  secret: "23.7.0"
+  spark: "23.7.0"

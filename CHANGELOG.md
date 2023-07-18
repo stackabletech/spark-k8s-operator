@@ -26,8 +26,8 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fix quoting issues when spark config values contain spaces ([#243]).
-- Increase the size limit of log volumes (#[259]).
-- Typo in executor cpu limit property (#[263]).
+- Increase the size limit of log volumes ([#259]).
+- Typo in executor cpu limit property ([#263]).
 
 [#235]: https://github.com/stackabletech/spark-k8s-operator/pull/235
 [#236]: https://github.com/stackabletech/spark-k8s-operator/pull/236

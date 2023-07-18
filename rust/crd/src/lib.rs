@@ -813,7 +813,7 @@ fn resources_to_executor_props(
             "spark.kubernetes.executor.request.cores".to_string(),
             cores.clone(),
         );
-        props.insert("spark.kubernetes.executors.limit.cores".to_string(), cores);
+        props.insert("spark.kubernetes.executor.limit.cores".to_string(), cores);
     }
 
     if let Resources {
@@ -1532,7 +1532,7 @@ spec:
                 "512m".to_string(),
             ),
             (
-                "spark.kubernetes.executors.limit.cores".to_string(),
+                "spark.kubernetes.executor.limit.cores".to_string(),
                 "2".to_string(),
             ),
         ]

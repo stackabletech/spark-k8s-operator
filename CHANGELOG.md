@@ -13,20 +13,21 @@ All notable changes to this project will be documented in this file.
 - Add support for using custom certificates when accessing S3 with TLS ([#247]).
 - Use bitnami charts for testing S3 access with TLS ([#247]).
 - Set explicit resources on all containers ([#249]).
-- Support pod overrides ([#256])
+- Support pod overrides ([#256]).
 
 ### Changed
 
 - `operator-rs` `0.38.0` -> `0.44.0` ([#235], [#259]).
-- Use 0.0.0-dev product images for testing ([#236])
-- Use testing-tools 0.2.0 ([#236])
+- Use 0.0.0-dev product images for testing ([#236]).
+- Use testing-tools 0.2.0 ([#236]).
 - Run as root group ([#241]).
-- Added kuttl test suites ([#252])
+- Added kuttl test suites ([#252]).
 
 ### Fixed
 
 - Fix quoting issues when spark config values contain spaces ([#243]).
-- Increase the size limit of log volumes (#[259])
+- Increase the size limit of log volumes ([#259]).
+- Typo in executor cpu limit property ([#263]).
 
 [#235]: https://github.com/stackabletech/spark-k8s-operator/pull/235
 [#236]: https://github.com/stackabletech/spark-k8s-operator/pull/236
@@ -38,6 +39,7 @@ All notable changes to this project will be documented in this file.
 [#249]: https://github.com/stackabletech/spark-k8s-operator/pull/249
 [#256]: https://github.com/stackabletech/spark-k8s-operator/pull/256
 [#259]: https://github.com/stackabletech/spark-k8s-operator/pull/259
+[#263]: https://github.com/stackabletech/spark-k8s-operator/pull/263
 
 ## [23.4.0] - 2023-04-17
 

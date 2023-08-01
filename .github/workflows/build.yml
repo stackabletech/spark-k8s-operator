@@ -11,6 +11,7 @@ on:
     tags:
       - '[0-9][0-9].[0-9]+.[0-9]+'
   pull_request:
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
@@ -35,13 +36,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.68.2
-      - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
+      - uses: dtolnay/rust-toolchain@1.71.0
+      - uses: Swatinem/rust-cache@dd05243424bd5c0e585e4b55eb2d7615cdd32f1f # v2
         with:
           key: udeps
+          cache-all-crates: "true"
       - run: cargo install --locked cargo-udeps@0.1.39
       - run: cargo udeps --workspace
 
@@ -62,8 +64,7 @@ jobs:
   #         repository: dev
   #
   # Any other scenarios (e.g. when a branch is created/pushed) will cause the publish step to be skipped, most commonly this is expected to happen for the
-  # branches that bors uses internally (staging, trying) for which the checks need to run, but we do not want artifacts
-  # to be published.
+  # branches that the GitHub merge queue feature uses internally for which the checks need to run, but we do not want artifacts to be published.
   select_helm_repo:
     name: Select target helm repository based on action trigger
     runs-on: ubuntu-latest
@@ -102,10 +103,10 @@ jobs:
     continue-on-error: ${{ matrix.checks == 'advisories' }}
 
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
-      - uses: EmbarkStudios/cargo-deny-action@8a8607bd8e2b3a514d5a40174cc7c55b229d9ba7 # v1.4.0
+      - uses: EmbarkStudios/cargo-deny-action@a50c7d5f86370e02fae8472c398f15a36e517bb8 # v1
         with:
           command: check ${{ matrix.checks }}
 
@@ -113,10 +114,10 @@ jobs:
     name: Run Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.68.2
+      - uses: dtolnay/rust-toolchain@1.71.0
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
@@ -129,15 +130,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.68.2
+      - uses: dtolnay/rust-toolchain@1.71.0
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
+      - uses: Swatinem/rust-cache@dd05243424bd5c0e585e4b55eb2d7615cdd32f1f # v2
         with:
           key: clippy
+          cache-all-crates: "true"
       - name: Run clippy action to produce annotations
         uses: giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0 # v1.0.1
         env:
@@ -161,15 +163,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.68.2
+      - uses: dtolnay/rust-toolchain@1.71.0
         with:
           components: rustfmt
-      - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
+      - uses: Swatinem/rust-cache@dd05243424bd5c0e585e4b55eb2d7615cdd32f1f # v2
         with:
           key: doc
+          cache-all-crates: "true"
       - run: cargo doc --document-private-items
 
   run_tests:
@@ -180,13 +183,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.68.2
-      - uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
+      - uses: dtolnay/rust-toolchain@1.71.0
+      - uses: Swatinem/rust-cache@dd05243424bd5c0e585e4b55eb2d7615cdd32f1f # v2
         with:
           key: test
+          cache-all-crates: "true"
       - run: cargo test
 
 
@@ -198,10 +202,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
-      - uses: actions/setup-python@13ae5bb136fac2878aff31522b9efb785519f984 # v4.6.1
+      - uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4
         with:
           python-version: '3.11'
       - name: Install jinja2-cli
@@ -212,7 +216,7 @@ jobs:
         run: git diff --exit-code
       - name: Git Diff showed uncommitted changes
         if: ${{ failure() }}
-        uses: actions/github-script@d556feaca394842dc55e4734bf3bb9f685482fa0 # v6
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
         with:
           script: |
             core.setFailed('Committed README are not up to date, please make sure to apply them to the templated partials, and re-commit!')
@@ -236,7 +240,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
       - name: Checkout
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
       - name: Set up Helm
@@ -244,18 +248,19 @@ jobs:
         with:
           version: v3.6.2
       - name: Set up cargo
-        uses: dtolnay/rust-toolchain@1.68.2
+        uses: dtolnay/rust-toolchain@1.71.0
       - name: Set up rust-cache
-        uses: Swatinem/rust-cache@359a70e43a0bb8a13953b04a90f76428b4959bb6 # v2.2.0
+        uses: Swatinem/rust-cache@dd05243424bd5c0e585e4b55eb2d7615cdd32f1f # v2
         with:
           key: charts
+          cache-all-crates: "true"
       - name: Regenerate charts
         run: make regenerate-charts
       - name: Check if committed charts were up to date
         run: git diff --exit-code
       - name: Git Diff showed uncommitted changes
         if: ${{ failure() }}
-        uses: actions/github-script@d556feaca394842dc55e4734bf3bb9f685482fa0 # v6
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
         with:
           script: |
             core.setFailed('Committed charts were not up to date, please regenerate and re-commit!')
@@ -296,10 +301,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config
       - name: Checkout
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@1.68.2
+      - uses: dtolnay/rust-toolchain@1.71.0
         with:
           components: rustfmt
         # This step checks if the current run was triggered by a push to a pr (or a pr being created).
@@ -315,7 +320,7 @@ jobs:
         # default value in the makefile if called from this action, but not otherwise (i.e. when called locally).
         # This is needed for the HELM_REPO variable.
       - name: Set up Cosign
-        uses: sigstore/cosign-installer@v3.0.5
+        uses: sigstore/cosign-installer@6e04d228eb30da1757ee4e1dd75a0ec73a653e06 # v3
       - name: Publish Docker image and Helm chart
         run: make -e publish
         # Output the name of the published image to the Job output for later use

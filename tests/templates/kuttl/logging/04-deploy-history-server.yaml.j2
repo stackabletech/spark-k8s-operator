@@ -22,8 +22,7 @@ metadata:
   name: spark-history
 spec:
   image:
-    productVersion: "{{ test_scenario['values']['spark'].split('-stackable')[0] }}"
-    stackableVersion: "{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'] }}"
   vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
   logFileDirectory:
     s3:

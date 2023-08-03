@@ -48,7 +48,6 @@ mod test {
         spec:
           image:
             productVersion: 3.3.0
-            stackableVersion: 2023.1.0
           logFileDirectory:
             s3:
               prefix: eventlogs/

@@ -275,6 +275,17 @@ customConfig:
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "vector"
+
+    # Invalid events
+
+    filteredInvalidEvents:
+      type: filter
+      inputs: [vector]
+      condition: |-
+        .timestamp == from_unix_timestamp!(0) ||
+        is_null(.level) ||
+        is_null(.logger) ||
+        is_null(.message)
   sinks:
     out:
       inputs: [filtered*]
@@ -282,6 +293,8 @@ customConfig:
       type: vector
       address: {{ lookup('env', 'VECTOR_AGGREGATOR') }}
       buffer:
+        # Avoid back pressure from VECTOR_AGGREGATOR. The test should
+        # not fail if the aggregator is not available.
         when_full: drop_newest
 {% else %}
       type: blackhole

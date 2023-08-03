@@ -11221,7 +11221,6 @@ spec:
                         - productVersion
                     - required:
                         - productVersion
-                        - stackableVersion
                   properties:
                     custom:
                       description: Overwrite the docker image. Specify the full docker image name, e.g. `docker.stackable.tech/stackable/superset:1.4.1-stackable2.1.0`
@@ -11230,7 +11229,7 @@ spec:
                       description: Version of the product, e.g. `1.4.1`.
                       type: string
                     pullPolicy:
-                      default: IfNotPresent
+                      default: Always
                       description: '[Pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy) used when pulling the Images'
                       enum:
                         - IfNotPresent
@@ -11253,7 +11252,8 @@ spec:
                       nullable: true
                       type: string
                     stackableVersion:
-                      description: Stackable version of the product, e.g. 2.1.0
+                      description: Stackable version of the product, e.g. `23.4`, `23.4.1` or `0.0.0-dev`. If not specified, the operator will use its own version, e.g. `23.4.1`. When using a nightly operator or a pr version, it will use the nightly `0.0.0-dev` image.
+                      nullable: true
                       type: string
                   type: object
                 logFileDirectory:

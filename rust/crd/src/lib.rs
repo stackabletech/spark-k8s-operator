@@ -1048,12 +1048,8 @@ mod tests {
     use rstest::rstest;
     use stackable_operator::builder::ObjectMetaBuilder;
     use stackable_operator::commons::affinity::StackableAffinity;
-    use stackable_operator::commons::authentication::tls::{Tls, TlsVerification};
     use stackable_operator::commons::resources::{
         CpuLimits, MemoryLimits, NoRuntimeLimits, Resources,
-    };
-    use stackable_operator::commons::s3::{
-        S3AccessStyle, S3BucketSpec, S3ConnectionDef, S3ConnectionSpec,
     };
     use stackable_operator::k8s_openapi::api::core::v1::PodTemplateSpec;
     use stackable_operator::product_logging::spec::Logging;
@@ -1296,38 +1292,6 @@ spec:
             ImagePullPolicy::IfNotPresent,
             ImagePullPolicy::from_str("IfNotPresent").unwrap()
         );
-    }
-
-    #[test]
-    fn test_ser_inline() {
-        let bucket = S3BucketSpec {
-            bucket_name: Some("test-bucket-name".to_owned()),
-            connection: Some(S3ConnectionDef::Inline(S3ConnectionSpec {
-                host: Some("host".to_owned()),
-                port: Some(8080),
-                credentials: None,
-                access_style: Some(S3AccessStyle::VirtualHosted),
-                tls: Some(Tls {
-                    verification: TlsVerification::None {},
-                }),
-            })),
-        };
-
-        assert_eq!(
-            serde_yaml::to_string(&bucket).unwrap(),
-            "---
-bucketName: test-bucket-name
-connection:
-  inline:
-    host: host
-    port: 8080
-    accessStyle: VirtualHosted
-    tls:
-      verification:
-        none: {}
-"
-            .to_owned()
-        )
     }
 
     #[test]

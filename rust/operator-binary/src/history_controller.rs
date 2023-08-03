@@ -146,7 +146,10 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     )
     .context(CreateClusterResourcesSnafu)?;
 
-    let resolved_product_image = shs.spec.image.resolve(HISTORY_IMAGE_BASE_NAME);
+    let resolved_product_image = shs.spec.image.resolve(
+        HISTORY_IMAGE_BASE_NAME,
+        crate::built_info::CARGO_PKG_VERSION,
+    );
     let s3_log_dir = S3LogDir::resolve(
         Some(&shs.spec.log_file_directory),
         shs.metadata.namespace.clone(),

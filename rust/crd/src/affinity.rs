@@ -48,7 +48,6 @@ mod test {
         spec:
           image:
             productVersion: 3.3.0
-            stackableVersion: 2023.1.0
           logFileDirectory:
             s3:
               prefix: eventlogs/
@@ -62,7 +61,9 @@ mod test {
                   cleaner: true
         "#;
 
-        let history: SparkHistoryServer = serde_yaml::from_str(input).expect("illegal test input");
+        let deserializer = serde_yaml::Deserializer::from_str(input);
+        let history: SparkHistoryServer =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
         let expected: StackableAffinity = StackableAffinity {
             node_affinity: None,
             node_selector: None,

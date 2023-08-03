@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#267]).
+- Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#267], [#XXX]).
 
 [#267]: https://github.com/stackabletech/spark-k8s-operator/pull/267
 

@@ -292,6 +292,8 @@ jobs:
     env:
       NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
       HELM_REPO: ${{ needs.select_helm_repo.outputs.helm_repository }}
+      OCI_REGISTRY_PASSWORD: ${{ secrets.HARBOR_ROBOT_STACKABLE_GITHUB_ACTION_BUILD_SECRET }}
+      OCI_REGISTRY_USERNAME: "robot$stackable+github-action-build"
     if: needs.select_helm_repo.outputs.helm_repository != 'skip'
     outputs:
       IMAGE_TAG: ${{ steps.printtag.outputs.IMAGE_TAG }}

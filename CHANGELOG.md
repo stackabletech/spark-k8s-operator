@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#267], [#268]).
+- Configuration overrides for the JVM security properties, such as DNS caching ([#272]).
 
 ### Changed
 
@@ -16,6 +17,7 @@ All notable changes to this project will be documented in this file.
 [#267]: https://github.com/stackabletech/spark-k8s-operator/pull/267
 [#268]: https://github.com/stackabletech/spark-k8s-operator/pull/268
 [#269]: https://github.com/stackabletech/spark-k8s-operator/pull/269
+[#272]: https://github.com/stackabletech/spark-k8s-operator/pull/272
 
 ## [23.7.0] - 2023-07-14
 

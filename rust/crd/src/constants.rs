@@ -27,6 +27,8 @@ pub const VOLUME_MOUNT_PATH_LOG: &str = "/stackable/log";
 
 pub const LOG4J2_CONFIG_FILE: &str = "log4j2.properties";
 
+pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
+
 pub const ACCESS_KEY_ID: &str = "accessKey";
 pub const SECRET_ACCESS_KEY: &str = "secretKey";
 pub const S3_SECRET_DIR_NAME: &str = "/stackable/secrets";
@@ -67,8 +69,9 @@ pub const HISTORY_ROLE_NAME: &str = "node";
 
 pub const HISTORY_IMAGE_BASE_NAME: &str = "spark-k8s";
 
-pub const HISTORY_CONFIG_FILE_NAME: &str = "spark-defaults.conf";
-pub const HISTORY_CONFIG_FILE_NAME_FULL: &str = "/stackable/spark/conf/spark-defaults.conf";
+pub const VOLUME_MOUNT_NAME_SPARK_DEFAULTS: &str = "spark-defaults";
+pub const VOLUME_MOUNT_PATH_SPARK_DEFAULTS: &str = "/stackable/spark/conf";
+pub const SPARK_DEFAULTS_FILE_NAME: &str = "spark-defaults.conf";
 
 pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
 pub const SPARK_UID: i64 = 1000;

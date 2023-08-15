@@ -30,7 +30,14 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 use stackable_spark_k8s_crd::{
-    constants::*,
+    constants::{
+        ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_IMAGE_BASE_NAME,
+        HISTORY_ROLE_NAME, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, OPERATOR_NAME,
+        SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID,
+        STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
+        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_NAME_SPARK_DEFAULTS,
+        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG, VOLUME_MOUNT_PATH_SPARK_DEFAULTS,
+    },
     history,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
     s3logdir::S3LogDir,
@@ -269,7 +276,7 @@ fn build_config_map(
 ) -> Result<ConfigMap, Error> {
     let cm_name = rolegroupref.object_name();
 
-    let spark_config = spark_config(shs, s3_log_dir, rolegroupref)?;
+    let spark_defaults = spark_defaults(shs, s3_log_dir, rolegroupref)?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -283,7 +290,7 @@ fn build_config_map(
                 .with_recommended_labels(labels(shs, app_version_label, &rolegroupref.role_group))
                 .build(),
         )
-        .add_data(HISTORY_CONFIG_FILE_NAME, spark_config);
+        .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults);
 
     product_logging::extend_config_map(
         rolegroupref,
@@ -328,7 +335,7 @@ fn build_stateful_set(
     pb.service_account_name(serviceaccount.name_unchecked())
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
-            VolumeBuilder::new("config")
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_SPARK_DEFAULTS)
                 .with_config_map(rolegroupref.object_name())
                 .build(),
         )
@@ -370,7 +377,10 @@ fn build_stateful_set(
         .add_container_port("http", 18080)
         .add_env_vars(env_vars(s3_log_dir))
         .add_volume_mounts(s3_log_dir.volume_mounts())
-        .add_volume_mount("config", "/stackable/spark/conf")
+        .add_volume_mount(
+            VOLUME_MOUNT_NAME_SPARK_DEFAULTS,
+            VOLUME_MOUNT_PATH_SPARK_DEFAULTS,
+        )
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
         .build();
@@ -522,7 +532,7 @@ fn build_history_role_serviceaccount(
     Ok((sa, binding))
 }
 
-fn spark_config(
+fn spark_defaults(
     shs: &SparkHistoryServer,
     s3_log_dir: &S3LogDir,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
@@ -560,7 +570,7 @@ fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
     }
 
     command.extend(vec![
-        format!("/stackable/spark/sbin/start-history-server.sh --properties-file {HISTORY_CONFIG_FILE_NAME_FULL}"),
+        format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_SPARK_DEFAULTS}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
 
     vec![String::from("-c"), command.join(" && ")]

@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration, vec};
 
+use stackable_operator::product_config::writer::to_java_properties_string;
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, tlscerts, SparkApplication, SparkApplicationRole,
     SparkContainer, SparkStorageConfig, SubmitJobContainer,
@@ -112,6 +113,11 @@ pub enum Error {
         source: product_logging::Error,
         cm_name: String,
     },
+    #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
+    JvmSecurityProperties {
+        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        role: SparkApplicationRole,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -129,6 +135,7 @@ pub struct PodTemplateConfig {
     pub volume_mounts: Vec<VolumeMount>,
     pub affinity: StackableAffinity,
     pub pod_overrides: PodTemplateSpec,
+    pub jvm_security: String,
 }
 
 pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) -> Result<Action> {
@@ -217,6 +224,11 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         ),
         affinity: driver_config.affinity,
         pod_overrides: driver_config.pod_overrides.clone(),
+        jvm_security: to_java_properties_string(driver_config.jvm_security.iter()).with_context(
+            |_| JvmSecurityPropertiesSnafu {
+                role: SparkApplicationRole::Driver,
+            },
+        )?,
     };
     let driver_pod_template_config_map = pod_template_config_map(
         &spark_application,
@@ -249,6 +261,11 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         ),
         affinity: executor_config.affinity,
         pod_overrides: executor_config.pod_overrides.clone(),
+        jvm_security: to_java_properties_string(executor_config.jvm_security.iter()).with_context(
+            |_| JvmSecurityPropertiesSnafu {
+                role: SparkApplicationRole::Executor,
+            },
+        )?,
     };
     let executor_pod_template_config_map = pod_template_config_map(
         &spark_application,
@@ -591,6 +608,7 @@ fn pod_template_config_map(
     )
     .context(InvalidLoggingConfigSnafu { cm_name })?;
 
+    cm_builder.add_data(JVM_SECURITY_PROPERTIES_FILE, config.jvm_security.clone());
     cm_builder.build().context(PodTemplateConfigMapSnafu)
 }
 

@@ -527,6 +527,12 @@ spec:
                               type: array
                           type: object
                       type: object
+                    jvmSecurity:
+                      additionalProperties:
+                        nullable: true
+                        type: string
+                      default: {}
+                      type: object
                     logging:
                       default:
                         enableVectorAgent: null
@@ -4015,6 +4021,12 @@ spec:
                       minimum: 0.0
                       nullable: true
                       type: integer
+                    jvmSecurity:
+                      additionalProperties:
+                        nullable: true
+                        type: string
+                      default: {}
+                      type: object
                     logging:
                       default:
                         enableVectorAgent: null

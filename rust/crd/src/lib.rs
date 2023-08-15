@@ -957,6 +957,8 @@ pub struct DriverConfig {
     #[fragment_attrs(serde(default))]
     #[fragment_attrs(schemars(schema_with = "pod_overrides_schema"))]
     pub pod_overrides: PodTemplateSpec,
+    #[fragment_attrs(serde(default))]
+    pub jvm_security: HashMap<String, Option<String>>,
 }
 
 impl DriverConfig {
@@ -977,6 +979,18 @@ impl DriverConfig {
             volume_mounts: Some(VolumeMounts::default()),
             affinity: StackableAffinityFragment::default(),
             pod_overrides: PodTemplateSpec::default(),
+            jvm_security: vec![
+                (
+                    "networkaddress.cache.ttl".to_string(),
+                    Some("30".to_string()),
+                ),
+                (
+                    "networkaddress.cache.negative.ttl".to_string(),
+                    Some("0".to_string()),
+                ),
+            ]
+            .into_iter()
+            .collect(),
         }
     }
 }
@@ -1011,6 +1025,8 @@ pub struct ExecutorConfig {
     #[fragment_attrs(serde(default))]
     #[fragment_attrs(schemars(schema_with = "pod_overrides_schema"))]
     pub pod_overrides: PodTemplateSpec,
+    #[fragment_attrs(serde(default))]
+    pub jvm_security: HashMap<String, Option<String>>,
 }
 
 impl ExecutorConfig {
@@ -1033,6 +1049,18 @@ impl ExecutorConfig {
             node_selector: Default::default(),
             affinity: Default::default(),
             pod_overrides: PodTemplateSpec::default(),
+            jvm_security: vec![
+                (
+                    "networkaddress.cache.ttl".to_string(),
+                    Some("30".to_string()),
+                ),
+                (
+                    "networkaddress.cache.negative.ttl".to_string(),
+                    Some("0".to_string()),
+                ),
+            ]
+            .into_iter()
+            .collect(),
         }
     }
 }
@@ -1053,7 +1081,7 @@ mod tests {
     };
     use stackable_operator::k8s_openapi::api::core::v1::PodTemplateSpec;
     use stackable_operator::product_logging::spec::Logging;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::str::FromStr;
 
     #[test]
@@ -1419,6 +1447,7 @@ spec:
             volume_mounts: None,
             affinity: StackableAffinity::default(),
             pod_overrides: PodTemplateSpec::default(),
+            jvm_security: HashMap::new(),
         };
 
         let mut props = BTreeMap::new();
@@ -1474,6 +1503,7 @@ spec:
             node_selector: None,
             affinity: StackableAffinity::default(),
             pod_overrides: PodTemplateSpec::default(),
+            jvm_security: HashMap::new(),
         };
 
         let mut props = BTreeMap::new();

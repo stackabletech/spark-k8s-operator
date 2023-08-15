@@ -95,7 +95,7 @@ impl S3LogDir {
     }
 
     /// Constructs the properties needed for loading event logs from S3.
-    /// These properties are later written in the `HISTORY_CONFIG_FILE_NAME_FULL` file.
+    /// These properties are later written in the `SPARK_DEFAULTS_FILE_NAME` file.
     ///
     /// The following properties related to credentials are not included:
     /// * spark.hadoop.fs.s3a.aws.credentials.provider

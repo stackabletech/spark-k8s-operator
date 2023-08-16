@@ -215,7 +215,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
             .await
             .context(ApplyServiceSnafu)?;
 
-        for (rolegroup_name, _rolegroup_config) in role_config.iter() {
+        for (rolegroup_name, rolegroup_config) in role_config.iter() {
             let rgr = RoleGroupRef {
                 cluster: ObjectRef::from_obj(&*shs),
                 role: role_name.into(),
@@ -239,7 +239,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
 
             let config_map = build_config_map(
                 &shs,
-                _rolegroup_config,
+                rolegroup_config,
                 &merged_config,
                 &resolved_product_image.app_version_label,
                 &rgr,

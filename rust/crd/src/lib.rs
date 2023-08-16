@@ -538,11 +538,28 @@ impl SparkApplication {
             }
         }
 
-        // s3 with TLS
+        // Extra JVM opts:
+        // - java security properties
+        // - s3 with TLS
+        let mut extra_java_opts = vec![format!(
+            "-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
+        )];
         if tlscerts::tls_secret_names(s3conn, s3_log_dir).is_some() {
-            submit_cmd.push(format!("--conf spark.driver.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""));
-            submit_cmd.push(format!("--conf spark.executor.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}  -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""));
+            extra_java_opts.extend(
+                vec![
+                    format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
+                    format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
+                    format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+                    format!("-Djavax.net.debug=ssl,handshake"),
+                ]
+                .into_iter(),
+            );
         }
+        let str_extra_java_opts = extra_java_opts.join(" ");
+        submit_cmd.extend(vec![
+            format!("--conf spark.driver.extraJavaOptions=\"{str_extra_java_opts}\""),
+            format!("--conf spark.executor.extraJavaOptions=\"{str_extra_java_opts}\""),
+        ]);
 
         // repositories and packages arguments
         if let Some(deps) = self.spec.deps.clone() {

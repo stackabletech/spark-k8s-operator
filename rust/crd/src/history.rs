@@ -200,7 +200,10 @@ impl SparkHistoryServer {
         > = vec![(
             HISTORY_ROLE_NAME.to_string(),
             (
-                vec![PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string())],
+                vec![
+                    PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
+                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
+                ],
                 self.spec.nodes.clone(),
             ),
         )]

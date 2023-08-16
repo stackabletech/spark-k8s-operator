@@ -3,4 +3,41 @@
 version: 0.1.0
 spec:
   units: []
-properties: []
+properties:
+  - property: &jvmDnsCacheTtl
+      propertyNames:
+        - name: "networkaddress.cache.ttl"
+          kind:
+            type: "file"
+            file: "security.properties"
+      datatype:
+        type: "integer"
+        min: "0"
+      recommendedValues:
+        - fromVersion: "0.0.0"
+          value: "30"
+      roles:
+        - name: "node"
+          required: true
+      asOfVersion: "0.0.0"
+      comment: "History server - TTL for successfully resolved domain names."
+      description: "History server - TTL for successfully resolved domain names."
+
+  - property: &jvmDnsCacheNegativeTtl
+      propertyNames:
+        - name: "networkaddress.cache.negative.ttl"
+          kind:
+            type: "file"
+            file: "security.properties"
+      datatype:
+        type: "integer"
+        min: "0"
+      recommendedValues:
+        - fromVersion: "0.0.0"
+          value: "0"
+      roles:
+        - name: "node"
+          required: true
+      asOfVersion: "0.0.0"
+      comment: "History server - TTL for domain names that cannot be resolved."
+      description: "History server - TTL for domain names that cannot be resolved."

@@ -626,7 +626,7 @@ fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
         name: "SPARK_HISTORY_OPTS".to_string(),
         value: Some(vec![
             format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
-            format!("-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"),
+            format!("-Djava.security.properties={VOLUME_MOUNT_PATH_SPARK_DEFAULTS}/{JVM_SECURITY_PROPERTIES_FILE}"),
             ].join(" ")),
         value_from: None,
     });

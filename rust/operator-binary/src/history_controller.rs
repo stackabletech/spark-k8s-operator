@@ -38,8 +38,7 @@ use stackable_spark_k8s_crd::{
         MAX_SPARK_LOG_FILES_SIZE, OPERATOR_NAME, SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE,
         SPARK_DEFAULTS_FILE_NAME, SPARK_UID, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE,
         VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-        VOLUME_MOUNT_NAME_SPARK_DEFAULTS, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
-        VOLUME_MOUNT_PATH_SPARK_DEFAULTS,
+        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     history,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
@@ -366,7 +365,7 @@ fn build_stateful_set(
     pb.service_account_name(serviceaccount.name_unchecked())
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_SPARK_DEFAULTS)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
                 .with_config_map(rolegroupref.object_name())
                 .build(),
         )
@@ -408,10 +407,7 @@ fn build_stateful_set(
         .add_container_port("http", 18080)
         .add_env_vars(env_vars(s3_log_dir))
         .add_volume_mounts(s3_log_dir.volume_mounts())
-        .add_volume_mount(
-            VOLUME_MOUNT_NAME_SPARK_DEFAULTS,
-            VOLUME_MOUNT_PATH_SPARK_DEFAULTS,
-        )
+        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
         .build();
@@ -601,7 +597,7 @@ fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
     }
 
     command.extend(vec![
-        format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_SPARK_DEFAULTS}/{SPARK_DEFAULTS_FILE_NAME}"),
+        format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
 
     vec![String::from("-c"), command.join(" && ")]
@@ -626,7 +622,7 @@ fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
         name: "SPARK_HISTORY_OPTS".to_string(),
         value: Some(vec![
             format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
-            format!("-Djava.security.properties={VOLUME_MOUNT_PATH_SPARK_DEFAULTS}/{JVM_SECURITY_PROPERTIES_FILE}"),
+            format!("-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"),
             ].join(" ")),
         value_from: None,
     });

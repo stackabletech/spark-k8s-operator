@@ -12,6 +12,7 @@ pub const VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES: &str =
 pub const POD_TEMPLATE_FILE: &str = "template.yaml";
 
 pub const VOLUME_MOUNT_NAME_CONFIG: &str = "config";
+pub const VOLUME_MOUNT_PATH_CONFIG: &str = "/stackable/spark/conf";
 
 pub const VOLUME_MOUNT_NAME_JOB: &str = "job-files";
 pub const VOLUME_MOUNT_PATH_JOB: &str = "/stackable/spark/jobs";
@@ -69,8 +70,6 @@ pub const HISTORY_ROLE_NAME: &str = "node";
 
 pub const HISTORY_IMAGE_BASE_NAME: &str = "spark-k8s";
 
-pub const VOLUME_MOUNT_NAME_SPARK_DEFAULTS: &str = "spark-defaults";
-pub const VOLUME_MOUNT_PATH_SPARK_DEFAULTS: &str = "/stackable/spark/conf";
 pub const SPARK_DEFAULTS_FILE_NAME: &str = "spark-defaults.conf";
 
 pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";

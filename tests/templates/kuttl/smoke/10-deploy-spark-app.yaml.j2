@@ -26,11 +26,7 @@ spec:
   driver:
     logging:
       enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-    jvmSecurity:
-      networkaddress.cache.ttl: "5"
   executor:
     instances: 1
     logging:
       enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-    jvmSecurity:
-      networkaddress.cache.ttl: "5"

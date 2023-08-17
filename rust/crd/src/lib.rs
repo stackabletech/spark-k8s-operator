@@ -538,29 +538,6 @@ impl SparkApplication {
             }
         }
 
-        // Extra JVM opts:
-        // - java security properties
-        // - s3 with TLS
-        let mut extra_java_opts = vec![format!(
-            "-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
-        )];
-        if tlscerts::tls_secret_names(s3conn, s3_log_dir).is_some() {
-            extra_java_opts.extend(
-                vec![
-                    format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
-                    format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
-                    format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
-                    format!("-Djavax.net.debug=ssl,handshake"),
-                ]
-                .into_iter(),
-            );
-        }
-        let str_extra_java_opts = extra_java_opts.join(" ");
-        submit_cmd.extend(vec![
-            format!("--conf spark.driver.extraJavaOptions=\"{str_extra_java_opts}\""),
-            format!("--conf spark.executor.extraJavaOptions=\"{str_extra_java_opts}\""),
-        ]);
-
         // repositories and packages arguments
         if let Some(deps) = self.spec.deps.clone() {
             submit_cmd.extend(
@@ -659,17 +636,23 @@ impl SparkApplication {
                 value_from: None,
             });
         }
+
+        // Extra JVM opts:
+        // - java security properties
+        // - s3 with TLS
+        let mut daemon_java_opts = vec![format!(
+            "-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
+        )];
         if let Some(s3logdir) = s3logdir {
             if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
-                e.push(EnvVar {
-                    name: "SPARK_DAEMON_JAVA_OPTS".to_string(),
-                    value: Some(format!(
-                        "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12"
-                    )),
-                    value_from: None,
-                });
+                daemon_java_opts.push( format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12"));
             }
         }
+        e.push(EnvVar {
+            name: "SPARK_DAEMON_JAVA_OPTS".to_string(),
+            value: Some(daemon_java_opts.join(" ")),
+            value_from: None,
+        });
 
         e
     }

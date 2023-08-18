@@ -2,7 +2,5 @@
 // This is a separate file, since it is used by both the direct Spark documentation, and the overarching
 // Stackable Platform documentation.
 
-- 3.2.1-hadoop3.2
-- 3.2.1-hadoop3.2-python39
-- 3.3.0-hadoop3
-- 3.4.0-hadoop3
+- 3.3.0-hadoop3 (Hadoop 3.3.3, Java 11)
+- 3.4.0-hadoop3 (Hadoop 3.3.4, Java 11)

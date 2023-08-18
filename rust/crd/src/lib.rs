@@ -550,7 +550,6 @@ impl SparkApplication {
                     format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
                     format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
                     format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
-                    format!("-Djavax.net.debug=ssl,handshake"),
                 ]
                 .into_iter(),
             );

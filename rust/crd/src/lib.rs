@@ -538,11 +538,27 @@ impl SparkApplication {
             }
         }
 
-        // s3 with TLS
+        // Extra JVM opts:
+        // - java security properties
+        // - s3 with TLS
+        let mut extra_java_opts = vec![format!(
+            "-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
+        )];
         if tlscerts::tls_secret_names(s3conn, s3_log_dir).is_some() {
-            submit_cmd.push(format!("--conf spark.driver.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""));
-            submit_cmd.push(format!("--conf spark.executor.extraJavaOptions=\"-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}  -Djavax.net.ssl.trustStoreType=pkcs12 -Djavax.net.debug=ssl,handshake\""));
+            extra_java_opts.extend(
+                vec![
+                    format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
+                    format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
+                    format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+                ]
+                .into_iter(),
+            );
         }
+        let str_extra_java_opts = extra_java_opts.join(" ");
+        submit_cmd.extend(vec![
+            format!("--conf spark.driver.extraJavaOptions=\"{str_extra_java_opts}\""),
+            format!("--conf spark.executor.extraJavaOptions=\"{str_extra_java_opts}\""),
+        ]);
 
         // repositories and packages arguments
         if let Some(deps) = self.spec.deps.clone() {
@@ -642,18 +658,6 @@ impl SparkApplication {
                 value_from: None,
             });
         }
-        if let Some(s3logdir) = s3logdir {
-            if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
-                e.push(EnvVar {
-                    name: "SPARK_DAEMON_JAVA_OPTS".to_string(),
-                    value: Some(format!(
-                        "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12"
-                    )),
-                    value_from: None,
-                });
-            }
-        }
-
         e
     }
 
@@ -957,6 +961,8 @@ pub struct DriverConfig {
     #[fragment_attrs(serde(default))]
     #[fragment_attrs(schemars(schema_with = "pod_overrides_schema"))]
     pub pod_overrides: PodTemplateSpec,
+    #[fragment_attrs(serde(default))]
+    pub jvm_security: HashMap<String, Option<String>>,
 }
 
 impl DriverConfig {
@@ -977,6 +983,18 @@ impl DriverConfig {
             volume_mounts: Some(VolumeMounts::default()),
             affinity: StackableAffinityFragment::default(),
             pod_overrides: PodTemplateSpec::default(),
+            jvm_security: vec![
+                (
+                    "networkaddress.cache.ttl".to_string(),
+                    Some("30".to_string()),
+                ),
+                (
+                    "networkaddress.cache.negative.ttl".to_string(),
+                    Some("0".to_string()),
+                ),
+            ]
+            .into_iter()
+            .collect(),
         }
     }
 }
@@ -1011,6 +1029,8 @@ pub struct ExecutorConfig {
     #[fragment_attrs(serde(default))]
     #[fragment_attrs(schemars(schema_with = "pod_overrides_schema"))]
     pub pod_overrides: PodTemplateSpec,
+    #[fragment_attrs(serde(default))]
+    pub jvm_security: HashMap<String, Option<String>>,
 }
 
 impl ExecutorConfig {
@@ -1033,6 +1053,18 @@ impl ExecutorConfig {
             node_selector: Default::default(),
             affinity: Default::default(),
             pod_overrides: PodTemplateSpec::default(),
+            jvm_security: vec![
+                (
+                    "networkaddress.cache.ttl".to_string(),
+                    Some("30".to_string()),
+                ),
+                (
+                    "networkaddress.cache.negative.ttl".to_string(),
+                    Some("0".to_string()),
+                ),
+            ]
+            .into_iter()
+            .collect(),
         }
     }
 }
@@ -1053,7 +1085,7 @@ mod tests {
     };
     use stackable_operator::k8s_openapi::api::core::v1::PodTemplateSpec;
     use stackable_operator::product_logging::spec::Logging;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::str::FromStr;
 
     #[test]
@@ -1419,6 +1451,7 @@ spec:
             volume_mounts: None,
             affinity: StackableAffinity::default(),
             pod_overrides: PodTemplateSpec::default(),
+            jvm_security: HashMap::new(),
         };
 
         let mut props = BTreeMap::new();
@@ -1474,6 +1507,7 @@ spec:
             node_selector: None,
             affinity: StackableAffinity::default(),
             pod_overrides: PodTemplateSpec::default(),
+            jvm_security: HashMap::new(),
         };
 
         let mut props = BTreeMap::new();

@@ -618,25 +618,30 @@ fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
         value: Some("/stackable/spark/extra-jars/*".into()),
         value_from: None,
     });
+
+    let mut history_opts = vec![
+        format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+        format!(
+            "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
+        ),
+    ];
+    if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
+        history_opts.extend(
+            vec![
+                format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
+                format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
+                format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+            ]
+            .into_iter(),
+        );
+    }
+
     vars.push(EnvVar {
         name: "SPARK_HISTORY_OPTS".to_string(),
-        value: Some(vec![
-            format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
-            format!("-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"),
-            ].join(" ")),
+        value: Some(history_opts.join(" ")),
         value_from: None,
     });
     // if TLS is enabled build truststore
-    if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
-        vars.push(EnvVar {
-                name: "SPARK_DAEMON_JAVA_OPTS".to_string(),
-                value: Some(format!(
-                    "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12"
-                )),
-                value_from: None,
-            });
-    }
-
     vars
 }
 

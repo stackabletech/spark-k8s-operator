@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 
 - `vector` `0.26.0` -> `0.31.0` ([#269]).
 - `operator-rs` `0.44.0` -> `0.45.1` ([#267]).
+- Removed usages of SPARK_DAEMON_JAVA_OPTS since it's not a reliable way to pass extra JVM options ([#272]).
 
 [#267]: https://github.com/stackabletech/spark-k8s-operator/pull/267
 [#268]: https://github.com/stackabletech/spark-k8s-operator/pull/268

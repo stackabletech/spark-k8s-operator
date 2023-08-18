@@ -659,18 +659,6 @@ impl SparkApplication {
                 value_from: None,
             });
         }
-        if let Some(s3logdir) = s3logdir {
-            if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
-                e.push(EnvVar {
-                    name: "SPARK_DAEMON_JAVA_OPTS".to_string(),
-                    value: Some(format!(
-                        "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12 -Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=pkcs12"
-                    )),
-                    value_from: None,
-                });
-            }
-        }
-
         e
     }
 

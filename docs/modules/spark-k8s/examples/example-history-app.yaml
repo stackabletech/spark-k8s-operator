@@ -5,8 +5,8 @@ metadata:
   name: spark-pi-s3-1
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.0.0-dev
-  sparkImagePullPolicy: IfNotPresent
+  sparkImage:
+    productVersion: 3.3.0
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://my-bucket/spark-examples.jar

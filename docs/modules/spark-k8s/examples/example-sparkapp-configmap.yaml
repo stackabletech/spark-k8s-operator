@@ -6,7 +6,8 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.0.0-dev
+  sparkImage:
+    productVersion: 3.3.0
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.1.0.jar # <3>
   mainClass: tech.stackable.demo.spark.NYTLCReport

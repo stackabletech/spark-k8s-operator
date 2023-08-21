@@ -325,7 +325,7 @@ fn init_containers(
     logging: &Logging<SparkContainer>,
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
-    spark_image: &str,
+    spark_image: &ResolvedProductImage,
 ) -> Result<Vec<Container>> {
     let mut jcb = ContainerBuilder::new(&SparkContainer::Job.to_string())
         .context(IllegalContainerNameSnafu)?;
@@ -383,14 +383,12 @@ fn init_containers(
             "pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"
         ));
 
-        rcb.image(spark_image)
+        rcb.image(&spark_image.image)
             .command(vec!["/bin/bash".to_string(), "-c".to_string()])
             .args(vec![args.join(" && ")])
             .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG);
-        if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-            rcb.image_pull_policy(image_pull_policy.to_string());
-        }
+            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+            .image_pull_policy(&spark_image.image_pull_policy);
 
         rcb.resources(
             ResourceRequirementsBuilder::new()
@@ -418,7 +416,7 @@ fn init_containers(
                 format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}"),
             );
         }
-        tcb.image(spark_image)
+        tcb.image(&spark_image.image)
             .command(vec!["/bin/bash".to_string(), "-c".to_string()])
             .args(vec![args.join(" && ")])
             .add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE)
@@ -453,7 +451,8 @@ fn pod_template(
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
     cb.add_volume_mounts(config.volume_mounts.clone())
         .add_env_vars(env.to_vec())
-        .resources(config.resources.clone().into());
+        .resources(config.resources.clone().into())
+        .image_pull_policy(&spark_image.image_pull_policy);
 
     if config.logging.enable_vector_agent {
         cb.add_env_var(
@@ -465,10 +464,6 @@ fn pod_template(
             ]
             .join("; "),
         );
-    }
-
-    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-        cb.image_pull_policy(image_pull_policy.to_string());
     }
 
     let mut pb = PodBuilder::new();
@@ -493,7 +488,7 @@ fn pod_template(
         &config.logging,
         s3conn,
         s3logdir,
-        &spark_image.image,
+        spark_image,
     )
     .unwrap();
 
@@ -501,7 +496,7 @@ fn pod_template(
         pb.add_init_container(init_container.clone());
     }
 
-    if let Some(image_pull_secrets) = spark_application.spark_image_pull_secrets() {
+    if let Some(image_pull_secrets) = spark_image.pull_secrets.as_ref() {
         pb.image_pull_secrets(
             image_pull_secrets
                 .iter()
@@ -697,11 +692,8 @@ fn spark_job(
             ),
         )
         // TODO: move this to the image
-        .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");
-
-    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-        cb.image_pull_policy(image_pull_policy.to_string());
-    }
+        .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf")
+        .image_pull_policy(&spark_image.image_pull_policy);
 
     let mut volumes = vec![
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
@@ -754,7 +746,7 @@ fn spark_job(
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
-            image_pull_secrets: spark_application.spark_image_pull_secrets(),
+            image_pull_secrets: spark_image.pull_secrets.clone(),
             security_context: Some(security_context()),
             ..PodSpec::default()
         }),

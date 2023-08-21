@@ -36,10 +36,7 @@ use stackable_operator::{
         merge::{Atomic, Merge},
     },
     k8s_openapi::{
-        api::core::v1::{
-            EmptyDirVolumeSource, EnvVar, LocalObjectReference, PodTemplateSpec, Volume,
-            VolumeMount,
-        },
+        api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
         apimachinery::pkg::api::resource::Quantity,
     },
     kube::{CustomResource, ResourceExt},
@@ -49,7 +46,7 @@ use stackable_operator::{
     role_utils::pod_overrides_schema,
     schemars::{self, JsonSchema},
 };
-use strum::{Display, EnumIter, EnumString};
+use strum::{Display, EnumIter};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -178,10 +175,6 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
     pub spark_image: ProductImage,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_image_pull_policy: Option<ImagePullPolicy>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_image_pull_secrets: Option<Vec<LocalObjectReference>>,
     /// Name of the Vector aggregator discovery ConfigMap.
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -208,13 +201,6 @@ pub struct SparkApplicationSpec {
     pub env: Option<Vec<EnvVar>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log_file_directory: Option<LogFileDirectorySpec>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, Display, EnumString)]
-pub enum ImagePullPolicy {
-    Always,
-    IfNotPresent,
-    Never,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
@@ -245,14 +231,6 @@ impl SparkApplication {
 
     pub fn image(&self) -> Option<&str> {
         self.spec.image.as_deref()
-    }
-
-    pub fn spark_image_pull_policy(&self) -> Option<ImagePullPolicy> {
-        self.spec.spark_image_pull_policy.clone()
-    }
-
-    pub fn spark_image_pull_secrets(&self) -> Option<Vec<LocalObjectReference>> {
-        self.spec.spark_image_pull_secrets.clone()
     }
 
     pub fn version(&self) -> Option<&str> {
@@ -1072,11 +1050,9 @@ impl ExecutorConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        cores_from_quantity, resources_to_executor_props, ExecutorConfig, ImagePullPolicy,
-    };
+    use crate::DriverConfig;
+    use crate::{cores_from_quantity, resources_to_executor_props, ExecutorConfig};
     use crate::{resources_to_driver_props, SparkApplication};
-    use crate::{DriverConfig, LocalObjectReference};
     use crate::{Quantity, SparkStorageConfig};
     use rstest::rstest;
     use stackable_operator::builder::ObjectMetaBuilder;
@@ -1087,7 +1063,6 @@ mod tests {
     use stackable_operator::k8s_openapi::api::core::v1::PodTemplateSpec;
     use stackable_operator::product_logging::spec::Logging;
     use std::collections::{BTreeMap, HashMap};
-    use std::str::FromStr;
 
     #[test]
     fn test_spark_examples_s3() {
@@ -1256,75 +1231,6 @@ spec:
 
         assert!(spark_application.spec.main_class.is_none());
         assert!(spark_application.spec.image.is_none());
-    }
-
-    #[test]
-    fn test_image_actions() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(
-            r#"
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: spark-pi-local
-  namespace: default
-spec:
-  version: "1.0"
-  sparkImage:
-    productVersion: 3.2.1
-  sparkImagePullPolicy: Always
-  sparkImagePullSecrets:
-    - name: myregistrykey
-  mode: cluster
-  mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples.jar
-  sparkConf:
-    spark.kubernetes.node.selector.node: "2"
-  driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
-  executor:
-    cores: 1
-    instances: 1
-    memory: "512m"
-        "#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            Some(vec![LocalObjectReference {
-                name: Some("myregistrykey".to_string())
-            }]),
-            spark_application.spark_image_pull_secrets()
-        );
-        assert_eq!(
-            Some(ImagePullPolicy::Always),
-            spark_application.spark_image_pull_policy()
-        );
-    }
-
-    #[test]
-    fn test_image_pull_policy_ser() {
-        assert_eq!("Never", ImagePullPolicy::Never.to_string());
-        assert_eq!("Always", ImagePullPolicy::Always.to_string());
-        assert_eq!("IfNotPresent", ImagePullPolicy::IfNotPresent.to_string());
-    }
-
-    #[test]
-    fn test_image_pull_policy_de() {
-        assert_eq!(
-            ImagePullPolicy::Always,
-            ImagePullPolicy::from_str("Always").unwrap()
-        );
-        assert_eq!(
-            ImagePullPolicy::Never,
-            ImagePullPolicy::from_str("Never").unwrap()
-        );
-        assert_eq!(
-            ImagePullPolicy::IfNotPresent,
-            ImagePullPolicy::from_str("IfNotPresent").unwrap()
-        );
     }
 
     #[test]

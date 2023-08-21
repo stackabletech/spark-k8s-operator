@@ -10122,8 +10122,47 @@ spec:
                   nullable: true
                   type: object
                 sparkImage:
-                  nullable: true
-                  type: string
+                  anyOf:
+                    - required:
+                        - custom
+                        - productVersion
+                    - required:
+                        - productVersion
+                  properties:
+                    custom:
+                      description: Overwrite the docker image. Specify the full docker image name, e.g. `docker.stackable.tech/stackable/superset:1.4.1-stackable2.1.0`
+                      type: string
+                    productVersion:
+                      description: Version of the product, e.g. `1.4.1`.
+                      type: string
+                    pullPolicy:
+                      default: Always
+                      description: '[Pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy) used when pulling the Images'
+                      enum:
+                        - IfNotPresent
+                        - Always
+                        - Never
+                      type: string
+                    pullSecrets:
+                      description: '[Image pull secrets](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod) to pull images from a private registry'
+                      items:
+                        description: LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.
+                        properties:
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                            type: string
+                        type: object
+                      nullable: true
+                      type: array
+                    repo:
+                      description: Name of the docker repo, e.g. `docker.stackable.tech/stackable`
+                      nullable: true
+                      type: string
+                    stackableVersion:
+                      description: Stackable version of the product, e.g. `23.4`, `23.4.1` or `0.0.0-dev`. If not specified, the operator will use its own version, e.g. `23.4.1`. When using a nightly operator or a pr version, it will use the nightly `0.0.0-dev` image.
+                      nullable: true
+                      type: string
+                  type: object
                 sparkImagePullPolicy:
                   enum:
                     - Always
@@ -11227,6 +11266,8 @@ spec:
                     type: object
                   nullable: true
                   type: array
+              required:
+                - sparkImage
               type: object
             status:
               nullable: true

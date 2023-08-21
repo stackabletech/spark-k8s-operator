@@ -22,6 +22,7 @@ use stackable_operator::{
     builder::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::{
         affinity::{StackableAffinity, StackableAffinityFragment},
+        product_image_selection::ProductImage,
         resources::{
             CpuLimits, CpuLimitsFragment, MemoryLimits, MemoryLimitsFragment, NoRuntimeLimits,
             NoRuntimeLimitsFragment, Resources, ResourcesFragment,
@@ -150,7 +151,7 @@ impl SparkConfig {
     }
 }
 
-#[derive(Clone, CustomResource, Debug, Default, Deserialize, JsonSchema, Serialize)]
+#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "spark.stackable.tech",
     version = "v1alpha1",
@@ -176,8 +177,7 @@ pub struct SparkApplicationSpec {
     pub main_application_file: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_image: Option<String>,
+    pub spark_image: ProductImage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_image_pull_policy: Option<ImagePullPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -477,6 +477,7 @@ impl SparkApplication {
         serviceaccount_name: &str,
         s3conn: &Option<S3ConnectionSpec>,
         s3_log_dir: &Option<S3LogDir>,
+        spark_image: &str,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
@@ -495,8 +496,8 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.driver.podTemplateContainerName={container_name}", container_name = SparkContainer::Spark),
             format!("--conf spark.kubernetes.executor.podTemplateContainerName={container_name}", container_name = SparkContainer::Spark),
             format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
-            format!("--conf spark.kubernetes.driver.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
-            format!("--conf spark.kubernetes.executor.container.image={}", self.spec.spark_image.as_ref().context(NoSparkImageSnafu)?),
+            format!("--conf spark.kubernetes.driver.container.image={}", spark_image.to_string()),
+            format!("--conf spark.kubernetes.executor.container.image={}", spark_image.to_string()),
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
             format!("--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
             format!("--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*"),
@@ -1099,7 +1100,8 @@ metadata:
   name: spark-examples-s3
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  sparkImage:
+    productVersion: 3.4.0
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples.jar
@@ -1131,8 +1133,6 @@ spec:
             spark_application.spec.spark_conf.map(|m| m.keys().len())
         );
 
-        assert!(spark_application.spec.spark_image.is_some());
-
         assert!(spark_application.spec.mode.is_some());
         assert!(spark_application.spec.driver.is_some());
         assert!(spark_application.spec.executor.is_some());
@@ -1155,7 +1155,8 @@ metadata:
 spec:
   version: "1.0"
   image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  sparkImage:
+    productVersion: 3.2.1
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
   args:
@@ -1186,7 +1187,6 @@ spec:
         );
 
         assert!(spark_application.spec.image.is_some());
-        assert!(spark_application.spec.spark_image.is_some());
         assert!(spark_application.spec.mode.is_some());
         assert!(spark_application.spec.args.is_some());
         assert!(spark_application.spec.deps.is_some());
@@ -1209,7 +1209,8 @@ metadata:
   uid: 12345678asdfghj
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-python39-aws1.11.375-stackable0.3.0
+  sparkImage:
+    productVersion: 3.4.0
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny_tlc_report.py
   args:
@@ -1247,7 +1248,6 @@ spec:
             spark_application.spec.spark_conf.map(|m| m.keys().len())
         );
 
-        assert!(spark_application.spec.spark_image.is_some());
         assert!(spark_application.spec.mode.is_some());
         assert!(spark_application.spec.args.is_some());
         assert!(spark_application.spec.deps.is_some());
@@ -1270,7 +1270,8 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.2.1-hadoop3.2-stackable0.4.0
+  sparkImage:
+    productVersion: 3.2.1
   sparkImagePullPolicy: Always
   sparkImagePullSecrets:
     - name: myregistrykey
@@ -1336,6 +1337,8 @@ kind: SparkApplication
 metadata:
   name: spark-examples
 spec:
+  sparkImage:
+    productVersion: 1.2.3
   executor:
     instances: 1
   config:
@@ -1367,6 +1370,8 @@ kind: SparkApplication
 metadata:
   name: spark-examples
 spec:
+  sparkImage:
+    productVersion: 1.2.3
   job:
     resources:
       cpu:

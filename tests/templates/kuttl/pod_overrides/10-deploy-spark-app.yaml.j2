@@ -5,7 +5,8 @@ metadata:
   name: spark-pi-s3-1
 spec:
   version: "1.0"
-  sparkImage: "docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
+  sparkImage:
+    productVersion: "{{ test_scenario['values']['spark'] }}"
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi

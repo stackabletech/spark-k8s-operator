@@ -33,12 +33,12 @@ use stackable_operator::{
 };
 use stackable_spark_k8s_crd::{
     constants::{
-        ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_IMAGE_BASE_NAME,
-        HISTORY_ROLE_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE,
-        MAX_SPARK_LOG_FILES_SIZE, OPERATOR_NAME, SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE,
-        SPARK_DEFAULTS_FILE_NAME, SPARK_UID, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE,
-        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
+        JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, OPERATOR_NAME,
+        SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME,
+        SPARK_UID, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
+        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     history,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
@@ -163,10 +163,10 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     )
     .context(CreateClusterResourcesSnafu)?;
 
-    let resolved_product_image = shs.spec.image.resolve(
-        HISTORY_IMAGE_BASE_NAME,
-        crate::built_info::CARGO_PKG_VERSION,
-    );
+    let resolved_product_image = shs
+        .spec
+        .image
+        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
     let s3_log_dir = S3LogDir::resolve(
         Some(&shs.spec.log_file_directory),
         shs.metadata.namespace.clone(),

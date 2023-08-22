@@ -12,7 +12,7 @@ spec:
 {% endif %}
   sparkImage:
     productVersion: "{{ test_scenario['values']['spark'] }}"
-    imagePullPolicy: IfNotPresent
+    pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
   args:

@@ -10,7 +10,7 @@ spec:
 {% endif %}
   sparkImage:
     productVersion: "{{ test_scenario['values']['spark'] }}"
-    imagePullPolicy: IfNotPresent
+    pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: "s3a://my-bucket/spark-examples_{{ test_scenario['values']['spark'].split('-stackable')[0] }}.jar"

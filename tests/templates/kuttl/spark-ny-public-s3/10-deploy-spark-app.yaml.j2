@@ -18,7 +18,7 @@ spec:
 {% endif %}
   sparkImage:
     productVersion: "{{ test_scenario['values']['spark'] }}"
-    imagePullPolicy: IfNotPresent
+    pullPolicy: IfNotPresent
   mode: cluster
   mainClass: tech.stackable.demo.spark.NYTLCReport
   mainApplicationFile: "s3a://my-bucket/ny-tlc-report.jar"

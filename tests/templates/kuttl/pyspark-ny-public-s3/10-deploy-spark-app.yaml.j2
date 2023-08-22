@@ -11,7 +11,7 @@ spec:
   # everything under /jobs will be copied to /stackable/spark/jobs
   sparkImage:
     productVersion: "{{ test_scenario['values']['spark'] }}"
-    imagePullPolicy: IfNotPresent
+    pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: s3a://my-bucket/ny_tlc_report.py
   args:

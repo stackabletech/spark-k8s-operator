@@ -678,7 +678,7 @@ fn spark_job(
         args.push(shutdown_vector_command(VOLUME_MOUNT_PATH_LOG));
     }
 
-    cb.image(spark_image.image.clone())
+    cb.image(&spark_image.image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![args.join(" && ")])
         .resources(job_config.resources.into())

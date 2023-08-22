@@ -7,6 +7,7 @@ spec:
   version: "1.0"
   sparkImage:
     productVersion: "{{ test_scenario['values']['spark'] }}"
+    pullPolicy: IfNotPresent
   image: docker.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}
   vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
   mode: cluster

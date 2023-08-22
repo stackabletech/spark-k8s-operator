@@ -7,6 +7,7 @@ spec:
   version: "1.0"
   sparkImage:
     productVersion: "{{ test_scenario['values']['spark'] }}"
+    pullPolicy: IfNotPresent
   vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/als.py

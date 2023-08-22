@@ -23,7 +23,7 @@ metadata:
 spec:
   image:
     productVersion: "{{ test_scenario['values']['spark'].split('-stackable')[0] }}"
-    stackableVersion: "{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
+    pullPolicy: IfNotPresent
   vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
   logFileDirectory:
     s3:

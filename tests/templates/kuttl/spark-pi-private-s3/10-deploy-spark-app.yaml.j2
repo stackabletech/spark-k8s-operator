@@ -11,7 +11,6 @@ spec:
   sparkImage:
     productVersion: "{{ test_scenario['values']['spark'] }}"
     pullPolicy: IfNotPresent
-  sparkImagePullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: s3a://my-bucket/spark-examples.jar

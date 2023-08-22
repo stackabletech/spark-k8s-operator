@@ -479,9 +479,9 @@ fn pod_template(
     )
     .add_container(cb.build())
     .add_volumes(volumes.to_vec())
-    .security_context(security_context());
-
-    pb.affinity(&config.affinity);
+    .security_context(security_context())
+    .image_pull_secrets_from_product_image(spark_image)
+    .affinity(&config.affinity);
 
     let init_containers = init_containers(
         spark_application,
@@ -494,14 +494,6 @@ fn pod_template(
 
     for init_container in init_containers {
         pb.add_init_container(init_container.clone());
-    }
-
-    if let Some(image_pull_secrets) = spark_image.pull_secrets.as_ref() {
-        pb.image_pull_secrets(
-            image_pull_secrets
-                .iter()
-                .flat_map(|secret| secret.name.clone()),
-        );
     }
 
     if config.logging.enable_vector_agent {

@@ -9,7 +9,11 @@ spec:
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   sparkImage:
+{% if test_scenario['values']['spark'].find(":") %}
+    custom: {{test_scenario['values']['spark'] | replace(".", "")}}
+{% else %}
     productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
     pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi

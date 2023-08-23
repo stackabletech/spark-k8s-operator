@@ -10,7 +10,12 @@ spec:
 {% endif %}
   # everything under /jobs will be copied to /stackable/spark/jobs
   sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
     productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
     pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: s3a://my-bucket/ny_tlc_report.py

@@ -6,7 +6,12 @@ metadata:
 spec:
   version: "1.0"
   sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
     productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
     pullPolicy: IfNotPresent
   vectorAggregatorConfigMapName: spark-vector-aggregator-discovery
   mode: cluster

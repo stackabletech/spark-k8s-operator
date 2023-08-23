@@ -5,7 +5,7 @@ commands:
   # give minio enough time to start
   - command: sleep 10
   - command: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv minio-client:/tmp
-  - command: kubectl cp -n $NAMESPACE ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'].split('-stackable')[0] }}.jar  minio-client:/tmp/ny-tlc-report.jar
+  - command: kubectl cp -n $NAMESPACE ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'].split(',')[0] }}.jar  minio-client:/tmp/ny-tlc-report.jar
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
   - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure alias set minio https://minio:9000 spark sparkspark
 {% else %}

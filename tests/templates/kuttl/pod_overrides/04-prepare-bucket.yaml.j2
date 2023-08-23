@@ -6,5 +6,5 @@ commands:
   - command: sleep 5
   - script: |
       POD=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/instance=test-minio -o name | head -n 1 | sed -e 's#pod/##')
-      kubectl cp -n $NAMESPACE spark-examples_{{ test_scenario['values']['spark'].split('-stackable')[0] }}.jar $POD:/tmp
-      kubectl -n $NAMESPACE exec $POD -- mc cp /tmp/spark-examples_{{ test_scenario['values']['spark'].split('-stackable')[0] }}.jar local/my-bucket
+      kubectl cp -n $NAMESPACE spark-examples_{{ test_scenario['values']['spark'].split(',')[0] }}.jar $POD:/tmp
+      kubectl -n $NAMESPACE exec $POD -- mc cp /tmp/spark-examples_{{ test_scenario['values']['spark'].split(',')[0] }}.jar local/my-bucket

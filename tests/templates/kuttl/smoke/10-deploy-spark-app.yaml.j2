@@ -18,7 +18,7 @@ spec:
     pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: "s3a://my-bucket/spark-examples_{{ test_scenario['values']['spark'].split('-stackable')[0] }}.jar"
+  mainApplicationFile: "s3a://my-bucket/spark-examples_{{ test_scenario['values']['spark'].split(',')[0] }}.jar"
   s3connection:
     reference: spark-data-s3-connection
   logFileDirectory:

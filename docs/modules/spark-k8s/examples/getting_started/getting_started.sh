@@ -58,7 +58,8 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/pyspark-k8s:3.3.0-stackable0.0.0-dev
+  sparkImage:
+    productVersion: 3.3.0
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py
   driver:

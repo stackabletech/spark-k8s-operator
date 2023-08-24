@@ -8,8 +8,14 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
-  sparkImage: "docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
-  sparkImagePullPolicy: IfNotPresent
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkALS
   mainApplicationFile: "local:///stackable/spark/examples/jars/spark-examples.jar"

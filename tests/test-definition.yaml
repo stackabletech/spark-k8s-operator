@@ -1,13 +1,3 @@
-# These tests can run against an OpenShift cluster, provided you note the following:
-#
-# 1. Set the "openshift" dimension below to "true" (with quotes)
-# 2. Comment out the "true" option in the "s3-use-tls" dimension
-#
-# Regarding point 2.: the bitnami chart is used for S3 on OpenShift as it correctly installs
-# a minio instance (the chart from minio does not correctly apply the service account to
-# the job that creates the bucket, and so the permissions are not sufficient). However, it
-# cannot correctly use self-signed TLS certificates due to a bug in libminioclient.sh: for
-# non-OpenShift clusters the minio chart is thus used instead.
 ---
 dimensions:
   - name: openshift
@@ -15,8 +5,11 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.3.0-stackable0.0.0-dev
-      - 3.4.0-stackable0.0.0-dev
+      - 3.3.0
+      - 3.4.0
+      # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
+      # as in the example below.
+      # - 3.4.0,docker.stackable.tech/sandbox/spark-k8s:3.4.0-stackable0.0.0-dev
   - name: ny-tlc-report
     values:
       - 0.1.0

@@ -57,8 +57,3 @@ In the xref:stackablectl::demos/spark-k8s-anomaly-detection-taxi-data.adoc[] dem
 The Stackable Operator for Apache Spark on Kubernetes currently supports the following versions of Spark:
 
 include::partial$supported-versions.adoc[]
-
-The Spark images do not include Python. For PySpark users, there are separate images called `pyspark-k8s` instead of `spark-k8s`. These come with different Python versions as follows:
-
-- pyspark-k8s:3.3.0-hadoop3 : Python 3.9
-- pyspark-k8s:3.4.0-hadoop3 : Python 3.11

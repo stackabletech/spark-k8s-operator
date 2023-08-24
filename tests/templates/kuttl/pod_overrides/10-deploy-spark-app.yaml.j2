@@ -5,11 +5,17 @@ metadata:
   name: spark-pi-s3-1
 spec:
   version: "1.0"
-  sparkImage: "docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
-  sparkImagePullPolicy: IfNotPresent
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: "s3a://my-bucket/spark-examples_{{ test_scenario['values']['spark'].split('-stackable')[0] }}.jar"
+  mainApplicationFile: "s3a://my-bucket/spark-examples_{{ test_scenario['values']['spark'].split(',')[0] }}.jar"
   s3connection:
     reference: spark-data-s3-connection
   logFileDirectory:

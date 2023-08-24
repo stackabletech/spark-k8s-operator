@@ -452,7 +452,7 @@ fn pod_template(
     cb.add_volume_mounts(config.volume_mounts.clone())
         .add_env_vars(env.to_vec())
         .resources(config.resources.clone().into())
-        .image_pull_policy(&spark_image.image_pull_policy);
+        .image_from_product_image(spark_image);
 
     if config.logging.enable_vector_agent {
         cb.add_env_var(
@@ -670,7 +670,7 @@ fn spark_job(
         args.push(shutdown_vector_command(VOLUME_MOUNT_PATH_LOG));
     }
 
-    cb.image(&spark_image.image)
+    cb.image_from_product_image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![args.join(" && ")])
         .resources(job_config.resources.into())
@@ -684,8 +684,7 @@ fn spark_job(
             ),
         )
         // TODO: move this to the image
-        .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf")
-        .image_pull_policy(&spark_image.image_pull_policy);
+        .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");
 
     let mut volumes = vec![
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)

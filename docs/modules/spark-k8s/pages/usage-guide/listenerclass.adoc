@@ -1,1 +1,15 @@
-= TODO
+= Service exposition with ListenerClasses
+
+The Spark Operator deploys SparkApplications, and does not offer a UI or other API, so no services are exposed. However, the Operator can also deploy HistoryServers, which do offer a UI and API.  The Operator deploys a service called `<name>-historyserver` (where `<name>` is the name of the HistoryServer) through which HistoryServer can be reached.
+
+This service can have three different types: `cluster-internal`, `external-unstable` and `external-stable`. Read more about the types in the xref:concepts:service-exposition.adoc[service exposition] documentation at platform level.
+
+This is how the ListenerClass is configured:
+
+[source,yaml]
+----
+spec:
+  clusterConfig:
+    listenerClass: cluster-internal  # <1>
+----
+<1> The default `cluster-internal` setting. 

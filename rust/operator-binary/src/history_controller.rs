@@ -1,4 +1,5 @@
 use crate::product_logging::{self, resolve_vector_aggregator_address};
+use crate::Ctx;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -19,9 +20,7 @@ use stackable_operator::{
         Resource, ResourceExt,
     },
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
-    product_config::{
-        types::PropertyNameKind, writer::to_java_properties_string, ProductConfigManager,
-    },
+    product_config::{types::PropertyNameKind, writer::to_java_properties_string},
     product_logging::{
         framework::{calculate_log_volume_size_limit, vector_container},
         spec::{
@@ -53,11 +52,6 @@ use stackable_operator::builder::resources::ResourceRequirementsBuilder;
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-pub struct Ctx {
-    pub client: stackable_operator::client::Client,
-    pub product_config: ProductConfigManager,
-}
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]

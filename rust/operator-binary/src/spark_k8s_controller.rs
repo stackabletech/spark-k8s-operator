@@ -1,9 +1,11 @@
+use crate::Ctx;
+
 use std::{sync::Arc, time::Duration, vec};
 
 use stackable_operator::product_config::writer::to_java_properties_string;
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, tlscerts, SparkApplication, SparkApplicationRole,
-    SparkContainer, SparkStorageConfig, SubmitJobContainer,
+    SparkConfig, SparkContainer, SparkStorageConfig, SubmitJobContainer,
 };
 
 use crate::product_logging::{self, resolve_vector_aggregator_address};
@@ -45,10 +47,6 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-pub struct Ctx {
-    pub client: stackable_operator::client::Client,
-}
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -116,6 +114,18 @@ pub enum Error {
         source: stackable_operator::product_config::writer::PropertiesWriterError,
         role: SparkApplicationRole,
     },
+    #[snafu(display("failed to generate product config"))]
+    GenerateProductConfig {
+        source: stackable_operator::product_config_utils::ConfigError,
+    },
+    #[snafu(display("invalid product config"))]
+    InvalidProductConfig {
+        source: stackable_spark_k8s_crd::Error,
+    },
+    #[snafu(display("invalid submit config"))]
+    SubmitConfig {
+        source: stackable_spark_k8s_crd::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -180,6 +190,10 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .spec
         .spark_image
         .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
+
+    let _validated_config = spark_application
+        .validated_role_config(&resolved_product_image, &ctx.product_config)
+        .context(InvalidProductConfigSnafu)?;
 
     let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
     client
@@ -292,8 +306,15 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         )
         .context(BuildCommandSnafu)?;
 
-    let submit_job_config_map =
-        submit_job_config_map(&spark_application, vector_aggregator_address.as_deref())?;
+    let submit_config = spark_application
+        .submit_config()
+        .context(SubmitConfigSnafu)?;
+
+    let submit_job_config_map = submit_job_config_map(
+        &spark_application,
+        vector_aggregator_address.as_deref(),
+        &submit_config.logging,
+    )?;
     client
         .apply_patch(
             CONTROLLER_NAME,
@@ -311,6 +332,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &job_commands,
         &opt_s3conn,
         &s3logdir,
+        &submit_config,
     )?;
     client
         .apply_patch(CONTROLLER_NAME, &job, &job)
@@ -596,12 +618,9 @@ fn pod_template_config_map(
 fn submit_job_config_map(
     spark_application: &SparkApplication,
     vector_aggregator_address: Option<&str>,
+    logging: &Logging<SubmitJobContainer>,
 ) -> Result<ConfigMap> {
     let cm_name = spark_application.submit_job_config_map_name();
-
-    let config = spark_application
-        .job_config()
-        .context(FailedToResolveConfigSnafu)?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -622,7 +641,7 @@ fn submit_job_config_map(
             role_group: String::new(),
         },
         vector_aggregator_address,
-        &config.logging,
+        logging,
         SubmitJobContainer::SparkSubmit,
         SubmitJobContainer::Vector,
         &mut cm_builder,
@@ -641,12 +660,10 @@ fn spark_job(
     job_commands: &[String],
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
+    job_config: &SparkConfig,
 ) -> Result<Job> {
     let mut cb = ContainerBuilder::new(&SubmitJobContainer::SparkSubmit.to_string())
         .context(IllegalContainerNameSnafu)?;
-    let job_config = spark_application
-        .job_config()
-        .context(FailedToResolveConfigSnafu)?;
 
     let log_config_map = if let Some(ContainerLogConfig {
         choice:
@@ -673,7 +690,7 @@ fn spark_job(
     cb.image_from_product_image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![args.join(" && ")])
-        .resources(job_config.resources.into())
+        .resources(job_config.resources.clone().into())
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, s3logdir))
         .add_env_vars(env.to_vec())
         .add_env_var(
@@ -723,7 +740,7 @@ fn spark_job(
         ));
     }
 
-    let mut pod = PodTemplateSpec {
+    let pod = PodTemplateSpec {
         metadata: Some(
             ObjectMetaBuilder::new()
                 .name("spark-submit")
@@ -743,7 +760,8 @@ fn spark_job(
         }),
     };
 
-    pod.merge_from(job_config.pod_overrides);
+    // TODO: extract pod overrides from validated role group config
+    //pod.merge_from(job_config.pod_overrides);
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()

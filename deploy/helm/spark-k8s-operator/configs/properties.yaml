@@ -17,7 +17,11 @@ properties:
         - fromVersion: "0.0.0"
           value: "30"
       roles:
-        - name: "node"
+        - name: "submit"
+          required: true
+        - name: "driver"
+          required: true
+        - name: "executor"
           required: true
       asOfVersion: "0.0.0"
       comment: "History server - TTL for successfully resolved domain names."
@@ -36,7 +40,11 @@ properties:
         - fromVersion: "0.0.0"
           value: "0"
       roles:
-        - name: "node"
+        - name: "submit"
+          required: true
+        - name: "driver"
+          required: true
+        - name: "executor"
           required: true
       asOfVersion: "0.0.0"
       comment: "History server - TTL for domain names that cannot be resolved."

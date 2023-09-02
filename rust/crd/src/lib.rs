@@ -706,6 +706,10 @@ impl SparkApplication {
         fragment::validate(config).context(FragmentValidationFailureSnafu)
     }
 
+    pub fn pod_overrides(&self, _role: SparkApplicationRole) -> Option<PodTemplateSpec> {
+        self.spec.job.clone().map(|j| j.pod_overrides)
+    }
+
     pub fn validated_role_config(
         &self,
         resolved_product_image: &ResolvedProductImage,

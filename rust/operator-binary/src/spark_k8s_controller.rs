@@ -740,7 +740,7 @@ fn spark_job(
         ));
     }
 
-    let pod = PodTemplateSpec {
+    let mut pod = PodTemplateSpec {
         metadata: Some(
             ObjectMetaBuilder::new()
                 .name("spark-submit")
@@ -760,8 +760,11 @@ fn spark_job(
         }),
     };
 
-    // TODO: extract pod overrides from validated role group config
-    //pod.merge_from(job_config.pod_overrides);
+    if let Some(submit_pod_overrides) =
+        spark_application.pod_overrides(SparkApplicationRole::Submit)
+    {
+        pod.merge_from(submit_pod_overrides);
+    }
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()

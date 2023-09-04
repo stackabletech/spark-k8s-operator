@@ -28,7 +28,7 @@ use stackable_operator::product_config_utils::{
 use stackable_operator::{
     builder::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::{
-        affinity::{StackableAffinity, StackableAffinityFragment},
+        affinity::StackableAffinity,
         product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{
             CpuLimits, CpuLimitsFragment, MemoryLimits, MemoryLimitsFragment, NoRuntimeLimits,
@@ -51,7 +51,7 @@ use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
     product_config::types::PropertyNameKind,
     product_logging::{self, spec::Logging},
-    role_utils::{pod_overrides_schema, CommonConfiguration, Role, RoleGroup},
+    role_utils::{CommonConfiguration, Role, RoleGroup},
     schemars::{self, JsonSchema},
 };
 use strum::{Display, EnumIter};
@@ -138,7 +138,7 @@ pub struct SparkConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
-    pub logging: Logging<SubmitJobContainer>,
+    pub logging: Logging<SparkContainer>,
 }
 
 impl SparkConfig {
@@ -226,9 +226,9 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<CommonConfiguration<SparkConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub driver: Option<DriverConfigFragment>,
+    pub driver: Option<CommonConfiguration<ExecutorConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub executor: Option<ExecutorConfigFragment>,
+    pub executor: Option<RoleGroup<ExecutorConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -403,7 +403,7 @@ impl SparkApplication {
 
     pub fn driver_volume_mounts(
         &self,
-        config: &DriverConfig,
+        config: &ExecutorConfig,
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
@@ -618,11 +618,8 @@ impl SparkApplication {
         )?;
 
         if let Some(executors) = &self.spec.executor {
-            if let Some(instances) = executors.instances {
-                submit_conf.insert(
-                    "spark.executor.instances".to_string(),
-                    instances.to_string(),
-                );
+            if let Some(replicas) = executors.replicas {
+                submit_conf.insert("spark.executor.instances".to_string(), replicas.to_string());
             }
         }
 
@@ -694,20 +691,38 @@ impl SparkApplication {
         }
     }
 
-    pub fn driver_config(&self) -> Result<DriverConfig, Error> {
-        let mut config = self.spec.driver.clone().unwrap_or_default();
-        config.merge(&DriverConfig::default_config());
-        fragment::validate(config).context(FragmentValidationFailureSnafu)
+    pub fn driver_config(&self) -> Result<ExecutorConfig, Error> {
+        if let Some(CommonConfiguration { mut config, .. }) = self.spec.driver.clone() {
+            config.merge(&ExecutorConfig::default_config());
+            fragment::validate(config).context(FragmentValidationFailureSnafu)
+        } else {
+            fragment::validate(ExecutorConfig::default_config())
+                .context(FragmentValidationFailureSnafu)
+        }
     }
 
     pub fn executor_config(&self) -> Result<ExecutorConfig, Error> {
-        let mut config = self.spec.executor.clone().unwrap_or_default();
-        config.merge(&ExecutorConfig::default_config());
-        fragment::validate(config).context(FragmentValidationFailureSnafu)
+        if let Some(RoleGroup {
+            config: CommonConfiguration { mut config, .. },
+            ..
+        }) = self.spec.executor.clone()
+        {
+            config.merge(&ExecutorConfig::default_config());
+            fragment::validate(config).context(FragmentValidationFailureSnafu)
+        } else {
+            fragment::validate(ExecutorConfig::default_config())
+                .context(FragmentValidationFailureSnafu)
+        }
     }
 
-    pub fn pod_overrides(&self, _role: SparkApplicationRole) -> Option<PodTemplateSpec> {
-        self.spec.job.clone().map(|j| j.pod_overrides)
+    pub fn pod_overrides(&self, role: SparkApplicationRole) -> Option<PodTemplateSpec> {
+        match role {
+            SparkApplicationRole::Submit => self.spec.job.clone().map(|j| j.pod_overrides),
+            SparkApplicationRole::Driver => self.spec.driver.clone().map(|d| d.pod_overrides),
+            SparkApplicationRole::Executor => {
+                self.spec.executor.clone().map(|e| e.config.pod_overrides)
+            }
+        }
     }
 
     pub fn validated_role_config(
@@ -724,30 +739,87 @@ impl SparkApplication {
             }
         };
 
-        let roles_to_validate: HashMap<String, (Vec<PropertyNameKind>, Role<SparkConfigFragment>)> =
-            vec![(
-                SparkApplicationRole::Submit.to_string(),
-                (
-                    vec![
-                        PropertyNameKind::Env,
-                        PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                    ],
-                    Role {
-                        config: submit_conf.clone(),
-                        role_groups: [(
-                            "default".to_string(),
-                            RoleGroup {
-                                config: submit_conf,
-                                replicas: Some(1),
-                                selector: None,
-                            },
-                        )]
-                        .into(),
-                    },
-                ),
-            )]
-            .into_iter()
-            .collect();
+        let driver_conf = if self.spec.driver.is_some() {
+            self.spec.driver.as_ref().unwrap().clone()
+        } else {
+            CommonConfiguration {
+                config: ExecutorConfig::default_config(),
+                ..CommonConfiguration::default()
+            }
+        };
+
+        let executor_role_group = if self.spec.executor.is_some() {
+            self.spec.executor.as_ref().unwrap().clone()
+        } else {
+            RoleGroup {
+                config: CommonConfiguration {
+                    config: ExecutorConfig::default_config(),
+                    ..CommonConfiguration::default()
+                },
+                replicas: Some(1),
+                selector: None,
+            }
+        };
+
+        let mut roles_to_validate = HashMap::new();
+        roles_to_validate.insert(
+            SparkApplicationRole::Submit.to_string(),
+            (
+                vec![
+                    PropertyNameKind::Env,
+                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
+                ],
+                Role {
+                    config: submit_conf.clone(),
+                    role_groups: [(
+                        "default".to_string(),
+                        RoleGroup {
+                            config: submit_conf,
+                            replicas: Some(1),
+                            selector: None,
+                        },
+                    )]
+                    .into(),
+                }
+                .erase(),
+            ),
+        );
+        roles_to_validate.insert(
+            SparkApplicationRole::Driver.to_string(),
+            (
+                vec![
+                    PropertyNameKind::Env,
+                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
+                ],
+                Role {
+                    config: driver_conf.clone(),
+                    role_groups: [(
+                        "default".to_string(),
+                        RoleGroup {
+                            config: driver_conf,
+                            replicas: Some(1),
+                            selector: None,
+                        },
+                    )]
+                    .into(),
+                }
+                .erase(),
+            ),
+        );
+        roles_to_validate.insert(
+            SparkApplicationRole::Executor.to_string(),
+            (
+                vec![
+                    PropertyNameKind::Env,
+                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
+                ],
+                Role {
+                    config: executor_role_group.config.clone(),
+                    role_groups: [("default".to_string(), executor_role_group)].into(),
+                }
+                .erase(),
+            ),
+        );
 
         let role_config = transform_all_roles_to_config(self, roles_to_validate);
 
@@ -832,7 +904,7 @@ fn subtract_spark_memory_overhead(for_java: bool, limit: &Quantity) -> Result<St
 /// Spark will use these and *ignore* the resource limits in pod templates entirely.
 fn resources_to_driver_props(
     for_java: bool,
-    driver_config: &DriverConfig,
+    driver_config: &ExecutorConfig,
     props: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
     if let Resources {
@@ -935,6 +1007,7 @@ fn resources_to_executor_props(
     Ok(())
 }
 
+// TODO: remove this are switch to pod overrides ???
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VolumeMounts {
@@ -966,34 +1039,6 @@ pub struct NodeSelector {
 
 impl Atomic for NodeSelector {}
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CommonConfig {
-    pub secret: Option<String>,
-    pub log_dir: Option<String>,
-    pub max_port_retries: Option<usize>,
-}
-
-#[derive(
-    Clone,
-    Debug,
-    Deserialize,
-    Display,
-    Eq,
-    EnumIter,
-    JsonSchema,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-)]
-#[serde(rename_all = "kebab-case")]
-#[strum(serialize_all = "kebab-case")]
-pub enum SubmitJobContainer {
-    SparkSubmit,
-    Vector,
-}
-
 #[derive(
     Clone,
     Debug,
@@ -1010,6 +1055,7 @@ pub enum SubmitJobContainer {
 #[serde(rename_all = "kebab-case")]
 #[strum(serialize_all = "kebab-case")]
 pub enum SparkContainer {
+    SparkSubmit,
     Job,
     Requirements,
     Spark,
@@ -1031,94 +1077,20 @@ pub enum SparkContainer {
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct DriverConfig {
-    #[fragment_attrs(serde(default))]
-    pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
-    #[fragment_attrs(serde(default))]
-    pub logging: Logging<SparkContainer>,
-    #[fragment_attrs(serde(default, flatten))]
-    pub volume_mounts: Option<VolumeMounts>,
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-    #[fragment_attrs(serde(default))]
-    #[fragment_attrs(schemars(schema_with = "pod_overrides_schema"))]
-    pub pod_overrides: PodTemplateSpec,
-    #[fragment_attrs(serde(default))]
-    pub jvm_security: HashMap<String, Option<String>>,
-}
-
-impl DriverConfig {
-    fn default_config() -> DriverConfigFragment {
-        DriverConfigFragment {
-            resources: ResourcesFragment {
-                cpu: CpuLimitsFragment {
-                    min: Some(Quantity("250m".to_owned())),
-                    max: Some(Quantity("1".to_owned())),
-                },
-                memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("1Gi".to_owned())),
-                    runtime_limits: NoRuntimeLimitsFragment {},
-                },
-                storage: SparkStorageConfigFragment {},
-            },
-            logging: product_logging::spec::default_logging(),
-            volume_mounts: Some(VolumeMounts::default()),
-            affinity: StackableAffinityFragment::default(),
-            pod_overrides: PodTemplateSpec::default(),
-            jvm_security: vec![
-                (
-                    "networkaddress.cache.ttl".to_string(),
-                    Some("30".to_string()),
-                ),
-                (
-                    "networkaddress.cache.negative.ttl".to_string(),
-                    Some("0".to_string()),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
-#[fragment_attrs(
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize
-    ),
-    serde(rename_all = "camelCase")
-)]
 pub struct ExecutorConfig {
     #[fragment_attrs(serde(default))]
-    pub instances: Option<usize>,
-    #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<SparkContainer>,
     #[fragment_attrs(serde(default, flatten))]
     pub volume_mounts: Option<VolumeMounts>,
-    #[fragment_attrs(serde(default, flatten))]
-    pub node_selector: Option<NodeSelector>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
-    #[fragment_attrs(serde(default))]
-    #[fragment_attrs(schemars(schema_with = "pod_overrides_schema"))]
-    pub pod_overrides: PodTemplateSpec,
-    #[fragment_attrs(serde(default))]
-    pub jvm_security: HashMap<String, Option<String>>,
 }
 
 impl ExecutorConfig {
     fn default_config() -> ExecutorConfigFragment {
         ExecutorConfigFragment {
-            instances: None,
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("250m".to_owned())),
@@ -1132,28 +1104,45 @@ impl ExecutorConfig {
             },
             logging: product_logging::spec::default_logging(),
             volume_mounts: Some(VolumeMounts::default()),
-            node_selector: Default::default(),
             affinity: Default::default(),
-            pod_overrides: PodTemplateSpec::default(),
-            jvm_security: vec![
-                (
-                    "networkaddress.cache.ttl".to_string(),
-                    Some("30".to_string()),
-                ),
-                (
-                    "networkaddress.cache.negative.ttl".to_string(),
-                    Some("0".to_string()),
-                ),
-            ]
-            .into_iter()
-            .collect(),
         }
+    }
+}
+
+impl Configuration for ExecutorConfigFragment {
+    type Configurable = SparkApplication;
+
+    fn compute_env(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_cli(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    {
+        Ok(BTreeMap::new())
+    }
+
+    fn compute_files(
+        &self,
+        _resource: &Self::Configurable,
+        _role_name: &str,
+        _file: &str,
+    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    {
+        Ok(BTreeMap::new())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::DriverConfig;
     use crate::{cores_from_quantity, resources_to_executor_props, ExecutorConfig};
     use crate::{resources_to_driver_props, SparkApplication};
     use crate::{Quantity, SparkStorageConfig};
@@ -1163,10 +1152,9 @@ mod tests {
     use stackable_operator::commons::resources::{
         CpuLimits, MemoryLimits, NoRuntimeLimits, Resources,
     };
-    use stackable_operator::k8s_openapi::api::core::v1::PodTemplateSpec;
     use stackable_operator::product_config::ProductConfigManager;
     use stackable_operator::product_logging::spec::Logging;
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_spark_examples_s3() {
@@ -1391,20 +1379,22 @@ spec:
         memory:
           limit: "1G"
   driver:
-    resources:
-      cpu:
-        min: "1"
-        max: "1300m"
-      memory:
-        limit: "512m"
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "1300m"
+        memory:
+          limit: "512m"
   executor:
-    instances: 1
-    resources:
-      cpu:
-        min: "500m"
-        max: "1200m"
-      memory:
-        limit: "1Gi"
+    replicas: 10
+    config:
+      resources:
+        cpu:
+          min: "500m"
+          max: "1200m"
+        memory:
+          limit: "1Gi"
   config:
     enableMonitoring: true
         "#,
@@ -1459,7 +1449,7 @@ spec:
 
     #[test]
     fn test_resource_to_driver_props() {
-        let driver_config = DriverConfig {
+        let driver_config = ExecutorConfig {
             resources: Resources {
                 memory: MemoryLimits {
                     limit: Some(Quantity("128Mi".to_string())),
@@ -1477,8 +1467,6 @@ spec:
             },
             volume_mounts: None,
             affinity: StackableAffinity::default(),
-            pod_overrides: PodTemplateSpec::default(),
-            jvm_security: HashMap::new(),
         };
 
         let mut props = BTreeMap::new();
@@ -1514,7 +1502,6 @@ spec:
     #[test]
     fn test_resource_to_executor_props() {
         let executor_config = ExecutorConfig {
-            instances: Some(1),
             resources: Resources {
                 memory: MemoryLimits {
                     limit: Some(Quantity("512Mi".to_string())),
@@ -1531,10 +1518,7 @@ spec:
                 containers: BTreeMap::new(),
             },
             volume_mounts: None,
-            node_selector: None,
             affinity: StackableAffinity::default(),
-            pod_overrides: PodTemplateSpec::default(),
-            jvm_security: HashMap::new(),
         };
 
         let mut props = BTreeMap::new();

@@ -391,17 +391,7 @@ impl SparkApplication {
         self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
     }
 
-    pub fn executor_volume_mounts(
-        &self,
-        config: &ExecutorConfig,
-        s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
-    ) -> Vec<VolumeMount> {
-        let volume_mounts = config.volume_mounts.clone().unwrap_or_default().into();
-        self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
-    }
-
-    pub fn driver_volume_mounts(
+    pub fn volume_mounts(
         &self,
         config: &ExecutorConfig,
         s3conn: &Option<S3ConnectionSpec>,
@@ -1007,7 +997,7 @@ fn resources_to_executor_props(
     Ok(())
 }
 
-// TODO: remove this are switch to pod overrides ???
+// TODO: remove this when switch to pod overrides ???
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VolumeMounts {

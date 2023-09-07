@@ -10,7 +10,7 @@ use std::{
 use stackable_operator::product_config::writer::to_java_properties_string;
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, tlscerts, ExecutorConfig, SparkApplication,
-    SparkApplicationRole, SparkConfig, SparkContainer, VolumeMounts,
+    SparkApplicationRole, SparkConfig, SparkContainer,
 };
 
 use crate::product_logging::{self, resolve_vector_aggregator_address};
@@ -456,15 +456,12 @@ fn pod_template(
 ) -> Result<PodTemplateSpec> {
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
-    if let Some(VolumeMounts {
-        volume_mounts: Some(volume_mounts),
-    }) = config.volume_mounts.clone()
-    {
-        cb.add_volume_mounts(volume_mounts)
-            .add_env_vars(env.to_vec())
-            .resources(config.resources.clone().into())
-            .image_from_product_image(spark_image);
-    }
+
+    cb.add_volume_mounts(spark_application.volume_mounts(config, s3conn, s3logdir))
+        .add_env_vars(env.to_vec())
+        .resources(config.resources.clone().into())
+        .image_from_product_image(spark_image);
+
     if config.logging.enable_vector_agent {
         cb.add_env_var(
             "_STACKABLE_POST_HOOK",

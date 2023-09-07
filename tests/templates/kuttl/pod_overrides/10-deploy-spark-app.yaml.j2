@@ -48,15 +48,16 @@ spec:
                 cpu: 1500m
                 memory: 1024Mi
   executor:
-    instances: 1
-    podOverrides:
-      spec:
-        containers:
-          - name: spark
-            resources:
-              requests:
-                cpu: 500m
-                memory: 512Mi
-              limits:
-                cpu: 1500m
-                memory: 1024Mi
+    replicas: 1
+    config:
+      podOverrides:
+        spec:
+          containers:
+            - name: spark
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+                limits:
+                  cpu: 1500m
+                  memory: 1024Mi

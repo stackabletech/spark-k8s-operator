@@ -54,24 +54,27 @@ spec:
     requirements:
       - numpy==1.24.2
   job:
-    logging:
-      enableVectorAgent: true
-      containers:
-        spark-submit:
-          custom:
-            configMap: pyspark-submit-log-config
+    config:
+      logging:
+        enableVectorAgent: true
+        containers:
+          spark-submit:
+            custom:
+              configMap: pyspark-submit-log-config
   driver:
-    logging:
-      enableVectorAgent: true
-      containers:
-        spark:
-          custom:
-            configMap: pyspark-log-config
+    config:
+      logging:
+        enableVectorAgent: true
+        containers:
+          spark:
+            custom:
+              configMap: pyspark-log-config
   executor:
-    instances: 1
-    logging:
-      enableVectorAgent: true
-      containers:
-        spark:
-          custom:
-            configMap: pyspark-log-config
+    replicas: 1
+    config:
+      logging:
+        enableVectorAgent: true
+        containers:
+          spark:
+            custom:
+              configMap: pyspark-log-config

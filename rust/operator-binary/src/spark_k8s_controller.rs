@@ -10,7 +10,7 @@ use std::{
 use stackable_operator::product_config::writer::to_java_properties_string;
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, tlscerts, ExecutorConfig, SparkApplication,
-    SparkApplicationRole, SparkConfig, SparkContainer,
+    SparkApplicationRole, SparkContainer, SubmitConfig,
 };
 
 use crate::product_logging::{self, resolve_vector_aggregator_address};
@@ -690,7 +690,7 @@ fn spark_job(
     job_commands: &[String],
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
-    job_config: &SparkConfig,
+    job_config: &SubmitConfig,
 ) -> Result<Job> {
     let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
         .context(IllegalContainerNameSnafu)?;

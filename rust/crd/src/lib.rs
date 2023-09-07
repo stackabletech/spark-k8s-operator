@@ -134,16 +134,16 @@ pub struct SparkStorageConfig {}
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct SparkConfig {
+pub struct SubmitConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<SparkContainer>,
 }
 
-impl SparkConfig {
-    fn default_config() -> SparkConfigFragment {
-        SparkConfigFragment {
+impl SubmitConfig {
+    fn default_config() -> SubmitConfigFragment {
+        SubmitConfigFragment {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("100m".to_owned())),
@@ -160,7 +160,7 @@ impl SparkConfig {
     }
 }
 
-impl Configuration for SparkConfigFragment {
+impl Configuration for SubmitConfigFragment {
     type Configurable = SparkApplication;
 
     fn compute_env(
@@ -224,7 +224,7 @@ pub struct SparkApplicationSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub job: Option<CommonConfiguration<SparkConfigFragment>>,
+    pub job: Option<CommonConfiguration<SubmitConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<CommonConfiguration<ExecutorConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -671,12 +671,12 @@ impl SparkApplication {
         e
     }
 
-    pub fn submit_config(&self) -> Result<SparkConfig, Error> {
+    pub fn submit_config(&self) -> Result<SubmitConfig, Error> {
         if let Some(CommonConfiguration { mut config, .. }) = self.spec.job.clone() {
-            config.merge(&SparkConfig::default_config());
+            config.merge(&SubmitConfig::default_config());
             fragment::validate(config).context(FragmentValidationFailureSnafu)
         } else {
-            fragment::validate(SparkConfig::default_config())
+            fragment::validate(SubmitConfig::default_config())
                 .context(FragmentValidationFailureSnafu)
         }
     }
@@ -724,7 +724,7 @@ impl SparkApplication {
             self.spec.job.as_ref().unwrap().clone()
         } else {
             CommonConfiguration {
-                config: SparkConfig::default_config(),
+                config: SubmitConfig::default_config(),
                 ..CommonConfiguration::default()
             }
         };

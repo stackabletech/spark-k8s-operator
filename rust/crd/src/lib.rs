@@ -3,42 +3,30 @@
 pub mod affinity;
 pub mod constants;
 pub mod history;
+pub mod roles;
 pub mod s3logdir;
 pub mod tlscerts;
 
-use std::{
-    cmp::max,
-    collections::{BTreeMap, HashMap},
-    slice,
-};
-
+pub use crate::roles::*;
 use constants::*;
 use history::LogFileDirectorySpec;
 use s3logdir::S3LogDir;
-
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
-    transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
+    transform_all_roles_to_config, validate_all_roles_and_groups_config,
     ValidatedRoleConfigByPropertyKind,
 };
-
 use stackable_operator::{
     builder::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::{
-        affinity::StackableAffinity,
         product_image_selection::{ProductImage, ResolvedProductImage},
-        resources::{
-            CpuLimits, CpuLimitsFragment, MemoryLimits, MemoryLimitsFragment, NoRuntimeLimits,
-            NoRuntimeLimitsFragment, Resources, ResourcesFragment,
-        },
+        resources::{CpuLimits, MemoryLimits, Resources},
         s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec},
     },
     config::{
         fragment,
-        fragment::Fragment,
         fragment::ValidationError,
         merge::{Atomic, Merge},
     },
@@ -50,11 +38,14 @@ use stackable_operator::{
     labels::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
     product_config::types::PropertyNameKind,
-    product_logging::{self, spec::Logging},
+    product_logging,
     role_utils::{CommonConfiguration, Role, RoleGroup},
     schemars::{self, JsonSchema},
 };
-use strum::{Display, EnumIter};
+use std::{
+    cmp::max,
+    collections::{BTreeMap, HashMap},
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -87,109 +78,11 @@ pub enum Error {
     },
 }
 
-#[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
-#[strum(serialize_all = "kebab-case")]
-pub enum SparkApplicationRole {
-    Submit,
-    Driver,
-    Executor,
-}
-
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SparkApplicationStatus {
     pub phase: String,
-}
-
-#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[fragment_attrs(
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize,
-    ),
-    allow(clippy::derive_partial_eq_without_eq),
-    serde(rename_all = "camelCase")
-)]
-pub struct SparkStorageConfig {}
-
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
-#[fragment_attrs(
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize
-    ),
-    serde(rename_all = "camelCase")
-)]
-pub struct SubmitConfig {
-    #[fragment_attrs(serde(default))]
-    pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
-    #[fragment_attrs(serde(default))]
-    pub logging: Logging<SparkContainer>,
-}
-
-impl SubmitConfig {
-    fn default_config() -> SubmitConfigFragment {
-        SubmitConfigFragment {
-            resources: ResourcesFragment {
-                cpu: CpuLimitsFragment {
-                    min: Some(Quantity("100m".to_owned())),
-                    max: Some(Quantity("400m".to_owned())),
-                },
-                memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("512Mi".to_owned())),
-                    runtime_limits: NoRuntimeLimitsFragment {},
-                },
-                storage: SparkStorageConfigFragment {},
-            },
-            logging: product_logging::spec::default_logging(),
-        }
-    }
-}
-
-impl Configuration for SubmitConfigFragment {
-    type Configurable = SparkApplication;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
-        Ok(BTreeMap::new())
-    }
 }
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
@@ -226,9 +119,9 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<CommonConfiguration<SubmitConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub driver: Option<CommonConfiguration<ExecutorConfigFragment>>,
+    pub driver: Option<CommonConfiguration<DriverConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub executor: Option<RoleGroup<ExecutorConfigFragment>>,
+    pub executor: Option<CommonConfiguration<ExecutorConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -388,16 +281,6 @@ impl SparkApplication {
                 ..VolumeMount::default()
             },
         ];
-        self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
-    }
-
-    pub fn volume_mounts(
-        &self,
-        config: &ExecutorConfig,
-        s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
-    ) -> Vec<VolumeMount> {
-        let volume_mounts = config.volume_mounts.clone().unwrap_or_default().into();
         self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
     }
 
@@ -607,10 +490,18 @@ impl SparkApplication {
             &mut submit_conf,
         )?;
 
-        if let Some(executors) = &self.spec.executor {
-            if let Some(replicas) = executors.replicas {
-                submit_conf.insert("spark.executor.instances".to_string(), replicas.to_string());
-            }
+        if let Some(CommonConfiguration {
+            config:
+                ExecutorConfigFragment {
+                    replicas: Some(replicas),
+                    ..
+                },
+            ..
+        }) = &self.spec.executor
+        {
+            //            if let Some(replicas) = executors.replicas {
+            submit_conf.insert("spark.executor.instances".to_string(), replicas.to_string());
+            //           }
         }
 
         if let Some(log_dir) = s3_log_dir {
@@ -681,22 +572,18 @@ impl SparkApplication {
         }
     }
 
-    pub fn driver_config(&self) -> Result<ExecutorConfig, Error> {
+    pub fn driver_config(&self) -> Result<DriverConfig, Error> {
         if let Some(CommonConfiguration { mut config, .. }) = self.spec.driver.clone() {
-            config.merge(&ExecutorConfig::default_config());
+            config.merge(&DriverConfig::default_config());
             fragment::validate(config).context(FragmentValidationFailureSnafu)
         } else {
-            fragment::validate(ExecutorConfig::default_config())
+            fragment::validate(DriverConfig::default_config())
                 .context(FragmentValidationFailureSnafu)
         }
     }
 
     pub fn executor_config(&self) -> Result<ExecutorConfig, Error> {
-        if let Some(RoleGroup {
-            config: CommonConfiguration { mut config, .. },
-            ..
-        }) = self.spec.executor.clone()
-        {
+        if let Some(CommonConfiguration { mut config, .. }) = self.spec.executor.clone() {
             config.merge(&ExecutorConfig::default_config());
             fragment::validate(config).context(FragmentValidationFailureSnafu)
         } else {
@@ -709,9 +596,7 @@ impl SparkApplication {
         match role {
             SparkApplicationRole::Submit => self.spec.job.clone().map(|j| j.pod_overrides),
             SparkApplicationRole::Driver => self.spec.driver.clone().map(|d| d.pod_overrides),
-            SparkApplicationRole::Executor => {
-                self.spec.executor.clone().map(|e| e.config.pod_overrides)
-            }
+            SparkApplicationRole::Executor => self.spec.executor.clone().map(|e| e.pod_overrides),
         }
     }
 
@@ -733,21 +618,17 @@ impl SparkApplication {
             self.spec.driver.as_ref().unwrap().clone()
         } else {
             CommonConfiguration {
-                config: ExecutorConfig::default_config(),
+                config: DriverConfig::default_config(),
                 ..CommonConfiguration::default()
             }
         };
 
-        let executor_role_group = if self.spec.executor.is_some() {
+        let executor_conf = if self.spec.executor.is_some() {
             self.spec.executor.as_ref().unwrap().clone()
         } else {
-            RoleGroup {
-                config: CommonConfiguration {
-                    config: ExecutorConfig::default_config(),
-                    ..CommonConfiguration::default()
-                },
-                replicas: Some(1),
-                selector: None,
+            CommonConfiguration {
+                config: ExecutorConfig::default_config(),
+                ..CommonConfiguration::default()
             }
         };
 
@@ -804,8 +685,19 @@ impl SparkApplication {
                     PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                 ],
                 Role {
-                    config: executor_role_group.config.clone(),
-                    role_groups: [("default".to_string(), executor_role_group)].into(),
+                    config: executor_conf.clone(),
+                    role_groups: [(
+                        "default".to_string(),
+                        RoleGroup {
+                            config: executor_conf,
+                            // This is a dummy value needed to be able to build the RoleGroup
+                            // object. ExecutorConfig.replicas is the true value used to set the
+                            // number of executor pods.
+                            replicas: Some(1),
+                            selector: None,
+                        },
+                    )]
+                    .into(),
                 }
                 .erase(),
             ),
@@ -894,7 +786,7 @@ fn subtract_spark_memory_overhead(for_java: bool, limit: &Quantity) -> Result<St
 /// Spark will use these and *ignore* the resource limits in pod templates entirely.
 fn resources_to_driver_props(
     for_java: bool,
-    driver_config: &ExecutorConfig,
+    driver_config: &DriverConfig,
     props: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
     if let Resources {
@@ -997,30 +889,6 @@ fn resources_to_executor_props(
     Ok(())
 }
 
-// TODO: remove this when switch to pod overrides ???
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VolumeMounts {
-    pub volume_mounts: Option<Vec<VolumeMount>>,
-}
-
-impl Atomic for VolumeMounts {}
-
-impl<'a> IntoIterator for &'a VolumeMounts {
-    type Item = &'a VolumeMount;
-    type IntoIter = slice::Iter<'a, VolumeMount>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.volume_mounts.as_deref().unwrap_or_default().iter()
-    }
-}
-
-impl From<VolumeMounts> for Vec<VolumeMount> {
-    fn from(value: VolumeMounts) -> Self {
-        value.volume_mounts.unwrap_or_default()
-    }
-}
-
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeSelector {
@@ -1029,111 +897,9 @@ pub struct NodeSelector {
 
 impl Atomic for NodeSelector {}
 
-#[derive(
-    Clone,
-    Debug,
-    Deserialize,
-    Display,
-    Eq,
-    EnumIter,
-    JsonSchema,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Serialize,
-)]
-#[serde(rename_all = "kebab-case")]
-#[strum(serialize_all = "kebab-case")]
-pub enum SparkContainer {
-    SparkSubmit,
-    Job,
-    Requirements,
-    Spark,
-    Vector,
-    Tls,
-}
-
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
-#[fragment_attrs(
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize
-    ),
-    serde(rename_all = "camelCase")
-)]
-pub struct ExecutorConfig {
-    #[fragment_attrs(serde(default))]
-    pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
-    #[fragment_attrs(serde(default))]
-    pub logging: Logging<SparkContainer>,
-    #[fragment_attrs(serde(default, flatten))]
-    pub volume_mounts: Option<VolumeMounts>,
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-}
-
-impl ExecutorConfig {
-    fn default_config() -> ExecutorConfigFragment {
-        ExecutorConfigFragment {
-            resources: ResourcesFragment {
-                cpu: CpuLimitsFragment {
-                    min: Some(Quantity("250m".to_owned())),
-                    max: Some(Quantity("1".to_owned())),
-                },
-                memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("4Gi".to_owned())),
-                    runtime_limits: NoRuntimeLimitsFragment {},
-                },
-                storage: SparkStorageConfigFragment {},
-            },
-            logging: product_logging::spec::default_logging(),
-            volume_mounts: Some(VolumeMounts::default()),
-            affinity: Default::default(),
-        }
-    }
-}
-
-impl Configuration for ExecutorConfigFragment {
-    type Configurable = SparkApplication;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
-        Ok(BTreeMap::new())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::{cores_from_quantity, resources_to_executor_props, ExecutorConfig};
+    use crate::{cores_from_quantity, resources_to_executor_props, DriverConfig, ExecutorConfig};
     use crate::{resources_to_driver_props, SparkApplication};
     use crate::{Quantity, SparkStorageConfig};
     use rstest::rstest;
@@ -1439,7 +1205,7 @@ spec:
 
     #[test]
     fn test_resource_to_driver_props() {
-        let driver_config = ExecutorConfig {
+        let driver_config = DriverConfig {
             resources: Resources {
                 memory: MemoryLimits {
                     limit: Some(Quantity("128Mi".to_string())),
@@ -1492,6 +1258,7 @@ spec:
     #[test]
     fn test_resource_to_executor_props() {
         let executor_config = ExecutorConfig {
+            replicas: Some(3),
             resources: Resources {
                 memory: MemoryLimits {
                     limit: Some(Quantity("512Mi".to_string())),

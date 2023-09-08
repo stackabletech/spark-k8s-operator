@@ -9,7 +9,7 @@ use std::{
 
 use stackable_operator::product_config::writer::to_java_properties_string;
 use stackable_spark_k8s_crd::{
-    constants::*, s3logdir::S3LogDir, tlscerts, ExecutorConfig, SparkApplication,
+    constants::*, s3logdir::S3LogDir, tlscerts, DriverOrExecutorConfig, SparkApplication,
     SparkApplicationRole, SparkContainer, SubmitConfig,
 };
 
@@ -444,10 +444,10 @@ fn init_containers(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn pod_template(
+fn pod_template<T: DriverOrExecutorConfig>(
     spark_application: &SparkApplication,
     role: SparkApplicationRole,
-    config: &ExecutorConfig,
+    config: &T,
     volumes: &[Volume],
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
@@ -457,12 +457,12 @@ fn pod_template(
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
 
-    cb.add_volume_mounts(spark_application.volume_mounts(config, s3conn, s3logdir))
+    cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, s3logdir))
         .add_env_vars(env.to_vec())
-        .resources(config.resources.clone().into())
+        .resources(config.resources())
         .image_from_product_image(spark_image);
 
-    if config.logging.enable_vector_agent {
+    if config.enable_vector_agent() {
         cb.add_env_var(
             "_STACKABLE_POST_HOOK",
             [
@@ -489,11 +489,11 @@ fn pod_template(
     .add_volumes(volumes.to_vec())
     .security_context(security_context())
     .image_pull_secrets_from_product_image(spark_image)
-    .affinity(&config.affinity);
+    .affinity(&config.affinity());
 
     let init_containers = init_containers(
         spark_application,
-        &config.logging,
+        &config.logging(),
         s3conn,
         s3logdir,
         spark_image,
@@ -504,12 +504,12 @@ fn pod_template(
         pb.add_init_container(init_container.clone());
     }
 
-    if config.logging.enable_vector_agent {
+    if config.enable_vector_agent() {
         pb.add_container(vector_container(
             spark_image,
             VOLUME_MOUNT_NAME_CONFIG,
             VOLUME_MOUNT_NAME_LOG,
-            config.logging.containers.get(&SparkContainer::Vector),
+            config.logging().containers.get(&SparkContainer::Vector),
             ResourceRequirementsBuilder::new()
                 .with_cpu_request("250m")
                 .with_cpu_limit("500m")
@@ -527,10 +527,10 @@ fn pod_template(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn pod_template_config_map(
+fn pod_template_config_map<T: DriverOrExecutorConfig>(
     spark_application: &SparkApplication,
     role: SparkApplicationRole,
-    config: &ExecutorConfig,
+    config: &T,
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
@@ -545,7 +545,7 @@ fn pod_template_config_map(
             Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
                 custom: ConfigMapLogConfig { config_map },
             })),
-    }) = config.logging.containers.get(&SparkContainer::Spark)
+    }) = config.logging().containers.get(&SparkContainer::Spark)
     {
         config_map.into()
     } else {
@@ -596,7 +596,7 @@ fn pod_template_config_map(
             role_group: String::new(),
         },
         vector_aggregator_address,
-        &config.logging,
+        &config.logging(),
         SparkContainer::Spark,
         SparkContainer::Vector,
         &mut cm_builder,

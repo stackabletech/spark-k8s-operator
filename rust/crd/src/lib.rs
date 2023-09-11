@@ -484,7 +484,10 @@ impl SparkApplication {
                 deps.repositories
                     .map(|r| format!("--repositories {}", r.join(","))),
             );
-            submit_cmd.extend(deps.packages.map(|p| format!("--packages {}", p.join(","))));
+            submit_cmd.extend(
+                deps.packages
+                    .map(|p| format!("--conf spark.jars.packages={}", p.join(","))),
+            );
         }
 
         // some command elements need to be initially stored in a map (to allow overwrites) and

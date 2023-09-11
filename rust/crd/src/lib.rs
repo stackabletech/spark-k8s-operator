@@ -521,9 +521,7 @@ impl SparkApplication {
             ..
         }) = &self.spec.executor
         {
-            //            if let Some(replicas) = executors.replicas {
             submit_conf.insert("spark.executor.instances".to_string(), replicas.to_string());
-            //           }
         }
 
         if let Some(log_dir) = s3_log_dir {

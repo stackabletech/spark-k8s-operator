@@ -48,7 +48,8 @@ spec:
                 cpu: 1500m
                 memory: 1024Mi
   executor:
-    replicas: 1
+    config:
+      replicas: 1
     podOverrides:
       spec:
         containers:

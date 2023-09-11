@@ -13,9 +13,6 @@ dimensions:
   - name: ny-tlc-report
     values:
       - 0.1.0
-  - name: postgresql
-    values:
-      - 42.6.0
   - name: s3-use-tls
     values:
       - "false"
@@ -70,11 +67,9 @@ tests:
       - spark
       - ny-tlc-report
       - openshift
-  - name: postgresql
+  - name: iceberg
     dimensions:
       - spark
-      - postgresql
-      - openshift
 suites:
   - name: nightly
     patch:

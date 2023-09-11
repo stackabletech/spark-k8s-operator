@@ -2,7 +2,7 @@
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: spark-examples
+  name: pyspark-iceberg
 spec:
   version: "1.0"
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
@@ -17,7 +17,14 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   mode: cluster
-  mainApplicationFile: "local:///stackable/spark/jobs/write-to-postgresql.py"
+  mainApplicationFile: "local:///stackable/spark/jobs/write-to-iceberg.py"
+  sparkConf:
+    spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.catalog.spark_catalog: org.apache.iceberg.spark.SparkSessionCatalog
+    spark.sql.catalog.spark_catalog.type: hive
+    spark.sql.catalog.local: org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.local.type: hadoop
+    spark.sql.catalog.local.warehouse: /tmp/warehouse
   job:
     logging:
       enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
@@ -29,8 +36,8 @@ spec:
         - name: script
           mountPath: /stackable/spark/jobs
   executor:
-    replicas: 1
     config:
+      replicas: 1
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       volumeMounts:
@@ -38,27 +45,40 @@ spec:
           mountPath: /stackable/spark/jobs
   deps:
     packages:
-      - org.postgresql:postgresql:42.6.0
+      - org.apache.iceberg:iceberg-spark-runtime-{{ test_scenario['values']['spark'].rstrip('.0') }}_2.12:1.3.1
   volumes:
     - name: script
       configMap:
-        name: write-to-postgresql
+        name: write-to-iceberg
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: write-to-postgresql
+  name: write-to-iceberg
 data:
-  write-to-postgresql.py: |
+  write-to-iceberg.py: |
     from pyspark.sql import SparkSession
     from pyspark.sql.types import *
 
-    spark = SparkSession.builder.appName("write-to-postgresql").getOrCreate()
+    spark = SparkSession.builder.appName("write-to-iceberg").getOrCreate()
 
-    df = spark.createDataFrame([1,2,3], IntegerType())
+    schema = StructType([
+      StructField("id", LongType(), True),
+      StructField("data", StringType(), True)
+    ])
 
-    # Specifying create table column data types on write
-    df.write \
-    .option("createTableColumnTypes", "value INTEGER") \
-    .jdbc("jdbc:postgresql://spark-postgresql/spark", "sparktest",
-          properties={"user": "spark", "password": "spark"})
+
+    # create table
+    df = spark.createDataFrame([], schema)
+    df.writeTo("local.db.table").create()
+
+    # append to table
+    data = [
+        (1,"one"),
+        (2,"two"),
+        (3,"three"),
+        (4,"four")
+      ]
+
+    df = spark.createDataFrame(data, schema)
+    df.writeTo("local.db.table").append()

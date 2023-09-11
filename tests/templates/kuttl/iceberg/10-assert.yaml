@@ -7,6 +7,6 @@ timeout: 900
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: spark-examples
+  name: pyspark-iceberg
 status:
   phase: Succeeded

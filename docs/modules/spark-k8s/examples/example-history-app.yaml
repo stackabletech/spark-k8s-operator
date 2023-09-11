@@ -32,4 +32,5 @@ spec:
               credentials:
                 secretClass: history-credentials-class # <6>
   executor:
-    replicas: 1
+    config:
+      replicas: 1

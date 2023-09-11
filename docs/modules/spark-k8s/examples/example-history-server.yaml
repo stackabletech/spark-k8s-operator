@@ -6,7 +6,6 @@ metadata:
 spec:
   image:
     productVersion: 3.3.0
-    stackableVersion: 0.0.0-dev
   logFileDirectory:  # <1>
     s3:
       prefix: eventlogs/  # <2>

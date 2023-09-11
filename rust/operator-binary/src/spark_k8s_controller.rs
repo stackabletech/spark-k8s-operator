@@ -1,26 +1,35 @@
-use std::{sync::Arc, time::Duration};
+use crate::Ctx;
 
-use stackable_spark_k8s_crd::{
-    constants::*, s3logdir::S3LogDir, SparkApplication, SparkApplicationRole, SparkContainer,
-    SparkStorageConfig, SubmitJobContainer,
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+    time::Duration,
+    vec,
 };
 
+use stackable_operator::product_config::writer::to_java_properties_string;
+use stackable_spark_k8s_crd::{
+    constants::*, s3logdir::S3LogDir, tlscerts, DriverOrExecutorConfig, SparkApplication,
+    SparkApplicationRole, SparkContainer, SubmitConfig,
+};
+
+use crate::product_logging::{self, resolve_vector_aggregator_address};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::builder::resources::ResourceRequirementsBuilder;
+use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     commons::{
-        affinity::StackableAffinity,
+        authentication::tls::{CaCert, TlsVerification},
         product_image_selection::ResolvedProductImage,
-        resources::{NoRuntimeLimits, Resources},
         s3::S3ConnectionSpec,
-        tls::{CaCert, TlsVerification},
     },
     k8s_openapi::{
         api::{
             batch::v1::{Job, JobSpec},
             core::v1::{
-                ConfigMap, Container, EnvVar, Pod, PodSecurityContext, PodSpec, PodTemplateSpec,
-                ServiceAccount, Volume, VolumeMount,
+                ConfigMap, Container, EnvVar, PodSecurityContext, PodSpec, PodTemplateSpec,
+                ServiceAccount, Volume,
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
@@ -31,6 +40,8 @@ use stackable_operator::{
         ResourceExt,
     },
     logging::controller::ReconcilerError,
+    product_config::types::PropertyNameKind,
+    product_config_utils::ValidatedRoleConfigByPropertyKind,
     product_logging::{
         framework::{capture_shell_output, shutdown_vector_command, vector_container},
         spec::{
@@ -40,13 +51,8 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
 };
+
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-use crate::product_logging::{self, resolve_vector_aggregator_address};
-
-pub struct Ctx {
-    pub client: stackable_operator::client::Client,
-}
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -78,8 +84,6 @@ pub enum Error {
     PodTemplateConfigMap {
         source: stackable_operator::error::Error,
     },
-    #[snafu(display("no spark base image specified"))]
-    ObjectHasNoSparkImage,
     #[snafu(display("pod template serialization"))]
     PodTemplateSerde { source: serde_yaml::Error },
     #[snafu(display("s3 bucket error"))]
@@ -105,13 +109,28 @@ pub enum Error {
         source: stackable_spark_k8s_crd::s3logdir::Error,
     },
     #[snafu(display("failed to resolve the Vector aggregator address"))]
-    ResolveVectorAggregatorAddress {
-        source: crate::product_logging::Error,
-    },
+    ResolveVectorAggregatorAddress { source: product_logging::Error },
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
-        source: crate::product_logging::Error,
+        source: product_logging::Error,
         cm_name: String,
+    },
+    #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
+    JvmSecurityProperties {
+        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        role: SparkApplicationRole,
+    },
+    #[snafu(display("failed to generate product config"))]
+    GenerateProductConfig {
+        source: stackable_operator::product_config_utils::ConfigError,
+    },
+    #[snafu(display("invalid product config"))]
+    InvalidProductConfig {
+        source: stackable_spark_k8s_crd::Error,
+    },
+    #[snafu(display("invalid submit config"))]
+    SubmitConfig {
+        source: stackable_spark_k8s_crd::Error,
     },
 }
 
@@ -121,14 +140,6 @@ impl ReconcilerError for Error {
     fn category(&self) -> &'static str {
         ErrorDiscriminants::from(self).into()
     }
-}
-
-pub struct PodTemplateConfig {
-    pub role: SparkApplicationRole,
-    pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
-    pub logging: Logging<SparkContainer>,
-    pub volume_mounts: Vec<VolumeMount>,
-    pub affinity: StackableAffinity,
 }
 
 pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) -> Result<Action> {
@@ -148,6 +159,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         _ => None,
     };
 
+    // check early for valid verification options
     if let Some(conn) = opt_s3conn.as_ref() {
         if let Some(tls) = &conn.tls {
             match &tls.verification {
@@ -155,9 +167,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
                 TlsVerification::Server(server_verification) => {
                     match &server_verification.ca_cert {
                         CaCert::WebPki {} => {}
-                        CaCert::SecretClass(_) => {
-                            return S3TlsCaVerificationNotSupportedSnafu.fail()
-                        }
+                        CaCert::SecretClass(_) => {}
                     }
                 }
             }
@@ -171,6 +181,15 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     )
     .await
     .context(S3LogDirSnafu)?;
+
+    let resolved_product_image = spark_application
+        .spec
+        .spark_image
+        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
+
+    let validated_product_config: ValidatedRoleConfigByPropertyKind = spark_application
+        .validated_role_config(&resolved_product_image, &ctx.product_config)
+        .context(InvalidProductConfigSnafu)?;
 
     let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
     client
@@ -196,35 +215,27 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     .await
     .context(ResolveVectorAggregatorAddressSnafu)?;
 
-    let spark_image = spark_application
-        .spec
-        .spark_image
-        .as_deref()
-        .context(ObjectHasNoSparkImageSnafu)?;
-
-    let env_vars = spark_application.env();
+    let env_vars = spark_application.env(&opt_s3conn, &s3logdir);
 
     let driver_config = spark_application
         .driver_config()
         .context(FailedToResolveConfigSnafu)?;
-    let driver_pod_template_config = PodTemplateConfig {
-        role: SparkApplicationRole::Driver,
-        resources: driver_config.resources.clone(),
-        logging: driver_config.logging.clone(),
-        volume_mounts: spark_application.driver_volume_mounts(
-            &driver_config,
-            &opt_s3conn,
-            &s3logdir,
-        ),
-        affinity: driver_config.affinity,
-    };
+
+    let driver_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
+        validated_product_config
+            .get(&SparkApplicationRole::Driver.to_string())
+            .and_then(|r| r.get(&"default".to_string()));
+
     let driver_pod_template_config_map = pod_template_config_map(
         &spark_application,
-        &driver_pod_template_config,
+        SparkApplicationRole::Driver,
+        &driver_config,
+        driver_product_config,
         &env_vars,
         &opt_s3conn,
         &s3logdir,
         vector_aggregator_address.as_deref(),
+        &resolved_product_image,
     )?;
     client
         .apply_patch(
@@ -238,24 +249,22 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     let executor_config = spark_application
         .executor_config()
         .context(FailedToResolveConfigSnafu)?;
-    let executor_pod_template_config = PodTemplateConfig {
-        role: SparkApplicationRole::Executor,
-        resources: executor_config.resources.clone(),
-        logging: executor_config.logging.clone(),
-        volume_mounts: spark_application.executor_volume_mounts(
-            &executor_config,
-            &opt_s3conn,
-            &s3logdir,
-        ),
-        affinity: executor_config.affinity,
-    };
+
+    let executor_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
+        validated_product_config
+            .get(&SparkApplicationRole::Executor.to_string())
+            .and_then(|r| r.get(&"default".to_string()));
+
     let executor_pod_template_config_map = pod_template_config_map(
         &spark_application,
-        &executor_pod_template_config,
+        SparkApplicationRole::Executor,
+        &executor_config,
+        executor_product_config,
         &env_vars,
         &opt_s3conn,
         &s3logdir,
         vector_aggregator_address.as_deref(),
+        &resolved_product_image,
     )?;
     client
         .apply_patch(
@@ -271,11 +280,25 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             serviceaccount.metadata.name.as_ref().unwrap(),
             &opt_s3conn,
             &s3logdir,
+            &resolved_product_image.image,
         )
         .context(BuildCommandSnafu)?;
 
-    let submit_job_config_map =
-        submit_job_config_map(&spark_application, vector_aggregator_address.as_deref())?;
+    let submit_config = spark_application
+        .submit_config()
+        .context(SubmitConfigSnafu)?;
+
+    let submit_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
+        validated_product_config
+            .get(&SparkApplicationRole::Submit.to_string())
+            .and_then(|r| r.get(&"default".to_string()));
+
+    let submit_job_config_map = submit_job_config_map(
+        &spark_application,
+        submit_product_config,
+        vector_aggregator_address.as_deref(),
+        &submit_config.logging,
+    )?;
     client
         .apply_patch(
             CONTROLLER_NAME,
@@ -287,12 +310,13 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 
     let job = spark_job(
         &spark_application,
-        spark_image,
+        &resolved_product_image,
         &serviceaccount,
         &env_vars,
         &job_commands,
         &opt_s3conn,
         &s3logdir,
+        &submit_config,
     )?;
     client
         .apply_patch(CONTROLLER_NAME, &job, &job)
@@ -305,6 +329,9 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 fn init_containers(
     spark_application: &SparkApplication,
     logging: &Logging<SparkContainer>,
+    s3conn: &Option<S3ConnectionSpec>,
+    s3logdir: &Option<S3LogDir>,
+    spark_image: &ResolvedProductImage,
 ) -> Result<Vec<Container>> {
     let mut jcb = ContainerBuilder::new(&SparkContainer::Job.to_string())
         .context(IllegalContainerNameSnafu)?;
@@ -330,14 +357,16 @@ fn init_containers(
             .args(vec![args.join(" && ")])
             .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
             .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+            .resources(
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("500m")
+                    .with_memory_request("128Mi")
+                    .with_memory_limit("128Mi")
+                    .build(),
+            )
             .build()
     });
-
-    let spark_image = spark_application
-        .spec
-        .spark_image
-        .as_deref()
-        .context(ObjectHasNoSparkImageSnafu)?;
 
     let mut rcb = ContainerBuilder::new(&SparkContainer::Requirements.to_string())
         .context(IllegalContainerNameSnafu)?;
@@ -360,38 +389,80 @@ fn init_containers(
             "pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"
         ));
 
-        rcb.image(spark_image)
+        rcb.image(&spark_image.image)
             .command(vec!["/bin/bash".to_string(), "-c".to_string()])
             .args(vec![args.join(" && ")])
             .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG);
-        if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-            rcb.image_pull_policy(image_pull_policy.to_string());
-        }
+            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+            .image_pull_policy(&spark_image.image_pull_policy);
+
+        rcb.resources(
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("250m")
+                .with_cpu_limit("1000m")
+                .with_memory_request("1024Mi")
+                .with_memory_limit("1024Mi")
+                .build(),
+        );
+
         rcb.build()
     });
 
-    Ok(vec![job_container, requirements_container]
+    // if TLS is enabled, build TrustStore and put secret inside.
+    let mut tcb = ContainerBuilder::new(&SparkContainer::Tls.to_string())
+        .context(IllegalContainerNameSnafu)?;
+    let mut args = Vec::new();
+
+    let tls_container = tlscerts::tls_secret_names(s3conn, s3logdir).map(|cert_secrets| {
+        args.extend(tlscerts::create_key_and_trust_store());
+        for cert_secret in cert_secrets {
+            args.extend(tlscerts::add_cert_to_stackable_truststore(cert_secret));
+            tcb.add_volume_mount(
+                cert_secret,
+                format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}"),
+            );
+        }
+        tcb.image(&spark_image.image)
+            .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+            .args(vec![args.join(" && ")])
+            .add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE)
+            .resources(
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("1000m")
+                    .with_memory_request("1024Mi")
+                    .with_memory_limit("1024Mi")
+                    .build(),
+            )
+            .build()
+    });
+
+    Ok(vec![job_container, requirements_container, tls_container]
         .into_iter()
         .flatten()
         .collect())
 }
 
 #[allow(clippy::too_many_arguments)]
-fn pod_template(
+fn pod_template<T: DriverOrExecutorConfig>(
     spark_application: &SparkApplication,
-    config: &PodTemplateConfig,
+    role: SparkApplicationRole,
+    config: &T,
     volumes: &[Volume],
     env: &[EnvVar],
-) -> Result<Pod> {
+    s3conn: &Option<S3ConnectionSpec>,
+    s3logdir: &Option<S3LogDir>,
+    spark_image: &ResolvedProductImage,
+) -> Result<PodTemplateSpec> {
     let container_name = SparkContainer::Spark.to_string();
-
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
-    cb.add_volume_mounts(config.volume_mounts.clone())
-        .add_env_vars(env.to_vec())
-        .resources(config.resources.clone().into());
 
-    if config.logging.enable_vector_agent {
+    cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, s3logdir))
+        .add_env_vars(env.to_vec())
+        .resources(config.resources())
+        .image_from_product_image(spark_image);
+
+    if config.enable_vector_agent() {
         cb.add_env_var(
             "_STACKABLE_POST_HOOK",
             [
@@ -401,10 +472,6 @@ fn pod_template(
             ]
             .join("; "),
         );
-    }
-
-    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-        cb.image_pull_policy(image_pull_policy.to_string());
     }
 
     let mut pb = PodBuilder::new();
@@ -420,62 +487,65 @@ fn pod_template(
     )
     .add_container(cb.build())
     .add_volumes(volumes.to_vec())
-    .security_context(security_context());
+    .security_context(security_context())
+    .image_pull_secrets_from_product_image(spark_image)
+    .affinity(&config.affinity());
 
-    pb.affinity(&config.affinity);
-
-    let init_containers = init_containers(spark_application, &config.logging).unwrap();
+    let init_containers = init_containers(
+        spark_application,
+        &config.logging(),
+        s3conn,
+        s3logdir,
+        spark_image,
+    )
+    .unwrap();
 
     for init_container in init_containers {
         pb.add_init_container(init_container.clone());
     }
 
-    if let Some(image_pull_secrets) = spark_application.spark_image_pull_secrets() {
-        pb.image_pull_secrets(
-            image_pull_secrets
-                .iter()
-                .flat_map(|secret| secret.name.clone()),
-        );
-    }
-
-    if config.logging.enable_vector_agent {
+    if config.enable_vector_agent() {
         pb.add_container(vector_container(
-            &ResolvedProductImage {
-                product_version: "".into(),
-                app_version_label: "".into(),
-                image: spark_application
-                    .spec
-                    .spark_image
-                    .clone()
-                    .context(ObjectHasNoSparkImageSnafu)?,
-                image_pull_policy: "".into(),
-                pull_secrets: None,
-            },
+            spark_image,
             VOLUME_MOUNT_NAME_CONFIG,
             VOLUME_MOUNT_NAME_LOG,
-            config.logging.containers.get(&SparkContainer::Vector),
+            config.logging().containers.get(&SparkContainer::Vector),
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("250m")
+                .with_cpu_limit("500m")
+                .with_memory_request("128Mi")
+                .with_memory_limit("128Mi")
+                .build(),
         ));
     }
 
-    pb.build().context(PodTemplateConfigMapSnafu)
+    let mut pod_template = pb.build_template();
+    if let Some(pod_overrides) = spark_application.pod_overrides(role) {
+        pod_template.merge_from(pod_overrides);
+    }
+    Ok(pod_template)
 }
 
-fn pod_template_config_map(
+#[allow(clippy::too_many_arguments)]
+fn pod_template_config_map<T: DriverOrExecutorConfig>(
     spark_application: &SparkApplication,
-    config: &PodTemplateConfig,
+    role: SparkApplicationRole,
+    config: &T,
+    product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
     vector_aggregator_address: Option<&str>,
+    spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
-    let cm_name = spark_application.pod_template_config_map_name(config.role.clone());
+    let cm_name = spark_application.pod_template_config_map_name(role.clone());
 
     let log_config_map = if let Some(ContainerLogConfig {
         choice:
             Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
                 custom: ConfigMapLogConfig { config_map },
             })),
-    }) = config.logging.containers.get(&SparkContainer::Spark)
+    }) = config.logging().containers.get(&SparkContainer::Spark)
     {
         config_map.into()
     } else {
@@ -489,7 +559,16 @@ fn pod_template_config_map(
             .build(),
     );
 
-    let template = pod_template(spark_application, config, volumes.as_ref(), env)?;
+    let template = pod_template(
+        spark_application,
+        role.clone(),
+        config,
+        volumes.as_ref(),
+        env,
+        s3conn,
+        s3logdir,
+        spark_image,
+    )?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -517,25 +596,40 @@ fn pod_template_config_map(
             role_group: String::new(),
         },
         vector_aggregator_address,
-        &config.logging,
+        &config.logging(),
         SparkContainer::Spark,
         SparkContainer::Vector,
         &mut cm_builder,
     )
     .context(InvalidLoggingConfigSnafu { cm_name })?;
 
+    if let Some(product_config) = product_config {
+        let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
+            .get(&PropertyNameKind::File(
+                JVM_SECURITY_PROPERTIES_FILE.to_string(),
+            ))
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(k, v)| (k, Some(v)))
+            .collect();
+
+        cm_builder.add_data(
+            JVM_SECURITY_PROPERTIES_FILE,
+            to_java_properties_string(jvm_sec_props.iter())
+                .with_context(|_| JvmSecurityPropertiesSnafu { role })?,
+        );
+    }
     cm_builder.build().context(PodTemplateConfigMapSnafu)
 }
 
 fn submit_job_config_map(
     spark_application: &SparkApplication,
+    product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
     vector_aggregator_address: Option<&str>,
+    logging: &Logging<SparkContainer>,
 ) -> Result<ConfigMap> {
     let cm_name = spark_application.submit_job_config_map_name();
-
-    let config = spark_application
-        .job_config()
-        .context(FailedToResolveConfigSnafu)?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -556,12 +650,33 @@ fn submit_job_config_map(
             role_group: String::new(),
         },
         vector_aggregator_address,
-        &config.logging,
-        SubmitJobContainer::SparkSubmit,
-        SubmitJobContainer::Vector,
+        logging,
+        SparkContainer::SparkSubmit,
+        SparkContainer::Vector,
         &mut cm_builder,
     )
     .context(InvalidLoggingConfigSnafu { cm_name })?;
+
+    if let Some(product_config) = product_config {
+        let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
+            .get(&PropertyNameKind::File(
+                JVM_SECURITY_PROPERTIES_FILE.to_string(),
+            ))
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(k, v)| (k, Some(v)))
+            .collect();
+
+        cm_builder.add_data(
+            JVM_SECURITY_PROPERTIES_FILE,
+            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
+                JvmSecurityPropertiesSnafu {
+                    role: SparkApplicationRole::Submit,
+                }
+            })?,
+        );
+    }
 
     cm_builder.build().context(PodTemplateConfigMapSnafu)
 }
@@ -569,18 +684,16 @@ fn submit_job_config_map(
 #[allow(clippy::too_many_arguments)]
 fn spark_job(
     spark_application: &SparkApplication,
-    spark_image: &str,
+    spark_image: &ResolvedProductImage,
     serviceaccount: &ServiceAccount,
     env: &[EnvVar],
     job_commands: &[String],
     s3conn: &Option<S3ConnectionSpec>,
     s3logdir: &Option<S3LogDir>,
+    job_config: &SubmitConfig,
 ) -> Result<Job> {
-    let mut cb = ContainerBuilder::new(&SubmitJobContainer::SparkSubmit.to_string())
+    let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
         .context(IllegalContainerNameSnafu)?;
-    let job_config = spark_application
-        .job_config()
-        .context(FailedToResolveConfigSnafu)?;
 
     let log_config_map = if let Some(ContainerLogConfig {
         choice:
@@ -590,7 +703,7 @@ fn spark_job(
     }) = job_config
         .logging
         .containers
-        .get(&SubmitJobContainer::SparkSubmit)
+        .get(&SparkContainer::SparkSubmit)
     {
         config_map.into()
     } else {
@@ -604,10 +717,10 @@ fn spark_job(
         args.push(shutdown_vector_command(VOLUME_MOUNT_PATH_LOG));
     }
 
-    cb.image(spark_image)
+    cb.image_from_product_image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![args.join(" && ")])
-        .resources(job_config.resources.into())
+        .resources(job_config.resources.clone().into())
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, s3logdir))
         .add_env_vars(env.to_vec())
         .add_env_var(
@@ -619,10 +732,6 @@ fn spark_job(
         )
         // TODO: move this to the image
         .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");
-
-    if let Some(image_pull_policy) = spark_application.spark_image_pull_policy() {
-        cb.image_pull_policy(image_pull_policy.to_string());
-    }
 
     let mut volumes = vec![
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
@@ -645,27 +754,20 @@ fn spark_job(
 
     if job_config.logging.enable_vector_agent {
         containers.push(vector_container(
-            &ResolvedProductImage {
-                product_version: "".into(),
-                app_version_label: "".into(),
-                image: spark_application
-                    .spec
-                    .spark_image
-                    .clone()
-                    .context(ObjectHasNoSparkImageSnafu)?,
-                image_pull_policy: "".into(),
-                pull_secrets: None,
-            },
+            spark_image,
             VOLUME_MOUNT_NAME_CONFIG,
             VOLUME_MOUNT_NAME_LOG,
-            job_config
-                .logging
-                .containers
-                .get(&SubmitJobContainer::Vector),
+            job_config.logging.containers.get(&SparkContainer::Vector),
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("250m")
+                .with_cpu_limit("500m")
+                .with_memory_request("128Mi")
+                .with_memory_limit("128Mi")
+                .build(),
         ));
     }
 
-    let pod = PodTemplateSpec {
+    let mut pod = PodTemplateSpec {
         metadata: Some(
             ObjectMetaBuilder::new()
                 .name("spark-submit")
@@ -679,11 +781,17 @@ fn spark_job(
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
-            image_pull_secrets: spark_application.spark_image_pull_secrets(),
+            image_pull_secrets: spark_image.pull_secrets.clone(),
             security_context: Some(security_context()),
             ..PodSpec::default()
         }),
     };
+
+    if let Some(submit_pod_overrides) =
+        spark_application.pod_overrides(SparkApplicationRole::Submit)
+    {
+        pod.merge_from(submit_pod_overrides);
+    }
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()

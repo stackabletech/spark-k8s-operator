@@ -4,6 +4,7 @@
 * xref:spark-k8s:configuration.adoc[]
 * xref:spark-k8s:usage-guide/index.adoc[]
 ** xref:spark-k8s:usage-guide/pod-placement.adoc[]
+** xref:spark-k8s:usage-guide/listenerclass.adoc[]
 ** xref:spark-k8s:usage-guide/job-dependencies.adoc[]
 ** xref:spark-k8s:usage-guide/resources.adoc[]
 ** xref:spark-k8s:usage-guide/s3.adoc[]

@@ -13,6 +13,7 @@ use stackable_operator::k8s_openapi::api::core::v1::Pod;
 use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
 use stackable_operator::kube::runtime::{controller::Controller, watcher};
 use stackable_operator::logging::controller::report_controller_reconciled;
+use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::CustomResourceExt;
 use stackable_spark_k8s_crd::constants::{
     CONTROLLER_NAME, HISTORY_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_CONTROLLER_NAME,
@@ -25,6 +26,7 @@ use tracing_futures::Instrument;
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
     pub const TARGET_PLATFORM: Option<&str> = option_env!("TARGET");
+    pub const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 }
 
 #[derive(Parser)]
@@ -32,6 +34,15 @@ mod built_info {
 struct Opts {
     #[clap(subcommand)]
     cmd: Command,
+}
+
+const PRODUCT_CONFIG_PATHS: [&str; 2] = [
+    "deploy/config-spec/properties.yaml",
+    "/etc/stackable/spark-k8s-operator/config-spec/properties.yaml",
+];
+pub struct Ctx {
+    pub client: stackable_operator::client::Client,
+    pub product_config: ProductConfigManager,
 }
 
 #[tokio::main]
@@ -61,14 +72,13 @@ async fn main() -> anyhow::Result<()> {
                 built_info::RUSTC_VERSION,
             );
 
-            let product_config = product_config.load(&[
-                "deploy/config-spec/properties.yaml",
-                "/etc/stackable/spark-k8s-operator/config-spec/properties.yaml",
-            ])?;
-
             let client =
                 stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string())).await?;
 
+            let ctx = Ctx {
+                client: client.clone(),
+                product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
+            };
             let app_controller = Controller::new(
                 watch_namespace.get_api::<SparkApplication>(&client),
                 watcher::Config::default(),
@@ -81,9 +91,7 @@ async fn main() -> anyhow::Result<()> {
             .run(
                 spark_k8s_controller::reconcile,
                 spark_k8s_controller::error_policy,
-                Arc::new(spark_k8s_controller::Ctx {
-                    client: client.clone(),
-                }),
+                Arc::new(ctx),
             )
             .map(|res| {
                 report_controller_reconciled(
@@ -107,13 +115,16 @@ async fn main() -> anyhow::Result<()> {
             .run(
                 pod_driver_controller::reconcile,
                 pod_driver_controller::error_policy,
-                Arc::new(pod_driver_controller::Ctx {
-                    client: client.clone(),
-                }),
+                Arc::new(client.clone()),
             )
             .map(|res| report_controller_reconciled(&client, &format!("{OPERATOR_NAME}.{POD_DRIVER_CONTROLLER_NAME}"), &res))
             .instrument(info_span!("pod_driver_controller"));
 
+            // Create new object because Ctx cannot be cloned
+            let ctx = Ctx {
+                client: client.clone(),
+                product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
+            };
             let history_controller = Controller::new(
                 watch_namespace.get_api::<SparkHistoryServer>(&client),
                 watcher::Config::default(),
@@ -138,10 +149,7 @@ async fn main() -> anyhow::Result<()> {
             .run(
                 history_controller::reconcile,
                 history_controller::error_policy,
-                Arc::new(history_controller::Ctx {
-                    client: client.clone(),
-                    product_config,
-                }),
+                Arc::new(ctx),
             )
             .map(|res| {
                 report_controller_reconciled(

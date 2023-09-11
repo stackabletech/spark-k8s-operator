@@ -1,0 +1,45 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >-
+      helm install minio
+      --namespace $NAMESPACE
+      --version 12.6.4
+      -f helm-bitnami-minio-values.yaml
+      --repo https://charts.bitnami.com/bitnami minio
+    timeout: 240
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minio-client
+  labels:
+    app: minio-client
+spec:
+  selector:
+    matchLabels:
+      app: minio-client
+  restartPolicy: Never
+  containers:
+    - name: minio-client
+      image: docker.io/bitnami/minio-client:2023.5.18-debian-11-r2
+      command: ["bash", "-c", "sleep infinity"]
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: minio
+spec:
+  host: minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: s3-credentials
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+  tls:
+    verification:
+      server:
+        caCert:
+          secretClass: minio-tls-certificates
+{% endif %}

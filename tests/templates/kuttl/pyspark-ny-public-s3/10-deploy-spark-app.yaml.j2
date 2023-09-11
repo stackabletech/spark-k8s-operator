@@ -9,8 +9,14 @@ spec:
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   # everything under /jobs will be copied to /stackable/spark/jobs
-  sparkImage: "docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
-  sparkImagePullPolicy: IfNotPresent
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: s3a://my-bucket/ny_tlc_report.py
   args:
@@ -24,12 +30,15 @@ spec:
       port: 9000
       accessStyle: Path
   job:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   driver:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   executor:
-    instances: 3
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    replicas: 3
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}

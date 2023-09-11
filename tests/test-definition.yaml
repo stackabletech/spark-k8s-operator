@@ -1,7 +1,3 @@
-#
-# To run these tests on OpenShift you have to ensure that:
-# 1. The "openshift" dimension below is set to "true"
-#
 ---
 dimensions:
   - name: openshift
@@ -9,21 +5,35 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.3.0-stackable0.0.0-dev
-      - 3.4.0-stackable0.0.0-dev
+      - 3.3.0
+      - 3.4.0
+      # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
+      # as in the example below.
+      # - 3.4.0,docker.stackable.tech/sandbox/spark-k8s:3.4.0-stackable0.0.0-dev
   - name: ny-tlc-report
     values:
       - 0.1.0
-  - name: spark-latest
-    values:
-      - 3.4.0-stackable0.0.0-dev
   - name: postgresql
     values:
       - 42.6.0
+  - name: s3-use-tls
+    values:
+      - "false"
+      - "true"
 tests:
+  - name: smoke
+    dimensions:
+      - spark
+      - s3-use-tls
+      - openshift
+  - name: pod_overrides
+    dimensions:
+      - spark
+      - openshift
   - name: spark-history-server
     dimensions:
       - spark
+      - s3-use-tls
       - openshift
   - name: spark-pi-private-s3
     dimensions:
@@ -36,6 +46,7 @@ tests:
   - name: spark-ny-public-s3
     dimensions:
       - spark
+      - s3-use-tls
       - openshift
   - name: spark-examples
     dimensions:
@@ -61,6 +72,27 @@ tests:
       - openshift
   - name: postgresql
     dimensions:
-      - spark-latest
+      - spark
       - postgresql
       - openshift
+suites:
+  - name: nightly
+    patch:
+      - dimensions:
+          - expr: last
+          - name: s3-use-tls
+            expr: "true"
+  - name: smoke-latest
+    select:
+      - smoke
+    patch:
+      - dimensions:
+          - expr: last
+  - name: openshift
+    patch:
+      - dimensions:
+          - expr: last
+          - name: openshift
+            expr: "true"
+          - name: s3-use-tls
+            expr: "true"

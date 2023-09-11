@@ -1,8 +1,7 @@
 // The version ranges supported by Spark-k8s-Operator
 // This is a separate file, since it is used by both the direct Spark documentation, and the overarching
 // Stackable Platform documentation.
+// Please sort the versions in descending order (newest first)
 
-- 3.2.1-hadoop3.2
-- 3.2.1-hadoop3.2-python39
-- 3.3.0-hadoop3
-- 3.4.0-hadoop3
+- 3.4.0 (Hadoop 3.3.4, Scala 2.12, Python 3.11, Java 11)
+- 3.3.0 (Hadoop 3.3.3, Scala 2.12, Python 3.9, Java 11)

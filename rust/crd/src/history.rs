@@ -3,7 +3,8 @@ use crate::{affinity::history_affinity, constants::*};
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::role_utils::RoleGroup;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -45,6 +46,8 @@ pub enum Error {
     },
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+    #[snafu(display("the role group {role_group} is not defined"))]
+    CannotRetrieveRoleGroup { role_group: String },
 }
 
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
@@ -79,17 +82,17 @@ pub struct SparkHistoryServerSpec {
 #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SparkHistoryServerClusterConfig {
-    /// In the future this setting will control, which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
-    /// will be used to expose the service.
-    /// Currently only a subset of the ListenerClasses are supported by choosing the type of the created Services
-    /// by looking at the ListenerClass name specified,
-    /// In a future release support for custom ListenerClasses will be introduced without a breaking change:
+    /// This field controls which type of Service the Operator creates for this HistoryServer:
     ///
     /// * cluster-internal: Use a ClusterIP service
     ///
     /// * external-unstable: Use a NodePort service
     ///
     /// * external-stable: Use a LoadBalancer service
+    ///
+    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
+    /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
     #[serde(default)]
     pub listener_class: CurrentlySupportedListenerClasses,
 }
@@ -118,6 +121,26 @@ impl CurrentlySupportedListenerClasses {
 }
 
 impl SparkHistoryServer {
+    /// Returns a reference to the role. Raises an error if the role is not defined.
+    pub fn role(&self) -> &Role<HistoryConfigFragment> {
+        &self.spec.nodes
+    }
+
+    /// Returns a reference to the role group. Raises an error if the role or role group are not defined.
+    pub fn rolegroup(
+        &self,
+        rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
+    ) -> Result<RoleGroup<HistoryConfigFragment>, Error> {
+        self.spec
+            .nodes
+            .role_groups
+            .get(&rolegroup_ref.role_group)
+            .with_context(|| CannotRetrieveRoleGroupSnafu {
+                role_group: rolegroup_ref.role_group.to_owned(),
+            })
+            .cloned()
+    }
+
     pub fn merged_config(
         &self,
         rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
@@ -177,7 +200,10 @@ impl SparkHistoryServer {
         > = vec![(
             HISTORY_ROLE_NAME.to_string(),
             (
-                vec![PropertyNameKind::File(HISTORY_CONFIG_FILE_NAME.to_string())],
+                vec![
+                    PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
+                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
+                ],
                 self.spec.nodes.clone(),
             ),
         )]
@@ -280,11 +306,11 @@ impl HistoryConfig {
             cleaner: None,
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("200m".to_owned())),
-                    max: Some(Quantity("4".to_owned())),
+                    min: Some(Quantity("250m".to_owned())),
+                    max: Some(Quantity("1".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("2Gi".to_owned())),
+                    limit: Some(Quantity("512Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: HistoryStorageConfigFragment {},

@@ -5,7 +5,8 @@ metadata:
   name: example-sparkapp-s3-private
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.0.0-dev
+  sparkImage:
+    productVersion: 3.3.0
   mode: cluster
   mainApplicationFile: s3a://my-bucket/spark-examples.jar # <1>
   mainClass: org.apache.spark.examples.SparkPi # <2>
@@ -21,4 +22,4 @@ spec:
     spark.driver.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
     spark.executor.extraClassPath: "/dependencies/jars/hadoop-aws-3.2.0.jar:/dependencies/jars/aws-java-sdk-bundle-1.11.375.jar"
   executor:
-    instances: 3
+    replicas: 3

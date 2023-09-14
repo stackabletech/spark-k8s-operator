@@ -35,8 +35,8 @@ spec:
         - name: job-deps
           mountPath: /dependencies
   executor:
-    replicas: 3
     config:
+      replicas: 3
       volumeMounts:
         - name: job-deps
           mountPath: /dependencies

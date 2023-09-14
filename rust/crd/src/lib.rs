@@ -25,11 +25,7 @@ use stackable_operator::{
         resources::{CpuLimits, MemoryLimits, Resources},
         s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec},
     },
-    config::{
-        fragment,
-        fragment::ValidationError,
-        merge::{Atomic, Merge},
-    },
+    config::{fragment, fragment::ValidationError, merge::Merge},
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
         apimachinery::pkg::api::resource::Quantity,
@@ -886,14 +882,6 @@ fn resources_to_executor_props(
 
     Ok(())
 }
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NodeSelector {
-    pub node_selector: Option<BTreeMap<String, String>>,
-}
-
-impl Atomic for NodeSelector {}
 
 #[cfg(test)]
 mod tests {

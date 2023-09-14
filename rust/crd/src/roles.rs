@@ -1,3 +1,18 @@
+/// Roles and configuration for SparkApplications.
+///
+/// Spark appliations have three roles described by the SparkApplicationRole.
+///
+/// Unlike others, the Spark application controller doesn't create objects
+/// like Pods, Services, etc. for these roles directly, but instead it delegates
+/// this responsability to the Submit job.
+///
+/// The Submit job only supports one group per role. For this reason, the
+/// SparkApplication spec doesn't declare Role objects directly. Instead it
+/// only declares CommonConfiguration objects for job, driver and executor
+/// and constructs the Roles dynamically when needed. The only group under
+/// each role is named "default". These roles are transparent to the user.
+///
+/// Ths history server has it's own role completely unrelated to this module.
 use std::{collections::BTreeMap, slice};
 
 use serde::{Deserialize, Serialize};

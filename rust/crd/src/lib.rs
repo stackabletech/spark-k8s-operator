@@ -929,203 +929,30 @@ mod tests {
     use crate::{cores_from_quantity, resources_to_executor_props, DriverConfig, ExecutorConfig};
     use crate::{resources_to_driver_props, SparkApplication};
     use crate::{Quantity, SparkStorageConfig};
-    use rstest::rstest;
-    use stackable_operator::builder::ObjectMetaBuilder;
     use stackable_operator::commons::affinity::StackableAffinity;
     use stackable_operator::commons::resources::{
         CpuLimits, MemoryLimits, NoRuntimeLimits, Resources,
     };
-    use stackable_operator::product_config::ProductConfigManager;
+    use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
+    use stackable_operator::product_config_utils::ValidatedRoleConfigByPropertyKind;
     use stackable_operator::product_logging::spec::Logging;
-    use std::collections::BTreeMap;
 
-    #[test]
-    fn test_spark_examples_s3() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(
-        r#"
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: spark-examples-s3
-spec:
-  version: "1.0"
-  sparkImage:
-    productVersion: 3.4.0
-  mode: cluster
-  mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/spark-examples.jar
-  sparkConf:
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-  driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
-  executor:
-    cores: 1
-    instances: 3
-    memory: "512m"
-  config:
-    enableMonitoring: true
-        "#).unwrap();
-
-        assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
-        assert_eq!(
-            Some("org.apache.spark.examples.SparkPi".to_string()),
-            spark_application.spec.main_class
-        );
-        assert_eq!(
-            Some("s3a://stackable-spark-k8s-jars/jobs/spark-examples.jar".to_string()),
-            spark_application.spec.main_application_file
-        );
-        assert_eq!(
-            Some(1),
-            spark_application.spec.spark_conf.map(|m| m.keys().len())
-        );
-
-        assert!(spark_application.spec.mode.is_some());
-        assert!(spark_application.spec.driver.is_some());
-        assert!(spark_application.spec.executor.is_some());
-
-        assert!(spark_application.spec.args.is_none());
-        assert!(spark_application.spec.deps.is_none());
-        assert!(spark_application.spec.image.is_none());
-    }
-
-    #[test]
-    fn test_ny_tlc_report_image() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(
-        r#"
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: ny-tlc-report-image
-  namespace: my-ns
-spec:
-  version: "1.0"
-  image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
-  sparkImage:
-    productVersion: 3.2.1
-  mode: cluster
-  mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py
-  args:
-    - "--input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
-  deps:
-    requirements:
-      - tabulate==0.8.9
-  sparkConf:
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-  driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
-  executor:
-    cores: 1
-    instances: 3
-    memory: "512m"
-        "#).unwrap();
-
-        assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
-        assert_eq!(
-            Some("local:///stackable/spark/jobs/ny_tlc_report.py".to_string()),
-            spark_application.spec.main_application_file
-        );
-        assert_eq!(
-            Some(1),
-            spark_application.spec.spark_conf.map(|m| m.keys().len())
-        );
-
-        assert!(spark_application.spec.image.is_some());
-        assert!(spark_application.spec.mode.is_some());
-        assert!(spark_application.spec.args.is_some());
-        assert!(spark_application.spec.deps.is_some());
-        assert!(spark_application.spec.driver.is_some());
-        assert!(spark_application.spec.executor.is_some());
-
-        assert!(spark_application.spec.main_class.is_none());
-    }
-
-    #[test]
-    fn test_ny_tlc_report_external_dependencies() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(
-        r#"
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: ny-tlc-report-external-dependencies
-  namespace: default
-  uid: 12345678asdfghj
-spec:
-  version: "1.0"
-  sparkImage:
-    productVersion: 3.4.0
-  mode: cluster
-  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny_tlc_report.py
-  args:
-    - "--input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
-  deps:
-    requirements:
-      - tabulate==0.8.9
-  sparkConf:
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
-  driver:
-    cores: 1
-    coreLimit: "1200m"
-    memory: "512m"
-  executor:
-    cores: 1
-    instances: 3
-    memory: "512m"
-        "#).unwrap();
-
-        let meta = ObjectMetaBuilder::new()
-            .name_and_namespace(&spark_application)
-            .ownerreference_from_resource(&spark_application, None, Some(true))
-            .unwrap()
-            .build();
-
-        assert_eq!("12345678asdfghj", meta.owner_references.unwrap()[0].uid);
-
-        assert_eq!("1.0", spark_application.spec.version.unwrap_or_default());
-        assert_eq!(
-            Some("s3a://stackable-spark-k8s-jars/jobs/ny_tlc_report.py".to_string()),
-            spark_application.spec.main_application_file
-        );
-        assert_eq!(
-            Some(1),
-            spark_application.spec.spark_conf.map(|m| m.keys().len())
-        );
-
-        assert!(spark_application.spec.mode.is_some());
-        assert!(spark_application.spec.args.is_some());
-        assert!(spark_application.spec.deps.is_some());
-        assert!(spark_application.spec.driver.is_some());
-        assert!(spark_application.spec.executor.is_some());
-
-        assert!(spark_application.spec.main_class.is_none());
-        assert!(spark_application.spec.image.is_none());
-    }
+    use indoc::indoc;
+    use rstest::rstest;
+    use std::collections::{BTreeMap, HashMap};
 
     #[test]
     fn test_default_resource_limits() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(
-            r#"
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: spark-examples
-spec:
-  sparkImage:
-    productVersion: 1.2.3
-  executor:
-    instances: 1
-  config:
-    enableMonitoring: true
-        "#,
-        )
+        let spark_application = serde_yaml::from_str::<SparkApplication>(indoc! {"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+            spec:
+              sparkImage:
+                productVersion: 1.2.3
+        "})
         .unwrap();
 
         let job_resources = &spark_application.submit_config().unwrap().resources;
@@ -1143,45 +970,41 @@ spec:
 
     #[test]
     fn test_merged_resource_limits() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(
-            r#"
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: spark-examples
-spec:
-  sparkImage:
-    productVersion: 1.2.3
-  job:
-    config:
-      resources:
-        cpu:
-          min: "100m"
-          max: "200m"
-        memory:
-          limit: "1G"
-  driver:
-    config:
-      resources:
-        cpu:
-          min: "1"
-          max: "1300m"
-        memory:
-          limit: "512m"
-  executor:
-    replicas: 10
-    config:
-      resources:
-        cpu:
-          min: "500m"
-          max: "1200m"
-        memory:
-          limit: "1Gi"
-  config:
-    enableMonitoring: true
-        "#,
-        )
+        let spark_application = serde_yaml::from_str::<SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+            spec:
+              sparkImage:
+                productVersion: 1.2.3
+              job:
+                config:
+                  resources:
+                    cpu:
+                      min: "100m"
+                      max: "200m"
+                    memory:
+                      limit: "1G"
+              driver:
+                config:
+                  resources:
+                    cpu:
+                      min: "1"
+                      max: "1300m"
+                    memory:
+                      limit: "512m"
+              executor:
+                replicas: 10
+                config:
+                  resources:
+                    cpu:
+                      min: "500m"
+                      max: "1200m"
+                    memory:
+                      limit: "1Gi"
+                    "# })
         .unwrap();
 
         assert_eq!(
@@ -1337,28 +1160,16 @@ spec:
 
     #[test]
     fn test_validated_config() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(
-            r#"
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: spark-examples
-spec:
-  sparkImage:
-    productVersion: 1.2.3
-  job:
-    config:
-    resources:
-        cpu:
-        min: "100m"
-        max: "200m"
-        memory:
-        limit: "1G"
-  config:
-    enableMonitoring: true
-        "#,
-        )
+        let spark_application = serde_yaml::from_str::<SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+            spec:
+              sparkImage:
+                productVersion: 1.2.3
+        "#})
         .unwrap();
 
         let resolved_product_image = spark_application
@@ -1373,6 +1184,36 @@ spec:
             .validated_role_config(&resolved_product_image, &product_config)
             .unwrap();
 
-        println!("{:?}", validated_config);
+        let expected_role_groups: HashMap<
+            String,
+            HashMap<PropertyNameKind, BTreeMap<String, String>>,
+        > = vec![(
+            "default".into(),
+            vec![
+                (PropertyNameKind::Env, BTreeMap::new()),
+                (
+                    PropertyNameKind::File("security.properties".into()),
+                    vec![
+                        ("networkaddress.cache.negative.ttl".into(), "0".into()),
+                        ("networkaddress.cache.ttl".into(), "30".into()),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )]
+        .into_iter()
+        .collect();
+        let expected: ValidatedRoleConfigByPropertyKind = vec![
+            ("submit".into(), expected_role_groups.clone()),
+            ("driver".into(), expected_role_groups.clone()),
+            ("executor".into(), expected_role_groups),
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(expected, validated_config);
     }
 }

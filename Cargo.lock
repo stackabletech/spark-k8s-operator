@@ -861,6 +861,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "indoc"
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c785eefb63ebd0e33416dfcb8d6da0bf27ce752843a45632a67bf10d4d4b5c4"
+
+[[package]]
 name = "instant"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1928,6 +1934,7 @@ dependencies = [
 name = "stackable-spark-k8s-crd"
 version = "0.0.0-dev"
 dependencies = [
+ "indoc",
  "rstest",
  "semver",
  "serde",

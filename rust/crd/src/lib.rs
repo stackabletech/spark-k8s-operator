@@ -115,9 +115,9 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<CommonConfiguration<SubmitConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub driver: Option<CommonConfiguration<DriverConfigFragment>>,
+    pub driver: Option<CommonConfiguration<RoleConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub executor: Option<CommonConfiguration<ExecutorConfigFragment>>,
+    pub executor: Option<RoleGroup<RoleConfigFragment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -486,12 +486,8 @@ impl SparkApplication {
             &mut submit_conf,
         )?;
 
-        if let Some(CommonConfiguration {
-            config:
-                ExecutorConfigFragment {
-                    replicas: Some(replicas),
-                    ..
-                },
+        if let Some(RoleGroup {
+            replicas: Some(replicas),
             ..
         }) = &self.spec.executor
         {
@@ -566,23 +562,25 @@ impl SparkApplication {
         }
     }
 
-    pub fn driver_config(&self) -> Result<DriverConfig, Error> {
+    pub fn driver_config(&self) -> Result<RoleConfig, Error> {
         if let Some(CommonConfiguration { mut config, .. }) = self.spec.driver.clone() {
-            config.merge(&DriverConfig::default_config());
+            config.merge(&RoleConfig::default_config());
             fragment::validate(config).context(FragmentValidationFailureSnafu)
         } else {
-            fragment::validate(DriverConfig::default_config())
-                .context(FragmentValidationFailureSnafu)
+            fragment::validate(RoleConfig::default_config()).context(FragmentValidationFailureSnafu)
         }
     }
 
-    pub fn executor_config(&self) -> Result<ExecutorConfig, Error> {
-        if let Some(CommonConfiguration { mut config, .. }) = self.spec.executor.clone() {
-            config.merge(&ExecutorConfig::default_config());
+    pub fn executor_config(&self) -> Result<RoleConfig, Error> {
+        if let Some(RoleGroup {
+            config: CommonConfiguration { mut config, .. },
+            ..
+        }) = self.spec.executor.clone()
+        {
+            config.merge(&RoleConfig::default_config());
             fragment::validate(config).context(FragmentValidationFailureSnafu)
         } else {
-            fragment::validate(ExecutorConfig::default_config())
-                .context(FragmentValidationFailureSnafu)
+            fragment::validate(RoleConfig::default_config()).context(FragmentValidationFailureSnafu)
         }
     }
 
@@ -590,7 +588,9 @@ impl SparkApplication {
         match role {
             SparkApplicationRole::Submit => self.spec.job.clone().map(|j| j.pod_overrides),
             SparkApplicationRole::Driver => self.spec.driver.clone().map(|d| d.pod_overrides),
-            SparkApplicationRole::Executor => self.spec.executor.clone().map(|e| e.pod_overrides),
+            SparkApplicationRole::Executor => {
+                self.spec.executor.clone().map(|r| r.config.pod_overrides)
+            }
         }
     }
 
@@ -612,7 +612,7 @@ impl SparkApplication {
             self.spec.driver.as_ref().unwrap().clone()
         } else {
             CommonConfiguration {
-                config: DriverConfig::default_config(),
+                config: RoleConfig::default_config(),
                 ..CommonConfiguration::default()
             }
         };
@@ -620,9 +620,13 @@ impl SparkApplication {
         let executor_conf = if self.spec.executor.is_some() {
             self.spec.executor.as_ref().unwrap().clone()
         } else {
-            CommonConfiguration {
-                config: ExecutorConfig::default_config(),
-                ..CommonConfiguration::default()
+            RoleGroup {
+                replicas: Some(1),
+                config: CommonConfiguration {
+                    config: RoleConfig::default_config(),
+                    ..CommonConfiguration::default()
+                },
+                selector: None,
             }
         };
 
@@ -679,19 +683,8 @@ impl SparkApplication {
                     PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                 ],
                 Role {
-                    config: executor_conf.clone(),
-                    role_groups: [(
-                        "default".to_string(),
-                        RoleGroup {
-                            config: executor_conf,
-                            // This is a dummy value needed to be able to build the RoleGroup
-                            // object. ExecutorConfig.replicas is the true value used to set the
-                            // number of executor pods.
-                            replicas: Some(1),
-                            selector: None,
-                        },
-                    )]
-                    .into(),
+                    config: executor_conf.config.clone(),
+                    role_groups: [("default".to_string(), executor_conf)].into(),
                 }
                 .erase(),
             ),
@@ -780,7 +773,7 @@ fn subtract_spark_memory_overhead(for_java: bool, limit: &Quantity) -> Result<St
 /// Spark will use these and *ignore* the resource limits in pod templates entirely.
 fn resources_to_driver_props(
     for_java: bool,
-    driver_config: &DriverConfig,
+    driver_config: &RoleConfig,
     props: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
     if let Resources {
@@ -832,7 +825,7 @@ fn resources_to_driver_props(
 /// Spark will use these and *ignore* the resource limits in pod templates entirely.
 fn resources_to_executor_props(
     for_java: bool,
-    executor_config: &ExecutorConfig,
+    executor_config: &RoleConfig,
     props: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
     if let Resources {
@@ -885,7 +878,7 @@ fn resources_to_executor_props(
 
 #[cfg(test)]
 mod tests {
-    use crate::{cores_from_quantity, resources_to_executor_props, DriverConfig, ExecutorConfig};
+    use crate::{cores_from_quantity, resources_to_executor_props, RoleConfig};
     use crate::{resources_to_driver_props, SparkApplication};
     use crate::{Quantity, SparkStorageConfig};
     use stackable_operator::commons::affinity::StackableAffinity;
@@ -1014,7 +1007,7 @@ mod tests {
 
     #[test]
     fn test_resource_to_driver_props() {
-        let driver_config = DriverConfig {
+        let driver_config = RoleConfig {
             resources: Resources {
                 memory: MemoryLimits {
                     limit: Some(Quantity("128Mi".to_string())),
@@ -1066,8 +1059,7 @@ mod tests {
 
     #[test]
     fn test_resource_to_executor_props() {
-        let executor_config = ExecutorConfig {
-            replicas: Some(3),
+        let executor_config = RoleConfig {
             resources: Resources {
                 memory: MemoryLimits {
                     limit: Some(Quantity("512Mi".to_string())),

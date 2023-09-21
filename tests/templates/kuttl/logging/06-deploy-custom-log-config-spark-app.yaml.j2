@@ -69,8 +69,8 @@ spec:
             custom:
               configMap: spark-log-config
   executor:
+    replicas: 1
     config:
-      replicas: 1
       logging:
         enableVectorAgent: true
         containers:

@@ -111,6 +111,8 @@ spec:
 
 IMPORTANT: Currently it's not possible to provision dependencies that are loaded by the JVM's (system class loader)[https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ClassLoader.html#getSystemClassLoader()]. Such dependencies include JDBC drivers. If you need access to JDBC sources from your Spark application, consider building your own custom Spark image.
 
+IMPORTANT: Spark version 3.3.x has a https://issues.apache.org/jira/browse/SPARK-35084[known bug] that prevents this mechanism to work.
+
 When submitting PySpark jobs, users can specify `pip` requirements that are installed before the driver and executor pods are created.
 
 Here is an example:

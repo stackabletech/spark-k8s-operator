@@ -12,7 +12,7 @@
 //!  driver and executor and constructs the Roles dynamically when needed. The only group under
 //! each role is named "default". These roles are transparent to the user.
 //!
-//! Ths history server has it's own role completely unrelated to this module.
+//! The history server has its own role completely unrelated to this module.
 use std::{collections::BTreeMap, slice};
 
 use serde::{Deserialize, Serialize};

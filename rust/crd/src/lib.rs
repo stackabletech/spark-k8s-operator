@@ -182,6 +182,14 @@ impl SparkApplication {
             .map(|req| req.join(" "))
     }
 
+    pub fn packages(&self) -> Vec<String> {
+        self.spec
+            .deps
+            .as_ref()
+            .and_then(|deps| deps.packages.clone())
+            .unwrap_or_default()
+    }
+
     pub fn volumes(
         &self,
         s3conn: &Option<S3ConnectionSpec>,
@@ -242,6 +250,13 @@ impl SparkApplication {
                 .build(),
         );
 
+        if !self.packages().is_empty() {
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_IVY2)
+                    .empty_dir(EmptyDirVolumeSource::default())
+                    .build(),
+            );
+        }
         if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, s3logdir) {
             result.push(
                 VolumeBuilder::new(STACKABLE_TRUST_STORE_NAME)
@@ -332,6 +347,13 @@ impl SparkApplication {
             ..VolumeMount::default()
         });
 
+        if !self.packages().is_empty() {
+            mounts.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_IVY2.into(),
+                mount_path: VOLUME_MOUNT_PATH_IVY2.into(),
+                ..VolumeMount::default()
+            });
+        }
         if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, s3logdir) {
             mounts.push(VolumeMount {
                 name: STACKABLE_TRUST_STORE_NAME.into(),
@@ -458,7 +480,10 @@ impl SparkApplication {
                 deps.repositories
                     .map(|r| format!("--repositories {}", r.join(","))),
             );
-            submit_cmd.extend(deps.packages.map(|p| format!("--packages {}", p.join(","))));
+            submit_cmd.extend(
+                deps.packages
+                    .map(|p| format!("--conf spark.jars.packages={}", p.join(","))),
+            );
         }
 
         // some command elements need to be initially stored in a map (to allow overwrites) and
@@ -496,6 +521,10 @@ impl SparkApplication {
 
         if let Some(log_dir) = s3_log_dir {
             submit_conf.extend(log_dir.application_spark_config());
+        }
+
+        if !self.packages().is_empty() {
+            submit_cmd.push(format!("--conf spark.jars.ivy={VOLUME_MOUNT_PATH_IVY2}"))
         }
 
         // conf arguments: these should follow - and thus override - values set from resource limits above

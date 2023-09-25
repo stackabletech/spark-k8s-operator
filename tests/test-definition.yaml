@@ -67,6 +67,9 @@ tests:
       - spark
       - ny-tlc-report
       - openshift
+  - name: iceberg
+    dimensions:
+      - spark
 suites:
   - name: nightly
     patch:

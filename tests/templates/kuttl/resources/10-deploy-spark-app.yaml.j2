@@ -44,8 +44,8 @@ spec:
         memory:
           limit: 1024Mi
   executor:
+    replicas: 1
     config:
-      replicas: 1
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:

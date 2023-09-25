@@ -1,18 +1,18 @@
-/// Roles and configuration for SparkApplications.
-///
-/// Spark appliations have three roles described by the SparkApplicationRole.
-///
-/// Unlike others, the Spark application controller doesn't create objects
-/// like Pods, Services, etc. for these roles directly, but instead it delegates
-/// this responsability to the Submit job.
-///
-/// The Submit job only supports one group per role. For this reason, the
-/// SparkApplication spec doesn't declare Role objects directly. Instead it
-/// only declares CommonConfiguration objects for job, driver and executor
-/// and constructs the Roles dynamically when needed. The only group under
-/// each role is named "default". These roles are transparent to the user.
-///
-/// Ths history server has it's own role completely unrelated to this module.
+//! Roles and configuration for SparkApplications.
+//!
+//! Spark applications have three roles described by the [`SparkApplicationRole`].
+//!
+//! Unlike others, the Spark application controller doesn't create objects
+//! like Pods, Services, etc. for these roles directly, but instead it delegates
+//! this responsibility to the Submit job.
+//!
+//! The submit job only supports one group per role. For this reason, the
+//! [`SparkApplication`] spec doesn't declare Role objects directly. Instead it
+//! only declares [`stackable_operator::role_utils::CommonConfiguration`] objects for job,
+//!  driver and executor and constructs the Roles dynamically when needed. The only group under
+//! each role is named "default". These roles are transparent to the user.
+//!
+//! The history server has its own role completely unrelated to this module.
 use std::{collections::BTreeMap, slice};
 
 use serde::{Deserialize, Serialize};
@@ -32,10 +32,7 @@ use stackable_operator::{
         fragment::Fragment,
         merge::{Atomic, Merge},
     },
-    k8s_openapi::{
-        api::core::v1::{ResourceRequirements, VolumeMount},
-        apimachinery::pkg::api::resource::Quantity,
-    },
+    k8s_openapi::{api::core::v1::VolumeMount, apimachinery::pkg::api::resource::Quantity},
     product_config_utils::Configuration,
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
@@ -106,9 +103,7 @@ pub enum SparkContainer {
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct ExecutorConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub replicas: Option<u16>,
+pub struct RoleConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
@@ -119,88 +114,9 @@ pub struct ExecutorConfig {
     pub affinity: StackableAffinity,
 }
 
-impl ExecutorConfig {
-    pub fn default_config() -> ExecutorConfigFragment {
-        ExecutorConfigFragment {
-            replicas: Some(1),
-            resources: ResourcesFragment {
-                cpu: CpuLimitsFragment {
-                    min: Some(Quantity("250m".to_owned())),
-                    max: Some(Quantity("1".to_owned())),
-                },
-                memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("4Gi".to_owned())),
-                    runtime_limits: NoRuntimeLimitsFragment {},
-                },
-                storage: SparkStorageConfigFragment {},
-            },
-            logging: product_logging::spec::default_logging(),
-            volume_mounts: Some(VolumeMounts::default()),
-            affinity: Default::default(),
-        }
-    }
-}
-
-impl Configuration for ExecutorConfigFragment {
-    type Configurable = SparkApplication;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
-        Ok(BTreeMap::new())
-    }
-}
-
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
-#[fragment_attrs(
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize
-    ),
-    serde(rename_all = "camelCase")
-)]
-pub struct DriverConfig {
-    #[fragment_attrs(serde(default))]
-    pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
-    #[fragment_attrs(serde(default))]
-    pub logging: Logging<SparkContainer>,
-    #[fragment_attrs(serde(default, flatten))]
-    pub volume_mounts: Option<VolumeMounts>,
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
-}
-
-impl DriverConfig {
-    pub fn default_config() -> DriverConfigFragment {
-        DriverConfigFragment {
+impl RoleConfig {
+    pub fn default_config() -> RoleConfigFragment {
+        RoleConfigFragment {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("250m".to_owned())),
@@ -217,9 +133,18 @@ impl DriverConfig {
             affinity: Default::default(),
         }
     }
+    pub fn volume_mounts(
+        &self,
+        spark_application: &SparkApplication,
+        s3conn: &Option<S3ConnectionSpec>,
+        s3logdir: &Option<S3LogDir>,
+    ) -> Vec<VolumeMount> {
+        let volume_mounts = self.volume_mounts.clone().unwrap_or_default().into();
+        spark_application.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
+    }
 }
 
-impl Configuration for DriverConfigFragment {
+impl Configuration for RoleConfigFragment {
     type Configurable = SparkApplication;
 
     fn compute_env(
@@ -320,70 +245,6 @@ impl Configuration for SubmitConfigFragment {
     ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
     {
         Ok(BTreeMap::new())
-    }
-}
-
-/// This trait reduces code duplication in funtions that need to handle both driver and executor
-/// configurations. The only difference between the two is that exectors can have a "replicas"
-/// field but most functions that consume these objects don't need it.
-pub trait DriverOrExecutorConfig {
-    fn affinity(&self) -> StackableAffinity;
-    fn enable_vector_agent(&self) -> bool;
-    fn resources(&self) -> ResourceRequirements;
-    fn logging(&self) -> Logging<SparkContainer>;
-    fn volume_mounts(
-        &self,
-        spark_application: &SparkApplication,
-        s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
-    ) -> Vec<VolumeMount>;
-}
-
-impl DriverOrExecutorConfig for ExecutorConfig {
-    fn affinity(&self) -> StackableAffinity {
-        self.affinity.clone()
-    }
-    fn enable_vector_agent(&self) -> bool {
-        self.logging.enable_vector_agent
-    }
-    fn resources(&self) -> ResourceRequirements {
-        self.resources.clone().into()
-    }
-    fn logging(&self) -> Logging<SparkContainer> {
-        self.logging.clone()
-    }
-    fn volume_mounts(
-        &self,
-        spark_application: &SparkApplication,
-        s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
-    ) -> Vec<VolumeMount> {
-        let volume_mounts = self.volume_mounts.clone().unwrap_or_default().into();
-        spark_application.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
-    }
-}
-
-impl DriverOrExecutorConfig for DriverConfig {
-    fn affinity(&self) -> StackableAffinity {
-        self.affinity.clone()
-    }
-    fn enable_vector_agent(&self) -> bool {
-        self.logging.enable_vector_agent
-    }
-    fn resources(&self) -> ResourceRequirements {
-        self.resources.clone().into()
-    }
-    fn logging(&self) -> Logging<SparkContainer> {
-        self.logging.clone()
-    }
-    fn volume_mounts(
-        &self,
-        spark_application: &SparkApplication,
-        s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
-    ) -> Vec<VolumeMount> {
-        let volume_mounts = self.volume_mounts.clone().unwrap_or_default().into();
-        spark_application.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
     }
 }
 

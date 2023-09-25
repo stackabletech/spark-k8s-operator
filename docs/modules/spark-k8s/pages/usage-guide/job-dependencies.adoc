@@ -3,6 +3,8 @@
 
 == Overview
 
+IMPORTANT: With the platform release 23.4.1 (and all previous releases), dynamic provisioning of dependencies using the Spark `packages` field doesn't work. This is a known problem with Spark and is tracked https://github.com/stackabletech/spark-k8s-operator/issues/141[here].
+
 The Stackable Spark-on-Kubernetes operator enables users to run Apache Spark workloads in a Kubernetes cluster easily by eliminating the requirement of having a local Spark installation. For this purpose, Stackble provides ready made Docker images with recent versions of Apache Spark and Python - for PySpark jobs - that provide the basis for running those workloads. Users of the Stackable Spark-on-Kubernetes operator can run their workloads on any recent Kubernetes cluster by applying a `SparkApplication` custom resource in which the job code, job dependencies, input and output data locations can be specified. The Stackable operator translates the user's `SparkApplication` manifest into a Kubernetes `Job` object and handles control to the Apache Spark scheduler for Kubernetes to construct the necessary driver and executor `Pods`.
 
 image::spark-k8s.png[Job Flow]
@@ -87,6 +89,8 @@ include::example$example-pvc.yaml[]
 
 
 === Spark native package coordinates and Python requirements
+
+IMPORTANT: With the platform release 23.4.1 (and all previous releases), dynamic provisioning of dependencies using the Spark `packages` field doesn't work. This is a known problem with Spark and is tracked https://github.com/stackabletech/spark-k8s-operator/issues/141[here].
 
 The last and most flexible way to provision dependencies is to use the built-in `spark-submit` support for Maven package coordinates.
 

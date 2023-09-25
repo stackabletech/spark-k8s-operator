@@ -16,8 +16,14 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
-  sparkImage: "docker.stackable.tech/stackable/spark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
-  sparkImagePullPolicy: IfNotPresent
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
   mode: cluster
   mainClass: tech.stackable.demo.spark.NYTLCReport
   mainApplicationFile: "s3a://my-bucket/ny-tlc-report.jar"
@@ -28,23 +34,23 @@ spec:
   args:
     - "--input /arguments/job-args.txt"
   s3connection:
-    inline:
-      host: test-minio
-      port: 9000
-      accessStyle: Path
+    reference: minio
   job:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   driver:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-    volumeMounts:
-      - name: cm-job-arguments
-        mountPath: /arguments
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: cm-job-arguments
+          mountPath: /arguments
   executor:
-    instances: 3
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-    volumeMounts:
-      - name: cm-job-arguments
-        mountPath: /arguments
+    replicas: 3
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: cm-job-arguments
+          mountPath: /arguments

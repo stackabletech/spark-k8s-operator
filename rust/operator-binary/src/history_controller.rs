@@ -1,3 +1,5 @@
+use crate::product_logging::{self, resolve_vector_aggregator_address};
+use crate::Ctx;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -6,20 +8,21 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, PodSecurityContext, Service, ServiceAccount, ServicePort, ServiceSpec,
+                ConfigMap, EnvVar, PodSecurityContext, Service, ServiceAccount, ServicePort,
+                ServiceSpec,
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
-        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::LabelSelector},
+        apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::{
         runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
     },
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
-    product_config::ProductConfigManager,
+    product_config::{types::PropertyNameKind, writer::to_java_properties_string},
     product_logging::{
-        framework::vector_container,
+        framework::{calculate_log_volume_size_limit, vector_container},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -28,23 +31,27 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 use stackable_spark_k8s_crd::{
-    constants::*,
+    constants::{
+        ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
+        JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, OPERATOR_NAME,
+        SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME,
+        SPARK_UID, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
+        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+    },
+    history,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
     s3logdir::S3LogDir,
+    tlscerts,
 };
-use std::time::Duration;
 use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::HashMap, time::Duration};
 
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::builder::resources::ResourceRequirementsBuilder;
+use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-use crate::product_logging::{self, resolve_vector_aggregator_address};
-
-pub struct Ctx {
-    pub client: stackable_operator::client::Client,
-    pub product_config: ProductConfigManager,
-}
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -110,13 +117,21 @@ pub enum Error {
         source: stackable_operator::error::Error,
     },
     #[snafu(display("failed to resolve the Vector aggregator address"))]
-    ResolveVectorAggregatorAddress {
-        source: crate::product_logging::Error,
-    },
+    ResolveVectorAggregatorAddress { source: product_logging::Error },
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
-        source: crate::product_logging::Error,
+        source: product_logging::Error,
         cm_name: String,
+    },
+    #[snafu(display("cannot retrieve role group"))]
+    CannotRetrieveRoleGroup { source: history::Error },
+    #[snafu(display(
+        "History server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
+        rolegroup
+    ))]
+    JvmSecurityProperties {
+        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        rolegroup: String,
     },
 }
 
@@ -142,7 +157,10 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     )
     .context(CreateClusterResourcesSnafu)?;
 
-    let resolved_product_image = shs.spec.image.resolve(HISTORY_IMAGE_BASE_NAME);
+    let resolved_product_image = shs
+        .spec
+        .image
+        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
     let s3_log_dir = S3LogDir::resolve(
         Some(&shs.spec.log_file_directory),
         shs.metadata.namespace.clone(),
@@ -190,14 +208,14 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
             .await
             .context(ApplyServiceSnafu)?;
 
-        for (rolegroup_name, _rolegroup_config) in role_config.iter() {
+        for (rolegroup_name, rolegroup_config) in role_config.iter() {
             let rgr = RoleGroupRef {
                 cluster: ObjectRef::from_obj(&*shs),
                 role: role_name.into(),
                 role_group: rolegroup_name.into(),
             };
 
-            let config = shs
+            let merged_config = shs
                 .merged_config(&rgr)
                 .context(FailedToResolveConfigSnafu)?;
 
@@ -214,7 +232,8 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
 
             let config_map = build_config_map(
                 &shs,
-                &config,
+                rolegroup_config,
+                &merged_config,
                 &resolved_product_image.app_version_label,
                 &rgr,
                 s3_log_dir.as_ref().unwrap(),
@@ -230,7 +249,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &resolved_product_image,
                 &rgr,
                 s3_log_dir.as_ref().unwrap(),
-                &config,
+                &merged_config,
                 &serviceaccount,
             )?;
             cluster_resources
@@ -254,7 +273,8 @@ pub fn error_policy(_obj: Arc<SparkHistoryServer>, _error: &Error, _ctx: Arc<Ctx
 
 fn build_config_map(
     shs: &SparkHistoryServer,
-    config: &HistoryConfig,
+    config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    merged_config: &HistoryConfig,
     app_version_label: &str,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
     s3_log_dir: &S3LogDir,
@@ -262,7 +282,17 @@ fn build_config_map(
 ) -> Result<ConfigMap, Error> {
     let cm_name = rolegroupref.object_name();
 
-    let spark_config = spark_config(shs, s3_log_dir, rolegroupref)?;
+    let spark_defaults = spark_defaults(shs, s3_log_dir, rolegroupref)?;
+
+    let jvm_sec_props: BTreeMap<String, Option<String>> = config
+        .get(&PropertyNameKind::File(
+            JVM_SECURITY_PROPERTIES_FILE.to_string(),
+        ))
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(k, v)| (k, Some(v)))
+        .collect();
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -276,12 +306,20 @@ fn build_config_map(
                 .with_recommended_labels(labels(shs, app_version_label, &rolegroupref.role_group))
                 .build(),
         )
-        .add_data(HISTORY_CONFIG_FILE_NAME, spark_config);
+        .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
+        .add_data(
+            JVM_SECURITY_PROPERTIES_FILE,
+            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
+                JvmSecurityPropertiesSnafu {
+                    rolegroup: rolegroupref.role_group.clone(),
+                }
+            })?,
+        );
 
     product_logging::extend_config_map(
         rolegroupref,
         vector_aggregator_address,
-        &config.logging,
+        &merged_config.logging,
         SparkHistoryServerContainer::SparkHistory,
         SparkHistoryServerContainer::Vector,
         &mut cm_builder,
@@ -321,7 +359,7 @@ fn build_stateful_set(
     pb.service_account_name(serviceaccount.name_unchecked())
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
-            VolumeBuilder::new("config")
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
                 .with_config_map(rolegroupref.object_name())
                 .build(),
         )
@@ -334,11 +372,11 @@ fn build_stateful_set(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
                 .with_empty_dir(
                     None::<String>,
-                    Some(Quantity(format!("{LOG_VOLUME_SIZE_IN_MIB}Mi"))),
+                    Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
                 )
                 .build(),
         )
-        .add_volumes(s3_log_dir.credentials_volume().into_iter().collect())
+        .add_volumes(s3_log_dir.volumes())
         .metadata_builder(|m| {
             m.with_recommended_labels(labels(
                 shs,
@@ -361,18 +399,9 @@ fn build_stateful_set(
         .command(vec!["/bin/bash".to_string()])
         .args(command_args(s3_log_dir))
         .add_container_port("http", 18080)
-        // This env var prevents the history server from detaching itself from the
-        // start script because this leads to the Pod terminating immediately.
-        .add_env_var("SPARK_NO_DAEMONIZE", "true")
-        .add_env_var("SPARK_DAEMON_CLASSPATH", "/stackable/spark/extra-jars/*")
-        .add_env_var(
-            "SPARK_HISTORY_OPTS",
-            format!(
-                "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
-            ),
-        )
-        .add_volume_mounts(s3_log_dir.credentials_volume_mount().into_iter())
-        .add_volume_mount("config", "/stackable/spark/conf")
+        .add_env_vars(env_vars(s3_log_dir))
+        .add_volume_mounts(s3_log_dir.volume_mounts())
+        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
         .build();
@@ -387,8 +416,22 @@ fn build_stateful_set(
                 .logging
                 .containers
                 .get(&SparkHistoryServerContainer::Vector),
+            ResourceRequirementsBuilder::new()
+                .with_cpu_request("250m")
+                .with_cpu_limit("500m")
+                .with_memory_request("128Mi")
+                .with_memory_limit("128Mi")
+                .build(),
         ));
     }
+
+    let mut pod_template = pb.build_template();
+    pod_template.merge_from(shs.role().config.pod_overrides.clone());
+    let role_group = shs
+        .rolegroup(rolegroupref)
+        .with_context(|_| CannotRetrieveRoleGroupSnafu)?;
+
+    pod_template.merge_from(role_group.config.pod_overrides);
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
@@ -403,7 +446,7 @@ fn build_stateful_set(
             ))
             .build(),
         spec: Some(StatefulSetSpec {
-            template: pb.build_template(),
+            template: pod_template,
             replicas: shs.replicas(rolegroupref),
             selector: LabelSelector {
                 match_labels: Some(role_group_selector_labels(
@@ -510,7 +553,7 @@ fn build_history_role_serviceaccount(
     Ok((sa, binding))
 }
 
-fn spark_config(
+fn spark_defaults(
     shs: &SparkHistoryServer,
     s3_log_dir: &S3LogDir,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
@@ -537,18 +580,63 @@ fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
     if let Some(secret_dir) = s3logdir.credentials_mount_path() {
         command.extend(vec![
             format!("export AWS_ACCESS_KEY_ID=\"$(cat {secret_dir}/{ACCESS_KEY_ID})\""),
-            "&&".to_string(),
             format!("export AWS_SECRET_ACCESS_KEY=\"$(cat {secret_dir}/{SECRET_ACCESS_KEY})\""),
-            "&&".to_string(),
         ]);
     }
+
+    if let Some(secret_name) = tlscerts::tls_secret_name(&s3logdir.bucket.connection) {
+        command.extend(vec![format!("mkdir -p {STACKABLE_TRUST_STORE}")]);
+        command.extend(tlscerts::create_key_and_trust_store());
+        command.extend(tlscerts::add_cert_to_stackable_truststore(secret_name));
+    }
+
     command.extend(vec![
-        "/stackable/spark/sbin/start-history-server.sh".to_string(),
-        "--properties-file".to_string(),
-        HISTORY_CONFIG_FILE_NAME_FULL.to_string(),
+        format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
 
-    vec![String::from("-c"), command.join(" ")]
+    vec![String::from("-c"), command.join(" && ")]
+}
+
+fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
+    let mut vars: Vec<EnvVar> = vec![];
+
+    // This env var prevents the history server from detaching itself from the
+    // start script because this leads to the Pod terminating immediately.
+    vars.push(EnvVar {
+        name: "SPARK_NO_DAEMONIZE".to_string(),
+        value: Some("true".into()),
+        value_from: None,
+    });
+    vars.push(EnvVar {
+        name: "SPARK_DAEMON_CLASSPATH".to_string(),
+        value: Some("/stackable/spark/extra-jars/*".into()),
+        value_from: None,
+    });
+
+    let mut history_opts = vec![
+        format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+        format!(
+            "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
+        ),
+    ];
+    if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
+        history_opts.extend(
+            vec![
+                format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
+                format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
+                format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+            ]
+            .into_iter(),
+        );
+    }
+
+    vars.push(EnvVar {
+        name: "SPARK_HISTORY_OPTS".to_string(),
+        value: Some(history_opts.join(" ")),
+        value_from: None,
+    });
+    // if TLS is enabled build truststore
+    vars
 }
 
 fn labels<'a, T>(

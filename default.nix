@@ -10,12 +10,20 @@
       tonic-reflection = attrs: {
         buildInputs = [ pkgs.rustfmt ];
       };
+      csi-grpc = attrs: {
+        nativeBuildInputs = [ pkgs.protobuf ];
+      };
       stackable-secret-operator = attrs: {
         buildInputs = [ pkgs.protobuf pkgs.rustfmt ];
       };
       krb5-sys = attrs: {
         nativeBuildInputs = [ pkgs.pkg-config ];
-        buildInputs = [ (pkgs.enableDebugging pkgs.krb5) ];
+        buildInputs = [ pkgs.krb5 ];
+        LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+        BINDGEN_EXTRA_CLANG_ARGS = "-I${pkgs.glibc.dev}/include -I${pkgs.clang.cc.lib}/lib/clang/${pkgs.lib.getVersion pkgs.clang.cc}/include";
+      };
+      libgssapi-sys = attrs: {
+        buildInputs = [ pkgs.krb5 ];
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
         BINDGEN_EXTRA_CLANG_ARGS = "-I${pkgs.glibc.dev}/include -I${pkgs.clang.cc.lib}/lib/clang/${pkgs.lib.getVersion pkgs.clang.cc}/include";
       };

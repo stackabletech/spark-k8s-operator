@@ -6,7 +6,8 @@ metadata:
   namespace: default
 spec:
   version: "1.0"
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.0.0-dev
+  sparkImage:
+    productVersion: 3.3.0
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.0-SNAPSHOT.jar # <1>
   mainClass: org.example.App # <2>
@@ -21,11 +22,13 @@ spec:
       persistentVolumeClaim:
         claimName: pvc-ksv
   driver:
-    volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies # <5>
+    config:
+      volumeMounts:
+        - name: job-deps
+          mountPath: /dependencies # <5>
   executor:
-    instances: 3
-    volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies # <5>
+    replicas: 3
+    config:
+      volumeMounts:
+        - name: job-deps
+          mountPath: /dependencies # <5>

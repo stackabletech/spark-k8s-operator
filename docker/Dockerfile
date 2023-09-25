@@ -10,7 +10,7 @@ ARG VERSION
 ARG RELEASE="1"
 
 LABEL name="Stackable Operator for Apache Spark-on-Kubernetes" \
-  maintainer="info@stackable.de" \
+  maintainer="info@stackable.tech" \
   vendor="Stackable GmbH" \
   version="${VERSION}" \
   release="${RELEASE}" \

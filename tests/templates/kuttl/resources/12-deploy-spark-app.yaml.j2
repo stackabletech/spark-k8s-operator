@@ -8,32 +8,41 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
-  sparkImage: "docker.stackable.tech/stackable/pyspark-k8s:{{ test_scenario['values']['spark'].split('-stackable')[0] }}-stackable{{ test_scenario['values']['spark'].split('-stackable')[1] }}"
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
   mode: cluster
-  mainApplicationFile: local:///stackable/spark/examples/src/main/python/streaming/hdfs_wordcount.py
-  args:
-    - "/tmp2"
+  mainClass: org.apache.spark.examples.SparkALS
+  mainApplicationFile: "local:///stackable/spark/examples/jars/spark-examples.jar"
   sparkConf:
     spark.kubernetes.submission.waitAppCompletion: "false"
     spark.kubernetes.driver.pod.name: "resources-sparkconf-driver"
     spark.kubernetes.executor.podNamePrefix: "resources-sparkconf"
-    spark.kubernetes.driver.request.cores: "2"
-    spark.kubernetes.driver.limit.cores: "3"
-    spark.driver.cores: "3"
+    spark.kubernetes.driver.request.cores: "1"
+    spark.kubernetes.driver.limit.cores: "1"
+    spark.driver.cores: "1"
     spark.driver.memory: "1g"
     spark.driver.memoryOverheadFactor: "0.4"
-    spark.kubernetes.executor.request.cores: "2"
-    spark.kubernetes.executor.limit.cores: "3"
-    spark.executor.cores: "3"
+    spark.kubernetes.executor.request.cores: "1"
+    spark.kubernetes.executor.limit.cores: "2"
+    spark.executor.cores: "2"
     spark.executor.memory: "2g"
     spark.executor.memoryOverheadFactor: "0.4"
     spark.executor.instances: "1"
   job:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   driver:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   executor:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}

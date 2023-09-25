@@ -6,25 +6,60 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Generate OLM bundle for Release 23.4.0 ([#238]).
-- Add support for Spark 3.4.0 ([#243]).
+- Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#267], [#268]).
+- Configuration overrides for the JVM security properties, such as DNS caching ([#272]).
 
 ### Changed
 
-- `operator-rs` `0.38.0` -> `0.41.0` ([#235]).
-- Use 0.0.0-dev product images for testing ([#236])
-- Use testing-tools 0.2.0 ([#236])
+- `vector` `0.26.0` -> `0.31.0` ([#269]).
+- `operator-rs` `0.44.0` -> `0.48.0` ([#267], [#275]).
+- Removed usages of SPARK_DAEMON_JAVA_OPTS since it's not a reliable way to pass extra JVM options ([#272]).
+- [BREAKING] use product image selection instead of version ([#275]).
+- BREAKING refactored application roles to use `CommonConfiguration` structures from the operator framework ([#277]).
+
+[#267]: https://github.com/stackabletech/spark-k8s-operator/pull/267
+[#268]: https://github.com/stackabletech/spark-k8s-operator/pull/268
+[#269]: https://github.com/stackabletech/spark-k8s-operator/pull/269
+[#272]: https://github.com/stackabletech/spark-k8s-operator/pull/272
+[#275]: https://github.com/stackabletech/spark-k8s-operator/pull/275
+[#277]: https://github.com/stackabletech/spark-k8s-operator/pull/277
+
+## [23.7.0] - 2023-07-14
+
+### Added
+
+- Generate OLM bundle for Release 23.4.0 ([#238]).
+- Add support for Spark 3.4.0 ([#243]).
+- Add support for using custom certificates when accessing S3 with TLS ([#247]).
+- Use bitnami charts for testing S3 access with TLS ([#247]).
+- Set explicit resources on all containers ([#249]).
+- Support pod overrides ([#256]).
+
+### Changed
+
+- `operator-rs` `0.38.0` -> `0.44.0` ([#235], [#259]).
+- Use 0.0.0-dev product images for testing ([#236]).
+- Use testing-tools 0.2.0 ([#236]).
 - Run as root group ([#241]).
+- Added kuttl test suites ([#252]).
 
 ### Fixed
 
 - Fix quoting issues when spark config values contain spaces ([#243]).
+- Increase the size limit of log volumes ([#259]).
+- Typo in executor cpu limit property ([#263]).
 
 [#235]: https://github.com/stackabletech/spark-k8s-operator/pull/235
 [#236]: https://github.com/stackabletech/spark-k8s-operator/pull/236
 [#238]: https://github.com/stackabletech/spark-k8s-operator/pull/238
 [#241]: https://github.com/stackabletech/spark-k8s-operator/pull/241
 [#243]: https://github.com/stackabletech/spark-k8s-operator/pull/243
+[#247]: https://github.com/stackabletech/spark-k8s-operator/pull/247
+[#252]: https://github.com/stackabletech/spark-k8s-operator/pull/252
+[#249]: https://github.com/stackabletech/spark-k8s-operator/pull/249
+[#256]: https://github.com/stackabletech/spark-k8s-operator/pull/256
+[#259]: https://github.com/stackabletech/spark-k8s-operator/pull/259
+[#263]: https://github.com/stackabletech/spark-k8s-operator/pull/263
 
 ## [23.4.0] - 2023-04-17
 

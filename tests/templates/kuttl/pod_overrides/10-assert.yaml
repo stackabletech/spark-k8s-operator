@@ -1,0 +1,28 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-pi-s3-1
+status:
+  phase: Succeeded
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spark-pi-s3-1
+spec:
+  template:
+    spec:
+      containers:
+        - name: spark-submit
+          resources:
+            limits:
+              cpu: 1500m
+              memory: 1Gi
+            requests:
+              cpu: 500m
+              memory: 512Mi

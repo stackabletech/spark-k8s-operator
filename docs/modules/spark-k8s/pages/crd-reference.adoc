@@ -116,4 +116,10 @@ Below are listed the CRD fields that can be defined by the user:
 |`spec.logFileDirectory.prefix`
 |Prefix to use when storing events for the Spark History server.
 
+|`spec.driver.jvmSecurity`
+|A list JVM security properties to pass on to the driver VM. The TTL of DNS caches are especially important.
+
+|`spec.executor.jvmSecurity`
+|A list JVM security properties to pass on to the executor VM. The TTL of DNS caches are especially important.
+
 |===

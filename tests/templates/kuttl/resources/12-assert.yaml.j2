@@ -14,11 +14,11 @@ spec:
     - name: spark-submit
       resources:
         limits:
-          cpu: "1"
-          memory: 1Gi
+          cpu: 400m
+          memory: 512Mi
         requests:
-          cpu: 500m
-          memory: 1Gi
+          cpu: 100m
+          memory: 512Mi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     - name: vector
 {% endif %}
@@ -35,10 +35,10 @@ spec:
     - name: spark
       resources:
         limits:
-          cpu: "3"
+          cpu: "1"
           memory: "1433Mi"
         requests:
-          cpu: "2"
+          cpu: "1"
           memory: "1433Mi"
 ---
 apiVersion: v1
@@ -53,8 +53,8 @@ spec:
     - name: spark
       resources:
         limits:
-          cpu: "3"
+          cpu: "2"
           memory: "2867Mi"
         requests:
-          cpu: "2"
+          cpu: "1"
           memory: "2867Mi"

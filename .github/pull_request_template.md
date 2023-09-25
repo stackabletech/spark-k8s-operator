@@ -1,9 +1,7 @@
-
 # Description
 
 *Please add a description here. This will become the commit message of the merge request later.*
 
-<!-- Commit message above. Everything below is not added to the message. Do not change this line! -->
 
 ## Definition of Done Checklist
 
@@ -16,6 +14,7 @@
 - [ ] CRD changes approved
 - [ ] Helm chart can be installed and deployed operator works
 - [ ] Integration tests passed (for non trivial changes)
+- [ ] Changes need to be "offline" compatible
 ```
 
 ```[tasklist]
@@ -32,5 +31,3 @@
 - [ ] Feature Tracker has been updated
 - [ ] Proper release label has been added
 ```
-
-Once the review is done, comment `bors r+` (or `bors merge`) to merge. [Further information](https://bors.tech/documentation/getting-started/#reviewing-pull-requests)

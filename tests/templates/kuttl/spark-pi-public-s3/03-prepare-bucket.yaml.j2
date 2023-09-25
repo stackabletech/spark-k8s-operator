@@ -4,7 +4,7 @@ kind: TestStep
 commands:
   # give minio enough time to start
   - command: sleep 10
-  - command: kubectl cp -n $NAMESPACE spark-examples_{{ test_scenario['values']['spark'].split('-stackable')[0] }}.jar minio-client:/tmp/spark-examples.jar
+  - command: kubectl cp -n $NAMESPACE spark-examples_{{ test_scenario['values']['spark'].split(',')[0] }}.jar minio-client:/tmp/spark-examples.jar
   - command: kubectl exec -n $NAMESPACE minio-client -- sh -c 'mc alias set test-minio http://test-minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'
   - command: kubectl exec -n $NAMESPACE minio-client -- mc mb test-minio/my-bucket
   - command: kubectl exec -n $NAMESPACE minio-client -- mc policy set public test-minio/my-bucket

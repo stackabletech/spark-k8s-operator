@@ -25,12 +25,3 @@ metadata:
     app: minio-client
 status:
   phase: Running
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: eventlog-minio-client
-  labels:
-    app: eventlog-minio-client
-status:
-  phase: Running

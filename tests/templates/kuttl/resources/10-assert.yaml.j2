@@ -14,11 +14,11 @@ spec:
     - name: spark-submit
       resources:
         limits:
-          cpu: 200m
-          memory: 1Gi
+          cpu: 500m
+          memory: 512Mi
         requests:
-          cpu: 100m
-          memory: 1Gi
+          cpu: 250m
+          memory: 512Mi
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     - name: vector
 {% endif %}
@@ -34,12 +34,13 @@ spec:
 {% endif %}
     - name: spark
       resources:
+      # these resources are set via Spark submit properties like "spark.driver.cores"
         limits:
           cpu: "2"
-          memory: "1Gi"
+          memory: 1Gi
         requests:
-          cpu: "1"
-          memory: "1Gi"
+          cpu: "2"
+          memory: 1Gi
 ---
 apiVersion: v1
 kind: Pod
@@ -52,11 +53,10 @@ spec:
 {% endif %}
     - name: spark
       resources:
+      # these resources are set via Spark submit properties like "spark.executor.cores"
         limits:
-          cpu: "3"
-          # rounding error (vs. 2 Gi)
-          memory: 2046Mi
+          cpu: "1"
+          memory: 1Gi
         requests:
-          cpu: 1500m
-          # rounding error (vs. 2 Gi)
-          memory: 2046Mi
+          cpu: "1"
+          memory: 1Gi

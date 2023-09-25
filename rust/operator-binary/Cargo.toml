@@ -1,28 +1,29 @@
 [package]
-authors = ["Stackable GmbH <info@stackable.de>"]
-description = "Stackable Kubernetes Operator for Apache Spark"
-edition = "2021"
-license = "OSL-3.0"
 name = "stackable-spark-k8s-operator"
-repository = "https://github.com/stackabletech/spark-k8s-operator"
-version = "0.0.0-dev"
+description = "Stackable Kubernetes Operator for Apache Spark"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
 publish = false
 
 [dependencies]
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.41.0" }
 stackable-spark-k8s-crd = { path = "../crd" }
-anyhow = "1.0"
-clap = "4.1"
-futures = "0.3"
-serde = "1.0"
-serde_yaml = "0.8"
-snafu = "0.7"
-strum = { version = "0.24.1", features = ["derive"] }
-tokio = { version = "1.24", features = ["macros", "rt-multi-thread"] }
-tracing = "0.1"
-tracing-futures = { version = "0.2", features = ["futures-03"] }
+
+anyhow.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+snafu.workspace = true
+stackable-operator.workspace = true
+strum.workspace = true
+tracing.workspace = true
+tracing-futures.workspace = true
+clap.workspace = true
+futures.workspace = true
+tokio.workspace = true
 
 [build-dependencies]
-built = { version =  "0.6", features = ["chrono", "git2"] }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag="0.41.0" }
-stackable-spark-k8s-crd = { path = "../crd" }
+built.workspace = true

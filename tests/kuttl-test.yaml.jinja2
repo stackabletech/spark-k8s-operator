@@ -9,3 +9,19 @@ testDirs:
 startKIND: false
 suppress: ["events"]
 parallel: 2
+
+# The timeout (in seconds) is used when namespaces are created or
+# deleted, and, if not overridden, in TestSteps, TestAsserts, and
+# Commands. If not set, the timeout is 30 seconds by default.
+#
+# The deletion of a namespace can take a while until all resources are
+# gracefully shut down. If the timeout is reached in the meantime, even
+# a successful test case is considered a failure.
+#
+# For instance, the termination grace period of the Vector aggregator in
+# the logging tests is set to 60 seconds. If there are logs entries
+# which could not be forwarded yet to the external aggregator defined in
+# the VECTOR_AGGREGATOR environment variable, then the test aggregator
+# uses this period of time by trying to forward the events. In this
+# case, deleting a namespace with several Pods takes about 90 seconds.
+timeout: 120

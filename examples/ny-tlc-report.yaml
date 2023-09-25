@@ -37,8 +37,8 @@ spec:
         - name: cm-job-arguments
           mountPath: /arguments
   executor:
+    replicas: 3
     config:
-      replicas: 3
       volumeMounts:
         - name: cm-job-arguments
           mountPath: /arguments

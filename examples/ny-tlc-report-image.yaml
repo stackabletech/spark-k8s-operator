@@ -25,5 +25,4 @@ spec:
   sparkConf:
     spark.hadoop.fs.s3a.aws.credentials.provider: "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
   executor:
-    config:
-      replicas: 3
+    replicas: 3

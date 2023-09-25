@@ -20,11 +20,13 @@ spec:
   sparkConf:
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
   driver:
-    volumeMounts:
-      - name: cm-job-arguments # <6>
-        mountPath: /arguments  # <7>
+    config:
+      volumeMounts:
+        - name: cm-job-arguments # <6>
+          mountPath: /arguments  # <7>
   executor:
-    instances: 3
-    volumeMounts:
-      - name: cm-job-arguments # <6>
-        mountPath: /arguments # <7>
+    replicas: 3
+    config:
+      volumeMounts:
+        - name: cm-job-arguments # <6>
+          mountPath: /arguments # <7>

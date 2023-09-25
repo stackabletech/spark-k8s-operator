@@ -15,12 +15,14 @@ All notable changes to this project will be documented in this file.
 - `operator-rs` `0.44.0` -> `0.48.0` ([#267], [#275]).
 - Removed usages of SPARK_DAEMON_JAVA_OPTS since it's not a reliable way to pass extra JVM options ([#272]).
 - [BREAKING] use product image selection instead of version ([#275]).
+- BREAKING refactored application roles to use `CommonConfiguration` structures from the operator framework ([#277]).
 
 [#267]: https://github.com/stackabletech/spark-k8s-operator/pull/267
 [#268]: https://github.com/stackabletech/spark-k8s-operator/pull/268
 [#269]: https://github.com/stackabletech/spark-k8s-operator/pull/269
 [#272]: https://github.com/stackabletech/spark-k8s-operator/pull/272
 [#275]: https://github.com/stackabletech/spark-k8s-operator/pull/275
+[#277]: https://github.com/stackabletech/spark-k8s-operator/pull/277
 
 ## [23.7.0] - 2023-07-14
 

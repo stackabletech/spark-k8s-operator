@@ -24,30 +24,33 @@ spec:
     spark.kubernetes.driver.pod.name: "resources-crd-driver"
     spark.kubernetes.executor.podNamePrefix: "resources-crd"
   job:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-    resources:
-      cpu:
-        min: 250m
-        max: 500m
-      memory:
-        limit: 512Mi
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      resources:
+        cpu:
+          min: 250m
+          max: 500m
+        memory:
+          limit: 512Mi
   driver:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-    resources:
-      cpu:
-        min: 200m
-        max: 1200m
-      memory:
-        limit: 1024Mi
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      resources:
+        cpu:
+          min: 200m
+          max: 1200m
+        memory:
+          limit: 1024Mi
   executor:
-    instances: 1
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
-    resources:
-      cpu:
-        min: 250m
-        max: 1000m
-      memory:
-        limit: 1024Mi
+    replicas: 1
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      resources:
+        cpu:
+          min: 250m
+          max: 1000m
+        memory:
+          limit: 1024Mi

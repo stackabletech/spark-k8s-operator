@@ -17,17 +17,19 @@ spec:
     spark.kubernetes.driver.pod.name: "pyspark-streaming-driver"
     spark.kubernetes.executor.podNamePrefix: "pyspark-streaming"
   driver:
-    resources:
-      cpu:
-        min: "1"
-        max: "2"
-      memory:
-        limit: "1Gi"
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "2"
+        memory:
+          limit: "1Gi"
   executor:
-    instances: 1
-    resources:
-      cpu:
-        min: "1700m"
-        max: "3"
-      memory:
-        limit: "2Gi"
+    replicas: 1
+    config:
+      resources:
+        cpu:
+          min: "1700m"
+          max: "3"
+        memory:
+          limit: "2Gi"

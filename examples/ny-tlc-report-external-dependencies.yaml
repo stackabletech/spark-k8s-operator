@@ -30,11 +30,13 @@ spec:
       persistentVolumeClaim:
         claimName: pvc-ksv
   driver:
-    volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies
+    config:
+      volumeMounts:
+        - name: job-deps
+          mountPath: /dependencies
   executor:
-    instances: 3
-    volumeMounts:
-      - name: job-deps
-        mountPath: /dependencies
+    config:
+      replicas: 3
+      volumeMounts:
+        - name: job-deps
+          mountPath: /dependencies

@@ -36,8 +36,8 @@ spec:
         - name: script
           mountPath: /stackable/spark/jobs
   executor:
+    replicas: 1
     config:
-      replicas: 1
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       volumeMounts:

@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 - Removed usages of SPARK_DAEMON_JAVA_OPTS since it's not a reliable way to pass extra JVM options ([#272]).
 - [BREAKING] use product image selection instead of version ([#275]).
 - [BREAKING] refactored application roles to use `CommonConfiguration` structures from the operator framework ([#277]).
-- Let secret-operator handle certificate conversion ([#286]). 
+- Let secret-operator handle certificate conversion ([#286]).
 
 ### Fixed
 

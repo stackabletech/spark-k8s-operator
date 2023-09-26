@@ -586,8 +586,8 @@ fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
 
     if let Some(secret_name) = tlscerts::tls_secret_name(&s3logdir.bucket.connection) {
         command.extend(vec![format!("mkdir -p {STACKABLE_TRUST_STORE}")]);
-        command.extend(tlscerts::create_key_and_trust_store());
-        command.extend(tlscerts::add_cert_to_stackable_truststore(secret_name));
+        command.extend(tlscerts::convert_system_trust_store_to_pkcs12());
+        command.extend(tlscerts::import_truststore(secret_name));
     }
 
     command.extend(vec![

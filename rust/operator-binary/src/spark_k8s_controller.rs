@@ -414,9 +414,9 @@ fn init_containers(
     let mut args = Vec::new();
 
     let tls_container = tlscerts::tls_secret_names(s3conn, s3logdir).map(|cert_secrets| {
-        args.extend(tlscerts::create_key_and_trust_store());
+        args.extend(tlscerts::convert_system_trust_store_to_pkcs12());
         for cert_secret in cert_secrets {
-            args.extend(tlscerts::add_cert_to_stackable_truststore(cert_secret));
+            args.extend(tlscerts::import_truststore(cert_secret));
             tcb.add_volume_mount(
                 cert_secret,
                 format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}"),

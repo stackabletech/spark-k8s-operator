@@ -18,6 +18,7 @@ use stackable_operator::{
 use std::collections::BTreeMap;
 
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::builder::SecretFormat;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -184,7 +185,11 @@ impl S3LogDir {
         if let Some(secret_name) = tlscerts::tls_secret_name(&self.bucket.connection) {
             volumes.push(
                 VolumeBuilder::new(secret_name)
-                    .ephemeral(SecretOperatorVolumeSourceBuilder::new(secret_name).build())
+                    .ephemeral(
+                        SecretOperatorVolumeSourceBuilder::new(secret_name)
+                            .with_format(SecretFormat::TlsPkcs12)
+                            .build(),
+                    )
                     .build(),
             );
         }

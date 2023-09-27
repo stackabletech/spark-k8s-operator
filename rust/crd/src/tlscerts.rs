@@ -1,3 +1,4 @@
+use stackable_operator::commons::authentication::tls::{Tls, TlsServerVerification};
 use stackable_operator::commons::{
     authentication::tls::{CaCert, TlsVerification},
     s3::S3ConnectionSpec,
@@ -12,15 +13,20 @@ use crate::{
 };
 
 pub fn tls_secret_name(s3conn: &Option<S3ConnectionSpec>) -> Option<&str> {
-    if let Some(conn) = s3conn.as_ref() {
-        if let Some(tls) = &conn.tls {
-            if let TlsVerification::Server(verification) = &tls.verification {
-                if let CaCert::SecretClass(secret_name) = &verification.ca_cert {
-                    return Some(secret_name);
-                }
-            }
-        }
+    if let Some(S3ConnectionSpec {
+        tls:
+            Some(Tls {
+                verification:
+                    TlsVerification::Server(TlsServerVerification {
+                        ca_cert: CaCert::SecretClass(ref secret_name),
+                    }),
+            }),
+        ..
+    }) = s3conn
+    {
+        return Some(secret_name);
     }
+
     None
 }
 
@@ -46,17 +52,18 @@ pub fn tls_secret_names<'a>(
     }
 }
 
-pub fn create_key_and_trust_store() -> Vec<String> {
+pub fn convert_system_trust_store_to_pkcs12() -> Vec<String> {
     vec![
         format!("keytool -importkeystore -srckeystore {SYSTEM_TRUST_STORE} -srcstoretype jks -srcstorepass {SYSTEM_TRUST_STORE_PASSWORD} -destkeystore {STACKABLE_TRUST_STORE}/truststore.p12 -deststoretype pkcs12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
     ]
 }
 
-pub fn add_cert_to_stackable_truststore(secret_name: &str) -> Vec<String> {
+pub fn import_truststore(secret_name: &str) -> Vec<String> {
+    let mount_trust_store_path = format!("{STACKABLE_MOUNT_PATH_TLS}/{secret_name}/truststore.p12");
+    let trust_store_path = format!("{STACKABLE_TRUST_STORE}/truststore.p12");
+
     vec![
-        format!("echo [{STACKABLE_MOUNT_PATH_TLS}/{secret_name}/ca.crt] Adding cert..."),
-        format!("keytool -importcert -file {STACKABLE_MOUNT_PATH_TLS}/{secret_name}/ca.crt -alias stackable-{secret_name} -keystore {STACKABLE_TRUST_STORE}/truststore.p12 -storepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
-        format!("echo [{STACKABLE_MOUNT_PATH_TLS}/{secret_name}/ca.crt] Checking for cert..."),
-        format!("keytool -list -keystore {STACKABLE_TRUST_STORE}/truststore.p12 -storepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt | grep stackable"),
+        format!("echo Importing [{mount_trust_store_path}] to [{trust_store_path}] ..."),
+        format!("keytool -importkeystore -srckeystore {mount_trust_store_path} -srcalias 1 -srcstorepass \"\" -destkeystore {trust_store_path} -destalias stackable-{secret_name} -storepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
     ]
 }

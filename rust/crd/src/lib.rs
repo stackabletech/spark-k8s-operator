@@ -13,6 +13,7 @@ use history::LogFileDirectorySpec;
 use s3logdir::S3LogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::builder::SecretFormat;
 use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
@@ -266,7 +267,11 @@ impl SparkApplication {
             for cert_secret in cert_secrets {
                 result.push(
                     VolumeBuilder::new(cert_secret)
-                        .ephemeral(SecretOperatorVolumeSourceBuilder::new(cert_secret).build())
+                        .ephemeral(
+                            SecretOperatorVolumeSourceBuilder::new(cert_secret)
+                                .with_format(SecretFormat::TlsPkcs12)
+                                .build(),
+                        )
                         .build(),
                 );
             }

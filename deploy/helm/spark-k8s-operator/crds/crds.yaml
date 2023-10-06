@@ -1413,6 +1413,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -1940,6 +1942,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -2473,6 +2477,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -4917,6 +4923,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -5444,6 +5452,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -5977,6 +5987,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -7885,6 +7897,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -8412,6 +8426,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -8945,6 +8961,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -11568,6 +11586,7 @@ spec:
                       type: object
                   type: object
                 nodes:
+                  description: This struct represents a role - e.g. HDFS datanodes or Trino workers. It has a [`HashMap`] containing all the roleGroups that are part of this role. Additionally, there is a `config`, which is configurable at the role *and* roleGroup level. Everything at roleGroup level is merged on top of what is configured on role level using the [`Merge`] trait. There is also a second form of config, which can only be configured at role level, the `roleConfig`.
                   properties:
                     cliOverrides:
                       additionalProperties:
@@ -12901,6 +12920,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -13428,6 +13449,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -13961,6 +13984,8 @@ spec:
                                           type: string
                                         type: object
                                     type: object
+                                  restartPolicy:
+                                    type: string
                                   securityContext:
                                     properties:
                                       allowPrivilegeEscalation:
@@ -14966,6 +14991,31 @@ spec:
                                     type: object
                                 type: object
                               type: array
+                          type: object
+                      type: object
+                    roleConfig:
+                      default:
+                        podDisruptionBudget:
+                          enabled: true
+                          maxUnavailable: null
+                      description: This is a product-agnostic RoleConfig, which is sufficient for most of the products.
+                      properties:
+                        podDisruptionBudget:
+                          default:
+                            enabled: true
+                            maxUnavailable: null
+                          description: 'This struct is used to configure: 1.) If PodDisruptionBudgets are created by the operator 2.) The allowed number of Pods to be unavailable (`maxUnavailable`)'
+                          properties:
+                            enabled:
+                              default: true
+                              description: Whether a PodDisruptionBudget should be written out for this role. Disabling this enables you to specify your own - custom - one. Defaults to true.
+                              type: boolean
+                            maxUnavailable:
+                              description: The number of Pods that are allowed to be down because of voluntary disruptions. If you don't explicitly set this, the operator will use a sane default based upon knowledge about the individual product.
+                              format: uint16
+                              minimum: 0.0
+                              nullable: true
+                              type: integer
                           type: object
                       type: object
                     roleGroups:
@@ -16303,6 +16353,8 @@ spec:
                                                 type: string
                                               type: object
                                           type: object
+                                        restartPolicy:
+                                          type: string
                                         securityContext:
                                           properties:
                                             allowPrivilegeEscalation:
@@ -16830,6 +16882,8 @@ spec:
                                                 type: string
                                               type: object
                                           type: object
+                                        restartPolicy:
+                                          type: string
                                         securityContext:
                                           properties:
                                             allowPrivilegeEscalation:
@@ -17363,6 +17417,8 @@ spec:
                                                 type: string
                                               type: object
                                           type: object
+                                        restartPolicy:
+                                          type: string
                                         securityContext:
                                           properties:
                                             allowPrivilegeEscalation:
@@ -18414,7 +18470,7 @@ spec:
                 sparkConf:
                   additionalProperties:
                     type: string
-                  nullable: true
+                  default: {}
                   type: object
                 vectorAggregatorConfigMapName:
                   description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.

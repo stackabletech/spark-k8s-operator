@@ -8,7 +8,7 @@ By default, the operator doesn't configure any affinity.
 
 == Spark History Server
 
-You can configure the Pod placement of Spark History Server pods as described in xref:concepts:pod_placement.adoc[].
+You can configure the Pod placement of Spark History Server pods as described in xref:concepts:operations/pod_placement.adoc[].
 
 The default affinities created by the operator are:
 

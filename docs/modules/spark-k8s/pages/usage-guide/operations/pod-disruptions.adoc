@@ -1,0 +1,10 @@
+= Allowed Pod disruptions
+
+== Spark applications
+
+As Spark creates and destroys executor Pods itself, our operators don't create any PodDisruptionBudgets (PDBs).
+
+== History servers
+You can configure the permitted Pod disruptions for Spark history servers as described in xref:concepts:operations/pod_disruptions.adoc[].
+
+Unless you configure something else or disable the provided PodDisruptionBudgets (PDBs), the created PDBs only allow a single HistoryServer to be offline at any given time, regardless of the number of replicas or `roleGroups`.

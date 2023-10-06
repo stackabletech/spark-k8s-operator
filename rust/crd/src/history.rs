@@ -1,7 +1,5 @@
 use crate::{affinity::history_affinity, constants::*};
 
-use std::collections::{BTreeMap, HashMap};
-
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::role_utils::RoleGroup;
@@ -32,6 +30,7 @@ use stackable_operator::{
     role_utils::{Role, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
+use std::collections::{BTreeMap, HashMap};
 use strum::{Display, EnumIter};
 
 #[derive(Snafu, Debug)]
@@ -74,8 +73,8 @@ pub struct SparkHistoryServerSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
     pub log_file_directory: LogFileDirectorySpec,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub spark_conf: Option<BTreeMap<String, String>>,
+    #[serde(default)]
+    pub spark_conf: BTreeMap<String, String>,
     pub nodes: Role<HistoryConfigFragment>,
 }
 

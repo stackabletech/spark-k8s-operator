@@ -19,6 +19,7 @@ use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
     ValidatedRoleConfigByPropertyKind,
 };
+use stackable_operator::role_utils::EmptyRoleConfig;
 use stackable_operator::{
     builder::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::{
@@ -674,6 +675,7 @@ impl SparkApplication {
                 ],
                 Role {
                     config: submit_conf.clone(),
+                    role_config: EmptyRoleConfig::default(),
                     role_groups: [(
                         "default".to_string(),
                         RoleGroup {
@@ -696,6 +698,7 @@ impl SparkApplication {
                 ],
                 Role {
                     config: driver_conf.clone(),
+                    role_config: EmptyRoleConfig::default(),
                     role_groups: [(
                         "default".to_string(),
                         RoleGroup {
@@ -718,6 +721,7 @@ impl SparkApplication {
                 ],
                 Role {
                     config: executor_conf.config.clone(),
+                    role_config: EmptyRoleConfig::default(),
                     role_groups: [("default".to_string(), executor_conf)].into(),
                 }
                 .erase(),

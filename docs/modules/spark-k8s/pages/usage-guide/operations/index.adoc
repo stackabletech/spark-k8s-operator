@@ -1,0 +1,5 @@
+= Operations
+
+This section of the documentation is intended for the operations teams that maintain a Stackable Data Platform installation.
+
+Please read the xref:concepts:operations/index.adoc[Concepts page on Operations] that contains the necessary details to operate the platform in a production environment.

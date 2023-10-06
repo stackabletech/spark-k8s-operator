@@ -8,11 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#267], [#268]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#272]).
+- Support PodDisruptionBudgets for HistoryServer ([#XXX]).
 
 ### Changed
 
 - `vector` `0.26.0` -> `0.31.0` ([#269]).
-- `operator-rs` `0.44.0` -> `0.48.0` ([#267], [#275]).
+- `operator-rs` `0.44.0` -> `0.52.1` ([#267], [#275], [#XXX]).
 - Removed usages of SPARK_DAEMON_JAVA_OPTS since it's not a reliable way to pass extra JVM options ([#272]).
 - [BREAKING] use product image selection instead of version ([#275]).
 - [BREAKING] refactored application roles to use `CommonConfiguration` structures from the operator framework ([#277]).

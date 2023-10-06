@@ -1,3 +1,4 @@
+use crate::history::operations::pdb::add_pdbs;
 use crate::product_logging::{self, resolve_vector_aggregator_address};
 use crate::Ctx;
 use stackable_operator::{
@@ -133,6 +134,10 @@ pub enum Error {
         source: stackable_operator::product_config::writer::PropertiesWriterError,
         rolegroup: String,
     },
+    #[snafu(display("failed to create PodDisruptionBudget"))]
+    FailedToCreatePdb {
+        source: crate::history::operations::pdb::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -257,6 +262,16 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 .await
                 .context(ApplyDeploymentSnafu)?;
         }
+
+        let role_config = &shs.spec.nodes.role_config;
+        add_pdbs(
+            &role_config.pod_disruption_budget,
+            &shs,
+            client,
+            &mut cluster_resources,
+        )
+        .await
+        .context(FailedToCreatePdbSnafu)?;
     }
 
     cluster_resources
@@ -564,7 +579,7 @@ fn spark_defaults(
     log_dir_settings.extend(cleaner_config(shs, rolegroupref)?);
 
     // add user provided configuration. These can overwrite everything.
-    log_dir_settings.extend(shs.spec.spark_conf.clone().unwrap_or_default());
+    log_dir_settings.extend(shs.spec.spark_conf.clone());
 
     // stringify the spark configuration for the ConfigMap
     Ok(log_dir_settings

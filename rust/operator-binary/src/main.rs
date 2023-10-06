@@ -1,4 +1,4 @@
-mod history_controller;
+mod history;
 mod pod_driver_controller;
 mod product_logging;
 mod spark_k8s_controller;
@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use clap::{crate_description, crate_version, Parser};
 use futures::StreamExt;
+use history::history_controller;
 use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;

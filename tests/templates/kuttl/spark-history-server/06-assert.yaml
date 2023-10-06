@@ -9,3 +9,12 @@ metadata:
   name: spark-history-node-default
 status:
   readyReplicas: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: spark-history-node
+status:
+  expectedPods: 1
+  currentHealthy: 1
+  disruptionsAllowed: 1

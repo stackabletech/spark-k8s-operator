@@ -84,7 +84,7 @@ Below are listed the CRD fields that can be defined by the user:
 |Volume mount path
 
 |`spec.driver.affinity`
-|Driver Pod placement affinity. See xref:usage-guide/pod-placement.adoc[] for details
+|Driver Pod placement affinity. See xref:usage-guide/operations/pod-placement.adoc[] for details
 
 |`spec.driver.logging`
 |Logging aggregation for the driver Pod. See xref:concepts:logging.adoc[] for details
@@ -105,7 +105,7 @@ Below are listed the CRD fields that can be defined by the user:
 |Volume mount path
 
 |`spec.executor.affinity`
-|Driver Pod placement affinity. See xref:usage-guide/pod-placement.adoc[] for details.
+|Driver Pod placement affinity. See xref:usage-guide/operations/pod-placement.adoc[] for details.
 
 |`spec.executor.logging`
 |Logging aggregation for the executor Pods. See xref:concepts:logging.adoc[] for details

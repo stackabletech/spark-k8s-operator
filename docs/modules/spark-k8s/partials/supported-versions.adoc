@@ -3,5 +3,6 @@
 // Stackable Platform documentation.
 // Please sort the versions in descending order (newest first)
 
-- 3.4.0 (Hadoop 3.3.4, Scala 2.12, Python 3.11, Java 11)
-- 3.3.0 (Hadoop 3.3.3, Scala 2.12, Python 3.9, Java 11)
+- 3.5.0 (Hadoop 3.3.4, Scala 2.12, Python 3.11, Java 11)
+- 3.4.1 (Hadoop 3.3.4, Scala 2.12, Python 3.11, Java 11)
+- 3.4.0 (Hadoop 3.3.4, Scala 2.12, Python 3.11, Java 11) (deprecated)

@@ -9,6 +9,8 @@ All notable changes to this project will be documented in this file.
 - Default stackableVersion to operator version. It is recommended to remove `spec.image.stackableVersion` from your custom resources ([#267], [#268]).
 - Configuration overrides for the JVM security properties, such as DNS caching ([#272]).
 - Support PodDisruptionBudgets for HistoryServer ([#288]).
+- Support for versions 3.4.1, 3.5.0 ([#xxx]).
+- History server now exports metrics via jmx exporter ([#xxx]).
 
 ### Changed
 
@@ -23,6 +25,10 @@ All notable changes to this project will be documented in this file.
 
 - Dynamic loading of Maven packages ([#281]).
 
+### Removed
+
+- Removed support for versions 3.2.1, 3.3.0 ([#xxx]).
+
 [#267]: https://github.com/stackabletech/spark-k8s-operator/pull/267
 [#268]: https://github.com/stackabletech/spark-k8s-operator/pull/268
 [#269]: https://github.com/stackabletech/spark-k8s-operator/pull/269
@@ -32,6 +38,7 @@ All notable changes to this project will be documented in this file.
 [#281]: https://github.com/stackabletech/spark-k8s-operator/pull/281
 [#286]: https://github.com/stackabletech/spark-k8s-operator/pull/286
 [#288]: https://github.com/stackabletech/spark-k8s-operator/pull/288
+[#xxx]: https://github.com/stackabletech/spark-k8s-operator/pull/xxx
 
 ## [23.7.0] - 2023-07-14
 

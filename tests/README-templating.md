@@ -16,13 +16,11 @@ An example of the content for the test definition file is shown here:
 dimensions:
   - name: spark
     values:
-      - 3.2.1
-      - 3.2.2
-      - 3.2.3
+      - 3.4.1
+      - 3.5.0
   - name: hadoop
     values:
-      - 3.1.0
-      - 3.2.0
+      - 3.3.4
   - name: aws
       - abc
       - xyz
@@ -39,12 +37,8 @@ In this example the test case uses only two of the three dimensions defined, so 
 
 ````text
 └── spark-pi-public-s3
-    ├── spark-3.2.1_hadoop-3.1.0
-    ├── spark-3.2.1_hadoop-3.2.0
-    ├── spark-3.2.2_hadoop-3.1.0
-    ├── spark-3.2.2_hadoop-3.2.0
-    ├── spark-3.2.3_hadoop-3.1.0
-    └── spark-3.2.3_hadoop-3.2.0
+    ├── spark-3.4.1_hadoop-3.3.4
+    ├── spark-3.5.0_hadoop-3.3.4
 ````
 
 The name of a test case defined under `tests` in this file has to refer back to a directory in the `templates/kuttl` directory, which will be used to create the test scenarios.
@@ -61,7 +55,7 @@ tests
 ````
 
 The `kuttl-test.yaml.jinja2` cannot currently be edited, as it comes from the operator templating and any changes would be overwritten again.
-This should be fairly easy to solve and we can look at this as soon as it becomes necessary.
+This should be fairly easy to solve, and we can look at this as soon as it becomes necessary.
 
 ## Using
 

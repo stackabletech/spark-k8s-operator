@@ -339,7 +339,7 @@ jobs:
     steps:
       - name: Install preflight
         run: |
-          wget https://github.com/redhat-openshift-ecosystem/openshift-preflight/releases/latest/download/preflight-linux-amd64
+          wget https://github.com/redhat-openshift-ecosystem/openshift-preflight/releases/download/1.6.11/preflight-linux-amd64
           chmod +x preflight-linux-amd64
       - name: Check container
         run: ./preflight-linux-amd64 check container "$IMAGE_TAG" > preflight.out

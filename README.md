@@ -13,7 +13,7 @@
 
 This is a Kubernetes operator to manage [Apache Spark](https://spark.apache.org/) jobs.
 
-It is part of the Stackable Data Platform, a curated selection of the best open source data apps like Kafka, Druid, Trino or Spark, [all](#other-operators) working together seamlessly. Based on Kubernetes, it runs everywhere – [on prem or in the cloud](#supported-platforms).
+It is part of the Stackable Data Platform, a curated selection of the best open source data apps like Apache Kafka, Apache Druid, Trino or Apache Spark, [all](#our-operators) working together seamlessly. Based on Kubernetes, it runs everywhere – [on prem or in the cloud](#supported-platforms).
 
 ## Installation
 
@@ -37,7 +37,7 @@ If you have a question about the Stackable Data Platform contact us via our [hom
 
 ## About The Stackable Data Platform
 
-This operator is written and maintained by [Stackable](https://www.stackable.tech) and it is part of a larger data platform.
+This operator is written and maintained by [Stackable](https://stackable.tech) and it is part of a larger data platform.
 
 ![Stackable Data Platform Overview](./.readme/static/borrowed/sdp_overview.png)
 

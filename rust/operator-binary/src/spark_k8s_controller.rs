@@ -3,11 +3,10 @@ use crate::Ctx;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
-    time::Duration,
     vec,
 };
 
-use stackable_operator::product_config::writer::to_java_properties_string;
+use stackable_operator::{duration::Duration, product_config::writer::to_java_properties_string};
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, tlscerts, RoleConfig, SparkApplication, SparkApplicationRole,
     SparkContainer, SubmitConfig,
@@ -863,5 +862,5 @@ fn security_context() -> PodSecurityContext {
 }
 
 pub fn error_policy(_obj: Arc<SparkApplication>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(Duration::from_secs(5))
+    Action::requeue(*Duration::from_secs(5))
 }

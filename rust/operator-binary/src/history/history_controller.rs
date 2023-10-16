@@ -5,7 +5,6 @@ use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::product_image_selection::ResolvedProductImage,
-    duration::Duration,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
@@ -31,6 +30,7 @@ use stackable_operator::{
         },
     },
     role_utils::RoleGroupRef,
+    time::Duration,
 };
 use stackable_spark_k8s_crd::{
     constants::{

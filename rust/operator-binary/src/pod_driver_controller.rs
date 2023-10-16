@@ -1,6 +1,6 @@
 use stackable_operator::{
-    client::Client, duration::Duration, k8s_openapi::api::core::v1::Pod,
-    kube::runtime::controller::Action,
+    client::Client, k8s_openapi::api::core::v1::Pod, kube::runtime::controller::Action,
+    time::Duration,
 };
 use stackable_spark_k8s_crd::{
     constants::POD_DRIVER_CONTROLLER_NAME, SparkApplication, SparkApplicationStatus,

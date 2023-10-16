@@ -1,11 +1,11 @@
 use stackable_operator::{
-    client::Client, k8s_openapi::api::core::v1::Pod, kube::runtime::controller::Action,
+    client::Client, duration::Duration, k8s_openapi::api::core::v1::Pod,
+    kube::runtime::controller::Action,
 };
 use stackable_spark_k8s_crd::{
     constants::POD_DRIVER_CONTROLLER_NAME, SparkApplication, SparkApplicationStatus,
 };
 use std::sync::Arc;
-use std::time::Duration;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::logging::controller::ReconcilerError;
@@ -95,5 +95,5 @@ pub async fn reconcile(pod: Arc<Pod>, client: Arc<Client>) -> Result<Action> {
 }
 
 pub fn error_policy(_obj: Arc<Pod>, _error: &Error, _ctx: Arc<Client>) -> Action {
-    Action::requeue(Duration::from_secs(5))
+    Action::requeue(*Duration::from_secs(5))
 }

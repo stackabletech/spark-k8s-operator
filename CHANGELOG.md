@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - [BREAKING] use product image selection instead of version ([#275]).
 - [BREAKING] refactored application roles to use `CommonConfiguration` structures from the operator framework ([#277]).
 - Let secret-operator handle certificate conversion ([#286]).
+- Extended resource-usage documentation ([#297]).
 
 ### Fixed
 
@@ -32,6 +33,7 @@ All notable changes to this project will be documented in this file.
 [#281]: https://github.com/stackabletech/spark-k8s-operator/pull/281
 [#286]: https://github.com/stackabletech/spark-k8s-operator/pull/286
 [#288]: https://github.com/stackabletech/spark-k8s-operator/pull/288
+[#297]: https://github.com/stackabletech/spark-k8s-operator/pull/297
 
 ## [23.7.0] - 2023-07-14
 

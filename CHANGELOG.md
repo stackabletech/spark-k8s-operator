@@ -14,8 +14,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `vector` `0.26.0` -> `0.31.0` ([#269]).
-- `operator-rs` `0.44.0` -> `0.52.1` ([#267], [#275], [#288]).
+- `vector` `0.26.0` -> `0.33.0` ([#269], [#291]).
+- `operator-rs` `0.44.0` -> `0.55.0` ([#267], [#275], [#288], [#291]).
 - Removed usages of SPARK_DAEMON_JAVA_OPTS since it's not a reliable way to pass extra JVM options ([#272]).
 - [BREAKING] use product image selection instead of version ([#275]).
 - [BREAKING] refactored application roles to use `CommonConfiguration` structures from the operator framework ([#277]).

@@ -46,7 +46,7 @@ spec:
   deps:
     packages:
       # need to extract only the major and minor versions
-      - org.apache.iceberg:iceberg-spark-runtime-{{ test_scenario['values']['spark'].split('.')[0] }}.{{ test_scenario['values']['spark'].split('.')[1] }}_2.12:1.4.0
+      - org.apache.iceberg:iceberg-spark-runtime-{{ test_scenario['values']['spark'].rsplit('.', maxsplit=1)[0] }}_2.12:1.4.0
   volumes:
     - name: script
       configMap:

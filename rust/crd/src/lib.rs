@@ -838,22 +838,6 @@ fn resources_to_driver_props(
     {
         let memory = subtract_spark_memory_overhead(for_java, limit)?;
         props.insert("spark.driver.memory".to_string(), memory);
-
-        let limit_mb = format!(
-            "{}m",
-            MemoryQuantity::try_from(limit)
-                .context(FailedToConvertJavaHeapSnafu {
-                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-                })?
-                .scale_to(BinaryMultiple::Mebi)
-                .floor()
-                .value as u32
-        );
-        props.insert(
-            "spark.kubernetes.driver.request.memory".to_string(),
-            limit_mb.clone(),
-        );
-        props.insert("spark.kubernetes.driver.limit.memory".to_string(), limit_mb);
     }
 
     Ok(())
@@ -890,25 +874,6 @@ fn resources_to_executor_props(
     {
         let memory = subtract_spark_memory_overhead(for_java, limit)?;
         props.insert("spark.executor.memory".to_string(), memory);
-
-        let limit_mb = format!(
-            "{}m",
-            MemoryQuantity::try_from(limit)
-                .context(FailedToConvertJavaHeapSnafu {
-                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-                })?
-                .scale_to(BinaryMultiple::Mebi)
-                .floor()
-                .value as u32
-        );
-        props.insert(
-            "spark.kubernetes.executor.request.memory".to_string(),
-            limit_mb.clone(),
-        );
-        props.insert(
-            "spark.kubernetes.executor.limit.memory".to_string(),
-            limit_mb,
-        );
     }
 
     Ok(())
@@ -1077,16 +1042,8 @@ mod tests {
                 "1".to_string(),
             ),
             (
-                "spark.kubernetes.driver.limit.memory".to_string(),
-                "128m".to_string(),
-            ),
-            (
                 "spark.kubernetes.driver.request.cores".to_string(),
                 "1".to_string(),
-            ),
-            (
-                "spark.kubernetes.driver.request.memory".to_string(),
-                "128m".to_string(),
             ),
         ]
         .into_iter()
@@ -1125,16 +1082,8 @@ mod tests {
             ("spark.executor.cores".to_string(), "2".to_string()),
             ("spark.executor.memory".to_string(), "128m".to_string()), // 128 and not 512 because memory overhead is subtracted
             (
-                "spark.kubernetes.executor.limit.memory".to_string(),
-                "512m".to_string(),
-            ),
-            (
                 "spark.kubernetes.executor.request.cores".to_string(),
                 "2".to_string(),
-            ),
-            (
-                "spark.kubernetes.executor.request.memory".to_string(),
-                "512m".to_string(),
             ),
             (
                 "spark.kubernetes.executor.limit.cores".to_string(),

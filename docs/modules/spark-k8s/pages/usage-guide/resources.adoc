@@ -180,7 +180,7 @@ spec:
 <8> CPU limit (also applied to request), unchanged after rounding: `1000m` to `1`
 <9> Memory after reduction and re-addition of Spark overhead (so the declared value matches what is provisioned)
 
-The spark.conf values corresponding to the above can be inspected in the job Pod definition:
+The spark.conf values derived from the above can be inspected in the job Pod definition:
 
 [source]
 ----
@@ -201,4 +201,4 @@ The spark.conf values corresponding to the above can be inspected in the job Pod
     ...
 ----
 
-These correspond to the resources listed above, with the exception of `spark.{driver|executor}.memory` where indeed the Spark internal overhead of 384MB has been deducted from 1024MB.
+These correspond to the resources listed above for the job/driver/executor Pods, with the exception of `spark.{driver|executor}.memory` where indeed the Spark internal overhead of 384MB has been deducted from 1024MB.

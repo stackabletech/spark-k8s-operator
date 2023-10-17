@@ -79,11 +79,13 @@ CPU/Cores will be rounded up and only applied as a limit (instead of separately 
 
 As each `SparkApplication` will be used to derive templates for the driver and executor pods (pods which are eventually terminated once the job is complete) it is not so crucial to set a resource request separately: the resource limit will be applied to `spark.conf` settings such that the maximum value is applied for the duration of the application. This means in effect that `config.resources.cpu.min` can be ignored by the user, although the field has not been removed to avoid any possible future breaking changes.
 
-Additionally, Spark allows for CPU limits to be set for the driver and executor using standard Spark settings (`spark.{driver|executor}.cores}`) as well as Kubernetes-specific ones (`spark.kubernetes.{driver,executor}.limit.cores`). This has been simplified so that the CPU is applied to both of these pairs of settings without making a distinction.
+Additionally, Spark allows CPU limits to be set for the driver and executor using standard Spark settings (`spark.{driver|executor}.cores}`) as well as Kubernetes-specific ones (`spark.kubernetes.{driver,executor}.limit.cores`). The CRD values for max. CPU is applied to both of these pairs of settings without making a distinction.
 
 === Memory
 
-Memory values are not rounded but for `spark.{driver|executor}.memory}` are passed to Spark in such as a way that the overheads added by Spark are already implicitly declared. For example, if Spark adds 40% to the declared memory (as it does for Pyspark applications), then this is deducted internally from the declared value _before_ being written to `spark.conf`, so that once the overhead is applied, the effective value is the one defined by the user. An alternative is to do define the spark.conf settings explicitly and then let Spark apply the overheads to those values. Spark requires at least 384MB of memory for the driver and executors, so this will be taken into consideration calculating the final allocations.
+Memory values are not rounded as is the case with CPU. Values for `spark.{driver|executor}.memory}` are passed to Spark in such as a way that the overheads added by Spark are already implicitly declared: this overhead will be applied using a factor of 0.1 (JVM jobs) or 0.4 (non-JVM jobs), being not less than 384MB, the minimum overhead applied by Spark. Once the overhead is applied, the effective value is the one defined by the user. This keeps the values transparent: what is defined in the CRD is what is actually provisioned. Unadjusted memory settings are applied for `spark.kubernetes.{driver|executor}.{request|limit}.memory}`.
+
+An alternative is to do define the spark.conf settings explicitly and then let Spark apply the overheads to those values.
 
 === Example
 

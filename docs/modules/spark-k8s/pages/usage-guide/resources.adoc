@@ -2,7 +2,7 @@
 
 include::home:concepts:stackable_resource_requests.adoc[]
 
-If no resources are configured explicitly, the operator uses the following defaults for `SparkApplication`s:
+If no resources are configured explicitly, the operator uses the following defaults for `SparkApplication` resources:
 
 [source,yaml]
 ----
@@ -29,7 +29,7 @@ executor:
         min: '250m'
         max: "1"
       memory:
-        limit: '4Gi'
+        limit: '1Gi'
 ----
 
 For `SparkHistoryServer`s the following defaults are used:
@@ -50,4 +50,153 @@ For more details regarding Kubernetes CPU limits see: https://kubernetes.io/docs
 
 Spark allocates a default amount of non-heap memory based on the type of job (JVM or non-JVM). This is taken into account when defining memory settings based exclusively on the resource limits, so that the "declared" value is the actual total value (i.e. including memory overhead). This may result in minor deviations from the stated resource value due to rounding differences.
 
-NOTE: It is possible to define Spark resources either directly by setting configuration properties listed under `sparkConf`, or by using resource limits. If both are used, then `sparkConf` properties take precedence. It is recommended for the sake of clarity to use *_either_* one *_or_* the other.
+NOTE: It is possible to define Spark resources either directly by setting configuration properties listed under `sparkConf`, or by using resource limits. If both are used, then `sparkConf` properties take precedence. It is recommended for the sake of clarity to use *_either_* one *_or_* the other. See below for examples.
+
+== Resource examples
+
+To illustrate resource configuration consider these the use-cases where resources are defined using CRD fields (which are then parsed internally to be passed to Spark as spark.conf settings).
+
+=== CPU
+
+CPU/Cores will be rounded up and only applied as a limit (instead of separately as request and limit). The rounding to the next integer value will result in the following:
+
+
+|===
+|CRD |Spark conf
+
+|1800m
+|2
+
+|100m
+|1
+
+|1.5
+|2
+
+|2
+|2
+|===
+
+As each `SparkApplication` will be used to derive templates for the driver and executor pods (pods which are eventually terminated once the job is complete) it is not so crucial to set a resource request separately: the resource limit will be applied to `spark.conf` settings such that the maximum value is applied for the duration of the application. This means in effect that `config.resources.cpu.min` can be ignored by the user, although the field has not been removed to avoid any possible future breaking changes.
+
+Additionally, Spark allows for CPU limits to be set for the driver and executor using standard Spark settings (`spark.{driver|executor}.cores}`) as well as Kubernetes-specific ones (`spark.kubernetes.{driver,executor}.limit.cores`). This has been simplified so that the CPU is applied to both of these pairs of settings without making a distinction.
+
+=== Memory
+
+Memory values are not rounded but for `spark.{driver|executor}.memory}` are passed to Spark in such as a way that the overheads added by Spark are already implicitly declared. For example, if Spark adds 40% to the declared memory (as it does for Pyspark applications), then this is deducted internally from the declared value _before_ being written to `spark.conf`, so that once the overhead is applied, the effective value is the one defined by the user. An alternative is to do define the spark.conf settings explicitly and then let Spark apply the overheads to those values. Spark requires at least 384MB of memory for the driver and executors, so this will be taken into consideration calculating the final allocations.
+
+=== Example
+
+A SparkApplication defines the following resources:
+
+[source,yaml]
+----
+  ...
+  job:
+    config:
+      resources:
+        cpu:
+          min: 250m  # <1>
+          max: 500m  # <2>
+        memory:
+          limit: 512Mi  # <3>
+  driver:
+    config:
+      resources:
+        cpu:
+          min: 200m  # <4>
+          max: 1200m  # <5>
+        memory:
+          limit: 1024Mi  # <6>
+  executor:
+    config:
+      resources:
+        cpu:
+          min: 250m  # <7>
+          max: 1000m  # <8>
+        memory:
+          limit: 1024Mi  # <9>
+    ...
+----
+
+This will result in the following Pod definitions:
+
+For the job:
+
+[source,yaml]
+----
+spec:
+  containers:
+    - name: spark-submit
+      resources:
+        limits:
+          cpu: 500m  # <2>
+          memory: 512Mi  # <3>
+        requests:
+          cpu: 250m  # <1>
+          memory: 512Mi  # <3>
+----
+
+For the driver:
+
+[source,yaml]
+----
+spec:
+  containers:
+    - name: spark
+      resources:
+        limits:
+          cpu: "2"  # <5>
+          memory: 1Gi  # <6>
+        requests:
+          cpu: "2"  # <5>
+          memory: 1Gi  # <6>
+----
+
+For each executor:
+
+[source,yaml]
+----
+spec:
+  containers:
+    - name: spark
+      limits:
+        cpu: "1"  # <8>
+        memory: 1Gi # <9>
+      requests:
+        cpu: "1" # <8>
+        memory: 1Gi # <9>
+----
+
+<1> CPU request (unchanged as this is the Job pod)
+<2> CPU limit (unchanged as this is the Job pod)
+<3> Memory is assigned to both request and limit values
+<4> CPU request is effectively ignored
+<5> CPU limit (also applied to request), rounded up from `1200m` to `2`
+<6> Memory after reduction and re-addition of Spark overhead (so the declared value matches what is provisioned)
+<7> CPU request is effectively ignored
+<8> CPU limit (also applied to request), unchanged after rounding: `1000m` to `1`
+<9> Memory after reduction and re-addition of Spark overhead (so the declared value matches what is provisioned)
+
+The spark.conf values corresponding to the above can be inspected in the job Pod definition:
+
+[source]
+----
+    ...
+    --conf "spark.driver.cores=1"
+    --conf "spark.driver.memory=640m"
+    --conf "spark.executor.cores=1"
+    --conf "spark.executor.memory=640m"
+    --conf "spark.kubernetes.driver.limit.cores=1"
+    --conf "spark.kubernetes.driver.limit.memory=1024m"
+    --conf "spark.kubernetes.driver.request.cores=1"
+    --conf "spark.kubernetes.driver.request.memory=1024m"
+    --conf "spark.kubernetes.executor.limit.cores=1"
+    --conf "spark.kubernetes.executor.limit.memory=1024m"
+    --conf "spark.kubernetes.executor.request.cores=1"
+    --conf "spark.kubernetes.executor.request.memory=1024m"
+    --conf "spark.kubernetes.memoryOverheadFactor=0.0"
+    ...
+----
+
+These correspond to the resources listed above, with the exception of `spark.{driver|executor}.memory` where indeed the Spark internal overhead of 384MB has been deducted from 1024MB.

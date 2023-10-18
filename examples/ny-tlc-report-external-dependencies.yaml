@@ -7,7 +7,7 @@ metadata:
 spec:
   version: "1.0"
   sparkImage:
-    productVersion: 3.3.0
+    productVersion: 3.5.0
     pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: s3a://my-bucket/ny_tlc_report.py

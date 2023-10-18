@@ -24,7 +24,7 @@ Below are listed the CRD fields that can be defined by the user:
 |User-supplied image containing spark-job dependencies that will be copied to the specified volume mount
 
 |`spec.sparkImage`
-| Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.3.0-stackable0.3.0`
+| Spark image which will be deployed to driver and executor pods, which must contain spark environment needed by the job e.g. `docker.stackable.tech/stackable/spark-k8s:3.5.0-stackable0.0.0-dev`
 
 |`spec.sparkImagePullPolicy`
 | Optional Enum (one of `Always`, `IfNotPresent` or `Never`) that determines the pull policy of the spark job image

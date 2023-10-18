@@ -7,7 +7,7 @@ metadata:
 spec:
   version: "1.0"
   sparkImage:
-    productVersion: 3.3.0
+    productVersion: 3.5.0
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.0-SNAPSHOT.jar # <1>
   mainClass: org.example.App # <2>

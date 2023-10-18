@@ -5,7 +5,6 @@ use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::product_image_selection::ResolvedProductImage,
-    duration::Duration,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
@@ -31,6 +30,7 @@ use stackable_operator::{
         },
     },
     role_utils::RoleGroupRef,
+    time::Duration,
 };
 use stackable_spark_k8s_crd::{
     constants::{
@@ -54,6 +54,8 @@ use stackable_operator::builder::resources::ResourceRequirementsBuilder;
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+const METRICS_PORT: u16 = 18081;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -415,6 +417,7 @@ fn build_stateful_set(
         .command(vec!["/bin/bash".to_string()])
         .args(command_args(s3_log_dir))
         .add_container_port("http", 18080)
+        .add_container_port("metrics", METRICS_PORT.into())
         .add_env_vars(env_vars(s3_log_dir))
         .add_volume_mounts(s3_log_dir.volume_mounts())
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
@@ -515,15 +518,23 @@ fn build_service(
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(labels(shs, app_version_label, &group_name))
+            .with_label("prometheus.io/scrape", "true")
             .build(),
         spec: Some(ServiceSpec {
             type_: Some(service_type),
             cluster_ip: service_cluster_ip,
-            ports: Some(vec![ServicePort {
-                name: Some(String::from("http")),
-                port: 18080,
-                ..ServicePort::default()
-            }]),
+            ports: Some(vec![
+                ServicePort {
+                    name: Some(String::from("http")),
+                    port: 18080,
+                    ..ServicePort::default()
+                },
+                ServicePort {
+                    name: Some(String::from("metrics")),
+                    port: METRICS_PORT.into(),
+                    ..ServicePort::default()
+                },
+            ]),
             selector: Some(selector),
             ..ServiceSpec::default()
         }),
@@ -634,6 +645,7 @@ fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
         format!(
             "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
         ),
+        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/config.yaml")
     ];
     if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
         history_opts.extend(

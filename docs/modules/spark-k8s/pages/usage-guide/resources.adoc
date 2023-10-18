@@ -151,7 +151,7 @@ spec:
           cpu: "2"  # <5>
           memory: 1Gi  # <6>
         requests:
-          cpu: "2"  # <5>
+          cpu: "1"  # <4>
           memory: 1Gi  # <6>
 ----
 
@@ -163,7 +163,7 @@ spec:
   containers:
     - name: spark
       limits:
-        cpu: "1"  # <8>
+        cpu: "1"  # <7>
         memory: 1Gi # <9>
       requests:
         cpu: "1" # <8>
@@ -173,11 +173,11 @@ spec:
 <1> CPU request (unchanged as this is the Job pod)
 <2> CPU limit (unchanged as this is the Job pod)
 <3> Memory is assigned to both request and limit values
-<4> CPU request is effectively ignored
-<5> CPU limit (also applied to request), rounded up from `1200m` to `2`
+<4> CPU request, rounded up from `200m` to `1`
+<5> CPU limit, rounded up from `1200m` to `2`
 <6> Memory after reduction and re-addition of Spark overhead (so the declared value matches what is provisioned)
-<7> CPU request is effectively ignored
-<8> CPU limit (also applied to request), unchanged after rounding: `1000m` to `1`
+<7> CPU request, rounded up from `250m` to `1`
+<8> CPU limit, unchanged after rounding: `1000m` to `1`
 <9> Memory after reduction and re-addition of Spark overhead (so the declared value matches what is provisioned)
 
 The spark.conf values derived from the above can be inspected in the job Pod definition:
@@ -190,7 +190,7 @@ The spark.conf values derived from the above can be inspected in the job Pod def
     --conf "spark.executor.cores=1"
     --conf "spark.executor.memory=640m"
     --conf "spark.kubernetes.driver.limit.cores=1"
-    --conf "spark.kubernetes.driver.request.cores=1"
+    --conf "spark.kubernetes.driver.request.cores=2"
     --conf "spark.kubernetes.executor.limit.cores=1"
     --conf "spark.kubernetes.executor.request.cores=1"
     --conf "spark.kubernetes.memoryOverheadFactor=0.0"

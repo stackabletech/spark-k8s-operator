@@ -58,7 +58,7 @@ To illustrate resource configuration consider the use-case where resources are d
 
 === CPU
 
-CPU/Cores will be rounded up and only applied as a limit (instead of separately as request and limit). The rounding to the next integer value will result in the following:
+CPU request and limit will be rounded up to the next integer value will result in the following:
 
 
 |===

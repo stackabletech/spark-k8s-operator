@@ -6,7 +6,7 @@ use std::{
     vec,
 };
 
-use stackable_operator::{duration::Duration, product_config::writer::to_java_properties_string};
+use stackable_operator::{product_config::writer::to_java_properties_string, time::Duration};
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, tlscerts, RoleConfig, SparkApplication, SparkApplicationRole,
     SparkContainer, SubmitConfig,

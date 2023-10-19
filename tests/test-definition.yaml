@@ -5,8 +5,8 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.3.0
-      - 3.4.0
+      - 3.4.1
+      - 3.5.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 3.4.0,docker.stackable.tech/sandbox/spark-k8s:3.4.0-stackable0.0.0-dev

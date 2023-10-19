@@ -6,7 +6,7 @@ metadata:
 spec:
   version: "1.0"
   sparkImage:
-    productVersion: 3.3.0
+    productVersion: 3.5.0
     pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi

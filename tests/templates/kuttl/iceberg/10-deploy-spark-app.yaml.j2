@@ -45,7 +45,8 @@ spec:
           mountPath: /stackable/spark/jobs
   deps:
     packages:
-      - org.apache.iceberg:iceberg-spark-runtime-{{ test_scenario['values']['spark'].rstrip('.0') }}_2.12:1.3.1
+      # need to extract only the major and minor versions
+      - org.apache.iceberg:iceberg-spark-runtime-{{ test_scenario['values']['spark'].rsplit('.', maxsplit=1)[0] }}_2.12:1.4.0
   volumes:
     - name: script
       configMap:

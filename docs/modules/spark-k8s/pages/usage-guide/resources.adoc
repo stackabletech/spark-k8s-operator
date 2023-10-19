@@ -58,7 +58,7 @@ To illustrate resource configuration consider the use-case where resources are d
 
 === CPU
 
-CPU request and limit will be rounded up to the next integer value will result in the following:
+CPU request and limit will be rounded up to the next integer value, resulting in the following:
 
 
 |===

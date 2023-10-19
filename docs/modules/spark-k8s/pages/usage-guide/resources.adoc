@@ -77,9 +77,7 @@ CPU request and limit will be rounded up to the next integer value, resulting in
 |2
 |===
 
-As each `SparkApplication` will be used to derive templates for the driver and executor pods (pods which are eventually terminated once the job is complete) it is not so crucial to set a resource request separately: the resource limit will be applied to `spark.conf` settings such that the maximum value is applied for the duration of the application. This means in effect that `config.resources.cpu.min` can be ignored by the user, although the field has not been removed to avoid any possible future breaking changes.
-
-Additionally, Spark allows CPU limits to be set for the driver and executor using standard Spark settings (`spark.{driver|executor}.cores}`) as well as Kubernetes-specific ones (`spark.kubernetes.{driver,executor}.limit.cores`). The CRD values for max. CPU is applied to both of these pairs of settings without making a distinction.
+Spark allows CPU limits to be set for the driver and executor using standard Spark settings (`spark.{driver|executor}.cores}`) as well as Kubernetes-specific ones (`spark.kubernetes.{driver,executor}.{request|limit}.cores`). Since `spark.kubernetes.{driver,executor}.request.cores` takes precedence over `spark.{driver|executor}.cores}`, `spark.{driver|executor}.cores}` is not specified by the operator when building the spark-submit configuration.
 
 === Memory
 

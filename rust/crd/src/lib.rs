@@ -815,18 +815,21 @@ fn resources_to_driver_props(
     props: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
     if let Resources {
-        cpu: CpuLimits { max: Some(max), .. },
+        cpu: CpuLimits {
+            min: Some(min),
+            max: Some(max),
+        },
         ..
     } = &driver_config.resources
     {
-        let cores = cores_from_quantity(max.0.clone())?;
+        let min_cores = cores_from_quantity(min.0.clone())?;
+        let max_cores = cores_from_quantity(max.0.clone())?;
         // will have default value from resources to apply if nothing set specifically
-        props.insert("spark.driver.cores".to_string(), cores.clone());
         props.insert(
             "spark.kubernetes.driver.request.cores".to_string(),
-            cores.clone(),
+            min_cores,
         );
-        props.insert("spark.kubernetes.driver.limit.cores".to_string(), cores);
+        props.insert("spark.kubernetes.driver.limit.cores".to_string(), max_cores);
     }
 
     if let Resources {
@@ -838,22 +841,6 @@ fn resources_to_driver_props(
     {
         let memory = subtract_spark_memory_overhead(for_java, limit)?;
         props.insert("spark.driver.memory".to_string(), memory);
-
-        let limit_mb = format!(
-            "{}m",
-            MemoryQuantity::try_from(limit)
-                .context(FailedToConvertJavaHeapSnafu {
-                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-                })?
-                .scale_to(BinaryMultiple::Mebi)
-                .floor()
-                .value as u32
-        );
-        props.insert(
-            "spark.kubernetes.driver.request.memory".to_string(),
-            limit_mb.clone(),
-        );
-        props.insert("spark.kubernetes.driver.limit.memory".to_string(), limit_mb);
     }
 
     Ok(())
@@ -867,18 +854,24 @@ fn resources_to_executor_props(
     props: &mut BTreeMap<String, String>,
 ) -> Result<(), Error> {
     if let Resources {
-        cpu: CpuLimits { max: Some(max), .. },
+        cpu: CpuLimits {
+            min: Some(min),
+            max: Some(max),
+        },
         ..
     } = &executor_config.resources
     {
-        let cores = cores_from_quantity(max.0.clone())?;
+        let min_cores = cores_from_quantity(min.0.clone())?;
+        let max_cores = cores_from_quantity(max.0.clone())?;
         // will have default value from resources to apply if nothing set specifically
-        props.insert("spark.executor.cores".to_string(), cores.clone());
         props.insert(
             "spark.kubernetes.executor.request.cores".to_string(),
-            cores.clone(),
+            min_cores,
         );
-        props.insert("spark.kubernetes.executor.limit.cores".to_string(), cores);
+        props.insert(
+            "spark.kubernetes.executor.limit.cores".to_string(),
+            max_cores,
+        );
     }
 
     if let Resources {
@@ -890,25 +883,6 @@ fn resources_to_executor_props(
     {
         let memory = subtract_spark_memory_overhead(for_java, limit)?;
         props.insert("spark.executor.memory".to_string(), memory);
-
-        let limit_mb = format!(
-            "{}m",
-            MemoryQuantity::try_from(limit)
-                .context(FailedToConvertJavaHeapSnafu {
-                    unit: BinaryMultiple::Mebi.to_java_memory_unit(),
-                })?
-                .scale_to(BinaryMultiple::Mebi)
-                .floor()
-                .value as u32
-        );
-        props.insert(
-            "spark.kubernetes.executor.request.memory".to_string(),
-            limit_mb.clone(),
-        );
-        props.insert(
-            "spark.kubernetes.executor.limit.memory".to_string(),
-            limit_mb,
-        );
     }
 
     Ok(())
@@ -1070,23 +1044,14 @@ mod tests {
         resources_to_driver_props(true, &driver_config, &mut props).expect("blubb");
 
         let expected: BTreeMap<String, String> = vec![
-            ("spark.driver.cores".to_string(), "1".to_string()),
             ("spark.driver.memory".to_string(), "128m".to_string()),
             (
                 "spark.kubernetes.driver.limit.cores".to_string(),
                 "1".to_string(),
             ),
             (
-                "spark.kubernetes.driver.limit.memory".to_string(),
-                "128m".to_string(),
-            ),
-            (
                 "spark.kubernetes.driver.request.cores".to_string(),
                 "1".to_string(),
-            ),
-            (
-                "spark.kubernetes.driver.request.memory".to_string(),
-                "128m".to_string(),
             ),
         ]
         .into_iter()
@@ -1122,19 +1087,10 @@ mod tests {
         resources_to_executor_props(true, &executor_config, &mut props).expect("blubb");
 
         let expected: BTreeMap<String, String> = vec![
-            ("spark.executor.cores".to_string(), "2".to_string()),
             ("spark.executor.memory".to_string(), "128m".to_string()), // 128 and not 512 because memory overhead is subtracted
             (
-                "spark.kubernetes.executor.limit.memory".to_string(),
-                "512m".to_string(),
-            ),
-            (
                 "spark.kubernetes.executor.request.cores".to_string(),
-                "2".to_string(),
-            ),
-            (
-                "spark.kubernetes.executor.request.memory".to_string(),
-                "512m".to_string(),
+                "1".to_string(),
             ),
             (
                 "spark.kubernetes.executor.limit.cores".to_string(),

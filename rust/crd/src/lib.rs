@@ -465,14 +465,11 @@ impl SparkApplication {
             "-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
         )];
         if tlscerts::tls_secret_names(s3conn, s3_log_dir).is_some() {
-            extra_java_opts.extend(
-                vec![
-                    format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
-                    format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
-                    format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
-                ]
-                .into_iter(),
-            );
+            extra_java_opts.extend(vec![
+                format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
+                format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
+                format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+            ]);
         }
         let str_extra_java_opts = extra_java_opts.join(" ");
         submit_cmd.extend(vec![

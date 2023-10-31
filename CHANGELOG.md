@@ -25,7 +25,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Dynamic loading of Maven packages ([#281]).
-- Re-instated drive/executor cores setting ([#xxx]).
+- Re-instated driver/executor cores setting ([#302]).
 
 ### Removed
 
@@ -42,6 +42,7 @@ All notable changes to this project will be documented in this file.
 [#288]: https://github.com/stackabletech/spark-k8s-operator/pull/288
 [#291]: https://github.com/stackabletech/spark-k8s-operator/pull/291
 [#297]: https://github.com/stackabletech/spark-k8s-operator/pull/297
+[#302]: https://github.com/stackabletech/spark-k8s-operator/pull/302
 
 ## [23.7.0] - 2023-07-14
 

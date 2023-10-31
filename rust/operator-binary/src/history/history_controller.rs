@@ -648,14 +648,11 @@ fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
         format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/config.yaml")
     ];
     if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
-        history_opts.extend(
-            vec![
-                format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
-                format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
-                format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
-            ]
-            .into_iter(),
-        );
+        history_opts.extend(vec![
+            format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
+            format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
+            format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+        ]);
     }
 
     vars.push(EnvVar {

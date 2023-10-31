@@ -77,7 +77,7 @@ CPU request and limit will be rounded up to the next integer value, resulting in
 |2
 |===
 
-Spark allows CPU limits to be set for the driver and executor using standard Spark settings (`spark.{driver|executor}.cores}`) as well as Kubernetes-specific ones (`spark.kubernetes.{driver,executor}.{request|limit}.cores`). Since `spark.kubernetes.{driver,executor}.request.cores` takes precedence over `spark.{driver|executor}.cores}`, `spark.{driver|executor}.cores}` is not specified by the operator when building the spark-submit configuration.
+Spark allows CPU limits to be set for the driver and executor using Spark settings (`spark.{driver|executor}.cores}`) as well as Kubernetes-specific ones (`spark.kubernetes.{driver,executor}.{request|limit}.cores`). `spark.kubernetes.executor.request.cores` takes precedence over `spark.executor.cores` in determining the pod CPU request, but does not affect task parallelism (the number of tasks an executor can run concurrently), so for this reason `spark.executor.cores` is set to the value of `spark.kubernetes.executor.limit.cores`.
 
 === Memory
 

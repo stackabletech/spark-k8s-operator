@@ -25,6 +25,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Dynamic loading of Maven packages ([#281]).
+- Re-instated drive/executor cores setting ([#xxx]).
 
 ### Removed
 

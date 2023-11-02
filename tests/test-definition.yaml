@@ -62,14 +62,14 @@ tests:
     dimensions:
       - spark
       - openshift
-  #- name: logging
-  #  dimensions:
-  #    - spark
-  #    - ny-tlc-report
-  #    - openshift
-  #- name: iceberg
-  #  dimensions:
-  #    - spark
+  - name: logging
+    dimensions:
+      - spark
+      - ny-tlc-report
+      - openshift
+  - name: iceberg
+    dimensions:
+      - spark
 suites:
   - name: nightly
     patch:

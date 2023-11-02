@@ -63,20 +63,22 @@ spec:
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py
   driver:
-    resources:
-      cpu:
-        min: "1"
-        max: "1200m"
-      memory:
-        limit: "1Gi"
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "2"
+        memory:
+          limit: "1Gi"
   executor:
-    instances: 3
-    resources:
-      cpu:
-        min: "1"
-        max: "1200m"
-      memory:
-        limit: "1Gi"
+    replicas: 1
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "2"
+        memory:
+          limit: "1Gi"
 EOF
 # end::install-sparkapp[]
 

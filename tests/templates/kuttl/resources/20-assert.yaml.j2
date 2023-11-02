@@ -3,5 +3,5 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 120
 commands:
-  - script: kubectl get pods -n $NAMESPACE resources-crd-exec-1 -o jsonpath='{.spec.containers[]}' | jq '.env[] | select(.name == "SPARK_EXECUTOR_CORES")'.value | grep "2"
-  - script: kubectl get pods -n $NAMESPACE resources-sparkconf-exec-1 -o jsonpath='{.spec.containers[]}' | jq '.env[] | select(.name == "SPARK_EXECUTOR_CORES")'.value | grep "2"
+  - script: kubectl get pods -n $NAMESPACE resources-crd-exec-1 -o json | jq '.spec.containers[].env[] | select(.name == "SPARK_EXECUTOR_CORES").value' | grep -w "2"
+  - script: kubectl get pods -n $NAMESPACE resources-sparkconf-exec-1 -o json | jq '.spec.containers[].env[] | select(.name == "SPARK_EXECUTOR_CORES").value' | grep -w "2"

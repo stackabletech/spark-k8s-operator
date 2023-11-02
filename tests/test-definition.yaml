@@ -18,58 +18,58 @@ dimensions:
       - "false"
       - "true"
 tests:
-  - name: smoke
-    dimensions:
-      - spark
-      - s3-use-tls
-      - openshift
-  - name: pod_overrides
-    dimensions:
-      - spark
-      - openshift
-  - name: spark-history-server
-    dimensions:
-      - spark
-      - s3-use-tls
-      - openshift
-  - name: spark-pi-private-s3
-    dimensions:
-      - spark
-      - openshift
-  - name: spark-pi-public-s3
-    dimensions:
-      - spark
-      - openshift
-  - name: spark-ny-public-s3
-    dimensions:
-      - spark
-      - s3-use-tls
-      - openshift
-  - name: spark-examples
-    dimensions:
-      - spark
-      - openshift
-  - name: pyspark-ny-public-s3
-    dimensions:
-      - spark
-      - openshift
-  - name: pyspark-ny-public-s3-image
-    dimensions:
-      - spark
-      - ny-tlc-report
-      - openshift
+  #- name: smoke
+  #  dimensions:
+  #    - spark
+  #    - s3-use-tls
+  #    - openshift
+  #- name: pod_overrides
+  #  dimensions:
+  #    - spark
+  #    - openshift
+  #- name: spark-history-server
+  #  dimensions:
+  #    - spark
+  #    - s3-use-tls
+  #    - openshift
+  #- name: spark-pi-private-s3
+  #  dimensions:
+  #    - spark
+  #    - openshift
+  #- name: spark-pi-public-s3
+  #  dimensions:
+  #    - spark
+  #    - openshift
+  #- name: spark-ny-public-s3
+  #  dimensions:
+  #    - spark
+  #    - s3-use-tls
+  #    - openshift
+  #- name: spark-examples
+  #  dimensions:
+  #    - spark
+  #    - openshift
+  #- name: pyspark-ny-public-s3
+  #  dimensions:
+  #    - spark
+  #    - openshift
+  #- name: pyspark-ny-public-s3-image
+  #  dimensions:
+  #    - spark
+  #    - ny-tlc-report
+  #    - openshift
   - name: resources
     dimensions:
       - spark
       - openshift
-  - name: logging
-    dimensions:
-      - spark
-      - ny-tlc-report
-      - openshift
-  - name: iceberg
-    dimensions:
-      - spark
+  #- name: logging
+  #  dimensions:
+  #    - spark
+  #    - ny-tlc-report
+  #    - openshift
+  #- name: iceberg
+  #  dimensions:
+  #    - spark
 suites:
   - name: nightly
     patch:

@@ -32,7 +32,8 @@ allow = [
     "MIT",
     "MPL-2.0",
     "Unicode-DFS-2016",
-    "Zlib"
+    "Zlib",
+    "Unlicense",
 ]
 private = { ignore = true }
 

@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Support PodDisruptionBudgets for HistoryServer ([#288]).
 - Support for versions 3.4.1, 3.5.0 ([#291]).
 - History server now exports metrics via jmx exporter (port 18081) ([#291]).
+- Document graceful shutdown  ([#XXX]).
 
 ### Changed
 

@@ -12,6 +12,5 @@
 ** xref:spark-k8s:usage-guide/operations/index.adoc[]
 *** xref:spark-k8s:usage-guide/operations/pod-placement.adoc[]
 *** xref:spark-k8s:usage-guide/operations/pod-disruptions.adoc[]
-*** xref:spark-k8s:usage-guide/operations/pod-disruptions.adoc[]
 *** xref:spark-k8s:usage-guide/operations/graceful-shutdown.adoc[]
 * xref:spark-k8s:crd-reference.adoc[]

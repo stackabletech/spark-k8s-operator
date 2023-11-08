@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Support PodDisruptionBudgets for HistoryServer ([#288]).
 - Support for versions 3.4.1, 3.5.0 ([#291]).
 - History server now exports metrics via jmx exporter (port 18081) ([#291]).
+- Document graceful shutdown  ([#306]).
 
 ### Changed
 
@@ -43,6 +44,7 @@ All notable changes to this project will be documented in this file.
 [#291]: https://github.com/stackabletech/spark-k8s-operator/pull/291
 [#297]: https://github.com/stackabletech/spark-k8s-operator/pull/297
 [#302]: https://github.com/stackabletech/spark-k8s-operator/pull/302
+[#306]: https://github.com/stackabletech/spark-k8s-operator/pull/306
 
 ## [23.7.0] - 2023-07-14
 

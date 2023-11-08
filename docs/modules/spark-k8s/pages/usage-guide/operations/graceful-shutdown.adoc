@@ -1,0 +1,6 @@
+= Graceful shutdown
+
+Normally you can configure the graceful shutdown as described in xref:concepts:operations/graceful_shutdown.adoc[].
+
+However, the spark-k8s operator does not implement any graceful shutdown mechanism, as the driver and executor Pods are created by Spark itself.
+So it's Spark responsibility to handle the shutdown and recovery of Pods.

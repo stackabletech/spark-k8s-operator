@@ -27,6 +27,11 @@
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
         BINDGEN_EXTRA_CLANG_ARGS = "-I${pkgs.glibc.dev}/include -I${pkgs.clang.cc.lib}/lib/clang/${pkgs.lib.getVersion pkgs.clang.cc}/include";
       };
+      # FIXME: Remove when https://github.com/NixOS/nixpkgs/pull/266787 is merged.
+      # See https://github.com/stackabletech/operator-templating/pull/289 for details.
+      ring = attrs: {
+        CARGO_MANIFEST_LINKS = attrs.links;
+      };
     };
   }
 , meta ? pkgs.lib.importJSON ./nix/meta.json

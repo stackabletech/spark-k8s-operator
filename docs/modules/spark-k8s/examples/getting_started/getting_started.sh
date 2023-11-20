@@ -29,6 +29,7 @@ echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
 helm install --wait commons-operator stackable-dev/commons-operator --version 0.0.0-dev
 helm install --wait secret-operator stackable-dev/secret-operator --version 0.0.0-dev
+helm install --wait listener-operator stackable-dev/listener-operator --version 0.0.0-dev
 helm install --wait spark-k8s-operator stackable-dev/spark-k8s-operator --version 0.0.0-dev
 # end::helm-install-operators[]
 ;;
@@ -38,6 +39,7 @@ echo "installing Operators with stackablectl"
 stackablectl operator install \
   commons=0.0.0-dev \
   secret=0.0.0-dev \
+  listener=0.0.0-dev \
   spark-k8s=0.0.0-dev
 # end::stackablectl-install-operators[]
 ;;

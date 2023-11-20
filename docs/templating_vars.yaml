@@ -5,4 +5,5 @@ helm:
 versions:
   commons: 0.0.0-dev
   secret: 0.0.0-dev
+  listener: 0.0.0-dev
   spark: 0.0.0-dev

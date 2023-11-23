@@ -6,13 +6,15 @@ use std::{
     vec,
 };
 
-use stackable_operator::{product_config::writer::to_java_properties_string, time::Duration};
+use product_config::writer::to_java_properties_string;
+use stackable_operator::time::Duration;
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, tlscerts, RoleConfig, SparkApplication, SparkApplicationRole,
     SparkContainer, SubmitConfig,
 };
 
 use crate::product_logging::{self, resolve_vector_aggregator_address};
+use product_config::types::PropertyNameKind;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::resources::ResourceRequirementsBuilder;
 use stackable_operator::k8s_openapi::DeepMerge;
@@ -39,10 +41,9 @@ use stackable_operator::{
         ResourceExt,
     },
     logging::controller::ReconcilerError,
-    product_config::types::PropertyNameKind,
     product_config_utils::ValidatedRoleConfigByPropertyKind,
     product_logging::{
-        framework::{capture_shell_output, shutdown_vector_command, vector_container},
+        framework::{capture_shell_output, create_vector_shutdown_file_command, vector_container},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig, Logging,
@@ -116,7 +117,7 @@ pub enum Error {
     },
     #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
     JvmSecurityProperties {
-        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        source: product_config::writer::PropertiesWriterError,
         role: SparkApplicationRole,
     },
     #[snafu(display("failed to generate product config"))]
@@ -467,7 +468,7 @@ fn pod_template(
             [
                 // Wait for Vector to gather the logs.
                 "sleep 10",
-                &shutdown_vector_command(VOLUME_MOUNT_PATH_LOG),
+                &create_vector_shutdown_file_command(VOLUME_MOUNT_PATH_LOG),
             ]
             .join("; "),
         );
@@ -713,7 +714,7 @@ fn spark_job(
     if job_config.logging.enable_vector_agent {
         // Wait for Vector to gather the logs.
         args.push("sleep 10".into());
-        args.push(shutdown_vector_command(VOLUME_MOUNT_PATH_LOG));
+        args.push(create_vector_shutdown_file_command(VOLUME_MOUNT_PATH_LOG));
     }
 
     cb.image_from_product_image(spark_image)

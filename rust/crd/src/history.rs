@@ -1,5 +1,6 @@
 use crate::{affinity::history_affinity, constants::*};
 
+use product_config::{types::PropertyNameKind, ProductConfigManager};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::role_utils::RoleGroup;
@@ -21,7 +22,6 @@ use stackable_operator::{
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
     kube::{runtime::reflector::ObjectRef, ResourceExt},
-    product_config::{types::PropertyNameKind, ProductConfigManager},
     product_config_utils::{
         transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
         ValidatedRoleConfigByPropertyKind,

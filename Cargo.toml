@@ -1,7 +1,5 @@
 [workspace]
-members = [
-    "rust/crd", "rust/operator-binary"
-]
+members = ["rust/crd", "rust/operator-binary"]
 
 [workspace.package]
 version = "0.0.0-dev"
@@ -12,9 +10,10 @@ repository = "https://github.com/stackabletech/spark-k8s-operator"
 
 [workspace.dependencies]
 anyhow = "1.0"
-built = { version =  "0.6", features = ["chrono", "git2"] }
+built = { version = "0.6", features = ["chrono", "git2"] }
 clap = "4.3"
 futures = { version = "0.3", features = ["compat"] }
+product-config = { git = "https://github.com/stackabletech/product-config.git", tag = "0.6.0" }
 rstest = "0.18"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }

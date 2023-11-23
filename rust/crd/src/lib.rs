@@ -10,11 +10,11 @@ pub mod tlscerts;
 pub use crate::roles::*;
 use constants::*;
 use history::LogFileDirectorySpec;
+use product_config::{types::PropertyNameKind, ProductConfigManager};
 use s3logdir::S3LogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::builder::SecretFormat;
-use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
     ValidatedRoleConfigByPropertyKind,
@@ -35,7 +35,6 @@ use stackable_operator::{
     kube::{CustomResource, ResourceExt},
     labels::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
-    product_config::types::PropertyNameKind,
     product_logging,
     role_utils::{CommonConfiguration, Role, RoleGroup},
     schemars::{self, JsonSchema},
@@ -892,11 +891,11 @@ mod tests {
     use crate::{cores_from_quantity, resources_to_executor_props, RoleConfig};
     use crate::{resources_to_driver_props, SparkApplication};
     use crate::{Quantity, SparkStorageConfig};
+    use product_config::{types::PropertyNameKind, ProductConfigManager};
     use stackable_operator::commons::affinity::StackableAffinity;
     use stackable_operator::commons::resources::{
         CpuLimits, MemoryLimits, NoRuntimeLimits, Resources,
     };
-    use stackable_operator::product_config::{types::PropertyNameKind, ProductConfigManager};
     use stackable_operator::product_config_utils::ValidatedRoleConfigByPropertyKind;
     use stackable_operator::product_logging::spec::Logging;
 

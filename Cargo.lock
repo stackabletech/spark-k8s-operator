@@ -1994,6 +1994,7 @@ name = "stackable-spark-k8s-crd"
 version = "0.0.0-dev"
 dependencies = [
  "indoc",
+ "product-config",
  "rstest",
  "semver",
  "serde",
@@ -2013,6 +2014,7 @@ dependencies = [
  "built",
  "clap",
  "futures 0.3.28",
+ "product-config",
  "semver",
  "serde",
  "serde_json",

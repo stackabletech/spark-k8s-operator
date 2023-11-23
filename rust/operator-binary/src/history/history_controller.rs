@@ -1,6 +1,7 @@
 use crate::history::operations::pdb::add_pdbs;
 use crate::product_logging::{self, resolve_vector_aggregator_address};
 use crate::Ctx;
+use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -21,7 +22,6 @@ use stackable_operator::{
         Resource, ResourceExt,
     },
     labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
-    product_config::{types::PropertyNameKind, writer::to_java_properties_string},
     product_logging::{
         framework::{calculate_log_volume_size_limit, vector_container},
         spec::{
@@ -134,7 +134,7 @@ pub enum Error {
         rolegroup
     ))]
     JvmSecurityProperties {
-        source: stackable_operator::product_config::writer::PropertiesWriterError,
+        source: product_config::writer::PropertiesWriterError,
         rolegroup: String,
     },
     #[snafu(display("failed to create PodDisruptionBudget"))]

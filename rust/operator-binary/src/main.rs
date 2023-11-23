@@ -8,13 +8,13 @@ use std::sync::Arc;
 use clap::{crate_description, crate_version, Parser};
 use futures::StreamExt;
 use history::history_controller;
+use product_config::ProductConfigManager;
 use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;
 use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
 use stackable_operator::kube::runtime::{controller::Controller, watcher};
 use stackable_operator::logging::controller::report_controller_reconciled;
-use stackable_operator::product_config::ProductConfigManager;
 use stackable_operator::CustomResourceExt;
 use stackable_spark_k8s_crd::constants::{
     CONTROLLER_NAME, HISTORY_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_CONTROLLER_NAME,

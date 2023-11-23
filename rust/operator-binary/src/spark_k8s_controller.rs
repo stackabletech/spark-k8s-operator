@@ -43,7 +43,7 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     product_config_utils::ValidatedRoleConfigByPropertyKind,
     product_logging::{
-        framework::{capture_shell_output, shutdown_vector_command, vector_container},
+        framework::{capture_shell_output, create_vector_shutdown_file_command, vector_container},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig, Logging,
@@ -468,7 +468,7 @@ fn pod_template(
             [
                 // Wait for Vector to gather the logs.
                 "sleep 10",
-                &shutdown_vector_command(VOLUME_MOUNT_PATH_LOG),
+                &create_vector_shutdown_file_command(VOLUME_MOUNT_PATH_LOG),
             ]
             .join("; "),
         );
@@ -714,7 +714,7 @@ fn spark_job(
     if job_config.logging.enable_vector_agent {
         // Wait for Vector to gather the logs.
         args.push("sleep 10".into());
-        args.push(shutdown_vector_command(VOLUME_MOUNT_PATH_LOG));
+        args.push(create_vector_shutdown_file_command(VOLUME_MOUNT_PATH_LOG));
     }
 
     cb.image_from_product_image(spark_image)

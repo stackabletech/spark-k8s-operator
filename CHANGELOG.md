@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Add missing `deletecollection` RBAC permission for Spark drivers. Previously this caused confusing error
+  messages in the spark driver log (`User "system:serviceaccount:default:my-spark-app" cannot deletecollection resource "configmaps" in API group "" in the namespace "default".`) ([#XXX]).
+
 ## [23.11.0] - 2023-11-24
 
 ### Added

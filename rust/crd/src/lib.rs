@@ -82,6 +82,12 @@ pub struct SparkApplicationStatus {
     pub phase: String,
 }
 
+/// A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark.
+/// Find more information on how to use it and the resources that the operator generates in the
+/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/).
+///
+/// The SparkApplication CRD looks a little different than the CRDs of the other products on the
+/// Stackable Data Platform.
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "spark.stackable.tech",
@@ -98,41 +104,67 @@ pub struct SparkApplicationStatus {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct SparkApplicationSpec {
+    /// Application version. TODO what is the default?
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main_class: Option<String>,
+
+    /// The actual application file that will be called by `spark-submit`.
+    /// TODO: What is the default?
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main_application_file: Option<String>,
+
+    /// User-supplied image containing spark-job dependencies that will be copied to the specified volume mount.
+    /// TODO: Where will they be copied from? Where to? docs link?
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
+
+    // no doc - docs in ProductImage struct.
     pub spark_image: ProductImage,
-    /// Name of the Vector aggregator discovery ConfigMap.
+
+    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+    /// to learn how to configure log aggregation with Vector.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<CommonConfiguration<SubmitConfigFragment>>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<CommonConfiguration<RoleConfigFragment>>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<RoleGroup<RoleConfigFragment>>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped: Option<bool>,
+
+    /// 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_conf: Option<HashMap<String, String>>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deps: Option<JobDependencies>,
+
+    /// Configure an S3 connection that the SparkApplication has access to.
+    /// Read more in the [Spark S3 usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/s3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3connection: Option<S3ConnectionDef>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<Vec<String>>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volumes: Option<Vec<Volume>>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<EnvVar>>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log_file_directory: Option<LogFileDirectorySpec>,
 }
@@ -140,12 +172,20 @@ pub struct SparkApplicationSpec {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobDependencies {
+    /// Under the `requirements` you can specify Python dependencies that will be installed with `pip`.
+    /// Example: `tabulate==0.8.9`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requirements: Option<Vec<String>>,
+
+    /// A list of packages that is passed directly to `spark-submit`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub packages: Option<Vec<String>>,
+
+    /// A list of repositories that is passed directly to `spark-submit`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repositories: Option<Vec<String>>,
+
+    /// A list of excluded packages that is passed directly to `spark-submit`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclude_packages: Option<Vec<String>>,
 }

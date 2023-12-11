@@ -23,6 +23,10 @@ spec:
           description: Auto-generated derived type for SparkApplicationSpec via `CustomResource`
           properties:
             spec:
+              description: |-
+                A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it and the resources that the operator generates in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/).
+
+                The SparkApplication CRD looks a little different than the CRDs of the other products on the Stackable Data Platform.
               properties:
                 args:
                   items:
@@ -33,21 +37,25 @@ spec:
                   nullable: true
                   properties:
                     excludePackages:
+                      description: A list of excluded packages that is passed directly to `spark-submit`.
                       items:
                         type: string
                       nullable: true
                       type: array
                     packages:
+                      description: A list of packages that is passed directly to `spark-submit`.
                       items:
                         type: string
                       nullable: true
                       type: array
                     repositories:
+                      description: A list of repositories that is passed directly to `spark-submit`.
                       items:
                         type: string
                       nullable: true
                       type: array
                     requirements:
+                      description: 'Under the `requirements` you can specify Python dependencies that will be installed with `pip`. Example: `tabulate==0.8.9`'
                       items:
                         type: string
                       nullable: true
@@ -7060,6 +7068,7 @@ spec:
                       type: object
                   type: object
                 image:
+                  description: 'User-supplied image containing spark-job dependencies that will be copied to the specified volume mount. TODO: Where will they be copied from? Where to? docs link?'
                   nullable: true
                   type: string
                 job:
@@ -10145,6 +10154,7 @@ spec:
                       type: object
                   type: object
                 mainApplicationFile:
+                  description: 'The actual application file that will be called by `spark-submit`. TODO: What is the default?'
                   nullable: true
                   type: string
                 mainClass:
@@ -10154,7 +10164,7 @@ spec:
                   nullable: true
                   type: string
                 s3connection:
-                  description: Operators are expected to define fields for this type in order to work with S3 connections.
+                  description: Configure an S3 connection that the SparkApplication has access to. Read more in the [Spark S3 usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/s3).
                   nullable: true
                   oneOf:
                     - required:
@@ -10308,10 +10318,11 @@ spec:
                   nullable: true
                   type: boolean
                 vectorAggregatorConfigMapName:
-                  description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.
+                  description: Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery). It must contain the key `ADDRESS` with the address of the Vector aggregator. Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator) to learn how to configure log aggregation with Vector.
                   nullable: true
                   type: string
                 version:
+                  description: Application version. TODO what is the default?
                   nullable: true
                   type: string
                 volumes:
@@ -11434,6 +11445,7 @@ spec:
           description: Auto-generated derived type for SparkHistoryServerSpec via `CustomResource`
           properties:
             spec:
+              description: TODO
               properties:
                 clusterConfig:
                   default:

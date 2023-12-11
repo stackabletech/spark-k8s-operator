@@ -49,6 +49,7 @@ pub enum Error {
     CannotRetrieveRoleGroup { role_group: String },
 }
 
+/// TODO
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "spark.stackable.tech",

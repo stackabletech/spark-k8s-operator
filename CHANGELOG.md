@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Various documentation of the CRD ([#319]).
+
+[#319]: https://github.com/stackabletech/spark-k8s-operator/pull/319
+
 ### Fixed
 
 - Add missing `deletecollection` RBAC permission for Spark drivers. Previously this caused confusing error

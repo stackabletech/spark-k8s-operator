@@ -51,8 +51,8 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => {
-            SparkApplication::print_yaml_schema()?;
-            SparkHistoryServer::print_yaml_schema()?;
+            SparkApplication::print_yaml_schema(built_info::CARGO_PKG_VERSION)?;
+            SparkHistoryServer::print_yaml_schema(built_info::CARGO_PKG_VERSION)?;
         }
         Command::Run(ProductOperatorRun {
             product_config,

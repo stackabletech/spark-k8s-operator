@@ -129,12 +129,18 @@ pub struct SparkApplicationSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
 
+    /// The job builds a spark-submit command, complete with arguments and referenced dependencies
+    /// such as templates, and passes it on to Spark.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<CommonConfiguration<SubmitConfigFragment>>,
 
+    /// The driver role specifies the configuration that, together with the driver pod template, is used by
+    /// Spark to create driver pods.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<CommonConfiguration<RoleConfigFragment>>,
 
+    /// The executor role specifies the configuration that, together with the driver pod template, is used by
+    /// Spark to create the executor pods.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<RoleGroup<RoleConfigFragment>>,
 
@@ -142,6 +148,9 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_conf: Option<HashMap<String, String>>,
 
+    /// Job dependencies: a list of python packages that will be installed via pip, a list of packages
+    /// or repositories that is passed directly to spark-submit, or a list of excluded packages
+    /// (also passed directly to spark-submit).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deps: Option<JobDependencies>,
 
@@ -150,15 +159,21 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3connection: Option<S3ConnectionDef>,
 
+    /// Arguments passed directly to the job artifact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<Vec<String>>,
 
+    /// A list of volumes that can be made available to the job, driver or executors via their volume mounts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub volumes: Option<Vec<Volume>>,
 
+    /// A list of environment variables that will be set in the job pod and the driver and executor
+    /// pod templates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<EnvVar>>,
 
+    /// The log file directory definition used by the Spark history server.
+    /// Currently only S3 buckets are supported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log_file_directory: Option<LogFileDirectorySpec>,
 }
@@ -943,7 +958,6 @@ mod tests {
             kind: SparkApplication
             metadata:
               name: spark-examples
-
             spec:
               mode: cluster
               mainApplicationFile: test.py

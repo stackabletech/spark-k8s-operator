@@ -29,11 +29,13 @@ spec:
                 The SparkApplication CRD looks a little different than the CRDs of the other products on the Stackable Data Platform.
               properties:
                 args:
+                  description: Arguments passed directly to the job artifact.
                   items:
                     type: string
                   nullable: true
                   type: array
                 deps:
+                  description: 'Job dependencies: a list of python packages that will be installed via pip, a list of packages or repositories that is passed directly to spark-submit, or a list of excluded packages (also passed directly to spark-submit).'
                   nullable: true
                   properties:
                     excludePackages:
@@ -62,6 +64,7 @@ spec:
                       type: array
                   type: object
                 driver:
+                  description: The driver role specifies the configuration that, together with the driver pod template, is used by Spark to create driver pods.
                   nullable: true
                   properties:
                     cliOverrides:
@@ -3509,6 +3512,7 @@ spec:
                       type: object
                   type: object
                 env:
+                  description: A list of environment variables that will be set in the job pod and the driver and executor pod templates.
                   items:
                     description: EnvVar represents an environment variable present in a Container.
                     properties:
@@ -3585,6 +3589,7 @@ spec:
                   nullable: true
                   type: array
                 executor:
+                  description: The executor role specifies the configuration that, together with the driver pod template, is used by Spark to create the executor pods.
                   nullable: true
                   properties:
                     cliOverrides:
@@ -7072,6 +7077,7 @@ spec:
                   nullable: true
                   type: string
                 job:
+                  description: The job builds a spark-submit command, complete with arguments and referenced dependencies such as templates, and passes it on to Spark.
                   nullable: true
                   properties:
                     cliOverrides:
@@ -10019,6 +10025,7 @@ spec:
                       type: object
                   type: object
                 logFileDirectory:
+                  description: The log file directory definition used by the Spark history server. Currently only S3 buckets are supported.
                   nullable: true
                   oneOf:
                     - required:
@@ -10320,6 +10327,7 @@ spec:
                   nullable: true
                   type: string
                 volumes:
+                  description: A list of volumes that can be made available to the job, driver or executors via their volume mounts.
                   items:
                     description: Volume represents a named volume in a pod that may be accessed by any container in the pod.
                     properties:
@@ -11441,12 +11449,12 @@ spec:
           description: Auto-generated derived type for SparkHistoryServerSpec via `CustomResource`
           properties:
             spec:
-              description: TODO
+              description: A Spark cluster history server component. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/history-server).
               properties:
                 clusterConfig:
                   default:
                     listenerClass: cluster-internal
-                  description: Global Spark history server configuration that applies to all roles and role groups
+                  description: Global Spark history server configuration that applies to all roles and role groups.
                   properties:
                     listenerClass:
                       default: cluster-internal
@@ -11513,6 +11521,7 @@ spec:
                       type: string
                   type: object
                 logFileDirectory:
+                  description: The log file directory definition used by the Spark history server. Currently only S3 buckets are supported.
                   oneOf:
                     - required:
                         - s3
@@ -11647,7 +11656,7 @@ spec:
                       type: object
                   type: object
                 nodes:
-                  description: This struct represents a role - e.g. HDFS datanodes or Trino workers. It has a [`HashMap`] containing all the roleGroups that are part of this role. Additionally, there is a `config`, which is configurable at the role *and* roleGroup level. Everything at roleGroup level is merged on top of what is configured on role level using the [`Merge`] trait. There is also a second form of config, which can only be configured at role level, the `roleConfig`.
+                  description: A history server node role definition.
                   properties:
                     cliOverrides:
                       additionalProperties:
@@ -18563,6 +18572,7 @@ spec:
                   additionalProperties:
                     type: string
                   default: {}
+                  description: A map of key/value strings that will be passed directly to Spark when deploying the history server.
                   type: object
                 vectorAggregatorConfigMapName:
                   description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.

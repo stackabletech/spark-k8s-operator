@@ -7068,7 +7068,7 @@ spec:
                       type: object
                   type: object
                 image:
-                  description: 'User-supplied image containing spark-job dependencies that will be copied to the specified volume mount. TODO: Where will they be copied from? Where to? docs link?'
+                  description: User-supplied image containing spark-job dependencies that will be copied to the specified volume mount. See the [examples](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/examples).
                   nullable: true
                   type: string
                 job:
@@ -10154,14 +10154,14 @@ spec:
                       type: object
                   type: object
                 mainApplicationFile:
-                  description: 'The actual application file that will be called by `spark-submit`. TODO: What is the default?'
-                  nullable: true
+                  description: The actual application file that will be called by `spark-submit`.
                   type: string
                 mainClass:
+                  description: The main class - i.e. entry point - for JVM artifacts.
                   nullable: true
                   type: string
                 mode:
-                  nullable: true
+                  description: 'Mode: cluster or client. Currently only cluster is supported.'
                   type: string
                 s3connection:
                   description: Configure an S3 connection that the SparkApplication has access to. Read more in the [Spark S3 usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/s3).
@@ -10266,6 +10266,7 @@ spec:
                 sparkConf:
                   additionalProperties:
                     type: string
+                  description: A map of key/value strings that will be passed directly to spark-submit.
                   nullable: true
                   type: object
                 sparkImage:
@@ -10314,15 +10315,8 @@ spec:
                       nullable: true
                       type: string
                   type: object
-                stopped:
-                  nullable: true
-                  type: boolean
                 vectorAggregatorConfigMapName:
                   description: Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery). It must contain the key `ADDRESS` with the address of the Vector aggregator. Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator) to learn how to configure log aggregation with Vector.
-                  nullable: true
-                  type: string
-                version:
-                  description: Application version. TODO what is the default?
                   nullable: true
                   type: string
                 volumes:
@@ -11402,6 +11396,8 @@ spec:
                   nullable: true
                   type: array
               required:
+                - mainApplicationFile
+                - mode
                 - sparkImage
               type: object
             status:

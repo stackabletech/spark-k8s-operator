@@ -104,21 +104,18 @@ pub struct SparkApplicationStatus {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct SparkApplicationSpec {
-    /// Application version. TODO what is the default?
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<String>,
+    /// Mode: cluster or client. Currently only cluster is supported.
+    pub mode: String,
+
+    /// The main class - i.e. entry point - for JVM artifacts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main_class: Option<String>,
 
     /// The actual application file that will be called by `spark-submit`.
-    /// TODO: What is the default?
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub main_application_file: Option<String>,
+    pub main_application_file: String,
 
     /// User-supplied image containing spark-job dependencies that will be copied to the specified volume mount.
-    /// TODO: Where will they be copied from? Where to? docs link?
+    /// See the [examples](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/examples).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
 
@@ -141,10 +138,7 @@ pub struct SparkApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<RoleGroup<RoleConfigFragment>>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stopped: Option<bool>,
-
-    /// 
+    /// A map of key/value strings that will be passed directly to spark-submit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spark_conf: Option<HashMap<String, String>>,
 
@@ -199,20 +193,16 @@ impl SparkApplication {
         format!("{app_name}-{role}-pod-template", app_name = self.name_any())
     }
 
-    pub fn mode(&self) -> Option<&str> {
-        self.spec.mode.as_deref()
+    pub fn mode(&self) -> &str {
+        self.spec.mode.as_ref()
     }
 
     pub fn image(&self) -> Option<&str> {
         self.spec.image.as_deref()
     }
 
-    pub fn version(&self) -> Option<&str> {
-        self.spec.version.as_deref()
-    }
-
-    pub fn application_artifact(&self) -> Option<&str> {
-        self.spec.main_application_file.as_deref()
+    pub fn application_artifact(&self) -> &str {
+        self.spec.main_application_file.as_ref()
     }
 
     pub fn requirements(&self) -> Option<String> {
@@ -418,11 +408,15 @@ impl SparkApplication {
         mounts
     }
 
-    pub fn build_recommended_labels<'a>(&'a self, role: &'a str) -> ObjectLabels<SparkApplication> {
+    pub fn build_recommended_labels<'a>(
+        &'a self,
+        app_version: &'a str,
+        role: &'a str,
+    ) -> ObjectLabels<SparkApplication> {
         ObjectLabels {
             owner: self,
             app_name: APP_NAME,
-            app_version: self.version().unwrap(),
+            app_version, // TODO &resolved_product_image.app_version_label,
             operator_name: OPERATOR_NAME,
             controller_name: CONTROLLER_NAME,
             role,
@@ -438,7 +432,7 @@ impl SparkApplication {
         spark_image: &str,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
-        let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
+        let mode = self.mode();
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
         let mut submit_cmd: Vec<String> = vec![];
@@ -585,9 +579,7 @@ impl SparkApplication {
                 .map(|mc| format! {"--class {mc}"}),
         );
 
-        let artifact = self
-            .application_artifact()
-            .context(ObjectHasNoArtifactSnafu)?;
+        let artifact = self.application_artifact();
         submit_cmd.push(artifact.to_string());
 
         if let Some(job_args) = self.spec.args.clone() {
@@ -951,7 +943,10 @@ mod tests {
             kind: SparkApplication
             metadata:
               name: spark-examples
+
             spec:
+              mode: cluster
+              mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
         "})
@@ -979,6 +974,8 @@ mod tests {
             metadata:
               name: spark-examples
             spec:
+              mode: cluster
+              mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
               job:
@@ -1152,6 +1149,8 @@ mod tests {
             metadata:
               name: spark-examples
             spec:
+              mode: cluster
+              mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
         "#})

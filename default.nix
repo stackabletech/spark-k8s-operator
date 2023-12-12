@@ -20,17 +20,18 @@
         nativeBuildInputs = [ pkgs.pkg-config ];
         buildInputs = [ pkgs.krb5 ];
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-        BINDGEN_EXTRA_CLANG_ARGS = "-I${pkgs.glibc.dev}/include -I${pkgs.clang.cc.lib}/lib/clang/${pkgs.lib.getVersion pkgs.clang.cc}/include";
+        # Clang's resource directory is located at ${pkgs.clang.cc.lib}/lib/clang/<version>.
+        # Starting with Clang 16, only the major version is used for the resource directory,
+        # whereas the full version was used in prior Clang versions (see
+        # https://github.com/llvm/llvm-project/commit/e1b88c8a09be25b86b13f98755a9bd744b4dbf14).
+        # The clang wrapper ${pkgs.clang} provides a symlink to the resource directory, which
+        # we use instead.
+        BINDGEN_EXTRA_CLANG_ARGS = "-I${pkgs.glibc.dev}/include -I${pkgs.clang}/resource-root/include";
       };
       libgssapi-sys = attrs: {
         buildInputs = [ pkgs.krb5 ];
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-        BINDGEN_EXTRA_CLANG_ARGS = "-I${pkgs.glibc.dev}/include -I${pkgs.clang.cc.lib}/lib/clang/${pkgs.lib.getVersion pkgs.clang.cc}/include";
-      };
-      # FIXME: Remove when https://github.com/NixOS/nixpkgs/pull/266787 is merged.
-      # See https://github.com/stackabletech/operator-templating/pull/289 for details.
-      ring = attrs: {
-        CARGO_MANIFEST_LINKS = attrs.links;
+        BINDGEN_EXTRA_CLANG_ARGS = "-I${pkgs.glibc.dev}/include -I${pkgs.clang}/resource-root/include";
       };
     };
   }

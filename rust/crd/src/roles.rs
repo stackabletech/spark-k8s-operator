@@ -90,6 +90,7 @@ pub enum SparkContainer {
 }
 #[derive(Clone, Debug, Deserialize, Display, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum SparkMode {
     Cluster,
     Client,

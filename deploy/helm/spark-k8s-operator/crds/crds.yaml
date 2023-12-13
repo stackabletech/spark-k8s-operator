@@ -35,8 +35,12 @@ spec:
                     type: string
                   type: array
                 deps:
+                  default:
+                    requirements: []
+                    packages: []
+                    repositories: []
+                    excludePackages: []
                   description: 'Job dependencies: a list of python packages that will be installed via pip, a list of packages or repositories that is passed directly to spark-submit, or a list of excluded packages (also passed directly to spark-submit).'
-                  nullable: true
                   properties:
                     excludePackages:
                       default: []
@@ -10172,6 +10176,9 @@ spec:
                   type: string
                 mode:
                   description: 'Mode: cluster or client. Currently only cluster is supported.'
+                  enum:
+                    - cluster
+                    - client
                   type: string
                 s3connection:
                   description: Configure an S3 connection that the SparkApplication has access to. Read more in the [Spark S3 usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/s3).

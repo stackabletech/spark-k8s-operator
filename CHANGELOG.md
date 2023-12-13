@@ -7,7 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Various documentation of the CRD ([#319]).
-- [BREAKING] Removed version field ([#319]).
+- [BREAKING] Removed version field. Several attributes have been changed to mandatory. While this change is technically breaking, 
+  existing Spark jobs would not have worked before as these attributes were necessary ([#319]).
 
 [#319]: https://github.com/stackabletech/spark-k8s-operator/pull/319
 

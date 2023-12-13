@@ -5,7 +5,6 @@ metadata:
   name: example-sparkapp-external-dependencies
   namespace: default
 spec:
-  version: "1.0"
   sparkImage:
     productVersion: 3.5.0
   mode: cluster

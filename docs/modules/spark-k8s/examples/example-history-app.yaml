@@ -4,7 +4,6 @@ kind: SparkApplication
 metadata:
   name: spark-pi-s3-1
 spec:
-  version: "1.0"
   sparkImage:
     productVersion: 3.5.0
     pullPolicy: IfNotPresent

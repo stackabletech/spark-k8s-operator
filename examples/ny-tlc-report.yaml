@@ -12,7 +12,6 @@ kind: SparkApplication
 metadata:
   name: spark-ny-cm
 spec:
-  version: "1.0"
   sparkImage:
     productVersion: 3.5.0
   mode: cluster

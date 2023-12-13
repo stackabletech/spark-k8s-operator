@@ -4,7 +4,6 @@ kind: SparkApplication
 metadata:
   name: pyspark-ny-public-s3-image
 spec:
-  version: "1.0"
   # everything under /jobs will be copied to /stackable/spark/jobs
   image: "docker.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}"
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

@@ -4,7 +4,6 @@ kind: SparkApplication
 metadata:
   name: spark-pi
 spec:
-  version: "1.0"
   sparkImage:
     productVersion: 3.5.0 # <1>
   mode: cluster

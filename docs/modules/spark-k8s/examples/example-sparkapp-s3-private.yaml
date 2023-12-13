@@ -4,7 +4,6 @@ kind: SparkApplication
 metadata:
   name: example-sparkapp-s3-private
 spec:
-  version: "1.0"
   sparkImage:
     productVersion: 3.5.0
   mode: cluster

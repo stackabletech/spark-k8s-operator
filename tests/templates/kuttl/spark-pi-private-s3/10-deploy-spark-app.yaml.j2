@@ -4,7 +4,6 @@ kind: SparkApplication
 metadata:
   name: spark-pi-private-s3
 spec:
-  version: "1.0"
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

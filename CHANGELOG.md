@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Various documentation of the CRD ([#319]).
+- [BREAKING] Removed version field ([#319]).
 
 [#319]: https://github.com/stackabletech/spark-k8s-operator/pull/319
 

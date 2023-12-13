@@ -145,8 +145,8 @@ pub struct SparkApplicationSpec {
     pub executor: Option<RoleGroup<RoleConfigFragment>>,
 
     /// A map of key/value strings that will be passed directly to spark-submit.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_conf: Option<HashMap<String, String>>,
+    #[serde(default)]
+    pub spark_conf: HashMap<String, String>,
 
     /// Job dependencies: a list of python packages that will be installed via pip, a list of packages
     /// or repositories that is passed directly to spark-submit, or a list of excluded packages
@@ -160,17 +160,17 @@ pub struct SparkApplicationSpec {
     pub s3connection: Option<S3ConnectionDef>,
 
     /// Arguments passed directly to the job artifact.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub args: Option<Vec<String>>,
+    #[serde(default)]
+    pub args: Vec<String>,
 
     /// A list of volumes that can be made available to the job, driver or executors via their volume mounts.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub volumes: Option<Vec<Volume>>,
+    #[serde(default)]
+    pub volumes: Vec<Volume>,
 
     /// A list of environment variables that will be set in the job pod and the driver and executor
     /// pod templates.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub env: Option<Vec<EnvVar>>,
+    #[serde(default)]
+    pub env: Vec<EnvVar>,
 
     /// The log file directory definition used by the Spark history server.
     /// Currently only S3 buckets are supported.
@@ -183,20 +183,20 @@ pub struct SparkApplicationSpec {
 pub struct JobDependencies {
     /// Under the `requirements` you can specify Python dependencies that will be installed with `pip`.
     /// Example: `tabulate==0.8.9`
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requirements: Option<Vec<String>>,
+    #[serde(default)]
+    pub requirements: Vec<String>,
 
     /// A list of packages that is passed directly to `spark-submit`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub packages: Option<Vec<String>>,
+    #[serde(default)]
+    pub packages: Vec<String>,
 
     /// A list of repositories that is passed directly to `spark-submit`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub repositories: Option<Vec<String>>,
+    #[serde(default)]
+    pub repositories: Vec<String>,
 
     /// A list of excluded packages that is passed directly to `spark-submit`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exclude_packages: Option<Vec<String>>,
+    #[serde(default)]
+    pub exclude_packages: Vec<String>,
 }
 
 impl SparkApplication {
@@ -224,16 +224,15 @@ impl SparkApplication {
         self.spec
             .deps
             .as_ref()
-            .and_then(|deps| deps.requirements.as_ref())
+            .map(|deps| &deps.requirements)
             .map(|req| req.join(" "))
     }
 
     pub fn packages(&self) -> Vec<String> {
-        self.spec
-            .deps
-            .as_ref()
-            .and_then(|deps| deps.packages.clone())
-            .unwrap_or_default()
+        match self.spec.deps.as_ref() {
+            Some(deps) => deps.clone().packages,
+            None => Vec::new(),
+        }
     }
 
     pub fn volumes(
@@ -242,14 +241,7 @@ impl SparkApplication {
         s3logdir: &Option<S3LogDir>,
         log_config_map: &str,
     ) -> Vec<Volume> {
-        let mut result: Vec<Volume> = self
-            .spec
-            .volumes
-            .as_ref()
-            .iter()
-            .flat_map(|v| v.iter())
-            .cloned()
-            .collect();
+        let mut result: Vec<Volume> = self.spec.volumes.clone();
 
         if self.spec.image.is_some() {
             result.push(
@@ -527,14 +519,14 @@ impl SparkApplication {
 
         // repositories and packages arguments
         if let Some(deps) = self.spec.deps.clone() {
-            submit_cmd.extend(
-                deps.repositories
-                    .map(|r| format!("--repositories {}", r.join(","))),
-            );
-            submit_cmd.extend(
-                deps.packages
-                    .map(|p| format!("--conf spark.jars.packages={}", p.join(","))),
-            );
+            submit_cmd.extend(vec![format!(
+                "--repositories {}",
+                deps.repositories.join(",")
+            )]);
+            submit_cmd.extend(vec![format!(
+                "--conf spark.jars.packages={}",
+                deps.packages.join(",")
+            )]);
         }
 
         // some command elements need to be initially stored in a map (to allow overwrites) and
@@ -579,9 +571,8 @@ impl SparkApplication {
         }
 
         // conf arguments: these should follow - and thus override - values set from resource limits above
-        if let Some(spark_conf) = self.spec.spark_conf.clone() {
-            submit_conf.extend(spark_conf);
-        }
+        submit_conf.extend(self.spec.spark_conf.clone());
+
         // ...before being added to the command collection
         for (key, value) in submit_conf {
             submit_cmd.push(format!("--conf \"{key}={value}\""));
@@ -597,9 +588,7 @@ impl SparkApplication {
         let artifact = self.application_artifact();
         submit_cmd.push(artifact.to_string());
 
-        if let Some(job_args) = self.spec.args.clone() {
-            submit_cmd.extend(job_args);
-        }
+        submit_cmd.extend(self.spec.args.clone());
 
         Ok(submit_cmd)
     }
@@ -609,8 +598,7 @@ impl SparkApplication {
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<EnvVar> {
-        let tmp = self.spec.env.as_ref();
-        let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
+        let mut e: Vec<EnvVar> = self.spec.env.clone();
         if self.requirements().is_some() {
             e.push(EnvVar {
                 name: "PYTHONPATH".to_string(),

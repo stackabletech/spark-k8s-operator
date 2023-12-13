@@ -29,38 +29,38 @@ spec:
                 The SparkApplication CRD looks a little different than the CRDs of the other products on the Stackable Data Platform.
               properties:
                 args:
+                  default: []
                   description: Arguments passed directly to the job artifact.
                   items:
                     type: string
-                  nullable: true
                   type: array
                 deps:
                   description: 'Job dependencies: a list of python packages that will be installed via pip, a list of packages or repositories that is passed directly to spark-submit, or a list of excluded packages (also passed directly to spark-submit).'
                   nullable: true
                   properties:
                     excludePackages:
+                      default: []
                       description: A list of excluded packages that is passed directly to `spark-submit`.
                       items:
                         type: string
-                      nullable: true
                       type: array
                     packages:
+                      default: []
                       description: A list of packages that is passed directly to `spark-submit`.
                       items:
                         type: string
-                      nullable: true
                       type: array
                     repositories:
+                      default: []
                       description: A list of repositories that is passed directly to `spark-submit`.
                       items:
                         type: string
-                      nullable: true
                       type: array
                     requirements:
+                      default: []
                       description: 'Under the `requirements` you can specify Python dependencies that will be installed with `pip`. Example: `tabulate==0.8.9`'
                       items:
                         type: string
-                      nullable: true
                       type: array
                   type: object
                 driver:
@@ -3512,6 +3512,7 @@ spec:
                       type: object
                   type: object
                 env:
+                  default: []
                   description: A list of environment variables that will be set in the job pod and the driver and executor pod templates.
                   items:
                     description: EnvVar represents an environment variable present in a Container.
@@ -3586,7 +3587,6 @@ spec:
                     required:
                       - name
                     type: object
-                  nullable: true
                   type: array
                 executor:
                   description: The executor role specifies the configuration that, together with the driver pod template, is used by Spark to create the executor pods.
@@ -10068,27 +10068,30 @@ spec:
                                           nullable: true
                                           type: string
                                         credentials:
-                                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a SecretClass providing `accessKey` and `secretKey` is sufficient.
+                                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) providing `accessKey` and `secretKey` is sufficient.
                                           nullable: true
                                           properties:
                                             scope:
-                                              description: '[Scope](https://docs.stackable.tech/secret-operator/scope.html) of the [SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html)'
+                                              description: '[Scope](https://docs.stackable.tech/home/nightly/secret-operator/scope) of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass).'
                                               nullable: true
                                               properties:
                                                 node:
                                                   default: false
+                                                  description: The node scope is resolved to the name of the Kubernetes Node object that the Pod is running on. This will typically be the DNS name of the node.
                                                   type: boolean
                                                 pod:
                                                   default: false
+                                                  description: The pod scope is resolved to the name of the Kubernetes Pod. This allows the secret to differentiate between StatefulSet replicas.
                                                   type: boolean
                                                 services:
                                                   default: []
+                                                  description: The service scope allows Pod objects to specify custom scopes. This should typically correspond to Service objects that the Pod participates in.
                                                   items:
                                                     type: string
                                                   type: array
                                               type: object
                                             secretClass:
-                                              description: '[SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html) containing the LDAP bind credentials'
+                                              description: '[SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) containing the LDAP bind credentials.'
                                               type: string
                                           required:
                                             - secretClass
@@ -10108,7 +10111,7 @@ spec:
                                           nullable: true
                                           properties:
                                             verification:
-                                              description: The verification method used to verify the certificates of the server and/or the client
+                                              description: The verification method used to verify the certificates of the server and/or the client.
                                               oneOf:
                                                 - required:
                                                     - none
@@ -10116,13 +10119,13 @@ spec:
                                                     - server
                                               properties:
                                                 none:
-                                                  description: Use TLS but don't verify certificates
+                                                  description: Use TLS but don't verify certificates.
                                                   type: object
                                                 server:
-                                                  description: Use TLS and ca certificate to verify the server
+                                                  description: Use TLS and a CA certificate to verify the server.
                                                   properties:
                                                     caCert:
-                                                      description: Ca cert to verify the server
+                                                      description: CA cert to verify the server.
                                                       oneOf:
                                                         - required:
                                                             - webPki
@@ -10130,10 +10133,10 @@ spec:
                                                             - secretClass
                                                       properties:
                                                         secretClass:
-                                                          description: Name of the SecretClass which will provide the ca cert. Note that a SecretClass does not need to have a key but can also work with just a ca cert. So if you got provided with a ca cert but don't have access to the key you can still use this method.
+                                                          description: Name of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) which will provide the CA certificate. Note that a SecretClass does not need to have a key but can also work with just a CA certificate, so if you got provided with a CA cert but don't have access to the key you can still use this method.
                                                           type: string
                                                         webPki:
-                                                          description: Use TLS and the ca certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
+                                                          description: Use TLS and the CA certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
                                                           type: object
                                                       type: object
                                                   required:
@@ -10190,27 +10193,30 @@ spec:
                           nullable: true
                           type: string
                         credentials:
-                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a SecretClass providing `accessKey` and `secretKey` is sufficient.
+                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) providing `accessKey` and `secretKey` is sufficient.
                           nullable: true
                           properties:
                             scope:
-                              description: '[Scope](https://docs.stackable.tech/secret-operator/scope.html) of the [SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html)'
+                              description: '[Scope](https://docs.stackable.tech/home/nightly/secret-operator/scope) of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass).'
                               nullable: true
                               properties:
                                 node:
                                   default: false
+                                  description: The node scope is resolved to the name of the Kubernetes Node object that the Pod is running on. This will typically be the DNS name of the node.
                                   type: boolean
                                 pod:
                                   default: false
+                                  description: The pod scope is resolved to the name of the Kubernetes Pod. This allows the secret to differentiate between StatefulSet replicas.
                                   type: boolean
                                 services:
                                   default: []
+                                  description: The service scope allows Pod objects to specify custom scopes. This should typically correspond to Service objects that the Pod participates in.
                                   items:
                                     type: string
                                   type: array
                               type: object
                             secretClass:
-                              description: '[SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html) containing the LDAP bind credentials'
+                              description: '[SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) containing the LDAP bind credentials.'
                               type: string
                           required:
                             - secretClass
@@ -10230,7 +10236,7 @@ spec:
                           nullable: true
                           properties:
                             verification:
-                              description: The verification method used to verify the certificates of the server and/or the client
+                              description: The verification method used to verify the certificates of the server and/or the client.
                               oneOf:
                                 - required:
                                     - none
@@ -10238,13 +10244,13 @@ spec:
                                     - server
                               properties:
                                 none:
-                                  description: Use TLS but don't verify certificates
+                                  description: Use TLS but don't verify certificates.
                                   type: object
                                 server:
-                                  description: Use TLS and ca certificate to verify the server
+                                  description: Use TLS and a CA certificate to verify the server.
                                   properties:
                                     caCert:
-                                      description: Ca cert to verify the server
+                                      description: CA cert to verify the server.
                                       oneOf:
                                         - required:
                                             - webPki
@@ -10252,10 +10258,10 @@ spec:
                                             - secretClass
                                       properties:
                                         secretClass:
-                                          description: Name of the SecretClass which will provide the ca cert. Note that a SecretClass does not need to have a key but can also work with just a ca cert. So if you got provided with a ca cert but don't have access to the key you can still use this method.
+                                          description: Name of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) which will provide the CA certificate. Note that a SecretClass does not need to have a key but can also work with just a CA certificate, so if you got provided with a CA cert but don't have access to the key you can still use this method.
                                           type: string
                                         webPki:
-                                          description: Use TLS and the ca certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
+                                          description: Use TLS and the CA certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
                                           type: object
                                       type: object
                                   required:
@@ -10273,8 +10279,8 @@ spec:
                 sparkConf:
                   additionalProperties:
                     type: string
+                  default: {}
                   description: A map of key/value strings that will be passed directly to spark-submit.
-                  nullable: true
                   type: object
                 sparkImage:
                   anyOf:
@@ -10327,6 +10333,7 @@ spec:
                   nullable: true
                   type: string
                 volumes:
+                  default: []
                   description: A list of volumes that can be made available to the job, driver or executors via their volume mounts.
                   items:
                     description: Volume represents a named volume in a pod that may be accessed by any container in the pod.
@@ -11401,7 +11408,6 @@ spec:
                     required:
                       - name
                     type: object
-                  nullable: true
                   type: array
               required:
                 - mainApplicationFile
@@ -11563,27 +11569,30 @@ spec:
                                           nullable: true
                                           type: string
                                         credentials:
-                                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a SecretClass providing `accessKey` and `secretKey` is sufficient.
+                                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) providing `accessKey` and `secretKey` is sufficient.
                                           nullable: true
                                           properties:
                                             scope:
-                                              description: '[Scope](https://docs.stackable.tech/secret-operator/scope.html) of the [SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html)'
+                                              description: '[Scope](https://docs.stackable.tech/home/nightly/secret-operator/scope) of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass).'
                                               nullable: true
                                               properties:
                                                 node:
                                                   default: false
+                                                  description: The node scope is resolved to the name of the Kubernetes Node object that the Pod is running on. This will typically be the DNS name of the node.
                                                   type: boolean
                                                 pod:
                                                   default: false
+                                                  description: The pod scope is resolved to the name of the Kubernetes Pod. This allows the secret to differentiate between StatefulSet replicas.
                                                   type: boolean
                                                 services:
                                                   default: []
+                                                  description: The service scope allows Pod objects to specify custom scopes. This should typically correspond to Service objects that the Pod participates in.
                                                   items:
                                                     type: string
                                                   type: array
                                               type: object
                                             secretClass:
-                                              description: '[SecretClass](https://docs.stackable.tech/secret-operator/secretclass.html) containing the LDAP bind credentials'
+                                              description: '[SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) containing the LDAP bind credentials.'
                                               type: string
                                           required:
                                             - secretClass
@@ -11603,7 +11612,7 @@ spec:
                                           nullable: true
                                           properties:
                                             verification:
-                                              description: The verification method used to verify the certificates of the server and/or the client
+                                              description: The verification method used to verify the certificates of the server and/or the client.
                                               oneOf:
                                                 - required:
                                                     - none
@@ -11611,13 +11620,13 @@ spec:
                                                     - server
                                               properties:
                                                 none:
-                                                  description: Use TLS but don't verify certificates
+                                                  description: Use TLS but don't verify certificates.
                                                   type: object
                                                 server:
-                                                  description: Use TLS and ca certificate to verify the server
+                                                  description: Use TLS and a CA certificate to verify the server.
                                                   properties:
                                                     caCert:
-                                                      description: Ca cert to verify the server
+                                                      description: CA cert to verify the server.
                                                       oneOf:
                                                         - required:
                                                             - webPki
@@ -11625,10 +11634,10 @@ spec:
                                                             - secretClass
                                                       properties:
                                                         secretClass:
-                                                          description: Name of the SecretClass which will provide the ca cert. Note that a SecretClass does not need to have a key but can also work with just a ca cert. So if you got provided with a ca cert but don't have access to the key you can still use this method.
+                                                          description: Name of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) which will provide the CA certificate. Note that a SecretClass does not need to have a key but can also work with just a CA certificate, so if you got provided with a CA cert but don't have access to the key you can still use this method.
                                                           type: string
                                                         webPki:
-                                                          description: Use TLS and the ca certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
+                                                          description: Use TLS and the CA certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
                                                           type: object
                                                       type: object
                                                   required:

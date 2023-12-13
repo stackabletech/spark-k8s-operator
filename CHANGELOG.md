@@ -4,13 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
+### Changed
 
 - Various documentation of the CRD ([#319]).
-- [BREAKING] Removed version field. Several attributes have been changed to mandatory. While this change is technically breaking, 
-  existing Spark jobs would not have worked before as these attributes were necessary ([#319]).
-
-[#319]: https://github.com/stackabletech/spark-k8s-operator/pull/319
+- [BREAKING] Removed version field. Several attributes have been changed to mandatory. While this change is
+  technically breaking, existing Spark jobs would not have worked before as these attributes were necessary ([#319]).
 
 ### Fixed
 
@@ -18,6 +16,7 @@ All notable changes to this project will be documented in this file.
   messages in the spark driver log (`User "system:serviceaccount:default:my-spark-app" cannot deletecollection resource "configmaps" in API group "" in the namespace "default".`) ([#313]).
 
 [#313]: https://github.com/stackabletech/spark-k8s-operator/pull/313
+[#319]: https://github.com/stackabletech/spark-k8s-operator/pull/319
 
 ## [23.11.0] - 2023-11-24
 

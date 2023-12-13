@@ -105,7 +105,7 @@ pub struct SparkApplicationStatus {
 #[serde(rename_all = "camelCase")]
 pub struct SparkApplicationSpec {
     /// Mode: cluster or client. Currently only cluster is supported.
-    pub mode: String,
+    pub mode: SparkMode,
 
     /// The main class - i.e. entry point - for JVM artifacts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -151,8 +151,8 @@ pub struct SparkApplicationSpec {
     /// Job dependencies: a list of python packages that will be installed via pip, a list of packages
     /// or repositories that is passed directly to spark-submit, or a list of excluded packages
     /// (also passed directly to spark-submit).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deps: Option<JobDependencies>,
+    #[serde(default)]
+    pub deps: JobDependencies,
 
     /// Configure an S3 connection that the SparkApplication has access to.
     /// Read more in the [Spark S3 usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/s3).
@@ -208,10 +208,6 @@ impl SparkApplication {
         format!("{app_name}-{role}-pod-template", app_name = self.name_any())
     }
 
-    pub fn mode(&self) -> &str {
-        self.spec.mode.as_ref()
-    }
-
     pub fn image(&self) -> Option<&str> {
         self.spec.image.as_deref()
     }
@@ -221,18 +217,14 @@ impl SparkApplication {
     }
 
     pub fn requirements(&self) -> Option<String> {
-        self.spec
-            .deps
-            .as_ref()
-            .map(|deps| &deps.requirements)
-            .map(|req| req.join(" "))
+        if !self.spec.deps.requirements.is_empty() {
+            return Some(self.spec.deps.requirements.join(" "));
+        }
+        None
     }
 
     pub fn packages(&self) -> Vec<String> {
-        match self.spec.deps.as_ref() {
-            Some(deps) => deps.clone().packages,
-            None => Vec::new(),
-        }
+        self.spec.deps.packages.clone()
     }
 
     pub fn volumes(
@@ -423,7 +415,7 @@ impl SparkApplication {
         ObjectLabels {
             owner: self,
             app_name: APP_NAME,
-            app_version, // TODO &resolved_product_image.app_version_label,
+            app_version,
             operator_name: OPERATOR_NAME,
             controller_name: CONTROLLER_NAME,
             role,
@@ -439,7 +431,7 @@ impl SparkApplication {
         spark_image: &str,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
-        let mode = self.mode();
+        let mode = &self.spec.mode;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
         let mut submit_cmd: Vec<String> = vec![];
@@ -518,14 +510,17 @@ impl SparkApplication {
         ]);
 
         // repositories and packages arguments
-        if let Some(deps) = self.spec.deps.clone() {
+        if !self.spec.deps.repositories.is_empty() {
             submit_cmd.extend(vec![format!(
                 "--repositories {}",
-                deps.repositories.join(",")
+                self.spec.deps.repositories.join(",")
             )]);
+        }
+
+        if !self.spec.deps.packages.is_empty() {
             submit_cmd.extend(vec![format!(
                 "--conf spark.jars.packages={}",
-                deps.packages.join(",")
+                self.spec.deps.packages.join(",")
             )]);
         }
 

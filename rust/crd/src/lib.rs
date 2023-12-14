@@ -82,6 +82,12 @@ pub struct SparkApplicationStatus {
     pub phase: String,
 }
 
+/// A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark.
+/// Find more information on how to use it and the resources that the operator generates in the
+/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/).
+///
+/// The SparkApplication CRD looks a little different than the CRDs of the other products on the
+/// Stackable Data Platform.
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "spark.stackable.tech",
@@ -98,41 +104,76 @@ pub struct SparkApplicationStatus {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct SparkApplicationSpec {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<String>,
+    /// Mode: cluster or client. Currently only cluster is supported.
+    pub mode: SparkMode,
+
+    /// The main class - i.e. entry point - for JVM artifacts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main_class: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub main_application_file: Option<String>,
+
+    /// The actual application file that will be called by `spark-submit`.
+    pub main_application_file: String,
+
+    /// User-supplied image containing spark-job dependencies that will be copied to the specified volume mount.
+    /// See the [examples](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/examples).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
+
+    // no doc - docs in ProductImage struct.
     pub spark_image: ProductImage,
-    /// Name of the Vector aggregator discovery ConfigMap.
+
+    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+    /// to learn how to configure log aggregation with Vector.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
+
+    /// The job builds a spark-submit command, complete with arguments and referenced dependencies
+    /// such as templates, and passes it on to Spark.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<CommonConfiguration<SubmitConfigFragment>>,
+
+    /// The driver role specifies the configuration that, together with the driver pod template, is used by
+    /// Spark to create driver pods.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub driver: Option<CommonConfiguration<RoleConfigFragment>>,
+
+    /// The executor role specifies the configuration that, together with the driver pod template, is used by
+    /// Spark to create the executor pods.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<RoleGroup<RoleConfigFragment>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stopped: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spark_conf: Option<HashMap<String, String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deps: Option<JobDependencies>,
+
+    /// A map of key/value strings that will be passed directly to spark-submit.
+    #[serde(default)]
+    pub spark_conf: HashMap<String, String>,
+
+    /// Job dependencies: a list of python packages that will be installed via pip, a list of packages
+    /// or repositories that is passed directly to spark-submit, or a list of excluded packages
+    /// (also passed directly to spark-submit).
+    #[serde(default)]
+    pub deps: JobDependencies,
+
+    /// Configure an S3 connection that the SparkApplication has access to.
+    /// Read more in the [Spark S3 usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/s3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub s3connection: Option<S3ConnectionDef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub args: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub volumes: Option<Vec<Volume>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub env: Option<Vec<EnvVar>>,
+
+    /// Arguments passed directly to the job artifact.
+    #[serde(default)]
+    pub args: Vec<String>,
+
+    /// A list of volumes that can be made available to the job, driver or executors via their volume mounts.
+    #[serde(default)]
+    pub volumes: Vec<Volume>,
+
+    /// A list of environment variables that will be set in the job pod and the driver and executor
+    /// pod templates.
+    #[serde(default)]
+    pub env: Vec<EnvVar>,
+
+    /// The log file directory definition used by the Spark history server.
+    /// Currently only S3 buckets are supported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log_file_directory: Option<LogFileDirectorySpec>,
 }
@@ -140,14 +181,22 @@ pub struct SparkApplicationSpec {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobDependencies {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requirements: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub packages: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub repositories: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exclude_packages: Option<Vec<String>>,
+    /// Under the `requirements` you can specify Python dependencies that will be installed with `pip`.
+    /// Example: `tabulate==0.8.9`
+    #[serde(default)]
+    pub requirements: Vec<String>,
+
+    /// A list of packages that is passed directly to `spark-submit`.
+    #[serde(default)]
+    pub packages: Vec<String>,
+
+    /// A list of repositories that is passed directly to `spark-submit`.
+    #[serde(default)]
+    pub repositories: Vec<String>,
+
+    /// A list of excluded packages that is passed directly to `spark-submit`.
+    #[serde(default)]
+    pub exclude_packages: Vec<String>,
 }
 
 impl SparkApplication {
@@ -159,36 +208,23 @@ impl SparkApplication {
         format!("{app_name}-{role}-pod-template", app_name = self.name_any())
     }
 
-    pub fn mode(&self) -> Option<&str> {
-        self.spec.mode.as_deref()
-    }
-
     pub fn image(&self) -> Option<&str> {
         self.spec.image.as_deref()
     }
 
-    pub fn version(&self) -> Option<&str> {
-        self.spec.version.as_deref()
-    }
-
-    pub fn application_artifact(&self) -> Option<&str> {
-        self.spec.main_application_file.as_deref()
+    pub fn application_artifact(&self) -> &str {
+        self.spec.main_application_file.as_ref()
     }
 
     pub fn requirements(&self) -> Option<String> {
-        self.spec
-            .deps
-            .as_ref()
-            .and_then(|deps| deps.requirements.as_ref())
-            .map(|req| req.join(" "))
+        if !self.spec.deps.requirements.is_empty() {
+            return Some(self.spec.deps.requirements.join(" "));
+        }
+        None
     }
 
     pub fn packages(&self) -> Vec<String> {
-        self.spec
-            .deps
-            .as_ref()
-            .and_then(|deps| deps.packages.clone())
-            .unwrap_or_default()
+        self.spec.deps.packages.clone()
     }
 
     pub fn volumes(
@@ -197,14 +233,7 @@ impl SparkApplication {
         s3logdir: &Option<S3LogDir>,
         log_config_map: &str,
     ) -> Vec<Volume> {
-        let mut result: Vec<Volume> = self
-            .spec
-            .volumes
-            .as_ref()
-            .iter()
-            .flat_map(|v| v.iter())
-            .cloned()
-            .collect();
+        let mut result: Vec<Volume> = self.spec.volumes.clone();
 
         if self.spec.image.is_some() {
             result.push(
@@ -378,11 +407,15 @@ impl SparkApplication {
         mounts
     }
 
-    pub fn build_recommended_labels<'a>(&'a self, role: &'a str) -> ObjectLabels<SparkApplication> {
+    pub fn build_recommended_labels<'a>(
+        &'a self,
+        app_version: &'a str,
+        role: &'a str,
+    ) -> ObjectLabels<SparkApplication> {
         ObjectLabels {
             owner: self,
             app_name: APP_NAME,
-            app_version: self.version().unwrap(),
+            app_version,
             operator_name: OPERATOR_NAME,
             controller_name: CONTROLLER_NAME,
             role,
@@ -398,7 +431,7 @@ impl SparkApplication {
         spark_image: &str,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
-        let mode = self.mode().context(ObjectHasNoDeployModeSnafu)?;
+        let mode = &self.spec.mode;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
         let mut submit_cmd: Vec<String> = vec![];
@@ -477,15 +510,18 @@ impl SparkApplication {
         ]);
 
         // repositories and packages arguments
-        if let Some(deps) = self.spec.deps.clone() {
-            submit_cmd.extend(
-                deps.repositories
-                    .map(|r| format!("--repositories {}", r.join(","))),
-            );
-            submit_cmd.extend(
-                deps.packages
-                    .map(|p| format!("--conf spark.jars.packages={}", p.join(","))),
-            );
+        if !self.spec.deps.repositories.is_empty() {
+            submit_cmd.extend(vec![format!(
+                "--repositories {}",
+                self.spec.deps.repositories.join(",")
+            )]);
+        }
+
+        if !self.spec.deps.packages.is_empty() {
+            submit_cmd.extend(vec![format!(
+                "--conf spark.jars.packages={}",
+                self.spec.deps.packages.join(",")
+            )]);
         }
 
         // some command elements need to be initially stored in a map (to allow overwrites) and
@@ -530,9 +566,8 @@ impl SparkApplication {
         }
 
         // conf arguments: these should follow - and thus override - values set from resource limits above
-        if let Some(spark_conf) = self.spec.spark_conf.clone() {
-            submit_conf.extend(spark_conf);
-        }
+        submit_conf.extend(self.spec.spark_conf.clone());
+
         // ...before being added to the command collection
         for (key, value) in submit_conf {
             submit_cmd.push(format!("--conf \"{key}={value}\""));
@@ -545,14 +580,10 @@ impl SparkApplication {
                 .map(|mc| format! {"--class {mc}"}),
         );
 
-        let artifact = self
-            .application_artifact()
-            .context(ObjectHasNoArtifactSnafu)?;
+        let artifact = self.application_artifact();
         submit_cmd.push(artifact.to_string());
 
-        if let Some(job_args) = self.spec.args.clone() {
-            submit_cmd.extend(job_args);
-        }
+        submit_cmd.extend(self.spec.args.clone());
 
         Ok(submit_cmd)
     }
@@ -562,8 +593,7 @@ impl SparkApplication {
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<EnvVar> {
-        let tmp = self.spec.env.as_ref();
-        let mut e: Vec<EnvVar> = tmp.iter().flat_map(|e| e.iter()).cloned().collect();
+        let mut e: Vec<EnvVar> = self.spec.env.clone();
         if self.requirements().is_some() {
             e.push(EnvVar {
                 name: "PYTHONPATH".to_string(),
@@ -912,6 +942,8 @@ mod tests {
             metadata:
               name: spark-examples
             spec:
+              mode: cluster
+              mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
         "})
@@ -939,6 +971,8 @@ mod tests {
             metadata:
               name: spark-examples
             spec:
+              mode: cluster
+              mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
               job:
@@ -1112,6 +1146,8 @@ mod tests {
             metadata:
               name: spark-examples
             spec:
+              mode: cluster
+              mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
         "#})

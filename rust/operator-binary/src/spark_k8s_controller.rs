@@ -191,7 +191,8 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .validated_role_config(&resolved_product_image, &ctx.product_config)
         .context(InvalidProductConfigSnafu)?;
 
-    let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&spark_application)?;
+    let (serviceaccount, rolebinding) =
+        build_spark_role_serviceaccount(&spark_application, &resolved_product_image)?;
     client
         .apply_patch(CONTROLLER_NAME, &serviceaccount, &serviceaccount)
         .await
@@ -298,6 +299,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         submit_product_config,
         vector_aggregator_address.as_deref(),
         &submit_config.logging,
+        &resolved_product_image,
     )?;
     client
         .apply_patch(
@@ -482,7 +484,10 @@ fn pod_template(
             // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
             .ownerreference_from_resource(spark_application, None, None)
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(spark_application.build_recommended_labels(&container_name))
+            .with_recommended_labels(
+                spark_application
+                    .build_recommended_labels(&spark_image.app_version_label, &container_name),
+            )
             .build(),
     )
     .add_container(cb.build())
@@ -580,7 +585,8 @@ fn pod_template_config_map(
                 .ownerreference_from_resource(spark_application, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(
-                    spark_application.build_recommended_labels("pod-templates"),
+                    spark_application
+                        .build_recommended_labels(&spark_image.app_version_label, "pod-templates"),
                 )
                 .build(),
         )
@@ -628,6 +634,7 @@ fn submit_job_config_map(
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
     vector_aggregator_address: Option<&str>,
     logging: &Logging<SparkContainer>,
+    spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
     let cm_name = spark_application.submit_job_config_map_name();
 
@@ -639,7 +646,10 @@ fn submit_job_config_map(
             .name(&cm_name)
             .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(spark_application.build_recommended_labels("spark-submit"))
+            .with_recommended_labels(
+                spark_application
+                    .build_recommended_labels(&spark_image.app_version_label, "spark-submit"),
+            )
             .build(),
     );
 
@@ -767,25 +777,27 @@ fn spark_job(
         ));
     }
 
-    let mut pod = PodTemplateSpec {
-        metadata: Some(
-            ObjectMetaBuilder::new()
-                .name("spark-submit")
-                .with_recommended_labels(
-                    spark_application.build_recommended_labels("spark-job-template"),
-                )
-                .build(),
-        ),
-        spec: Some(PodSpec {
-            containers,
-            restart_policy: Some("Never".to_string()),
-            service_account_name: serviceaccount.metadata.name.clone(),
-            volumes: Some(volumes),
-            image_pull_secrets: spark_image.pull_secrets.clone(),
-            security_context: Some(security_context()),
-            ..PodSpec::default()
-        }),
-    };
+    let mut pod =
+        PodTemplateSpec {
+            metadata: Some(
+                ObjectMetaBuilder::new()
+                    .name("spark-submit")
+                    .with_recommended_labels(spark_application.build_recommended_labels(
+                        &spark_image.app_version_label,
+                        "spark-job-template",
+                    ))
+                    .build(),
+            ),
+            spec: Some(PodSpec {
+                containers,
+                restart_policy: Some("Never".to_string()),
+                service_account_name: serviceaccount.metadata.name.clone(),
+                volumes: Some(volumes),
+                image_pull_secrets: spark_image.pull_secrets.clone(),
+                security_context: Some(security_context()),
+                ..PodSpec::default()
+            }),
+        };
 
     if let Some(submit_pod_overrides) =
         spark_application.pod_overrides(SparkApplicationRole::Submit)
@@ -798,7 +810,10 @@ fn spark_job(
             .name_and_namespace(spark_application)
             .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(spark_application.build_recommended_labels("spark-job"))
+            .with_recommended_labels(
+                spark_application
+                    .build_recommended_labels(&spark_image.app_version_label, "spark-job"),
+            )
             .build(),
         spec: Some(JobSpec {
             template: pod,
@@ -817,6 +832,7 @@ fn spark_job(
 /// They are deleted when the job is deleted.
 fn build_spark_role_serviceaccount(
     spark_app: &SparkApplication,
+    spark_image: &ResolvedProductImage,
 ) -> Result<(ServiceAccount, RoleBinding)> {
     let sa_name = spark_app.metadata.name.as_ref().unwrap().to_string();
     let sa = ServiceAccount {
@@ -825,7 +841,10 @@ fn build_spark_role_serviceaccount(
             .name(&sa_name)
             .ownerreference_from_resource(spark_app, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(spark_app.build_recommended_labels("service-account"))
+            .with_recommended_labels(
+                spark_app
+                    .build_recommended_labels(&spark_image.app_version_label, "service-account"),
+            )
             .build(),
         ..ServiceAccount::default()
     };
@@ -836,7 +855,9 @@ fn build_spark_role_serviceaccount(
             .name(binding_name)
             .ownerreference_from_resource(spark_app, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(spark_app.build_recommended_labels("role-binding"))
+            .with_recommended_labels(
+                spark_app.build_recommended_labels(&spark_image.app_version_label, "role-binding"),
+            )
             .build(),
         role_ref: RoleRef {
             api_group: ClusterRole::GROUP.to_string(),

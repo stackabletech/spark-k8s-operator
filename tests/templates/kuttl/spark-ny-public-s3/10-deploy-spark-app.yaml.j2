@@ -12,7 +12,6 @@ kind: SparkApplication
 metadata:
   name: spark-ny-cm
 spec:
-  version: "1.0"
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

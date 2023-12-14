@@ -5,7 +5,6 @@ metadata:
   name: spark-ny-image
   namespace: default
 spec:
-  version: "1.0"
   # everything under /jobs will be copied to /stackable/spark/jobs
   image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0
   sparkImage: docker.stackable.tech/stackable/spark-k8s:3.5.0-stackable0.0.0-dev

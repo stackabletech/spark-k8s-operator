@@ -59,7 +59,6 @@ metadata:
   name: pyspark-pi
   namespace: default
 spec:
-  version: "1.0"
   sparkImage:
     productVersion: 3.5.0
   mode: cluster

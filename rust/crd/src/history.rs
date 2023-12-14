@@ -49,6 +49,9 @@ pub enum Error {
     CannotRetrieveRoleGroup { role_group: String },
 }
 
+/// A Spark cluster history server component. This resource is managed by the Stackable operator
+/// for Apache Spark. Find more information on how to use it in the
+/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
 #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[kube(
     group = "spark.stackable.tech",
@@ -65,16 +68,25 @@ pub enum Error {
 #[serde(rename_all = "camelCase")]
 pub struct SparkHistoryServerSpec {
     pub image: ProductImage,
-    /// Global Spark history server configuration that applies to all roles and role groups
+
+    /// Global Spark history server configuration that applies to all roles and role groups.
     #[serde(default)]
     pub cluster_config: SparkHistoryServerClusterConfig,
+
     /// Name of the Vector aggregator discovery ConfigMap.
     /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vector_aggregator_config_map_name: Option<String>,
+
+    /// The log file directory definition used by the Spark history server.
+    /// Currently only S3 buckets are supported.
     pub log_file_directory: LogFileDirectorySpec,
+
+    /// A map of key/value strings that will be passed directly to Spark when deploying the history server.
     #[serde(default)]
     pub spark_conf: BTreeMap<String, String>,
+
+    /// A history server node role definition.
     pub nodes: Role<HistoryConfigFragment>,
 }
 

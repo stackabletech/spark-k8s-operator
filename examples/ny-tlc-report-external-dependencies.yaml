@@ -5,7 +5,6 @@ metadata:
   name: spark-ny-ext
   namespace: default
 spec:
-  version: "1.0"
   sparkImage:
     productVersion: 3.5.0
     pullPolicy: IfNotPresent

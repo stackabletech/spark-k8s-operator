@@ -16,9 +16,9 @@ VERSION := $(shell cargo metadata --format-version 1 | jq -r '.packages[] | sele
 DOCKER_REPO := docker.stackable.tech
 ORGANIZATION := stackable
 OCI_REGISTRY_HOSTNAME := oci.stackable.tech
-OCI_REGISTRY_PROJECT_IMAGES := ${ORGANIZATION}/images
-OCI_REGISTRY_PROJECT_CHARTS := ${ORGANIZATION}/charts
-# this will be overwritten by an environmental variable if called from the github action
+OCI_REGISTRY_PROJECT_IMAGES := sdp
+OCI_REGISTRY_PROJECT_CHARTS := sdp-charts
+# This will be overwritten by an environmental variable if called from the github action
 HELM_REPO := https://repo.stackable.tech/repository/helm-dev
 HELM_CHART_NAME := ${OPERATOR_NAME}
 HELM_CHART_ARTIFACT := target/helm/${OPERATOR_NAME}-${VERSION}.tgz
@@ -34,7 +34,7 @@ docker-build:
 	docker tag "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}" "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}"
 
 docker-publish:
-	# push to Nexus
+	# Push to Nexus
 	echo "${NEXUS_PASSWORD}" | docker login --username github --password-stdin "${DOCKER_REPO}"
 	DOCKER_OUTPUT=$$(docker push --all-tags "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}");\
 	# Obtain the digest of the pushed image from the output of `docker push`, because signing by tag is deprecated and will be removed from cosign in the future\
@@ -47,14 +47,14 @@ docker-publish:
 	# Uses the keyless signing flow with Github Actions as identity provider\
 	cosign sign -y ${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:@$$REPO_DIGEST_OF_IMAGE
 
-	# push to Harbor
-	# we need to use "value" here to prevent the variable from being recursively expanded by make (username contains a dollar sign, since it's a Harbor bot)
-	docker login --username '${value OCI_REGISTRY_USERNAME}' --password '${OCI_REGISTRY_PASSWORD}' '${OCI_REGISTRY_HOSTNAME}'
+	# Push to Harbor
+	# We need to use "value" here to prevent the variable from being recursively expanded by make (username contains a dollar sign, since it's a Harbor bot)
+	docker login --username '${value OCI_REGISTRY_SDP_USERNAME}' --password '${OCI_REGISTRY_SDP_PASSWORD}' '${OCI_REGISTRY_HOSTNAME}'
 	DOCKER_OUTPUT=$$(docker push --all-tags '${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}');\
 	# Obtain the digest of the pushed image from the output of `docker push`, because signing by tag is deprecated and will be removed from cosign in the future\
 	REPO_DIGEST_OF_IMAGE=$$(echo "$$DOCKER_OUTPUT" | awk '/^${VERSION}: digest: sha256:[0-9a-f]{64} size: [0-9]+$$/ { print $$3 }');\
 	if [ -z "$$REPO_DIGEST_OF_IMAGE" ]; then\
-		echo 'Could not find repo digest for container image: ${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}';\
+		echo 'Could not find repo digest for container image: ${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}';\
 		exit 1;\
 	fi;\
 	# This generates a signature and publishes it to the registry, next to the image\
@@ -68,12 +68,12 @@ print-docker-tag:
 	@echo "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}"
 
 helm-publish:
-	# push to Nexus
+	# Push to Nexus
 	curl --fail -u "github:${NEXUS_PASSWORD}" --upload-file "${HELM_CHART_ARTIFACT}" "${HELM_REPO}/"
 
-	# push to Harbor
-	# we need to use "value" here to prevent the variable from being recursively expanded by make (username contains a dollar sign, since it's a Harbor bot)
-	helm registry login --username '${value OCI_REGISTRY_USERNAME}' --password '${OCI_REGISTRY_PASSWORD}' '${OCI_REGISTRY_HOSTNAME}'
+	# Push to Harbor
+	# We need to use "value" here to prevent the variable from being recursively expanded by make (username contains a dollar sign, since it's a Harbor bot)
+	helm registry login --username '${value OCI_REGISTRY_SDP_CHARTS_USERNAME}' --password '${OCI_REGISTRY_SDP_CHARTS_PASSWORD}' '${OCI_REGISTRY_HOSTNAME}'
 	# Obtain the digest of the pushed artifact from the output of `helm push`, because signing by tag is deprecated and will be removed from cosign in the future\
 	HELM_OUTPUT=$$(helm push '${HELM_CHART_ARTIFACT}' 'oci://${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_CHARTS}' 2>&1);\
 	REPO_DIGEST_OF_ARTIFACT=$$(echo "$$HELM_OUTPUT" | awk '/^Digest: sha256:[0-9a-f]{64}$$/ { print $$2 }');\
@@ -81,6 +81,8 @@ helm-publish:
 		echo 'Could not find repo digest for helm chart: ${HELM_CHART_NAME}';\
 		exit 1;\
 	fi;\
+	# Login to Harbor, needed for cosign to be able to push the signature for the Helm chart\
+	docker login --username '${value OCI_REGISTRY_SDP_CHARTS_USERNAME}' --password '${OCI_REGISTRY_SDP_CHARTS_PASSWORD}' '${OCI_REGISTRY_HOSTNAME}';\
 	# This generates a signature and publishes it to the registry, next to the chart artifact\
 	# Uses the keyless signing flow with Github Actions as identity provider\
 	cosign sign -y ${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_CHARTS}/${HELM_CHART_NAME}:@$$REPO_DIGEST_OF_ARTIFACT

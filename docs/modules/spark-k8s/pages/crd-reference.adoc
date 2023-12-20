@@ -102,7 +102,7 @@ Below are listed the CRD fields that can be defined by the user:
 |See xref:concepts:overrides.adoc[] for more information.
 
 |`spec.executor.replicas`
-|Number of executor instances launched for this job.
+|Number of executor replicas launched for this job.
 
 |`spec.executor.config.affinity`
 |Driver Pod placement affinity. See xref:usage-guide/operations/pod-placement.adoc[] for details.

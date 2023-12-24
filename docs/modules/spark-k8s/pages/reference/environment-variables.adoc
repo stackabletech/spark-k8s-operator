@@ -1,5 +1,8 @@
+= Environment variables
 
-=== WATCH_NAMESPACE
+This operator accepts the following environment variables:
+
+== WATCH_NAMESPACE
 
 *Default value*: All namespaces
 

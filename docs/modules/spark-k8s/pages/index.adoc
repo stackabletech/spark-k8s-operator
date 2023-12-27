@@ -25,7 +25,7 @@ The Operator manages two custom resource kinds: The _SparkApplication_ and the _
 
 The SparkApplication resource is the main point of interaction with the Operator. Unlike other Stackable Operator custom
 resources, the SparkApplication does not have xref:concepts:roles-and-role-groups.adoc[roles]. An exhaustive list of
-options is given on the xref:crd-reference.adoc[] page.
+options is given in the {crd-docs}/spark.stackable.tech/sparkapplication/v1alpha1/[SparkApplication CRD reference {external-link-icon}^].
 
 The xref:usage-guide/history-server.adoc[SparkHistoryServer] does have a single `node` role. It is used to deploy a
 https://spark.apache.org/docs/latest/monitoring.html#viewing-after-the-fact[Spark history server]. It reads data from an

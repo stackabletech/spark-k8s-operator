@@ -1,0 +1,6 @@
+= Reference
+
+Consult the reference documentation section to find exhaustive information on:
+
+* Descriptions and default values of all properties in the CRDs used by this operator in the xref:reference/crds.adoc[].
+* The xref:reference/commandline-parameters.adoc[] and xref:reference/environment-variables.adoc[] accepted by the operator.

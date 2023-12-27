@@ -1,5 +1,8 @@
+= Command line parameters
 
-=== watch-namespace
+This operator accepts the following command line parameters:
+
+== watch-namespace
 
 *Default value*: All namespaces
 

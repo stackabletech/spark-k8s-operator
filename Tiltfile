@@ -22,6 +22,11 @@ watch_file('result')
 if os.path.exists('result'):
    k8s_yaml('result/crds.yaml')
 
+# We need to set the correct image annotation on the operator Deployment to use e.g.
+# docker.stackable.tech/sandbox/opa-operator:7y19m3d8clwxlv34v5q2x4p7v536s00g instead of
+# docker.stackable.tech/sandbox/opa-operator:0.0.0-dev (which does not exist)
+k8s_kind('Deployment', image_json_path='{.spec.template.metadata.annotations.internal\\.stackable\\.tech/image}')
+
 # Exclude stale CRDs from Helm chart, and apply the rest
 helm_crds, helm_non_crds = filter_yaml(
    helm(

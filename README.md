@@ -9,11 +9,13 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
 [![License OSL3.0](https://img.shields.io/badge/license-OSL3.0-green)](./LICENSE)
 
-[Documentation](https://docs.stackable.tech/spark-k8s/stable/index.html) | [Stackable Data Platform](https://stackable.tech/) | [Platform Docs](https://docs.stackable.tech/) | [Discussions](https://github.com/orgs/stackabletech/discussions) | [Discord](https://discord.gg/7kZ3BNnCAF)
+[Documentation](https://docs.stackable.tech/home/stable/spark-k8s) | [Stackable Data Platform](https://stackable.tech/) | [Platform Docs](https://docs.stackable.tech/) | [Discussions](https://github.com/orgs/stackabletech/discussions) | [Discord](https://discord.gg/7kZ3BNnCAF)
+
 
 This is a Kubernetes operator to manage [Apache Spark](https://spark.apache.org/) jobs.
 
-It is part of the Stackable Data Platform, a curated selection of the best open source data apps like Apache Kafka, Apache Druid, Trino or Apache Spark, [all](#our-operators) working together seamlessly. Based on Kubernetes, it runs everywhere – [on prem or in the cloud](#supported-platforms).
+It is part of the Stackable Data Platform, a curated selection of the best open source data apps like Apache Kafka, Apache Druid, Trino or Apache Spark, [all](#other-operators) working together seamlessly. Based on Kubernetes, it runs everywhere – [on prem or in the cloud](#supported-platforms).
+
 
 ## Installation
 
@@ -27,12 +29,13 @@ You can follow this [tutorial](https://docs.stackable.tech/spark-k8s/stable/gett
 
 ## Documentation
 
-The stable documentation for this operator can be found [here](https://docs.stackable.tech/spark-k8s/stable/index.html).
-If you are interested in the most recent state of this repository, check out the [nightly docs](https://docs.stackable.tech/spark-k8s/nightly/index.html) instead.
+The stable documentation for this operator can be found [here](https://docs.stackable.tech/home/stable/spark-k8s).
+If you are interested in the most recent state of this repository, check out the [nightly docs](https://docs.stackable.tech/home/nightly/spark-k8s) instead.
 
 The documentation for all Stackable products can be found at [docs.stackable.tech](https://docs.stackable.tech).
 
 If you have a question about the Stackable Data Platform contact us via our [homepage](https://stackable.tech/) or ask a public questions in our [Discussions forum](https://github.com/orgs/stackabletech/discussions).
+
 
 
 ## About The Stackable Data Platform

@@ -134,7 +134,9 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build Labels"))]
-    LabelBuild { source: stackable_operator::kvp::LabelError },
+    LabelBuild {
+        source: stackable_operator::kvp::LabelError,
+    },
 
     #[snafu(display("failed to build Metadata"))]
     MetadataBuild {
@@ -143,13 +145,14 @@ pub enum Error {
 
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {
-        source: stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
+        source:
+            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
     },
 
     #[snafu(display("failed to create Volumes for SparkApplication"))]
     CreateVolumes {
         source: stackable_spark_k8s_crd::Error,
-    }
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -576,7 +579,9 @@ fn pod_template_config_map(
         cm_name.clone()
     };
 
-    let mut volumes = spark_application.volumes(s3conn, s3logdir, &log_config_map).context(CreateVolumesSnafu)?;
+    let mut volumes = spark_application
+        .volumes(s3conn, s3logdir, &log_config_map)
+        .context(CreateVolumesSnafu)?;
     volumes.push(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
             .with_config_map(&cm_name)
@@ -779,7 +784,11 @@ fn spark_job(
             )
             .build(),
     ];
-    volumes.extend(spark_application.volumes(s3conn, s3logdir, &log_config_map));
+    volumes.extend(
+        spark_application
+            .volumes(s3conn, s3logdir, &log_config_map)
+            .context(CreateVolumesSnafu)?,
+    );
 
     let mut containers = vec![cb.build()];
 

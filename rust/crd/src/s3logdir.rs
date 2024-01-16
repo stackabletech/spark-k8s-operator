@@ -228,7 +228,10 @@ impl S3LogDir {
 
     pub fn credentials_volume(&self) -> Result<Option<Volume>, Error> {
         if let Some(c) = self.credentials() {
-            Ok(Some(c.to_volume(c.secret_class.as_ref()).context(CredentialsVolumeBuildSnafu)?))
+            Ok(Some(
+                c.to_volume(c.secret_class.as_ref())
+                    .context(CredentialsVolumeBuildSnafu)?,
+            ))
         } else {
             Ok(None)
         }

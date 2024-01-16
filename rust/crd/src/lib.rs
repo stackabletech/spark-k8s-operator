@@ -94,9 +94,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build S3 log directory credentials Volume"))]
-    S3LogDirCredentialsVolumeBuild {
-        source: s3logdir::Error,
-    },
+    S3LogDirCredentialsVolumeBuild { source: s3logdir::Error },
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
@@ -280,14 +278,20 @@ impl SparkApplication {
             ..
         }) = s3conn
         {
-            result.push(secret_class_volume.to_volume(secret_class_volume.secret_class.as_ref()).context(S3CredentialsVolumeBuildSnafu)?);
+            result.push(
+                secret_class_volume
+                    .to_volume(secret_class_volume.secret_class.as_ref())
+                    .context(S3CredentialsVolumeBuildSnafu)?,
+            );
         }
 
         if let Some(o) = s3logdir.as_ref() {
-            if let Some(v) = o.credentials_volume().context(S3LogDirCredentialsVolumeBuildSnafu)? {
+            if let Some(v) = o
+                .credentials_volume()
+                .context(S3LogDirCredentialsVolumeBuildSnafu)?
+            {
                 result.push(v);
             }
-            
         }
 
         result.push(

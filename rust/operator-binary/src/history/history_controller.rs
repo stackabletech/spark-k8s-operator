@@ -2,6 +2,7 @@ use crate::history::operations::pdb::add_pdbs;
 use crate::product_logging::{self, resolve_vector_aggregator_address};
 use crate::Ctx;
 use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
+use stackable_operator::kvp::Label;
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -141,6 +142,27 @@ pub enum Error {
     FailedToCreatePdb {
         source: crate::history::operations::pdb::Error,
     },
+
+    #[snafu(display("failed to build Labels"))]
+    LabelBuild {
+        source: stackable_operator::kvp::LabelError,
+    },
+
+    #[snafu(display("failed to build Metadata"))]
+    MetadataBuild {
+        source: stackable_operator::builder::ObjectMetaBuilderError,
+    },
+
+    #[snafu(display("failed to get required Labels"))]
+    GetRequiredLabels {
+        source:
+            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
+    },
+
+    #[snafu(display("failed to get create the S3 log dir"))]
+    CreateS3LogDirVolumes {
+        source: stackable_spark_k8s_crd::s3logdir::Error,
+    }
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -322,6 +344,7 @@ fn build_config_map(
                 .ownerreference_from_resource(shs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(labels(shs, app_version_label, &rolegroupref.role_group))
+                .context(MetadataBuildSnafu)?
                 .build(),
         )
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
@@ -372,9 +395,19 @@ fn build_stateful_set(
         rolegroupref.object_name()
     };
 
+    let metadata = ObjectMetaBuilder::new()
+    .with_recommended_labels(labels(
+        shs,
+        &resolved_product_image.app_version_label,
+        &rolegroupref.role_group,
+    ))
+    .context(MetadataBuildSnafu)?
+    .build();
+
     let mut pb = PodBuilder::new();
 
     pb.service_account_name(serviceaccount.name_unchecked())
+        .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
@@ -394,14 +427,7 @@ fn build_stateful_set(
                 )
                 .build(),
         )
-        .add_volumes(s3_log_dir.volumes())
-        .metadata_builder(|m| {
-            m.with_recommended_labels(labels(
-                shs,
-                &resolved_product_image.app_version_label,
-                &rolegroupref.role_group,
-            ))
-        })
+        .add_volumes(s3_log_dir.volumes().context(CreateS3LogDirVolumesSnafu)?)
         .security_context(PodSecurityContext {
             run_as_user: Some(SPARK_UID),
             run_as_group: Some(0),
@@ -463,6 +489,7 @@ fn build_stateful_set(
                 &resolved_product_image.app_version_label,
                 rolegroupref.role_group.as_ref(),
             ))
+            .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(StatefulSetSpec {
             template: pod_template,
@@ -518,7 +545,8 @@ fn build_service(
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(labels(shs, app_version_label, &group_name))
-            .with_label("prometheus.io/scrape", "true")
+            .context(MetadataBuildSnafu)?
+            .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
             .build(),
         spec: Some(ServiceSpec {
             type_: Some(service_type),
@@ -552,6 +580,7 @@ fn build_history_role_serviceaccount(
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
+            .context(MetadataBuildSnafu)?
             .build(),
         ..ServiceAccount::default()
     };
@@ -561,6 +590,7 @@ fn build_history_role_serviceaccount(
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
+            .context(MetadataBuildSnafu)?
             .build(),
         role_ref: RoleRef {
             api_group: <ClusterRole as stackable_operator::k8s_openapi::Resource>::GROUP // need to fully qualify because of "Resource" name clash

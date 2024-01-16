@@ -285,12 +285,12 @@ impl SparkApplication {
             );
         }
 
-        if let Some(o) = s3logdir.as_ref() {
-            if let Some(v) = o
+        if let Some(log_dir) = s3logdir.as_ref() {
+            if let Some(volume) = log_dir
                 .credentials_volume()
                 .context(S3LogDirCredentialsVolumeBuildSnafu)?
             {
-                result.push(v);
+                result.push(volume);
             }
         }
 

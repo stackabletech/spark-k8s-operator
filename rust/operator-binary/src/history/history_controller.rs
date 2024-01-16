@@ -2,7 +2,7 @@ use crate::history::operations::pdb::add_pdbs;
 use crate::product_logging::{self, resolve_vector_aggregator_address};
 use crate::Ctx;
 use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
-use stackable_operator::kvp::Label;
+use stackable_operator::kvp::{Label, Labels, ObjectLabels};
 use stackable_operator::{
     builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -22,7 +22,6 @@ use stackable_operator::{
         runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
     },
-    labels::{role_group_selector_labels, role_selector_labels, ObjectLabels},
     product_logging::{
         framework::{calculate_log_volume_size_limit, vector_container},
         spec::{
@@ -162,7 +161,7 @@ pub enum Error {
     #[snafu(display("failed to get create the S3 log dir"))]
     CreateS3LogDirVolumes {
         source: stackable_spark_k8s_crd::s3logdir::Error,
-    }
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -396,13 +395,13 @@ fn build_stateful_set(
     };
 
     let metadata = ObjectMetaBuilder::new()
-    .with_recommended_labels(labels(
-        shs,
-        &resolved_product_image.app_version_label,
-        &rolegroupref.role_group,
-    ))
-    .context(MetadataBuildSnafu)?
-    .build();
+        .with_recommended_labels(labels(
+            shs,
+            &resolved_product_image.app_version_label,
+            &rolegroupref.role_group,
+        ))
+        .context(MetadataBuildSnafu)?
+        .build();
 
     let mut pb = PodBuilder::new();
 
@@ -495,12 +494,16 @@ fn build_stateful_set(
             template: pod_template,
             replicas: shs.replicas(rolegroupref),
             selector: LabelSelector {
-                match_labels: Some(role_group_selector_labels(
-                    shs,
-                    APP_NAME,
-                    &rolegroupref.role,
-                    &rolegroupref.role_group,
-                )),
+                match_labels: Some(
+                    Labels::role_group_selector(
+                        shs,
+                        APP_NAME,
+                        &rolegroupref.role,
+                        &rolegroupref.role_group,
+                    )
+                    .context(LabelBuildSnafu)?
+                    .into(),
+                ),
                 ..LabelSelector::default()
             },
             ..StatefulSetSpec::default()
@@ -534,8 +537,12 @@ fn build_service(
     };
 
     let selector = match group {
-        Some(rgr) => role_group_selector_labels(shs, APP_NAME, &rgr.role, &rgr.role_group),
-        None => role_selector_labels(shs, APP_NAME, role),
+        Some(rgr) => Labels::role_group_selector(shs, APP_NAME, &rgr.role, &rgr.role_group)
+            .context(LabelBuildSnafu)?
+            .into(),
+        None => Labels::role_selector(shs, APP_NAME, role)
+            .context(LabelBuildSnafu)?
+            .into(),
     };
 
     Ok(Service {

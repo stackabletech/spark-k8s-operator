@@ -33,7 +33,7 @@ use stackable_operator::{
         apimachinery::pkg::api::resource::Quantity,
     },
     kube::{CustomResource, ResourceExt},
-    labels::ObjectLabels,
+    kvp::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging,
     role_utils::{CommonConfiguration, Role, RoleGroup},
@@ -687,7 +687,6 @@ impl SparkApplication {
                     config: RoleConfig::default_config(),
                     ..CommonConfiguration::default()
                 },
-                selector: None,
             }
         };
 
@@ -707,7 +706,6 @@ impl SparkApplication {
                         RoleGroup {
                             config: submit_conf,
                             replicas: Some(1),
-                            selector: None,
                         },
                     )]
                     .into(),
@@ -730,7 +728,6 @@ impl SparkApplication {
                         RoleGroup {
                             config: driver_conf,
                             replicas: Some(1),
-                            selector: None,
                         },
                     )]
                     .into(),

@@ -424,6 +424,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "delegate"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e018fccbeeb50ff26562ece792ed06659b9c2dae79ece77c4456bb10d9bf79b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.38",
+]
+
+[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1920,12 +1931,13 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "stackable-operator"
-version = "0.58.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.58.1#ab309d577e1937834f2adcbcd647822aa9c2ae43"
+version = "0.61.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.61.0#ddc57addbc741e3977b1589e553164505a59f639"
 dependencies = [
  "chrono",
  "clap",
  "const_format",
+ "delegate",
  "derivative",
  "dockerfile-parser",
  "either",
@@ -1958,8 +1970,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator-derive"
-version = "0.58.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.58.1#ab309d577e1937834f2adcbcd647822aa9c2ae43"
+version = "0.61.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=0.61.0#ddc57addbc741e3977b1589e553164505a59f639"
 dependencies = [
  "darling",
  "proc-macro2",

@@ -132,6 +132,24 @@ pub enum Error {
     SubmitConfig {
         source: stackable_spark_k8s_crd::Error,
     },
+
+    #[snafu(display("failed to build Labels"))]
+    LabelBuild { source: stackable_operator::kvp::LabelError },
+
+    #[snafu(display("failed to build Metadata"))]
+    MetadataBuild {
+        source: stackable_operator::builder::ObjectMetaBuilderError,
+    },
+
+    #[snafu(display("failed to get required Labels"))]
+    GetRequiredLabels {
+        source: stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
+    },
+
+    #[snafu(display("failed to create Volumes for SparkApplication"))]
+    CreateVolumes {
+        source: stackable_spark_k8s_crd::Error,
+    }
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -488,6 +506,7 @@ fn pod_template(
                 spark_application
                     .build_recommended_labels(&spark_image.app_version_label, &container_name),
             )
+            .context(MetadataBuildSnafu)?
             .build(),
     )
     .add_container(cb.build())
@@ -557,7 +576,7 @@ fn pod_template_config_map(
         cm_name.clone()
     };
 
-    let mut volumes = spark_application.volumes(s3conn, s3logdir, &log_config_map);
+    let mut volumes = spark_application.volumes(s3conn, s3logdir, &log_config_map).context(CreateVolumesSnafu)?;
     volumes.push(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
             .with_config_map(&cm_name)
@@ -588,6 +607,7 @@ fn pod_template_config_map(
                     spark_application
                         .build_recommended_labels(&spark_image.app_version_label, "pod-templates"),
                 )
+                .context(MetadataBuildSnafu)?
                 .build(),
         )
         .add_data(
@@ -650,6 +670,7 @@ fn submit_job_config_map(
                 spark_application
                     .build_recommended_labels(&spark_image.app_version_label, "spark-submit"),
             )
+            .context(MetadataBuildSnafu)?
             .build(),
     );
 
@@ -786,6 +807,7 @@ fn spark_job(
                         &spark_image.app_version_label,
                         "spark-job-template",
                     ))
+                    .context(MetadataBuildSnafu)?
                     .build(),
             ),
             spec: Some(PodSpec {
@@ -814,6 +836,7 @@ fn spark_job(
                 spark_application
                     .build_recommended_labels(&spark_image.app_version_label, "spark-job"),
             )
+            .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(JobSpec {
             template: pod,
@@ -845,6 +868,7 @@ fn build_spark_role_serviceaccount(
                 spark_app
                     .build_recommended_labels(&spark_image.app_version_label, "service-account"),
             )
+            .context(MetadataBuildSnafu)?
             .build(),
         ..ServiceAccount::default()
     };
@@ -858,6 +882,7 @@ fn build_spark_role_serviceaccount(
             .with_recommended_labels(
                 spark_app.build_recommended_labels(&spark_image.app_version_label, "role-binding"),
             )
+            .context(MetadataBuildSnafu)?
             .build(),
         role_ref: RoleRef {
             api_group: ClusterRole::GROUP.to_string(),

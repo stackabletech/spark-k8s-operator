@@ -33,7 +33,7 @@ use stackable_operator::{
         apimachinery::pkg::api::resource::Quantity,
     },
     kube::{CustomResource, ResourceExt},
-    labels::ObjectLabels,
+    kvp::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging,
     role_utils::{CommonConfiguration, Role, RoleGroup},
@@ -48,31 +48,53 @@ use std::{
 pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
+
     #[snafu(display("object defines no deploy mode"))]
     ObjectHasNoDeployMode,
+
     #[snafu(display("object defines no application artifact"))]
     ObjectHasNoArtifact,
+
     #[snafu(display("object has no name"))]
     ObjectHasNoName,
+
     #[snafu(display("application has no Spark image"))]
     NoSparkImage,
+
     #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
     FailedToConvertJavaHeap {
         source: stackable_operator::error::Error,
         unit: String,
     },
+
     #[snafu(display("failed to parse value"))]
     FailedParseToFloatConversion,
+
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+
     #[snafu(display("failed to transform configs"))]
     ProductConfigTransform {
         source: stackable_operator::product_config_utils::ConfigError,
     },
+
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
         source: stackable_operator::error::Error,
     },
+
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::SecretOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to build S3 credentials Volume"))]
+    S3CredentialsVolumeBuild {
+        source: stackable_operator::commons::secret_class::SecretClassVolumeError,
+    },
+
+    #[snafu(display("failed to build S3 log directory credentials Volume"))]
+    S3LogDirCredentialsVolumeBuild { source: s3logdir::Error },
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
@@ -232,7 +254,7 @@ impl SparkApplication {
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
         log_config_map: &str,
-    ) -> Vec<Volume> {
+    ) -> Result<Vec<Volume>, Error> {
         let mut result: Vec<Volume> = self.spec.volumes.clone();
 
         if self.spec.image.is_some() {
@@ -256,11 +278,20 @@ impl SparkApplication {
             ..
         }) = s3conn
         {
-            result.push(secret_class_volume.to_volume(secret_class_volume.secret_class.as_ref()));
+            result.push(
+                secret_class_volume
+                    .to_volume(secret_class_volume.secret_class.as_ref())
+                    .context(S3CredentialsVolumeBuildSnafu)?,
+            );
         }
 
-        if let Some(v) = s3logdir.as_ref().and_then(|o| o.credentials_volume()) {
-            result.push(v);
+        if let Some(log_dir) = s3logdir.as_ref() {
+            if let Some(volume) = log_dir
+                .credentials_volume()
+                .context(S3LogDirCredentialsVolumeBuildSnafu)?
+            {
+                result.push(volume);
+            }
         }
 
         result.push(
@@ -299,14 +330,15 @@ impl SparkApplication {
                         .ephemeral(
                             SecretOperatorVolumeSourceBuilder::new(cert_secret)
                                 .with_format(SecretFormat::TlsPkcs12)
-                                .build(),
+                                .build()
+                                .context(TlsCertSecretClassVolumeBuildSnafu)?,
                         )
                         .build(),
                 );
             }
         }
 
-        result
+        Ok(result)
     }
 
     pub fn spark_job_volume_mounts(
@@ -687,7 +719,6 @@ impl SparkApplication {
                     config: RoleConfig::default_config(),
                     ..CommonConfiguration::default()
                 },
-                selector: None,
             }
         };
 
@@ -707,7 +738,6 @@ impl SparkApplication {
                         RoleGroup {
                             config: submit_conf,
                             replicas: Some(1),
-                            selector: None,
                         },
                     )]
                     .into(),
@@ -730,7 +760,6 @@ impl SparkApplication {
                         RoleGroup {
                             config: driver_conf,
                             replicas: Some(1),
-                            selector: None,
                         },
                     )]
                     .into(),

@@ -29,12 +29,25 @@ pub enum Error {
     S3Bucket {
         source: stackable_operator::error::Error,
     },
+
     #[snafu(display("missing bucket name for history logs"))]
     BucketNameMissing,
+
     #[snafu(display("tls non-verification not supported"))]
     S3TlsNoVerificationNotSupported,
+
     #[snafu(display("ca-cert verification not supported"))]
     S3TlsCaVerificationNotSupported,
+
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: stackable_operator::builder::SecretOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to build credentials Volume"))]
+    CredentialsVolumeBuild {
+        source: stackable_operator::commons::secret_class::SecretClassVolumeError,
+    },
 }
 
 pub struct S3LogDir {
@@ -179,8 +192,8 @@ impl S3LogDir {
         )
     }
 
-    pub fn volumes(&self) -> Vec<Volume> {
-        let mut volumes: Vec<Volume> = self.credentials_volume().into_iter().collect();
+    pub fn volumes(&self) -> Result<Vec<Volume>, Error> {
+        let mut volumes: Vec<Volume> = self.credentials_volume()?.into_iter().collect();
 
         if let Some(secret_name) = tlscerts::tls_secret_name(&self.bucket.connection) {
             volumes.push(
@@ -188,12 +201,13 @@ impl S3LogDir {
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(secret_name)
                             .with_format(SecretFormat::TlsPkcs12)
-                            .build(),
+                            .build()
+                            .context(TlsCertSecretClassVolumeBuildSnafu)?,
                     )
                     .build(),
             );
         }
-        volumes
+        Ok(volumes)
     }
 
     pub fn volume_mounts(&self) -> Vec<VolumeMount> {
@@ -212,9 +226,14 @@ impl S3LogDir {
         volume_mounts
     }
 
-    pub fn credentials_volume(&self) -> Option<Volume> {
+    pub fn credentials_volume(&self) -> Result<Option<Volume>, Error> {
         self.credentials()
-            .map(|credentials| credentials.to_volume(credentials.secret_class.as_ref()))
+            .map(|credentials| {
+                credentials
+                    .to_volume(credentials.secret_class.as_ref())
+                    .context(CredentialsVolumeBuildSnafu)
+            })
+            .transpose()
     }
 
     pub fn credentials_volume_mount(&self) -> Option<VolumeMount> {

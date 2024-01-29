@@ -3,8 +3,8 @@
 image:
   repository: docker.stackable.tech/stackable/spark-k8s-operator
   pullPolicy: IfNotPresent
+  pullSecrets: []
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
@@ -18,6 +18,9 @@ serviceAccount:
   name: ""
 
 podAnnotations: {}
+
+# Provide additional labels which get attached to all deployed resources
+labels: {}
 
 podSecurityContext: {}
   # fsGroup: 2000

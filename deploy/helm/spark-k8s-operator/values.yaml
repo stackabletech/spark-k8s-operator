@@ -20,7 +20,8 @@ serviceAccount:
 podAnnotations: {}
 
 # Provide additional labels which get attached to all deployed resources
-labels: {}
+labels:
+  stackable.tech/vendor: Stackable
 
 podSecurityContext: {}
   # fsGroup: 2000

@@ -8,11 +8,11 @@ spec:
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   sparkImage:
-{% if test_scenario['values']['spark'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% if test_scenario['values']['spark-delta'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark-delta'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark-delta'].split(',')[0] }}"
 {% else %}
-    productVersion: "{{ test_scenario['values']['spark'] }}"
+    productVersion: "{{ test_scenario['values']['spark-delta'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
   mode: cluster

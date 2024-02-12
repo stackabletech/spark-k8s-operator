@@ -762,7 +762,7 @@ fn spark_job(
         .add_env_var(
             "SPARK_SUBMIT_OPTS",
             format!(
-            "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
+                "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
             ),
         )
         // TODO: move this to the image

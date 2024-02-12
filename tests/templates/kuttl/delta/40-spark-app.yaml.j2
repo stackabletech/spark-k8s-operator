@@ -1,0 +1,88 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: pyspark-delta
+spec:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  mode: cluster
+  mainApplicationFile: "local:///stackable/spark/jobs/write-to-delta.py"
+  s3connection:
+    inline:
+      host: test-minio
+      port: 9000
+      accessStyle: Path
+      credentials:
+        secretClass: s3-credentials-class
+  job:
+    logging:
+      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+  driver:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: script
+          mountPath: /stackable/spark/jobs
+  executor:
+    replicas: 1
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: script
+          mountPath: /stackable/spark/jobs
+  deps:
+    requirements:
+      - importlib-metadata
+      - delta-spark=={{ test_scenario['values']['delta'] }}
+    packages:
+      - io.delta:delta-spark_2.12:{{ test_scenario['values']['delta'] }}
+  volumes:
+    - name: script
+      configMap:
+        name: write-to-delta
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: write-to-delta
+data:
+  write-to-delta.py: |
+    from datetime import datetime, date
+    from pyspark.sql import Row, SparkSession
+    from delta import *
+
+    def main():
+        builder = SparkSession.builder.appName("MyApp") \
+            .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider") \
+            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+            .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+            .config("spark.delta.logStore.class", "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore") \
+            .config("spark.hadoop.delta.enableFastS3AListFrom", "true")
+
+        spark = configure_spark_with_delta_pip(builder).getOrCreate()
+
+        df = spark.createDataFrame([
+            Row(a=1, b=2., c='string1', d=date(2000, 1, 1), e=datetime(2000, 1, 1, 12, 0)),
+            Row(a=2, b=3., c='string2', d=date(2000, 2, 1), e=datetime(2000, 1, 2, 12, 0)),
+            Row(a=4, b=5., c='string3', d=date(2000, 3, 1), e=datetime(2000, 1, 3, 12, 0))
+        ])
+
+        location = "s3a://my-bucket/spark-delta-test"
+
+        df.write.format("delta").mode("overwrite").save(location)
+
+    if __name__ == "__main__":
+        main()

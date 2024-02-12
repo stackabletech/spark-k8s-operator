@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - [BREAKING] Removed version field. Several attributes have been changed to mandatory. While this change is
   technically breaking, existing Spark jobs would not have worked before as these attributes were necessary ([#319]).
 - [BREAKING] Remove `userClassPathFirst` properties from `spark-submit` and all references to the
-  `/stackable/spark/extra-jars` folder. This PR is paired with the `docker-images` PR #556 which removes that folder. ([#350])
+  `/stackable/spark/extra-jars` folder. This PR is paired with the `docker-images` PR #556 which removes that folder. ([#355])
 
 ### Fixed
 
@@ -24,7 +24,7 @@ All notable changes to this project will be documented in this file.
 [#313]: https://github.com/stackabletech/spark-k8s-operator/pull/313
 [#319]: https://github.com/stackabletech/spark-k8s-operator/pull/319
 [#344]: https://github.com/stackabletech/spark-k8s-operator/pull/344
-[#350]: https://github.com/stackabletech/spark-k8s-operator/pull/350
+[#355]: https://github.com/stackabletech/spark-k8s-operator/pull/355
 
 ## [23.11.0] - 2023-11-24
 

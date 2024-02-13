@@ -671,6 +671,11 @@ fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
         value: Some("true".into()),
         value_from: None,
     });
+    vars.push(EnvVar {
+        name: "SPARK_DAEMON_CLASSPATH".to_string(),
+        value: Some("/stackable/spark/extra-jars/*".into()),
+        value_from: None,
+    });
 
     let mut history_opts = vec![
         format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),

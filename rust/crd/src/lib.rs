@@ -483,7 +483,12 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.executor.container.image={}", spark_image.to_string()),
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
             format!("--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
-            format!("--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}")
+            format!("--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*"),
+            //"--conf spark.driver.userClassPathFirst=true".to_string(),
+            "--conf spark.driver.userClassPathFirst=true".to_string(),
+            format!("--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+            format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
+            //"--conf spark.executor.userClassPathFirst=true".to_string(),
         ]);
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management

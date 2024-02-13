@@ -1,0 +1,5 @@
+= Logging
+
+Logs produced by SparkApplications are automatically collected by vector agents and can be aggregated as described in xref:concepts:logging.adoc[roles]
+
+NOTE: Only logs produced by the application's driver and executors are collected. Logs produced by `spark-submit` are discarded.

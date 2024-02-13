@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Helm: support labels in values.yaml ([#344]).
+- Support version `3.4.2` ([#357]).
 
 ### Changed
 
@@ -22,6 +23,7 @@ All notable changes to this project will be documented in this file.
 [#313]: https://github.com/stackabletech/spark-k8s-operator/pull/313
 [#319]: https://github.com/stackabletech/spark-k8s-operator/pull/319
 [#344]: https://github.com/stackabletech/spark-k8s-operator/pull/344
+[#357]: https://github.com/stackabletech/spark-k8s-operator/pull/357
 
 ## [23.11.0] - 2023-11-24
 

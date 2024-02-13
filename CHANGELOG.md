@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - [BREAKING] Removed version field. Several attributes have been changed to mandatory. While this change is
   technically breaking, existing Spark jobs would not have worked before as these attributes were necessary ([#319]).
 - [BREAKING] Remove `userClassPathFirst` properties from `spark-submit`. This is an experimental feature that was
-  introduced to support logging in xml format. The side-effect of this removal is that the vector agent cannot
+  introduced to support logging in XML format. The side effect of this removal is that the vector agent cannot
   aggregate output from the `spark-submit` containers. On the other side, it enables dynamic provisionining of
   delta.io packages (among others) with Stackable stock images which is much more important. ([#355])
 

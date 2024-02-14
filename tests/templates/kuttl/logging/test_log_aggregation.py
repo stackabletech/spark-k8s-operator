@@ -37,12 +37,6 @@ def check_sent_events():
             assert sentEvents is None or \
                 sentEvents['sentEventsTotal'] == 0, \
                 'Invalid log events were sent.'
-        elif componentId.find('LogConfigSubmitSpark') > 0:
-            # [*LogConfigSubmitSpark] components do not log in XML format
-            # because spark-submit doesn't know about the /stackable/spark/extra-jars folder.
-            assert sentEvents is None or \
-                sentEvents['sentEventsTotal'] == 0, \
-                f'Found events for {componentId} but did not expect any.'
         else:
             assert sentEvents is not None and \
                 sentEvents['sentEventsTotal'] > 0, \

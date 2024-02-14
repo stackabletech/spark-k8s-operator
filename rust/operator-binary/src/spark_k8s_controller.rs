@@ -318,8 +318,6 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     let submit_job_config_map = submit_job_config_map(
         &spark_application,
         submit_product_config,
-        vector_aggregator_address.as_deref(),
-        &submit_config.logging,
         &resolved_product_image,
     )?;
     client
@@ -580,7 +578,7 @@ fn pod_template_config_map(
     };
 
     let mut volumes = spark_application
-        .volumes(s3conn, s3logdir, &log_config_map)
+        .volumes(s3conn, s3logdir, Some(&log_config_map))
         .context(CreateVolumesSnafu)?;
     volumes.push(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
@@ -657,8 +655,6 @@ fn pod_template_config_map(
 fn submit_job_config_map(
     spark_application: &SparkApplication,
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
-    vector_aggregator_address: Option<&str>,
-    logging: &Logging<SparkContainer>,
     spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
     let cm_name = spark_application.submit_job_config_map_name();
@@ -678,20 +674,6 @@ fn submit_job_config_map(
             .context(MetadataBuildSnafu)?
             .build(),
     );
-
-    product_logging::extend_config_map(
-        &RoleGroupRef {
-            cluster: ObjectRef::from_obj(spark_application),
-            role: String::new(),
-            role_group: String::new(),
-        },
-        vector_aggregator_address,
-        logging,
-        SparkContainer::SparkSubmit,
-        SparkContainer::Vector,
-        &mut cm_builder,
-    )
-    .context(InvalidLoggingConfigSnafu { cm_name })?;
 
     if let Some(product_config) = product_config {
         let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
@@ -731,27 +713,7 @@ fn spark_job(
     let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
         .context(IllegalContainerNameSnafu)?;
 
-    let log_config_map = if let Some(ContainerLogConfig {
-        choice:
-            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
-                custom: ConfigMapLogConfig { config_map },
-            })),
-    }) = job_config
-        .logging
-        .containers
-        .get(&SparkContainer::SparkSubmit)
-    {
-        config_map.into()
-    } else {
-        spark_application.submit_job_config_map_name()
-    };
-
-    let mut args = vec![job_commands.join(" ")];
-    if job_config.logging.enable_vector_agent {
-        // Wait for Vector to gather the logs.
-        args.push("sleep 10".into());
-        args.push(create_vector_shutdown_file_command(VOLUME_MOUNT_PATH_LOG));
-    }
+    let args = vec![job_commands.join(" ")];
 
     cb.image_from_product_image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
@@ -785,26 +747,11 @@ fn spark_job(
     ];
     volumes.extend(
         spark_application
-            .volumes(s3conn, s3logdir, &log_config_map)
+            .volumes(s3conn, s3logdir, None)
             .context(CreateVolumesSnafu)?,
     );
 
-    let mut containers = vec![cb.build()];
-
-    if job_config.logging.enable_vector_agent {
-        containers.push(vector_container(
-            spark_image,
-            VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_LOG,
-            job_config.logging.containers.get(&SparkContainer::Vector),
-            ResourceRequirementsBuilder::new()
-                .with_cpu_request("250m")
-                .with_cpu_limit("500m")
-                .with_memory_request("128Mi")
-                .with_memory_limit("128Mi")
-                .build(),
-        ));
-    }
+    let containers = vec![cb.build()];
 
     let mut pod =
         PodTemplateSpec {

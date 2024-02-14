@@ -7,6 +7,6 @@ timeout: 300
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: pyspark-delta
+  name: pyspark-delta-lake
 status:
   phase: Succeeded

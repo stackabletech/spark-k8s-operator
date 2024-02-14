@@ -2,17 +2,17 @@
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: pyspark-delta
+  name: pyspark-delta-lake
 spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   sparkImage:
-{% if test_scenario['values']['spark-delta'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['spark-delta'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['spark-delta'].split(',')[0] }}"
+{% if test_scenario['values']['spark-delta-lake'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark-delta-lake'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark-delta-lake'].split(',')[0] }}"
 {% else %}
-    productVersion: "{{ test_scenario['values']['spark-delta'] }}"
+    productVersion: "{{ test_scenario['values']['spark-delta-lake'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
   mode: cluster

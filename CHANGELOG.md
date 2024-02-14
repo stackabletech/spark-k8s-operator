@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 - [BREAKING] Remove `userClassPathFirst` properties from `spark-submit`. This is an experimental feature that was
   introduced to support logging in XML format. The side effect of this removal is that the vector agent cannot
   aggregate output from the `spark-submit` containers. On the other side, it enables dynamic provisionining of
-  delta.io packages (among others) with Stackable stock images which is much more important. ([#355])
+  java packages (such as Delta Lake) with Stackable stock images which is much more important. ([#355])
 
 ### Fixed
 

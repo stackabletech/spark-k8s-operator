@@ -25,10 +25,6 @@ spec:
       prefix: eventlogs/
       bucket:
         reference: spark-history-s3-bucket
-  job:
-    config:
-      logging:
-        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   driver:
     config:
       logging:

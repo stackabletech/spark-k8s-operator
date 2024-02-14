@@ -24,9 +24,6 @@ spec:
       accessStyle: Path
       credentials:
         secretClass: s3-credentials-class
-  job:
-    logging:
-      enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   driver:
     config:
       logging:

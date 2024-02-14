@@ -300,18 +300,18 @@ impl SparkApplication {
                     .with_config_map(log_config_map)
                     .build(),
             );
-        }
 
-        result.push(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
-                .with_empty_dir(
-                    None::<String>,
-                    Some(product_logging::framework::calculate_log_volume_size_limit(
-                        &[MAX_SPARK_LOG_FILES_SIZE, MAX_INIT_LOG_FILES_SIZE],
-                    )),
-                )
-                .build(),
-        );
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+                    .with_empty_dir(
+                        None::<String>,
+                        Some(product_logging::framework::calculate_log_volume_size_limit(
+                            &[MAX_SPARK_LOG_FILES_SIZE, MAX_INIT_LOG_FILES_SIZE],
+                        )),
+                    )
+                    .build(),
+            );
+        }
 
         if !self.packages().is_empty() {
             result.push(

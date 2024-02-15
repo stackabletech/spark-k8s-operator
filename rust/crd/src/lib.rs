@@ -253,7 +253,7 @@ impl SparkApplication {
         &self,
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
-        log_config_map: &str,
+        log_config_map: Option<&str>,
     ) -> Result<Vec<Volume>, Error> {
         let mut result: Vec<Volume> = self.spec.volumes.clone();
 
@@ -294,22 +294,24 @@ impl SparkApplication {
             }
         }
 
-        result.push(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
-                .with_config_map(log_config_map)
-                .build(),
-        );
+        if let Some(log_config_map) = log_config_map {
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                    .with_config_map(log_config_map)
+                    .build(),
+            );
 
-        result.push(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
-                .with_empty_dir(
-                    None::<String>,
-                    Some(product_logging::framework::calculate_log_volume_size_limit(
-                        &[MAX_SPARK_LOG_FILES_SIZE, MAX_INIT_LOG_FILES_SIZE],
-                    )),
-                )
-                .build(),
-        );
+            result.push(
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+                    .with_empty_dir(
+                        None::<String>,
+                        Some(product_logging::framework::calculate_log_volume_size_limit(
+                            &[MAX_SPARK_LOG_FILES_SIZE, MAX_INIT_LOG_FILES_SIZE],
+                        )),
+                    )
+                    .build(),
+            );
+        }
 
         if !self.packages().is_empty() {
             result.push(
@@ -358,7 +360,7 @@ impl SparkApplication {
                 ..VolumeMount::default()
             },
         ];
-        self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
+        self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir, false)
     }
 
     fn add_common_volume_mounts(
@@ -366,6 +368,7 @@ impl SparkApplication {
         mut mounts: Vec<VolumeMount>,
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
+        logging_enabled: bool,
     ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
             mounts.push(VolumeMount {
@@ -401,17 +404,19 @@ impl SparkApplication {
             mounts.push(vm);
         }
 
-        mounts.push(VolumeMount {
-            name: VOLUME_MOUNT_NAME_LOG_CONFIG.into(),
-            mount_path: VOLUME_MOUNT_PATH_LOG_CONFIG.into(),
-            ..VolumeMount::default()
-        });
+        if logging_enabled {
+            mounts.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_LOG_CONFIG.into(),
+                mount_path: VOLUME_MOUNT_PATH_LOG_CONFIG.into(),
+                ..VolumeMount::default()
+            });
 
-        mounts.push(VolumeMount {
-            name: VOLUME_MOUNT_NAME_LOG.into(),
-            mount_path: VOLUME_MOUNT_PATH_LOG.into(),
-            ..VolumeMount::default()
-        });
+            mounts.push(VolumeMount {
+                name: VOLUME_MOUNT_NAME_LOG.into(),
+                mount_path: VOLUME_MOUNT_PATH_LOG.into(),
+                ..VolumeMount::default()
+            });
+        }
 
         if !self.packages().is_empty() {
             mounts.push(VolumeMount {
@@ -484,10 +489,8 @@ impl SparkApplication {
             format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
             format!("--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
             format!("--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*"),
-            "--conf spark.driver.userClassPathFirst=true".to_string(),
             format!("--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
             format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
-            "--conf spark.executor.userClassPathFirst=true".to_string(),
         ]);
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management

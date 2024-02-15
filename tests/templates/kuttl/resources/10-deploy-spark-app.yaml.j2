@@ -24,8 +24,6 @@ spec:
     spark.kubernetes.executor.podNamePrefix: "resources-crd"
   job:
     config:
-      logging:
-        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
       resources:
         cpu:
           min: 250m

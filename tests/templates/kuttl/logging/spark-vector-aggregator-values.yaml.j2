@@ -50,18 +50,6 @@ customConfig:
 
     # SparkApplication spark-automatic-log-config
 
-    filteredSparkAutomaticLogConfigSubmitSpark:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        match(string!(.pod), r'^spark-automatic-log-config-[^-]+$') &&
-        .container == "spark-submit"
-    filteredSparkAutomaticLogConfigSubmitVector:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        match(string!(.pod), r'^spark-automatic-log-config-[^-]+$') &&
-        .container == "vector"
     filteredSparkAutomaticLogConfigDriverSpark:
       type: filter
       inputs: [vector]
@@ -107,18 +95,6 @@ customConfig:
 
     # SparkApplication spark-custom-log-config
 
-    filteredSparkCustomLogConfigSubmitSpark:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        match(string!(.pod), r'^spark-custom-log-config-[^-]+$') &&
-        .container == "spark-submit"
-    filteredSparkCustomLogConfigSubmitVector:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        match(string!(.pod), r'^spark-custom-log-config-[^-]+$') &&
-        .container == "vector"
     filteredSparkCustomLogConfigDriverSpark:
       type: filter
       inputs: [vector]
@@ -164,18 +140,6 @@ customConfig:
 
     # SparkApplication pyspark-automatic-log-config
 
-    filteredPysparkAutomaticLogConfigSubmitSpark:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        match(string!(.pod), r'^pyspark-automatic-log-config-[^-]+$') &&
-        .container == "spark-submit"
-    filteredPysparkAutomaticLogConfigSubmitVector:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        match(string!(.pod), r'^pyspark-automatic-log-config-[^-]+$') &&
-        .container == "vector"
     filteredPysparkAutomaticLogConfigDriverSpark:
       type: filter
       inputs: [vector]
@@ -221,18 +185,6 @@ customConfig:
 
     # SparkApplication pyspark-custom-log-config
 
-    filteredPysparkCustomLogConfigSubmitSpark:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        match(string!(.pod), r'^pyspark-custom-log-config-[^-]+$') &&
-        .container == "spark-submit"
-    filteredPysparkCustomLogConfigSubmitVector:
-      type: filter
-      inputs: [vector]
-      condition: >-
-        match(string!(.pod), r'^pyspark-custom-log-config-[^-]+$') &&
-        .container == "vector"
     filteredPysparkCustomLogConfigDriverSpark:
       type: filter
       inputs: [vector]

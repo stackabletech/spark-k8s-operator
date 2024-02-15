@@ -13,6 +13,10 @@ All notable changes to this project will be documented in this file.
 - Various documentation of the CRD ([#319]).
 - [BREAKING] Removed version field. Several attributes have been changed to mandatory. While this change is
   technically breaking, existing Spark jobs would not have worked before as these attributes were necessary ([#319]).
+- [BREAKING] Remove `userClassPathFirst` properties from `spark-submit`. This is an experimental feature that was
+  introduced to support logging in XML format. The side effect of this removal is that the vector agent cannot
+  aggregate output from the `spark-submit` containers. On the other side, it enables dynamic provisionining of
+  java packages (such as Delta Lake) with Stackable stock images which is much more important. ([#355])
 
 ### Fixed
 
@@ -22,6 +26,7 @@ All notable changes to this project will be documented in this file.
 [#313]: https://github.com/stackabletech/spark-k8s-operator/pull/313
 [#319]: https://github.com/stackabletech/spark-k8s-operator/pull/319
 [#344]: https://github.com/stackabletech/spark-k8s-operator/pull/344
+[#355]: https://github.com/stackabletech/spark-k8s-operator/pull/355
 
 ## [23.11.0] - 2023-11-24
 

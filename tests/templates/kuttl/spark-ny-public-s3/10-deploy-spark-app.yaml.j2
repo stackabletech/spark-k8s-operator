@@ -34,10 +34,6 @@ spec:
     - "--input /arguments/job-args.txt"
   s3connection:
     reference: minio
-  job:
-    config:
-      logging:
-        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   driver:
     config:
       logging:

@@ -18,27 +18,6 @@ spec:
   deps:
     requirements:
       - numpy==1.24.2
-  job:
-    config:
-      logging:
-        enableVectorAgent: true
-        containers:
-          spark-submit:
-            console:
-              level: INFO
-            file:
-              level: INFO
-            loggers:
-              ROOT:
-                level: INFO
-          vector:
-            console:
-              level: INFO
-            file:
-              level: INFO
-            loggers:
-              ROOT:
-                level: INFO
   driver:
     config:
       logging:

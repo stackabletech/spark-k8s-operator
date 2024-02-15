@@ -19,9 +19,6 @@ spec:
         requests:
           cpu: 100m
           memory: 512Mi
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
-    - name: vector
-{% endif %}
 ---
 apiVersion: v1
 kind: Pod

@@ -33,10 +33,6 @@ spec:
     spark.executor.memory: "2g"
     spark.executor.memoryOverheadFactor: "0.4"
     spark.executor.instances: "1"
-  job:
-    config:
-      logging:
-        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   driver:
     config:
       logging:

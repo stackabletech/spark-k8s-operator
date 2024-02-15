@@ -147,7 +147,7 @@ impl RoleConfig {
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
         let volume_mounts = self.volume_mounts.clone().unwrap_or_default().into();
-        spark_application.add_common_volume_mounts(volume_mounts, s3conn, s3logdir)
+        spark_application.add_common_volume_mounts(volume_mounts, s3conn, s3logdir, true)
     }
 }
 
@@ -200,8 +200,6 @@ impl Configuration for RoleConfigFragment {
 pub struct SubmitConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
-    #[fragment_attrs(serde(default))]
-    pub logging: Logging<SparkContainer>,
 }
 
 impl SubmitConfig {
@@ -218,7 +216,6 @@ impl SubmitConfig {
                 },
                 storage: SparkStorageConfigFragment {},
             },
-            logging: product_logging::spec::default_logging(),
         }
     }
 }

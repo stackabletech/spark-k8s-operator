@@ -28,10 +28,6 @@ spec:
       host: test-minio
       port: 9000
       accessStyle: Path
-  job:
-    config:
-      logging:
-        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
   driver:
     config:
       logging:

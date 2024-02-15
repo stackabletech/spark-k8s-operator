@@ -17,27 +17,6 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkALS
   mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples.jar
-  job:
-    config:
-      logging:
-        enableVectorAgent: true
-        containers:
-          spark-submit:
-            console:
-              level: INFO
-            file:
-              level: INFO
-            loggers:
-              ROOT:
-                level: INFO
-          vector:
-            console:
-              level: INFO
-            file:
-              level: INFO
-            loggers:
-              ROOT:
-                level: INFO
   driver:
     config:
       logging:

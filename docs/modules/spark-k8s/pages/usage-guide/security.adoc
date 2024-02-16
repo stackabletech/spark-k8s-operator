@@ -1,14 +1,21 @@
-= Kerberos
+= Security
+
+== Authentication
+
+Currently the only supported authentication mechanism is Kerberos, which is disabled by default.
 
 Kerberos is a network authentication protocol that works on the basis of "tickets" to allow nodes communicating over a non-secure network to prove their identity to one another in a secure manner. It is used in Spark to authenticate users and to secure communication between Spark components.
 
 In this guide we show how to configure Spark applications to use a Kerberos. The Stackable Secret Operator is used to generate the keytab files. In production environments, the users might have different means to provision the keytab files.
 
+
 == Prerequisites
 
-It is assumed that you have a KDC server running in your cluster and that the Stackable Secret Operator is configured to provision the keytab files.
+It is assumed that you have a KDC server running in your cluster and that the Stackable Secret Operator is configured to provision the keytab files as described in xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation].
 
-This guide makes use of a SecretClass named `kerberos-default`. It is assumed that this class exists and is configured with a `kerberosBackend` as described in xref:secret-operator:secretclass.adoc#backend-kerberoskeytab[].
+If the Spark application processes data from a kerberized Hadoop cluster, follow the xref:hdfs-operator:usage-guide:security.adoc[HDFS operator guide] to configure HDFS with Kerberos.
+
+This guide makes use of a SecretClass named `kerberos-default`. It is assumed that this class exists and is configured with a `kerberosBackend`.
 
 == Steps
 
@@ -57,9 +64,8 @@ volumes:
             requests:
               storage: "1"
 ----
-
-<1> Mount the `kerberos` volume in the driver pod.
-<2> Mount the `kerberos` volume in the executor pods.
+<1> Mount the keytab volume in the driver pod.
+<2> Mount the keytab volume in the executor pods.
 <3> Mount the `krb5.conf` file as a ConfigMap.
 <4> Name of the Secret class used to provision the keytab.
 <5> Scope of the Secret.
@@ -78,15 +84,15 @@ job:
       volumes:
         - name: kerberos-config
           configMap:
-            name: krb5-kdc
+            name: krb5-kdc <1>
         - name: kerberos
           ephemeral:
             volumeClaimTemplate:
               metadata:
                 annotations:
-                  secrets.stackable.tech/class: kerberos-default
-                  secrets.stackable.tech/scope: service=spark-teragen
-                  secrets.stackable.tech/kerberos.service.names: testuser
+                  secrets.stackable.tech/class: kerberos-default <2>
+                  secrets.stackable.tech/scope: service=spark-teragen <3>
+                  secrets.stackable.tech/kerberos.service.names: testuser <4>
               spec:
                 storageClassName: secrets.stackable.tech
                 accessModes:
@@ -97,9 +103,16 @@ job:
       containers:
         - name: spark-submit
           volumeMounts:
-            - name: kerberos
+            - name: kerberos <5>
               mountPath: /stackable/kerberos
 ----
+<1> Mount the `krb5.conf` file as a ConfigMap.
+<2> Name of the Secret class used to provision the keytab.
+<3> Scope of the Secret.
+<4> Name of the user for which the keytab is provisioned.
+<5> Mount the keytab volume in the job pod.
+
+
 
 === Spark application
 
@@ -116,3 +129,6 @@ sparkConf:
   "spark.executor.extraJavaOptions": "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
 ----
 
+=== Hadoop
+
+TODO: where is the kerberized HDFS discovery config map coming from ?

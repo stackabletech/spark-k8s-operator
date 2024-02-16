@@ -13,7 +13,8 @@ This guide makes use of a SecretClass named `kerberos-default`. It is assumed th
 == Steps
 
 There are three steps to configure a Spark application to use Kerberos:
-1. Provision the Spark driver end executor pods with the keytab and `krb5.conf` files.
+
+1. Provision the Spark `driver` end `executor` pods with the keytab and `krb5.conf` files.
 2. Provision the Spark `job` pod with the keytab and `krb5.conf` files.
 3. Instruct the Spark application to use Kerberos.
 

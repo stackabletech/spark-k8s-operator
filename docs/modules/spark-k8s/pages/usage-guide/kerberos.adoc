@@ -1,0 +1,117 @@
+= Kerberos
+
+Kerberos is a network authentication protocol that works on the basis of "tickets" to allow nodes communicating over a non-secure network to prove their identity to one another in a secure manner. It is used in Spark to authenticate users and to secure communication between Spark components.
+
+In this guide we show how to configure Spark applications to use a Kerberos. The Stackable Secret Operator is used to generate the keytab files. In production environments, the users might have different means to provision the keytab files.
+
+== Prerequisites
+
+It is assumed that you have a KDC server running in your cluster and that the Stackable Secret Operator is configured to provision the keytab files.
+
+This guide makes use of a SecretClass named `kerberos-default`. It is assumed that this class exists and is configured with a `kerberosBackend` as described in xref:secret-operator:secretclass.adoc#backend-kerberoskeytab[].
+
+== Steps
+
+There are three steps to configure a Spark application to use Kerberos:
+1. Provision the Spark driver end executor pods with the keytab and `krb5.conf` files.
+2. Provision the Spark `job` pod with the keytab and `krb5.conf` files.
+3. Instruct the Spark application to use Kerberos.
+
+=== Driver and Executor pods
+
+Install the keytab and the `krb5.conf` files in the Spark pods. The keytab file contains the credentials of the user that is used to authenticate with the Kerberos server. The `krb5.conf` file contains the configuration settings for the Kerberos client.
+
+In the example below, the Stackable Secret Operator is used to provision the keytab via a volume claim. The `krb5.conf` file is mounted as a ConfigMap.
+
+[source,yaml]
+----
+...
+driver:
+  config:
+    volumeMounts:
+      - name: kerberos
+        mountPath: /stackable/kerberos <1>
+executor:
+  config:
+    volumeMounts:
+      - name: kerberos
+        mountPath: /stackable/kerberos <2>
+volumes:
+  - name: kerberos-config
+    configMap:
+      name: krb5-kdc <3>
+  - name: kerberos
+    ephemeral:
+      volumeClaimTemplate:
+        metadata:
+          annotations:
+            secrets.stackable.tech/class: kerberos-default <4>
+            secrets.stackable.tech/scope: service=spark-teragen <5>
+            secrets.stackable.tech/kerberos.service.names: testuser <6>
+        spec:
+          storageClassName: secrets.stackable.tech
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: "1"
+----
+
+<1> Mount the `kerberos` volume in the driver pod.
+<2> Mount the `kerberos` volume in the executor pods.
+<3> Mount the `krb5.conf` file as a ConfigMap.
+<4> Name of the Secret class used to provision the keytab.
+<5> Scope of the Secret.
+<6> Name of the user for which the keytab is provisioned.
+
+
+=== Job pod
+
+Install the keytab and the `krb5.conf` files in the Spark `job` pod. This must be currently done via pod overrides. This is because the Spark application volumes are not currently visible to the `job` pod. We hope to address this limitation in a future release.
+
+[source,yaml]
+----
+job:
+  podOverrides:
+    spec:
+      volumes:
+        - name: kerberos-config
+          configMap:
+            name: krb5-kdc
+        - name: kerberos
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: kerberos-default
+                  secrets.stackable.tech/scope: service=spark-teragen
+                  secrets.stackable.tech/kerberos.service.names: testuser
+              spec:
+                storageClassName: secrets.stackable.tech
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "1"
+      containers:
+        - name: spark-submit
+          volumeMounts:
+            - name: kerberos
+              mountPath: /stackable/kerberos
+----
+
+=== Spark application
+
+Instruct the Spark application to use Kerberos by setting the `spark.kerberos.keytab` and `spark.kerberos.principal` properties in the `SparkApplication` CRD.
+
+Finally instruct Spark to use the keytab and `krb5.conf` files provisioned in the previous steps.
+
+[source,yaml]
+----
+sparkConf:
+  "spark.kerberos.keytab": "/stackable/kerberos/keytab"
+  "spark.kerberos.principal": "testuser/spark-teragen.default.svc.cluster.local@CLUSTER.LOCAL"
+  "spark.driver.extraJavaOptions": "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
+  "spark.executor.extraJavaOptions": "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
+----
+

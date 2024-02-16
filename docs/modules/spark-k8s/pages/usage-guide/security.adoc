@@ -2,9 +2,9 @@
 
 == Authentication
 
-Currently the only supported authentication mechanism is Kerberos, which is disabled by default.
+Currently, the only supported authentication mechanism is Kerberos, which is disabled by default.
 
-Kerberos is a network authentication protocol that works on the basis of "tickets" to allow nodes communicating over a non-secure network to prove their identity to one another in a secure manner. It is used in Spark to authenticate users and to secure communication between Spark components.
+Kerberos is a network authentication protocol that works on the basis of "tickets" to allow nodes communicating over a non-secure network to prove their identity to one another securely. It is used in Spark to authenticate users and to secure communication between Spark components.
 
 In this guide we show how to configure Spark applications to use Kerberos. The Stackable Secret Operator is used to generate the keytab files. In production environments, users might have different means to provision the keytab files.
 
@@ -118,7 +118,7 @@ job:
 
 Instruct the Spark application to use Kerberos by setting the `spark.kerberos.keytab` and `spark.kerberos.principal` properties in the `SparkApplication` CRD.
 
-Finally instruct Spark to use the keytab and `krb5.conf` files provisioned in the previous steps.
+Finally, instruct Spark to use the keytab and `krb5.conf` files provisioned in the previous steps.
 
 [source,yaml]
 ----

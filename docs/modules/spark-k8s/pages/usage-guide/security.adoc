@@ -123,12 +123,41 @@ Finally, instruct Spark to use the keytab and `krb5.conf` files provisioned in t
 [source,yaml]
 ----
 sparkConf:
-  "spark.kerberos.keytab": "/stackable/kerberos/keytab"
-  "spark.kerberos.principal": "testuser/spark-teragen.default.svc.cluster.local@CLUSTER.LOCAL"
-  "spark.driver.extraJavaOptions": "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
-  "spark.executor.extraJavaOptions": "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf"
+  "spark.kerberos.keytab": "/stackable/kerberos/keytab" <1>
+  "spark.kerberos.principal": "testuser/spark-teragen.default.svc.cluster.local@CLUSTER.LOCAL" <2>
+  "spark.driver.extraJavaOptions": "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf" <3>
+  "spark.executor.extraJavaOptions": "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf" <4>
 ----
+<1> Location of the keytab file.
+<2> Principal name. This needs to have the format `<SERVICE_NAME>.default.svc.cluster.local@<REALM>` where `SERVICE_NAME` matches the volume claim annotation `secrets.stackable.tech/kerberos.service.names` and `REALM` must be `CLUSTER.LOCAL`.
+<3> Location of the Kerberos configuration for the application driver.
+<4> Location of the Kerberos configuration for the application executors.
 
 === Hadoop
 
-TODO: where is the kerberized HDFS discovery config map coming from ?
+When reading and writing data from a kerberized Hadoop cluster, a the HDFS discovery map must mounted the `SparkApplication` pods as follows:
+
+For the driver and executor pods:
+
+[source,yaml]
+----
+...
+driver:
+  config:
+    volumeMounts:
+      - name: hdfs-config
+        mountPath: /etc/hadoop/conf <1>
+executor:
+  config:
+    volumeMounts:
+      - name: hdfs-config
+        mountPath: /etc/hadoop/conf <2>
+volumes:
+  - name: hdfs-config
+    configMap:
+      name: hdfs-discovery-cm <3>
+----
+<1> Location of the HDFS configuration for the driver.
+<2> Location of the HDFS configuration for the executors.
+<3> Name of the HDFS discovery ConfigMap as published by the HDFS operator.
+

@@ -200,6 +200,8 @@ impl Configuration for RoleConfigFragment {
 pub struct SubmitConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default, flatten))]
+    pub volume_mounts: Option<VolumeMounts>,
 }
 
 impl SubmitConfig {
@@ -216,6 +218,7 @@ impl SubmitConfig {
                 },
                 storage: SparkStorageConfigFragment {},
             },
+            volume_mounts: Some(VolumeMounts::default()),
         }
     }
 }

@@ -259,6 +259,7 @@ impl Configuration for SubmitConfigFragment {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VolumeMounts {
+    /// Volume mounts for the spark-submit, driver and executor pods.
     pub volume_mounts: Option<Vec<VolumeMount>>,
 }
 

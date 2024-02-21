@@ -36,10 +36,10 @@ spec:
                   type: array
                 deps:
                   default:
-                    requirements: []
+                    excludePackages: []
                     packages: []
                     repositories: []
-                    excludePackages: []
+                    requirements: []
                   description: 'Job dependencies: a list of python packages that will be installed via pip, a list of packages or repositories that is passed directly to spark-submit, or a list of excluded packages (also passed directly to spark-submit).'
                   properties:
                     excludePackages:
@@ -81,10 +81,10 @@ spec:
                       properties:
                         affinity:
                           default:
-                            podAffinity: null
-                            podAntiAffinity: null
                             nodeAffinity: null
                             nodeSelector: null
+                            podAffinity: null
+                            podAntiAffinity: null
                           description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
@@ -553,8 +553,8 @@ spec:
                           type: object
                         logging:
                           default:
-                            enableVectorAgent: null
                             containers: {}
+                            enableVectorAgent: null
                           description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
                           properties:
                             containers:
@@ -637,19 +637,19 @@ spec:
                           type: object
                         resources:
                           default:
+                            cpu:
+                              max: null
+                              min: null
                             memory:
                               limit: null
                               runtimeLimits: {}
-                            cpu:
-                              min: null
-                              max: null
                             storage: {}
                           description: Resource usage is configured here, this includes CPU usage, memory usage and disk storage usage, if this role needs any.
                           properties:
                             cpu:
                               default:
-                                min: null
                                 max: null
+                                min: null
                               properties:
                                 max:
                                   description: The maximum amount of CPU cores that can be requested by Pods. Equivalent to the `limit` for Pod resource configuration. Cores are specified either as a decimal point number or as milli units. For example:`1.5` will be 1.5 cores, also written as `1500m`.
@@ -674,6 +674,7 @@ spec:
                               type: object
                           type: object
                         volumeMounts:
+                          description: Volume mounts for the spark-submit, driver and executor pods.
                           items:
                             description: VolumeMount describes a mounting of a Volume within a container.
                             properties:
@@ -3606,10 +3607,10 @@ spec:
                       properties:
                         affinity:
                           default:
-                            podAffinity: null
-                            podAntiAffinity: null
                             nodeAffinity: null
                             nodeSelector: null
+                            podAffinity: null
+                            podAntiAffinity: null
                           description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
@@ -4078,8 +4079,8 @@ spec:
                           type: object
                         logging:
                           default:
-                            enableVectorAgent: null
                             containers: {}
+                            enableVectorAgent: null
                           description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
                           properties:
                             containers:
@@ -4162,19 +4163,19 @@ spec:
                           type: object
                         resources:
                           default:
+                            cpu:
+                              max: null
+                              min: null
                             memory:
                               limit: null
                               runtimeLimits: {}
-                            cpu:
-                              min: null
-                              max: null
                             storage: {}
                           description: Resource usage is configured here, this includes CPU usage, memory usage and disk storage usage, if this role needs any.
                           properties:
                             cpu:
                               default:
-                                min: null
                                 max: null
+                                min: null
                               properties:
                                 max:
                                   description: The maximum amount of CPU cores that can be requested by Pods. Equivalent to the `limit` for Pod resource configuration. Cores are specified either as a decimal point number or as milli units. For example:`1.5` will be 1.5 cores, also written as `1500m`.
@@ -4199,6 +4200,7 @@ spec:
                               type: object
                           type: object
                         volumeMounts:
+                          description: Volume mounts for the spark-submit, driver and executor pods.
                           items:
                             description: VolumeMount describes a mounting of a Volume within a container.
                             properties:
@@ -7063,19 +7065,19 @@ spec:
                       properties:
                         resources:
                           default:
+                            cpu:
+                              max: null
+                              min: null
                             memory:
                               limit: null
                               runtimeLimits: {}
-                            cpu:
-                              min: null
-                              max: null
                             storage: {}
                           description: Resource usage is configured here, this includes CPU usage, memory usage and disk storage usage, if this role needs any.
                           properties:
                             cpu:
                               default:
-                                min: null
                                 max: null
+                                min: null
                               properties:
                                 max:
                                   description: The maximum amount of CPU cores that can be requested by Pods. Equivalent to the `limit` for Pod resource configuration. Cores are specified either as a decimal point number or as milli units. For example:`1.5` will be 1.5 cores, also written as `1500m`.
@@ -7100,6 +7102,7 @@ spec:
                               type: object
                           type: object
                         volumeMounts:
+                          description: Volume mounts for the spark-submit, driver and executor pods.
                           items:
                             description: VolumeMount describes a mounting of a Volume within a container.
                             properties:
@@ -11597,10 +11600,10 @@ spec:
                       properties:
                         affinity:
                           default:
-                            podAffinity: null
-                            podAntiAffinity: null
                             nodeAffinity: null
                             nodeSelector: null
+                            podAffinity: null
+                            podAntiAffinity: null
                           description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
@@ -12072,8 +12075,8 @@ spec:
                           type: boolean
                         logging:
                           default:
-                            enableVectorAgent: null
                             containers: {}
+                            enableVectorAgent: null
                           description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
                           properties:
                             containers:
@@ -12156,19 +12159,19 @@ spec:
                           type: object
                         resources:
                           default:
+                            cpu:
+                              max: null
+                              min: null
                             memory:
                               limit: null
                               runtimeLimits: {}
-                            cpu:
-                              min: null
-                              max: null
                             storage: {}
                           description: Resource usage is configured here, this includes CPU usage, memory usage and disk storage usage, if this role needs any.
                           properties:
                             cpu:
                               default:
-                                min: null
                                 max: null
+                                min: null
                               properties:
                                 max:
                                   description: The maximum amount of CPU cores that can be requested by Pods. Equivalent to the `limit` for Pod resource configuration. Cores are specified either as a decimal point number or as milli units. For example:`1.5` will be 1.5 cores, also written as `1500m`.
@@ -15048,10 +15051,10 @@ spec:
                             properties:
                               affinity:
                                 default:
-                                  podAffinity: null
-                                  podAntiAffinity: null
                                   nodeAffinity: null
                                   nodeSelector: null
+                                  podAffinity: null
+                                  podAntiAffinity: null
                                 description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
                                 properties:
                                   nodeAffinity:
@@ -15523,8 +15526,8 @@ spec:
                                 type: boolean
                               logging:
                                 default:
-                                  enableVectorAgent: null
                                   containers: {}
+                                  enableVectorAgent: null
                                 description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
                                 properties:
                                   containers:
@@ -15607,19 +15610,19 @@ spec:
                                 type: object
                               resources:
                                 default:
+                                  cpu:
+                                    max: null
+                                    min: null
                                   memory:
                                     limit: null
                                     runtimeLimits: {}
-                                  cpu:
-                                    min: null
-                                    max: null
                                   storage: {}
                                 description: Resource usage is configured here, this includes CPU usage, memory usage and disk storage usage, if this role needs any.
                                 properties:
                                   cpu:
                                     default:
-                                      min: null
                                       max: null
+                                      min: null
                                     properties:
                                       max:
                                         description: The maximum amount of CPU cores that can be requested by Pods. Equivalent to the `limit` for Pod resource configuration. Cores are specified either as a decimal point number or as milli units. For example:`1.5` will be 1.5 cores, also written as `1500m`.

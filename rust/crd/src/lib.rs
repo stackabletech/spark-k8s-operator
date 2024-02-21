@@ -983,6 +983,9 @@ fn resources_to_executor_props(
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
+
     use crate::{cores_from_quantity, resources_to_executor_props, RoleConfig};
     use crate::{resources_to_driver_props, SparkApplication};
     use crate::{Quantity, SparkStorageConfig};
@@ -1261,5 +1264,62 @@ mod tests {
         .collect();
 
         assert_eq!(expected, validated_config);
+    }
+
+    #[test]
+    fn test_job_volume_mounts() {
+        let spark_application = serde_yaml::from_str::<SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              job:
+                config:
+                  volumeMounts:
+                    - name: keytab
+                      mountPath: /kerberos
+              volumes:
+                - name: keytab
+                  configMap:
+                    name: keytab
+        "#})
+        .unwrap();
+
+        let got = spark_application.spark_job_volume_mounts(&None, &None);
+
+        let expected = vec![
+            VolumeMount {
+                mount_path: "/stackable/spark/driver-pod-templates".into(),
+                mount_propagation: None,
+                name: "driver-pod-template".into(),
+                read_only: None,
+                sub_path: None,
+                sub_path_expr: None,
+            },
+            VolumeMount {
+                mount_path: "/stackable/spark/executor-pod-templates".into(),
+                mount_propagation: None,
+                name: "executor-pod-template".into(),
+                read_only: None,
+                sub_path: None,
+                sub_path_expr: None,
+            },
+            VolumeMount {
+                mount_path: "/kerberos".into(),
+                mount_propagation: None,
+                name: "keytab".into(),
+                read_only: None,
+                sub_path: None,
+                sub_path_expr: None,
+            },
+        ];
+
+        assert_eq!(got, expected);
     }
 }

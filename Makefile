@@ -132,7 +132,10 @@ clean: chart-clean
 
 regenerate-charts: chart-clean compile-chart
 
-build: regenerate-charts helm-package docker-build
+regenerate-nix:
+	nix run -f . regenerateNixLockfiles
+
+build: regenerate-charts regenerate-nix helm-package docker-build
 
 publish: build docker-publish helm-publish
 

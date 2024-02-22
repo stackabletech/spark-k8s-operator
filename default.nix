@@ -40,6 +40,7 @@
 , dockerTag ? null
 }:
 rec {
+  inherit cargo sources pkgs meta;
   build = cargo.allWorkspaceMembers;
   entrypoint = build+"/bin/stackable-${meta.operator.name}";
   crds = pkgs.runCommand "${meta.operator.name}-crds.yaml" {}
@@ -95,4 +96,12 @@ rec {
   # need to use vendored crate2nix because of https://github.com/kolloch/crate2nix/issues/264
   crate2nix = import sources.crate2nix {};
   tilt = pkgs.tilt;
+
+  regenerateNixLockfiles = pkgs.writeScriptBin "regenerate-nix-lockfiles"
+  ''
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo Running crate2nix
+    ${crate2nix}/bin/crate2nix generate
+  ''; 
 }

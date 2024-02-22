@@ -75,6 +75,9 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           locale: "US"
+          # Ignore spellchecking generated files
+          exclude: |
+            ./Cargo.nix
 
   languagetool:
     runs-on: ubuntu-latest

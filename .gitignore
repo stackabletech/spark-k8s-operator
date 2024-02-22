@@ -9,8 +9,6 @@ target/
 
 *.tgz
 
-Cargo.nix
-crate-hashes.json
 result
 image.tar
 

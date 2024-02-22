@@ -1,16 +1,4 @@
 {
-    "beku.py": {
-        "branch": "main",
-        "description": "Test suite expander for Stackable Kuttl tests.",
-        "homepage": null,
-        "owner": "stackabletech",
-        "repo": "beku.py",
-        "rev": "efa4546e9e30d2f1521a72c16f8a1000300542aa",
-        "sha256": "1iqydmjn222adsa7xc8lahim4nak25bikaqfka038rgkp9gm0715",
-        "type": "tarball",
-        "url": "https://github.com/stackabletech/beku.py/archive/efa4546e9e30d2f1521a72c16f8a1000300542aa.tar.gz",
-        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
-    },
     "crate2nix": {
         "branch": "master",
         "description": "nix build file generator for rust crates",

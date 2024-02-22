@@ -200,6 +200,8 @@ impl Configuration for RoleConfigFragment {
 pub struct SubmitConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default, flatten))]
+    pub volume_mounts: Option<VolumeMounts>,
 }
 
 impl SubmitConfig {
@@ -216,6 +218,7 @@ impl SubmitConfig {
                 },
                 storage: SparkStorageConfigFragment {},
             },
+            volume_mounts: Some(VolumeMounts::default()),
         }
     }
 }
@@ -256,6 +259,7 @@ impl Configuration for SubmitConfigFragment {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VolumeMounts {
+    /// Volume mounts for the spark-submit, driver and executor pods.
     pub volume_mounts: Option<Vec<VolumeMount>>,
 }
 

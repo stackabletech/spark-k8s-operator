@@ -153,6 +153,8 @@ pub struct SparkApplicationSpec {
 
     /// The job builds a spark-submit command, complete with arguments and referenced dependencies
     /// such as templates, and passes it on to Spark.
+    /// The reason this property uses its own type (SubmitConfigFragment) is because logging is not
+    /// supported for spark-submit processes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<CommonConfiguration<SubmitConfigFragment>>,
 
@@ -163,6 +165,8 @@ pub struct SparkApplicationSpec {
 
     /// The executor role specifies the configuration that, together with the driver pod template, is used by
     /// Spark to create the executor pods.
+    /// This is RoleGroup instead of plain CommonConfiguration because it needs to allows for the number of replicas.
+    /// to be specified.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<RoleGroup<RoleConfigFragment>>,
 
@@ -343,12 +347,23 @@ impl SparkApplication {
         Ok(result)
     }
 
+    /// Return the volume mounts for the spark-submit pod.
+    ///
+    /// These volume mounts are assembled from:
+    /// * two pod template CMs for the driver and executors
+    /// * volume mounts for accessing applications stored in S3 buckets
+    /// * S3 credentials
+    /// * S3 verification certificates
+    /// * python packages (razvan: this was also a mistake since these packages are not used here.)
+    /// * volume mounts additional java packages
+    /// * finally user specified volume maps in `spec.job`.
+    ///
     pub fn spark_job_volume_mounts(
         &self,
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
-        let volume_mounts = vec![
+        let mut tmpl_mounts = vec![
             VolumeMount {
                 name: VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES.into(),
                 mount_path: VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES.into(),
@@ -360,7 +375,25 @@ impl SparkApplication {
                 ..VolumeMount::default()
             },
         ];
-        self.add_common_volume_mounts(volume_mounts, s3conn, s3logdir, false)
+
+        tmpl_mounts = self.add_common_volume_mounts(tmpl_mounts, s3conn, s3logdir, false);
+
+        if let Some(CommonConfiguration {
+            config:
+                SubmitConfigFragment {
+                    volume_mounts:
+                        Some(VolumeMounts {
+                            volume_mounts: Some(job_vm),
+                        }),
+                    ..
+                },
+            ..
+        }) = &self.spec.job
+        {
+            tmpl_mounts.extend(job_vm.clone());
+        }
+
+        tmpl_mounts
     }
 
     fn add_common_volume_mounts(
@@ -950,6 +983,9 @@ fn resources_to_executor_props(
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
+
     use crate::{cores_from_quantity, resources_to_executor_props, RoleConfig};
     use crate::{resources_to_driver_props, SparkApplication};
     use crate::{Quantity, SparkStorageConfig};
@@ -1228,5 +1264,62 @@ mod tests {
         .collect();
 
         assert_eq!(expected, validated_config);
+    }
+
+    #[test]
+    fn test_job_volume_mounts() {
+        let spark_application = serde_yaml::from_str::<SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              job:
+                config:
+                  volumeMounts:
+                    - name: keytab
+                      mountPath: /kerberos
+              volumes:
+                - name: keytab
+                  configMap:
+                    name: keytab
+        "#})
+        .unwrap();
+
+        let got = spark_application.spark_job_volume_mounts(&None, &None);
+
+        let expected = vec![
+            VolumeMount {
+                mount_path: "/stackable/spark/driver-pod-templates".into(),
+                mount_propagation: None,
+                name: "driver-pod-template".into(),
+                read_only: None,
+                sub_path: None,
+                sub_path_expr: None,
+            },
+            VolumeMount {
+                mount_path: "/stackable/spark/executor-pod-templates".into(),
+                mount_propagation: None,
+                name: "executor-pod-template".into(),
+                read_only: None,
+                sub_path: None,
+                sub_path_expr: None,
+            },
+            VolumeMount {
+                mount_path: "/kerberos".into(),
+                mount_propagation: None,
+                name: "keytab".into(),
+                read_only: None,
+                sub_path: None,
+                sub_path_expr: None,
+            },
+        ];
+
+        assert_eq!(got, expected);
     }
 }

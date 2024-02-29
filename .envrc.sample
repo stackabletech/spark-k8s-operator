@@ -1,0 +1,5 @@
+# vim: syntax=conf
+#
+# If you use direnv, you can autoload the nix shell:
+# You will need to allow the directory the first time.
+use nix

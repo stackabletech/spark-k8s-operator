@@ -379,3 +379,73 @@ jobs:
         run: ./preflight-linux-amd64 check container "$IMAGE_TAG" > preflight.out
       - name: "Passed?"
         run: '[ "$(./preflight-linux-amd64 check container "$IMAGE_TAG" | jq -r .passed)" == true ]'
+
+  integration_tests:
+    name: Run integration tests
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+    needs:
+      - package_and_publish
+    env:
+      STACKABLECTL_VERSION: "23.11.3"
+      KUTTL_VERSION: "0.15.0"
+    strategy:
+      fail-fast: false
+      matrix:
+        cluster: [
+          {
+            distribution: openshift,
+            version: 4.14.0-okd,
+            nodes: 3,
+            instances: r1.large
+          }]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # tag=v5.0.0
+        with:
+          python-version: '3.11'
+      - run: pip install beku-stackabletech
+
+      - name: Install test requirements
+        run: |
+          # Install requirements for the run_tests.sh script.
+          PATH=/usr/bin:$PATH
+
+          wget --no-verbose https://github.com/stackabletech/stackable-cockpit/releases/download/stackablectl-"$STACKABLECTL_VERSION"/stackablectl-x86_64-unknown-linux-gnu
+          chmod +x stackablectl-x86_64-unknown-linux-gnu
+          sudo mv stackablectl-x86_64-unknown-linux-gnu /usr/bin/stackablectl
+
+          wget --no-verbose https://github.com/kudobuilder/kuttl/releases/download/v"$KUTTL_VERSION"/kubectl-kuttl_"$KUTTL_VERSION"_linux_x86_64
+          chmod +x kubectl-kuttl_"$KUTTL_VERSION"_linux_x86_64
+          sudo mv kubectl-kuttl_"$KUTTL_VERSION"_linux_x86_64 /usr/bin/kubectl-kuttl
+          kubectl-kuttl version
+
+      - name: Create Cluster
+        id: create-cluster
+        uses: replicatedhq/replicated-actions/create-cluster@v1
+        with:
+          api-token: ${{ secrets.REPLICATED_API_TOKEN }}
+          kubernetes-distribution: ${{ matrix.cluster.distribution }}
+          kubernetes-version: ${{ matrix.cluster.version }}
+          cluster-name: ${{ github.ref_name }}-${{ matrix.cluster.distribution }}-${{ matrix.cluster.version }}
+          timeout-minutes: 10
+          ttl: 2h
+          nodes: ${{ matrix.cluster.nodes }}
+          instance-type: ${{ matrix.cluster.instances }}
+          export-kubeconfig: true
+
+      - name: Run a test
+        run: |
+          PATH=/usr/bin:$PATH
+
+          scripts/run_tests.sh --test-suite openshift --parallel 2
+
+      - name: Remove Cluster
+        if: always()
+        id: remove-cluster
+        uses: replicatedhq/replicated-actions/remove-cluster@v1
+        continue-on-error: true # It could be that the cluster is already removed
+        with:
+          api-token: ${{ secrets.REPLICATED_API_TOKEN }}
+          cluster-id: ${{ steps.create-cluster.outputs.cluster-id }}

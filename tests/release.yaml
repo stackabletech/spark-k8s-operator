@@ -1,0 +1,16 @@
+# Contains all operators required to run the test suite.
+---
+releases:
+  # Do not change the name of the release as it's referenced from run_tests.sh
+  tests:
+    releaseDate: 1970-01-01
+    description: Integration test
+    products:
+      commons:
+        operatorVersion: 0.0.0-dev
+      secret:
+        operatorVersion: 0.0.0-dev
+      listener:
+        operatorVersion: 0.0.0-dev
+      spark-k8s:
+        operatorVersion: 0.0.0-dev

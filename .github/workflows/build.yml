@@ -351,15 +351,20 @@ jobs:
         uses: sigstore/cosign-installer@9614fae9e5c5eddabb09f90a270fcb487c9f7149 # tag=v3.3.0
       - name: Install syft
         uses: anchore/sbom-action/download-syft@24b0d5238516480139aa8bc6f92eeb7b54a9eb0a # tag=v0.15.5
+      - name: Build Docker image and Helm chart
+        run: make -e build
       - name: Publish Docker image and Helm chart
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         run: make -e publish
         # Output the name of the published image to the Job output for later use
       - id: printtag
         name: Output image name and tag
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         run: echo "IMAGE_TAG=$(make -e print-docker-tag)" >> $GITHUB_OUTPUT
 
   openshift_preflight:
     name: Run the OpenShift Preflight check on the published images
+    if: ${{ !github.event.pull_request.head.repo.fork }}
     needs:
       - package_and_publish
     runs-on: ubuntu-latest

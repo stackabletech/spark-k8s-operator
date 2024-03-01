@@ -88,7 +88,7 @@ run_tests() {
 	fi
 
 	pushd "$TEST_ROOT" || exit
-	kubectl-kuttl "${OPTS[*]}"
+	kubectl-kuttl "${OPTS[@]}"
 	popd || exit
 }
 

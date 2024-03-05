@@ -152,7 +152,7 @@ publish: docker-publish helm-publish
 
 run-dev:
 	kubectl apply -f deploy/stackable-operators-ns.yaml
-	nix run -f. tilt -- up --port 5443 --namespace stackable-operators
+	nix run -f. tilt -- up --port 5430 --namespace stackable-operators
 
 stop-dev:
 	nix run -f. tilt -- down

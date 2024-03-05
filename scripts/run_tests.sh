@@ -33,6 +33,7 @@ BEKU_TEST_SUITE=""
 KUTTL_TEST=""
 KUTTL_SKIP_DELETE=""
 KUTTL_PARALLEL=""
+KUTTL_NAMESPACE=""
 
 is_installed() {
 	local command="$1"
@@ -79,6 +80,15 @@ run_tests() {
 		OPTS+=("--skip-delete")
 	fi
 
+	if [ -n "$KUTTL_NAMESPACE" ]; then
+		OPTS+=("--namespace $KUTTL_NAMESPACE")
+
+		# Create the namespace if it does not exist.
+		# To avoid an error when the namespace already exists, we use "kubectl describe"
+		# and if that fails we create the namespace.
+		kubectl describe namespace "$KUTTL_NAMESPACE" || kubectl create namespace "$KUTTL_NAMESPACE"
+	fi
+
 	if [ -n "$KUTTL_PARALLEL" ]; then
 		OPTS+=("--parallel $KUTTL_PARALLEL")
 	fi
@@ -105,6 +115,7 @@ usage() {
     --skip-delete              Skip resource deletion after the test run.
     --parallel <number>        Run tests in parallel. Default is to run all tests in parallel.
     --skip-release             Skip the operator installation.
+    --namespace <namespace>    Run the tests in the specified namespace.
 USAGE
 }
 
@@ -127,6 +138,10 @@ parse_args() {
 			;;
 		--test)
 			KUTTL_TEST="$2"
+			shift
+			;;
+		--namespace)
+			KUTTL_NAMESPACE="$2"
 			shift
 			;;
 		*)

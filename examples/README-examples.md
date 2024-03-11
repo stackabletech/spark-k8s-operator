@@ -50,10 +50,10 @@ Several resources are needed in this store. These can be loaded like this:
 
 ````text
 kubectl exec minio-mc-0 -- sh -c 'mc alias set test-minio http://test-minio:9000/'
-kubectl cp examples/ny-tlc-report-1.1.0-3.5.0.jar  minio-mc-0:/tmp
+kubectl cp examples/ny-tlc-report-1.1.0-3.5.1.jar  minio-mc-0:/tmp
 kubectl cp apps/ny_tlc_report.py  minio-mc-0:/tmp
 kubectl cp examples/yellow_tripdata_2021-07.csv  minio-mc-0:/tmp
-kubectl exec minio-mc-0 -- mc cp /tmp/ny-tlc-report-1.1.0-3.5.0.jar test-minio/my-bucket
+kubectl exec minio-mc-0 -- mc cp /tmp/ny-tlc-report-1.1.0-3.5.1.jar test-minio/my-bucket
 kubectl exec minio-mc-0 -- mc cp /tmp/ny_tlc_report.py test-minio/my-bucket
 kubectl exec minio-mc-0 -- mc cp /tmp/yellow_tripdata_2021-07.csv test-minio/my-bucket
 ````

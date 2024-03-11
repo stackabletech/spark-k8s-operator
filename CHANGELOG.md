@@ -6,8 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Support for versions `3.5.1`` ([#373]).
 - Helm: support labels in values.yaml ([#344]).
+- Support versions `3.5.1` ([#373]).
 - Support version `3.4.2` ([#357]).
 - `spec.job.config.volumeMounts` property to easily mount volumes on the job pod ([#359])
 

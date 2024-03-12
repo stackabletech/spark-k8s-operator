@@ -14,7 +14,7 @@ spec:
     pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: "s3a://my-bucket/spark-examples_{{ test_scenario['values']['spark'].split(',')[0] }}.jar"
+  mainApplicationFile: "/stackable/spark/examples/jars/spark-examples.jar"
   s3connection:
     reference: spark-data-s3-connection
   logFileDirectory:
@@ -22,6 +22,8 @@ spec:
       prefix: eventlogs/
       bucket:
         reference: spark-history-s3-bucket
+  sparkConf:
+    spark.kubernetes.file.upload.path: "s3a://my-bucket"
   job:
     podOverrides:
       spec:

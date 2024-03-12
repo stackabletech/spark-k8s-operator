@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Helm: support labels in values.yaml ([#344]).
+- Support version `3.5.1` ([#373]).
 - Support version `3.4.2` ([#357]).
 - `spec.job.config.volumeMounts` property to easily mount volumes on the job pod ([#359])
 
@@ -31,6 +32,7 @@ All notable changes to this project will be documented in this file.
 [#355]: https://github.com/stackabletech/spark-k8s-operator/pull/355
 [#357]: https://github.com/stackabletech/spark-k8s-operator/pull/357
 [#359]: https://github.com/stackabletech/spark-k8s-operator/pull/359
+[#373]: https://github.com/stackabletech/spark-k8s-operator/pull/373
 
 ## [23.11.0] - 2023-11-24
 

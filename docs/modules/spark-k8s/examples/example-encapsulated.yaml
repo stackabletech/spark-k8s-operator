@@ -5,7 +5,7 @@ metadata:
   name: spark-pi
 spec:
   sparkImage:
-    productVersion: 3.5.0 # <1>
+    productVersion: 3.5.1 # <1>
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: /stackable/spark/examples/jars/spark-examples.jar # <2>

@@ -97,12 +97,14 @@ run_tests() {
 		OPTS+=("--test=$KUTTL_TEST")
 	fi
 
-	pushd "$TEST_ROOT" || exit
+	pushd "$TEST_ROOT" || exit 1
 	# Disable SC2068 because we want to pass the array as individual arguments
 	# and it would break for the "--parallel n" option.
 	# shellcheck disable=SC2068
 	kubectl-kuttl ${OPTS[@]}
-	popd || exit
+	local KUTTL_EXIT_CODE=$?
+	popd || exit 1
+	exit $KUTTL_EXIT_CODE
 }
 
 usage() {

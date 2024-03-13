@@ -17,6 +17,8 @@ spec:
     pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
+  # spark-submit loads the application jar to s3a://my-bucket and thus makes it
+  # available to the driver and executors.
   mainApplicationFile: "/stackable/spark/examples/jars/spark-examples.jar"
   sparkConf:
     spark.kubernetes.file.upload.path: "s3a://my-bucket"

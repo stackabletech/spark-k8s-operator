@@ -78,7 +78,7 @@ Kafka into the Lakehouse.
 In the xref:demos:spark-k8s-anomaly-detection-taxi-data.adoc[] demo Spark is used to read training data from S3 and
 train an anomaly detection model on the data. The model is then stored in a Trino table.
 
-== Supported Versions
+== Supported versions
 
 The Stackable Operator for Apache Spark on Kubernetes currently supports the following versions of Spark:
 

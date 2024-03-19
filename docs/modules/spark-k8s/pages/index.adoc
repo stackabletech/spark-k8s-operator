@@ -80,8 +80,8 @@ train an anomaly detection model on the data. The model is then stored in a Trin
 
 == Supported versions
 
-The Stackable Operator for Apache Spark on Kubernetes currently supports the following versions of Spark:
+The Stackable Operator for Apache Spark on Kubernetes currently supports the Spark versions listed below.
+To use a specific Spark version in your SparkApplication, you have to specify an image - this is explained in the xref:concepts:product-image-selection.adoc[] documentation.
+The operator also supports running images from a custom registry or running entirely customized images; both of these cases are explained under xref:concepts:product-image-selection.adoc[] as well.
 
 include::partial$supported-versions.adoc[]
-
-TIP: Read about xref:concepts:product-image-selection.adoc[] to find out how to specify the version to use, as well as how to run customized or mirrored product images.

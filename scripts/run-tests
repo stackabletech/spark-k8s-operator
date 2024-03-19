@@ -1,0 +1,329 @@
+#!/bin/env python
+# vim: filetype=python syntax=python tabstop=4 expandtab
+
+import argparse
+import collections.abc
+import contextlib
+import logging
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+__version__ = "0.0.1"
+
+DESCRIPTION = """
+Run integration tests. Call this script from the root of the repository.
+
+Exits with 0 on success, 1 on failure.
+
+Requires the following commands to be installed:
+* beku
+* stackablectl
+* kubectl
+* kubectl-kuttl
+
+Examples:
+
+1. Install operators, run all tests and clean up test namespaces:
+
+    ./scripts/run-tests --parallel 4
+
+2. Install operators but for Airflow use version "0.0.0-pr123" instead of "0.0.0-dev" and run all tests as above:
+
+    ./scripts/run-tests --operator airflow=0.0.0-pr123 --parallel 4
+
+3. Do not install any operators, run the smoke test suite and keep namespace:
+
+    ./scripts/run-tests --skip-release --skip-delete --test-suite smoke-latest
+
+4. Run the ldap test(s) from the openshift test suite and keep namespace:
+
+    ./scripts/run-tests --skip-release --skip-delete --test-suite openshift --test ldap
+"""
+
+
+class TestRunnerException(Exception):
+    pass
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse command line args."""
+    parser = argparse.ArgumentParser(
+        description=DESCRIPTION, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--version",
+        help="Display application version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+
+    parser.add_argument(
+        "--skip-delete",
+        help="Do not delete test namespaces.",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "--skip-release",
+        help="Do not install operators.",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "--parallel",
+        help="How many tests to run in parallel. Default 2.",
+        type=int,
+        required=False,
+        default=2,
+    )
+
+    parser.add_argument(
+        "--operator",
+        help="Patch operator version in release.yaml. Format <operator>=<version>",
+        nargs="*",
+        type=cli_parse_operator_args,
+        default=[],
+    )
+
+    parser.add_argument(
+        "--test",
+        help="Kuttl test to run.",
+        type=str,
+        required=False,
+    )
+
+    parser.add_argument(
+        "--test-suite",
+        help="Name of the test suite to expand. Default: default",
+        type=str,
+        required=False,
+    )
+
+    parser.add_argument(
+        "--log-level",
+        help="Set log level.",
+        type=cli_log_level,
+        required=False,
+        default=logging.INFO,
+    )
+
+    return parser.parse_args(argv)
+
+
+def cli_parse_operator_args(args: str) -> tuple[str, str]:
+    if "=" not in args:
+        raise argparse.ArgumentTypeError(
+            f"Invalid operator argument: {args}. Must be in format <operator>=<version>"
+        )
+    op, version = args.split("=", maxsplit=1)
+    return (op, version)
+
+
+def cli_log_level(cli_arg: str) -> int:
+    match cli_arg:
+        case "debug":
+            return logging.DEBUG
+        case "info":
+            return logging.INFO
+        case "error":
+            return logging.ERROR
+        case "warning":
+            return logging.WARNING
+        case "critical":
+            return logging.CRITICAL
+        case _:
+            raise argparse.ArgumentTypeError("Invalid log level")
+
+
+def have_requirements() -> None:
+    commands = [
+        ("beku", "https://github.com/stackabletech/beku.py"),
+        (
+            "stackablectl",
+            "https://github.com/stackabletech/stackable-cockpit/blob/main/rust/stackablectl/README.md",
+        ),
+        ("kubectl", "https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/"),
+        ("kubectl-kuttl", "https://kuttl.dev/"),
+    ]
+
+    err = False
+    for command, url in commands:
+        if not shutil.which(command):
+            logging.error(f'Command "{command}" not found, please install from {url}')
+            err = True
+    if err:
+        raise TestRunnerException()
+
+
+@contextlib.contextmanager
+def release_file(
+    operators: list[tuple[str, str]] = [],
+) -> collections.abc.Generator[str, None, None]:
+    """Patch release.yaml with operator versions if needed.
+
+    If no --operator is set, the default release file is used.
+
+    If an invalid operator name is provided (i.e. one that doesn't exist in the
+    original release file), a TestRunnerException is raised.
+
+    Yields the name of the (potentially patched) release file. This is a temporary
+    file that will be deleted when the context manager exits.
+    """
+
+    def _patch():
+        release_file = os.path.join("tests", "release.yaml")
+        # Make a copy so we can mutate it without affecting the original
+        ops_copy = operators.copy()
+        patched_release = []
+        with open(release_file, "r") as f:
+            patch_version = ""
+            for line in f:
+                if patch_version:
+                    line = re.sub(":.+$", f": {patch_version}", line)
+                    patch_version = ""
+                else:
+                    for op, version in ops_copy:
+                        if op in line:
+                            patch_version = version
+                            ops_copy.remove((op, version))  # found an operator to patch
+                            break
+                patched_release.append(line)
+        if ops_copy:
+            # Some --operator args were not found in the release file. This is
+            # most likely a typo and CI pipelines should terminate early in such
+            # cases.
+            logging.error(
+                f"Operators {', '.join([op for op, _ in ops_copy])} not found in {release_file}"
+            )
+            raise TestRunnerException()
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            delete=False,
+            delete_on_close=False,
+            prefix="patched",
+        ) as f:
+            pcontents = "".join(patched_release)
+            logging.debug(f"Writing patched release to {f.name}: {pcontents}\n")
+            f.write(pcontents)
+            return f.name
+
+    release_file = _patch()
+    try:
+        yield release_file
+    except TestRunnerException as e:
+        logging.error(f"Caught exception: {e}")
+        raise
+    finally:
+        if "patched" in release_file:
+            try:
+                logging.debug(f"Removing patched release file : {release_file}")
+                os.remove(release_file)
+            except FileNotFoundError | OSError:
+                logging.error(f"Failed to delete patched release file: {release_file}")
+
+
+def maybe_install_release(skip_release: bool, release_file: str) -> None:
+    if skip_release:
+        logging.debug("Skip release installation")
+        return
+    stackablectl_err = ""
+    try:
+        stackablectl_cmd = [
+            "stackablectl",
+            "release",
+            "install",
+            "--release-file",
+            release_file,
+            "tests",
+        ]
+        logging.debug(f"Running : {stackablectl_cmd}")
+
+        completed_proc = subprocess.run(
+            stackablectl_cmd,
+            capture_output=True,
+            check=True,
+        )
+        # stackablectl doesn't return a non-zero exit code on failure
+        # so we need to check stderr for errors
+        stackablectl_err = completed_proc.stderr.decode("utf-8")
+        if "error" in stackablectl_err.lower():
+            logging.error(stackablectl_err)
+            logging.error("stackablectl failed")
+            raise TestRunnerException()
+
+    except subprocess.CalledProcessError:
+        # in case stackablectl starts returning non-zero exit codes
+        logging.error(stackablectl_err)
+        logging.error("stackablectl failed")
+        raise TestRunnerException()
+
+
+def gen_tests(test_suite: str) -> None:
+    try:
+        beku_cmd = [
+            "beku",
+            "--test_definition",
+            os.path.join("tests", "test-definition.yaml"),
+            "--kuttl_test",
+            os.path.join("tests", "kuttl-test.yaml.jinja2"),
+            "--template_dir",
+            os.path.join("tests", "templates", "kuttl"),
+            "--output_dir",
+            os.path.join("tests", "_work"),
+        ]
+        if test_suite:
+            beku_cmd.extend(["--suite", test_suite])
+
+        logging.debug(f"Running : {beku_cmd}")
+        subprocess.run(
+            beku_cmd,
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        logging.error("beku failed")
+        raise TestRunnerException()
+
+
+def run_tests(test: str, parallel: int, skip_delete: bool) -> None:
+    try:
+        kuttl_cmd = ["kubectl-kuttl", "test"]
+        if test:
+            kuttl_cmd.extend(["--test", test])
+        if parallel:
+            kuttl_cmd.extend(["--parallel", str(parallel)])
+        if skip_delete:
+            kuttl_cmd.extend(["--skip-delete"])
+
+        logging.debug(f"Running : {kuttl_cmd}")
+
+        subprocess.run(
+            kuttl_cmd,
+            cwd="tests/_work",
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        logging.error("kuttl failed")
+        raise TestRunnerException()
+
+
+def main(argv) -> int:
+    ret = 0
+    try:
+        opts = parse_args(argv[1:])
+        logging.basicConfig(encoding="utf-8", level=opts.log_level)
+        have_requirements()
+        gen_tests(opts.test_suite)
+        with release_file(opts.operator) as f:
+            maybe_install_release(opts.skip_release, f)
+        run_tests(opts.test, opts.parallel, opts.skip_delete)
+    except TestRunnerException:
+        ret = 1
+    return ret
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

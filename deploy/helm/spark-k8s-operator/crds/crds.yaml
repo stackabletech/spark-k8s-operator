@@ -24,7 +24,7 @@ spec:
           properties:
             spec:
               description: |-
-                A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it and the resources that the operator generates in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/).
+                A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it and the resources that the operator generates in the [operator documentation](https://docs.stackable.tech/home/24.3/spark-k8s/).
 
                 The SparkApplication CRD looks a little different than the CRDs of the other products on the Stackable Data Platform.
               properties:
@@ -85,7 +85,7 @@ spec:
                             nodeSelector: null
                             podAffinity: null
                             podAntiAffinity: null
-                          description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                          description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/24.3/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
                               description: Node affinity is a group of node affinity scheduling rules.
@@ -555,7 +555,7 @@ spec:
                           default:
                             containers: {}
                             enableVectorAgent: null
-                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/24.3/concepts/logging).
                           properties:
                             containers:
                               additionalProperties:
@@ -709,17 +709,17 @@ spec:
                           type: string
                         type: object
                       default: {}
-                      description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
+                      description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
                       type: object
                     envOverrides:
                       additionalProperties:
                         type: string
                       default: {}
-                      description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
+                      description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
                       type: object
                     podOverrides:
                       default: {}
-                      description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides) for more information.
+                      description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#pod-overrides) for more information.
                       properties:
                         metadata:
                           properties:
@@ -3611,7 +3611,7 @@ spec:
                             nodeSelector: null
                             podAffinity: null
                             podAntiAffinity: null
-                          description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                          description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/24.3/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
                               description: Node affinity is a group of node affinity scheduling rules.
@@ -4081,7 +4081,7 @@ spec:
                           default:
                             containers: {}
                             enableVectorAgent: null
-                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/24.3/concepts/logging).
                           properties:
                             containers:
                               additionalProperties:
@@ -4235,17 +4235,17 @@ spec:
                           type: string
                         type: object
                       default: {}
-                      description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
+                      description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
                       type: object
                     envOverrides:
                       additionalProperties:
                         type: string
                       default: {}
-                      description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
+                      description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
                       type: object
                     podOverrides:
                       default: {}
-                      description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides) for more information.
+                      description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#pod-overrides) for more information.
                       properties:
                         metadata:
                           properties:
@@ -7048,7 +7048,7 @@ spec:
                       type: integer
                   type: object
                 image:
-                  description: User-supplied image containing spark-job dependencies that will be copied to the specified volume mount. See the [examples](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/examples).
+                  description: User-supplied image containing spark-job dependencies that will be copied to the specified volume mount. See the [examples](https://docs.stackable.tech/home/24.3/spark-k8s/usage-guide/examples).
                   nullable: true
                   type: string
                 job:
@@ -7137,17 +7137,17 @@ spec:
                           type: string
                         type: object
                       default: {}
-                      description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
+                      description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
                       type: object
                     envOverrides:
                       additionalProperties:
                         type: string
                       default: {}
-                      description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
+                      description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
                       type: object
                     podOverrides:
                       default: {}
-                      description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides) for more information.
+                      description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#pod-overrides) for more information.
                       properties:
                         metadata:
                           properties:
@@ -9954,7 +9954,7 @@ spec:
                     s3:
                       properties:
                         bucket:
-                          description: An S3 bucket definition, it can either be a reference to an explicit S3Bucket object, or it can be an inline definition of a bucket. Read the [S3 resources concept documentation](https://docs.stackable.tech/home/nightly/concepts/s3) to learn more.
+                          description: An S3 bucket definition, it can either be a reference to an explicit S3Bucket object, or it can be an inline definition of a bucket. Read the [S3 resources concept documentation](https://docs.stackable.tech/home/24.3/concepts/s3) to learn more.
                           oneOf:
                             - required:
                                 - inline
@@ -9988,11 +9988,11 @@ spec:
                                           nullable: true
                                           type: string
                                         credentials:
-                                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) providing `accessKey` and `secretKey` is sufficient.
+                                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a [SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass) providing `accessKey` and `secretKey` is sufficient.
                                           nullable: true
                                           properties:
                                             scope:
-                                              description: '[Scope](https://docs.stackable.tech/home/nightly/secret-operator/scope) of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass).'
+                                              description: '[Scope](https://docs.stackable.tech/home/24.3/secret-operator/scope) of the [SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass).'
                                               nullable: true
                                               properties:
                                                 node:
@@ -10011,7 +10011,7 @@ spec:
                                                   type: array
                                               type: object
                                             secretClass:
-                                              description: '[SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) containing the LDAP bind credentials.'
+                                              description: '[SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass) containing the LDAP bind credentials.'
                                               type: string
                                           required:
                                             - secretClass
@@ -10053,7 +10053,7 @@ spec:
                                                             - secretClass
                                                       properties:
                                                         secretClass:
-                                                          description: Name of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) which will provide the CA certificate. Note that a SecretClass does not need to have a key but can also work with just a CA certificate, so if you got provided with a CA cert but don't have access to the key you can still use this method.
+                                                          description: Name of the [SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass) which will provide the CA certificate. Note that a SecretClass does not need to have a key but can also work with just a CA certificate, so if you got provided with a CA cert but don't have access to the key you can still use this method.
                                                           type: string
                                                         webPki:
                                                           description: Use TLS and the CA certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
@@ -10097,7 +10097,7 @@ spec:
                     - client
                   type: string
                 s3connection:
-                  description: Configure an S3 connection that the SparkApplication has access to. Read more in the [Spark S3 usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/s3).
+                  description: Configure an S3 connection that the SparkApplication has access to. Read more in the [Spark S3 usage guide](https://docs.stackable.tech/home/24.3/spark-k8s/usage-guide/s3).
                   nullable: true
                   oneOf:
                     - required:
@@ -10116,11 +10116,11 @@ spec:
                           nullable: true
                           type: string
                         credentials:
-                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) providing `accessKey` and `secretKey` is sufficient.
+                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a [SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass) providing `accessKey` and `secretKey` is sufficient.
                           nullable: true
                           properties:
                             scope:
-                              description: '[Scope](https://docs.stackable.tech/home/nightly/secret-operator/scope) of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass).'
+                              description: '[Scope](https://docs.stackable.tech/home/24.3/secret-operator/scope) of the [SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass).'
                               nullable: true
                               properties:
                                 node:
@@ -10139,7 +10139,7 @@ spec:
                                   type: array
                               type: object
                             secretClass:
-                              description: '[SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) containing the LDAP bind credentials.'
+                              description: '[SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass) containing the LDAP bind credentials.'
                               type: string
                           required:
                             - secretClass
@@ -10181,7 +10181,7 @@ spec:
                                             - secretClass
                                       properties:
                                         secretClass:
-                                          description: Name of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) which will provide the CA certificate. Note that a SecretClass does not need to have a key but can also work with just a CA certificate, so if you got provided with a CA cert but don't have access to the key you can still use this method.
+                                          description: Name of the [SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass) which will provide the CA certificate. Note that a SecretClass does not need to have a key but can also work with just a CA certificate, so if you got provided with a CA cert but don't have access to the key you can still use this method.
                                           type: string
                                         webPki:
                                           description: Use TLS and the CA certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
@@ -10215,7 +10215,7 @@ spec:
                   description: |-
                     Specify which image to use, the easiest way is to only configure the `productVersion`. You can also configure a custom image registry to pull from, as well as completely custom images.
 
-                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/nightly/concepts/product_image_selection) for details.
+                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/24.3/concepts/product_image_selection) for details.
                   properties:
                     custom:
                       description: Overwrite the docker image. Specify the full docker image name, e.g. `docker.stackable.tech/stackable/superset:1.4.1-stackable2.1.0`
@@ -10252,7 +10252,7 @@ spec:
                       type: string
                   type: object
                 vectorAggregatorConfigMapName:
-                  description: Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery). It must contain the key `ADDRESS` with the address of the Vector aggregator. Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator) to learn how to configure log aggregation with Vector.
+                  description: Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/24.3/concepts/service_discovery). It must contain the key `ADDRESS` with the address of the Vector aggregator. Follow the [logging tutorial](https://docs.stackable.tech/home/24.3/tutorials/logging-vector-aggregator) to learn how to configure log aggregation with Vector.
                   nullable: true
                   type: string
                 volumes:
@@ -11378,7 +11378,7 @@ spec:
           description: Auto-generated derived type for SparkHistoryServerSpec via `CustomResource`
           properties:
             spec:
-              description: A Spark cluster history server component. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/history-server).
+              description: A Spark cluster history server component. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it in the [operator documentation](https://docs.stackable.tech/home/24.3/spark-k8s/usage-guide/history-server).
               properties:
                 clusterConfig:
                   default:
@@ -11413,7 +11413,7 @@ spec:
                   description: |-
                     Specify which image to use, the easiest way is to only configure the `productVersion`. You can also configure a custom image registry to pull from, as well as completely custom images.
 
-                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/nightly/concepts/product_image_selection) for details.
+                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/24.3/concepts/product_image_selection) for details.
                   properties:
                     custom:
                       description: Overwrite the docker image. Specify the full docker image name, e.g. `docker.stackable.tech/stackable/superset:1.4.1-stackable2.1.0`
@@ -11458,7 +11458,7 @@ spec:
                     s3:
                       properties:
                         bucket:
-                          description: An S3 bucket definition, it can either be a reference to an explicit S3Bucket object, or it can be an inline definition of a bucket. Read the [S3 resources concept documentation](https://docs.stackable.tech/home/nightly/concepts/s3) to learn more.
+                          description: An S3 bucket definition, it can either be a reference to an explicit S3Bucket object, or it can be an inline definition of a bucket. Read the [S3 resources concept documentation](https://docs.stackable.tech/home/24.3/concepts/s3) to learn more.
                           oneOf:
                             - required:
                                 - inline
@@ -11492,11 +11492,11 @@ spec:
                                           nullable: true
                                           type: string
                                         credentials:
-                                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) providing `accessKey` and `secretKey` is sufficient.
+                                          description: If the S3 uses authentication you have to specify you S3 credentials. In the most cases a [SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass) providing `accessKey` and `secretKey` is sufficient.
                                           nullable: true
                                           properties:
                                             scope:
-                                              description: '[Scope](https://docs.stackable.tech/home/nightly/secret-operator/scope) of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass).'
+                                              description: '[Scope](https://docs.stackable.tech/home/24.3/secret-operator/scope) of the [SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass).'
                                               nullable: true
                                               properties:
                                                 node:
@@ -11515,7 +11515,7 @@ spec:
                                                   type: array
                                               type: object
                                             secretClass:
-                                              description: '[SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) containing the LDAP bind credentials.'
+                                              description: '[SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass) containing the LDAP bind credentials.'
                                               type: string
                                           required:
                                             - secretClass
@@ -11557,7 +11557,7 @@ spec:
                                                             - secretClass
                                                       properties:
                                                         secretClass:
-                                                          description: Name of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) which will provide the CA certificate. Note that a SecretClass does not need to have a key but can also work with just a CA certificate, so if you got provided with a CA cert but don't have access to the key you can still use this method.
+                                                          description: Name of the [SecretClass](https://docs.stackable.tech/home/24.3/secret-operator/secretclass) which will provide the CA certificate. Note that a SecretClass does not need to have a key but can also work with just a CA certificate, so if you got provided with a CA cert but don't have access to the key you can still use this method.
                                                           type: string
                                                         webPki:
                                                           description: Use TLS and the CA certificates trusted by the common web browsers to verify the server. This can be useful when you e.g. use public AWS S3 or other public available services.
@@ -11604,7 +11604,7 @@ spec:
                             nodeSelector: null
                             podAffinity: null
                             podAntiAffinity: null
-                          description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                          description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/24.3/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
                               description: Node affinity is a group of node affinity scheduling rules.
@@ -12077,7 +12077,7 @@ spec:
                           default:
                             containers: {}
                             enableVectorAgent: null
-                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/24.3/concepts/logging).
                           properties:
                             containers:
                               additionalProperties:
@@ -12202,17 +12202,17 @@ spec:
                           type: string
                         type: object
                       default: {}
-                      description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
+                      description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
                       type: object
                     envOverrides:
                       additionalProperties:
                         type: string
                       default: {}
-                      description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
+                      description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
                       type: object
                     podOverrides:
                       default: {}
-                      description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides) for more information.
+                      description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#pod-overrides) for more information.
                       properties:
                         metadata:
                           properties:
@@ -15024,7 +15024,7 @@ spec:
 
                             1. If PodDisruptionBudgets are created by the operator 2. The allowed number of Pods to be unavailable (`maxUnavailable`)
 
-                            Learn more in the [allowed Pod disruptions documentation](https://docs.stackable.tech/home/nightly/concepts/operations/pod_disruptions).
+                            Learn more in the [allowed Pod disruptions documentation](https://docs.stackable.tech/home/24.3/concepts/operations/pod_disruptions).
                           properties:
                             enabled:
                               default: true
@@ -15055,7 +15055,7 @@ spec:
                                   nodeSelector: null
                                   podAffinity: null
                                   podAntiAffinity: null
-                                description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                                description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/24.3/concepts/operations/pod_placement).
                                 properties:
                                   nodeAffinity:
                                     description: Node affinity is a group of node affinity scheduling rules.
@@ -15528,7 +15528,7 @@ spec:
                                 default:
                                   containers: {}
                                   enableVectorAgent: null
-                                description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                                description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/24.3/concepts/logging).
                                 properties:
                                   containers:
                                     additionalProperties:
@@ -15653,17 +15653,17 @@ spec:
                                 type: string
                               type: object
                             default: {}
-                            description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
+                            description: The `configOverrides` can be used to configure properties in product config files that are not exposed in the CRD. Read the [config overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#config-overrides) and consult the operator specific usage guide documentation for details on the available config files and settings for the specific product.
                             type: object
                           envOverrides:
                             additionalProperties:
                               type: string
                             default: {}
-                            description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
+                            description: '`envOverrides` configure environment variables to be set in the Pods. It is a map from strings to strings - environment variables and the value to set. Read the [environment variable overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#env-overrides) for more information and consult the operator specific usage guide to find out about the product specific environment variables that are available.'
                             type: object
                           podOverrides:
                             default: {}
-                            description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides) for more information.
+                            description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/24.3/concepts/overrides#pod-overrides) for more information.
                             properties:
                               metadata:
                                 properties:

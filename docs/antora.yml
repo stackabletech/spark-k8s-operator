@@ -1,3 +1,4 @@
 ---
 name: home
-version: "nightly"
+version: "24.3"
+prerelease: false

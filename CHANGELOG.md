@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [24.3.0] - 2024-03-20
+
 ### Added
 
 - Helm: support labels in values.yaml ([#344]).

@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/usr/bin/env python
 # vim: filetype=python syntax=python tabstop=4 expandtab
 
 import argparse
@@ -203,7 +203,6 @@ def release_file(
         with tempfile.NamedTemporaryFile(
             mode="w",
             delete=False,
-            delete_on_close=False,
             prefix="patched",
         ) as f:
             pcontents = "".join(patched_release)

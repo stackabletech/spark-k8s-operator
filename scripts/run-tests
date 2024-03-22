@@ -42,6 +42,11 @@ Examples:
 4. Run the ldap test(s) from the openshift test suite and keep namespace:
 
     ./scripts/run-tests --skip-release --skip-delete --test-suite openshift --test ldap
+
+5. Run the smoke test suite in the namespace "smoke". The namespace will be
+   created if it doesn't exist and will not be deleted when the tests end.
+
+    ./scripts/run-tests --test-suite smoke-latest --namespace smoke
 """
 
 
@@ -109,6 +114,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=cli_log_level,
         required=False,
         default=logging.INFO,
+    )
+
+    parser.add_argument(
+        "--namespace",
+        help="Namespace to run the tests in. It will be created if it doesn't already exist.",
+        type=str,
+        required=False,
     )
 
     return parser.parse_args(argv)
@@ -254,9 +266,9 @@ def maybe_install_release(skip_release: bool, release_file: str) -> None:
             logging.error("stackablectl failed")
             raise TestRunnerException()
 
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
         # in case stackablectl starts returning non-zero exit codes
-        logging.error(stackablectl_err)
+        logging.error(e.stderr.decode("utf-8"))
         logging.error("stackablectl failed")
         raise TestRunnerException()
 
@@ -287,7 +299,7 @@ def gen_tests(test_suite: str) -> None:
         raise TestRunnerException()
 
 
-def run_tests(test: str, parallel: int, skip_delete: bool) -> None:
+def run_tests(test: str, parallel: int, namespace: str, skip_delete: bool) -> None:
     try:
         kuttl_cmd = ["kubectl-kuttl", "test"]
         if test:
@@ -296,6 +308,25 @@ def run_tests(test: str, parallel: int, skip_delete: bool) -> None:
             kuttl_cmd.extend(["--parallel", str(parallel)])
         if skip_delete:
             kuttl_cmd.extend(["--skip-delete"])
+        if namespace:
+            kuttl_cmd.extend(["--namespace", namespace])
+            # kuttl doesn't create the namespace so we need to do it ourselves
+            create_ns_cmd = ["kubectl", "create", "namespace", namespace]
+            try:
+                logging.debug(f"Running : {create_ns_cmd}")
+                subprocess.run(
+                    create_ns_cmd,
+                    check=True,
+                    capture_output=True,
+                )
+            except subprocess.CalledProcessError as e:
+                stderr = e.stderr.decode("utf-8")
+                # If the namespace already exists, this will fail and we ignore the
+                # error. If it fails for any other reason, we raise an exception.
+                if "already exists" not in stderr:
+                    logging.error(stderr)
+                    logging.error("namespace creation failed")
+                    raise TestRunnerException()
 
         logging.debug(f"Running : {kuttl_cmd}")
 
@@ -318,7 +349,7 @@ def main(argv) -> int:
         gen_tests(opts.test_suite)
         with release_file(opts.operator) as f:
             maybe_install_release(opts.skip_release, f)
-        run_tests(opts.test, opts.parallel, opts.skip_delete)
+        run_tests(opts.test, opts.parallel, opts.namespace, opts.skip_delete)
     except TestRunnerException:
         ret = 1
     return ret

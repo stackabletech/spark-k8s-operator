@@ -24,7 +24,7 @@ The guide will lead you through the installation of the operator and running you
 
 == How the operator works
 
-The Stackable operator for Apache Spark reads a _SparkApplication custom resource_ which you use to define your spark job/application.
+This operator manages  _SparkApplication_ custom resources which you use to define your applications.
 The operator creates the relevant Kubernetes resources for the job to run.
 
 === Custom resources

@@ -13,7 +13,7 @@
 * {feature-tracker}[Feature Tracker {external-link-icon}^]
 * {crd}[CRD documentation {external-link-icon}^]
 
-This is operator manages {spark}[Apache Spark] on Kubernetes clusters.
+This operator manages {spark}[Apache Spark] applications on Kubernetes clusters.
 Apache Spark is a powerful open-source big data processing framework that allows for efficient and flexible distributed computing.
 Its in-memory processing and fault-tolerant architecture make it ideal for a variety of use cases, including batch processing, real-time streaming, machine learning, and graph processing.
 

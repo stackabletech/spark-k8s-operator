@@ -64,7 +64,7 @@ However, to add security each `spark-submit` job launched by the operator will b
 
 During the operator installation, a cluster role named `spark-k8s-clusterrole` is created with pre-defined permissions.
 
-When a new Spark application is submitted, the operator creates a new service account with the same name as the application and binds this account to the cluster role `spark-k8s-clusterrole` created by Helm.
+When a new Spark application is submitted, the operator creates a new service account with the same name as the application and binds this account to the cluster role `spark-k8s-clusterrole` .
 
 == Integrations
 

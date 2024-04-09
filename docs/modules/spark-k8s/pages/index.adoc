@@ -60,7 +60,7 @@ A ConfigMap supplies the necessary configuration, and there is a service to conn
 The {spark-rbac}[Spark-Kubernetes RBAC documentation] describes what is needed for `spark-submit` jobs to run successfully:
 minimally a role/cluster-role to allow the driver pod to create and manage executor pods.
 
-However, to add security each `spark-submit` job launched by the spark-k8s operator will be assigned its own ServiceAccount.
+However, to add security each `spark-submit` job launched by the operator will be assigned its own ServiceAccount.
 
 When the spark-k8s operator is installed via Helm, a cluster role named `spark-k8s-clusterrole` is created with pre-defined permissions.
 

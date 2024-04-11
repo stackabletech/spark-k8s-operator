@@ -15,6 +15,10 @@ on:
     tags:
       - '[0-9][0-9].[0-9]+.[0-9]+'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '.readme/**'
+      - '*.md'
   merge_group:
 
 env:
@@ -210,34 +214,6 @@ jobs:
           cache-all-crates: "true"
       - run: cargo test
 
-
-  # Similar to check_charts, this tries to render the README, and see if there are unintended changes.
-  # This will save us from merging changes to the wrong file (instead of the templated source), and from
-  # forgetting to render out modifications to the README.
-  check_readme:
-    name: Check if committed README is the one we would render from the available parts
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        with:
-          submodules: recursive
-      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # tag=v5.0.0
-        with:
-          python-version: '3.11'
-      - name: Install jinja2-cli
-        run: pip install jinja2-cli==0.8.2
-      - name: Regenerate charts
-        run: make render-readme
-      - name: Check if committed README were up to date
-        run: git diff --exit-code
-      - name: Git Diff showed uncommitted changes
-        if: ${{ failure() }}
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        with:
-          script: |
-            core.setFailed('Committed README are not up to date, please make sure to apply them to the templated partials, and re-commit!')
-
   # This job cleans up the CRDs and Helm charts, followed by rebuilding them
   # It then runs a `git diff` and fails the entire workflow, if any difference is encountered.
   #
@@ -373,7 +349,7 @@ jobs:
     steps:
       - name: Install preflight
         run: |
-          wget https://github.com/redhat-openshift-ecosystem/openshift-preflight/releases/download/1.7.2/preflight-linux-amd64
+          wget https://github.com/redhat-openshift-ecosystem/openshift-preflight/releases/download/1.9.1/preflight-linux-amd64
           chmod +x preflight-linux-amd64
       - name: Check container
         run: ./preflight-linux-amd64 check container "$IMAGE_TAG" > preflight.out

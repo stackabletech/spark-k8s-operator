@@ -79,10 +79,12 @@ tests:
   - name: iceberg
     dimensions:
       - spark
+      - openshift
   - name: delta-lake
     dimensions:
       - spark-delta-lake
       - delta
+      - openshift
 suites:
   - name: nightly
     patch:

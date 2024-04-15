@@ -1,7 +1,7 @@
 # Contains all operators required to run the test suite.
 ---
 releases:
-  # Do not change the name of the release as it's referenced from run_tests.sh
+  # Do not change the name of the release as it's referenced from run-tests
   tests:
     releaseDate: 1970-01-01
     description: Integration test

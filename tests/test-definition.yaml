@@ -5,13 +5,14 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.4.1
-      - 3.4.2
-      - 3.5.0
-      - 3.5.1
+      #- 3.4.1
+      #- 3.4.2
+      #- 3.5.0
+      #- 3.5.1
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 3.5.1,docker.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev
+      - 3.5.1,docker.stackable.tech/sandbox/spark-k8s:3.5.1-stackable24.3.0-pgsql
   - name: spark-delta-lake
     values:
       - 3.5.1
@@ -85,6 +86,11 @@ tests:
       - spark-delta-lake
       - delta
       - openshift
+  - name: postgresql
+    dimensions:
+      - spark
+      - openshift
+ 
 suites:
   - name: nightly
     patch:

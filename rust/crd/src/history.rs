@@ -24,7 +24,7 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, ResourceExt},
     product_config_utils::{
         transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
-        ValidatedRoleConfigByPropertyKind,
+        Error as ConfigError, ValidatedRoleConfigByPropertyKind,
     },
     product_logging::{self, spec::Logging},
     role_utils::{Role, RoleGroupRef},
@@ -37,11 +37,11 @@ use strum::{Display, EnumIter};
 pub enum Error {
     #[snafu(display("failed to transform configs"))]
     ProductConfigTransform {
-        source: stackable_operator::product_config_utils::ConfigError,
+        source: stackable_operator::product_config_utils::Error,
     },
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::product_config_utils::Error,
     },
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
@@ -339,8 +339,7 @@ impl Configuration for HistoryConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
 
@@ -348,8 +347,7 @@ impl Configuration for HistoryConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
 
@@ -358,8 +356,7 @@ impl Configuration for HistoryConfigFragment {
         _resource: &Self::Configurable,
         _role_name: &str,
         _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
 }

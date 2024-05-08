@@ -4,8 +4,18 @@ use crate::Ctx;
 use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
 use stackable_operator::kvp::{Label, Labels, ObjectLabels};
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
-    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
+    builder::{
+        configmap::{ConfigMapBuilder, Error as ConfigMapError},
+        meta::{Error as MetaError, ObjectMetaBuilder},
+        pod::{
+            container::{ContainerBuilder, Error as ContainerError},
+            volume::VolumeBuilder,
+            PodBuilder,
+        },
+    },
+    cluster_resources::{
+        ClusterResourceApplyStrategy, ClusterResources, Error as ClusterResourceError,
+    },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::{
@@ -50,7 +60,7 @@ use std::collections::HashMap;
 use std::{collections::BTreeMap, sync::Arc};
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::resources::ResourceRequirementsBuilder;
+use stackable_operator::builder::pod::resources::ResourceRequirementsBuilder;
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -65,37 +75,23 @@ pub enum Error {
     ObjectHasNoNamespace,
     #[snafu(display("invalid config map {name}"))]
     InvalidConfigMap {
-        source: stackable_operator::error::Error,
+        source: ConfigMapError,
         name: String,
     },
     #[snafu(display("invalid history container name"))]
-    InvalidContainerName {
-        source: stackable_operator::error::Error,
-    },
+    InvalidContainerName { source: ContainerError },
     #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::error::Error,
-    },
+    ObjectMissingMetadataForOwnerRef { source: MetaError },
     #[snafu(display("failed to update the history server deployment"))]
-    ApplyDeployment {
-        source: stackable_operator::error::Error,
-    },
+    ApplyDeployment { source: ClusterResourceError },
     #[snafu(display("failed to update history server config map"))]
-    ApplyConfigMap {
-        source: stackable_operator::error::Error,
-    },
+    ApplyConfigMap { source: ClusterResourceError },
     #[snafu(display("failed to update history server service"))]
-    ApplyService {
-        source: stackable_operator::error::Error,
-    },
+    ApplyService { source: ClusterResourceError },
     #[snafu(display("failed to apply role ServiceAccount"))]
-    ApplyServiceAccount {
-        source: stackable_operator::error::Error,
-    },
+    ApplyServiceAccount { source: ClusterResourceError },
     #[snafu(display("failed to apply global RoleBinding"))]
-    ApplyRoleBinding {
-        source: stackable_operator::error::Error,
-    },
+    ApplyRoleBinding { source: ClusterResourceError },
     #[snafu(display("product config validation failed"))]
     ProductConfigValidation {
         source: stackable_spark_k8s_crd::history::Error,
@@ -113,13 +109,9 @@ pub enum Error {
         source: stackable_spark_k8s_crd::s3logdir::Error,
     },
     #[snafu(display("failed to create cluster resources"))]
-    CreateClusterResources {
-        source: stackable_operator::error::Error,
-    },
+    CreateClusterResources { source: ClusterResourceError },
     #[snafu(display("failed to delete orphaned resources"))]
-    DeleteOrphanedResources {
-        source: stackable_operator::error::Error,
-    },
+    DeleteOrphanedResources { source: ClusterResourceError },
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress { source: product_logging::Error },
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
@@ -148,9 +140,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::ObjectMetaBuilderError,
-    },
+    MetadataBuild { source: MetaError },
 
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {
@@ -310,6 +300,7 @@ pub fn error_policy(_obj: Arc<SparkHistoryServer>, _error: &Error, _ctx: Arc<Ctx
     Action::requeue(*Duration::from_secs(5))
 }
 
+#[allow(clippy::result_large_err)]
 fn build_config_map(
     shs: &SparkHistoryServer,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
@@ -371,6 +362,7 @@ fn build_config_map(
         .context(InvalidConfigMapSnafu { name: cm_name })
 }
 
+#[allow(clippy::result_large_err)]
 fn build_stateful_set(
     shs: &SparkHistoryServer,
     resolved_product_image: &ResolvedProductImage,
@@ -512,6 +504,7 @@ fn build_stateful_set(
     })
 }
 
+#[allow(clippy::result_large_err)]
 fn build_service(
     shs: &SparkHistoryServer,
     app_version_label: &str,
@@ -577,6 +570,7 @@ fn build_service(
     })
 }
 
+#[allow(clippy::result_large_err)]
 fn build_history_role_serviceaccount(
     shs: &SparkHistoryServer,
     app_version_label: &str,
@@ -617,6 +611,7 @@ fn build_history_role_serviceaccount(
     Ok((sa, binding))
 }
 
+#[allow(clippy::result_large_err)]
 fn spark_defaults(
     shs: &SparkHistoryServer,
     s3_log_dir: &S3LogDir,
@@ -720,6 +715,7 @@ fn labels<'a, T>(
 /// Return the Spark properties for the cleaner role group (if any).
 /// There should be only one role group with "cleaner=true" and this
 /// group should have a replica count of 0 or 1.
+#[allow(clippy::result_large_err)]
 fn cleaner_config(
     shs: &SparkHistoryServer,
     rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,

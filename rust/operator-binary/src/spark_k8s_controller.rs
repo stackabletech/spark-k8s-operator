@@ -16,10 +16,16 @@ use stackable_spark_k8s_crd::{
 use crate::product_logging::{self, resolve_vector_aggregator_address};
 use product_config::types::PropertyNameKind;
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::resources::ResourceRequirementsBuilder;
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
+    builder::{
+        configmap::{ConfigMapBuilder, Error as ConfigMapError},
+        meta::{Error as MetaError, ObjectMetaBuilder},
+        pod::container::{ContainerBuilder, Error as ContainerError},
+        pod::resources::ResourceRequirementsBuilder,
+        pod::volume::VolumeBuilder,
+        pod::PodBuilder,
+    },
     commons::{
         authentication::tls::{CaCert, TlsVerification},
         product_image_selection::ResolvedProductImage,
@@ -41,6 +47,7 @@ use stackable_operator::{
         ResourceExt,
     },
     logging::controller::ReconcilerError,
+    product_config_utils::Error as ConfigError,
     product_config_utils::ValidatedRoleConfigByPropertyKind,
     product_logging::{
         framework::{capture_shell_output, create_vector_shutdown_file_command, vector_container},
@@ -61,34 +68,30 @@ pub enum Error {
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
     #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::error::Error,
-    },
+    ObjectMissingMetadataForOwnerRef { source: MetaError },
     #[snafu(display("failed to apply role ServiceAccount"))]
     ApplyServiceAccount {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
     #[snafu(display("failed to apply global RoleBinding"))]
     ApplyRoleBinding {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
     #[snafu(display("failed to apply Job"))]
     ApplyApplication {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
     #[snafu(display("failed to build stark-submit command"))]
     BuildCommand {
         source: stackable_spark_k8s_crd::Error,
     },
     #[snafu(display("failed to build the pod template config map"))]
-    PodTemplateConfigMap {
-        source: stackable_operator::error::Error,
-    },
+    PodTemplateConfigMap { source: ConfigMapError },
     #[snafu(display("pod template serialization"))]
     PodTemplateSerde { source: serde_yaml::Error },
     #[snafu(display("s3 bucket error"))]
     S3Bucket {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::commons::s3::Error,
     },
     #[snafu(display("tls non-verification not supported"))]
     S3TlsNoVerificationNotSupported,
@@ -101,9 +104,7 @@ pub enum Error {
     #[snafu(display("failed to recognise the container name"))]
     UnrecognisedContainerName,
     #[snafu(display("illegal container name"))]
-    IllegalContainerName {
-        source: stackable_operator::error::Error,
-    },
+    IllegalContainerName { source: ContainerError },
     #[snafu(display("failed to resolve the s3 log dir configuration"))]
     S3LogDir {
         source: stackable_spark_k8s_crd::s3logdir::Error,
@@ -121,9 +122,7 @@ pub enum Error {
         role: SparkApplicationRole,
     },
     #[snafu(display("failed to generate product config"))]
-    GenerateProductConfig {
-        source: stackable_operator::product_config_utils::ConfigError,
-    },
+    GenerateProductConfig { source: ConfigError },
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
         source: stackable_spark_k8s_crd::Error,
@@ -139,9 +138,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::ObjectMetaBuilderError,
-    },
+    MetadataBuild { source: MetaError },
 
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {
@@ -713,7 +710,7 @@ fn spark_job(
     let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
         .context(IllegalContainerNameSnafu)?;
 
-    let args = vec![job_commands.join(" ")];
+    let args = [job_commands.join(" ")];
 
     cb.image_from_product_image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])

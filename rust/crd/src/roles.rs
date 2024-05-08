@@ -33,7 +33,7 @@ use stackable_operator::{
         merge::{Atomic, Merge},
     },
     k8s_openapi::{api::core::v1::VolumeMount, apimachinery::pkg::api::resource::Quantity},
-    product_config_utils::Configuration,
+    product_config_utils::{Configuration, Error as ConfigError},
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
 };
@@ -158,8 +158,7 @@ impl Configuration for RoleConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
 
@@ -167,8 +166,7 @@ impl Configuration for RoleConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
 
@@ -177,8 +175,7 @@ impl Configuration for RoleConfigFragment {
         _resource: &Self::Configurable,
         _role_name: &str,
         _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
 }
@@ -230,8 +227,7 @@ impl Configuration for SubmitConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
 
@@ -239,8 +235,7 @@ impl Configuration for SubmitConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
 
@@ -249,8 +244,7 @@ impl Configuration for SubmitConfigFragment {
         _resource: &Self::Configurable,
         _role_name: &str,
         _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
-    {
+    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
         Ok(BTreeMap::new())
     }
 }

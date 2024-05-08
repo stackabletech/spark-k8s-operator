@@ -14,14 +14,13 @@ use product_config::{types::PropertyNameKind, ProductConfigManager};
 use s3logdir::S3LogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::SecretFormat;
 use stackable_operator::product_config_utils::{
     transform_all_roles_to_config, validate_all_roles_and_groups_config,
     ValidatedRoleConfigByPropertyKind,
 };
 use stackable_operator::role_utils::EmptyRoleConfig;
 use stackable_operator::{
-    builder::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+    builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
     commons::{
         product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{CpuLimits, MemoryLimits, Resources},
@@ -63,7 +62,7 @@ pub enum Error {
 
     #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
     FailedToConvertJavaHeap {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::memory::Error,
         unit: String,
     },
 
@@ -75,17 +74,17 @@ pub enum Error {
 
     #[snafu(display("failed to transform configs"))]
     ProductConfigTransform {
-        source: stackable_operator::product_config_utils::ConfigError,
+        source: stackable_operator::product_config_utils::Error,
     },
 
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::product_config_utils::Error,
     },
 
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::SecretOperatorVolumeSourceBuilderError,
+        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
     },
 
     #[snafu(display("failed to build S3 credentials Volume"))]

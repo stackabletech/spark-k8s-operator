@@ -1,7 +1,10 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
-    commons::pdb::PdbConfig, kube::ResourceExt,
+    builder::pdb::{Error as PdbError, PodDisruptionBudgetBuilder},
+    client::Client,
+    cluster_resources::{ClusterResources, Error as ClusterresourceError},
+    commons::pdb::PdbConfig,
+    kube::ResourceExt,
 };
 use stackable_spark_k8s_crd::{
     constants::{APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME, OPERATOR_NAME},
@@ -11,13 +14,10 @@ use stackable_spark_k8s_crd::{
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("Cannot create PodDisruptionBudget for role [{role}]"))]
-    CreatePdb {
-        source: stackable_operator::error::Error,
-        role: String,
-    },
+    CreatePdb { source: PdbError, role: String },
     #[snafu(display("Cannot apply PodDisruptionBudget [{name}]"))]
     ApplyPdb {
-        source: stackable_operator::error::Error,
+        source: ClusterresourceError,
         name: String,
     },
 }

@@ -73,6 +73,9 @@ mod test {
                 preferred_during_scheduling_ignored_during_execution: Some(vec![
                     WeightedPodAffinityTerm {
                         pod_affinity_term: PodAffinityTerm {
+                            mismatch_label_keys: None,
+                            match_label_keys: None,
+
                             label_selector: Some(LabelSelector {
                                 match_expressions: None,
                                 match_labels: Some(BTreeMap::from([

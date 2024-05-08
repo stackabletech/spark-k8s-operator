@@ -36,13 +36,9 @@ use strum::{Display, EnumIter};
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("failed to transform configs"))]
-    ProductConfigTransform {
-        source: stackable_operator::product_config_utils::Error,
-    },
+    ProductConfigTransform { source: ConfigError },
     #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
+    InvalidProductConfig { source: ConfigError },
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
     #[snafu(display("the role group {role_group} is not defined"))]

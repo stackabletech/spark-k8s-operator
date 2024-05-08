@@ -2,7 +2,7 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pdb::{Error as PdbError, PodDisruptionBudgetBuilder},
     client::Client,
-    cluster_resources::{ClusterResources, Error as ClusterresourceError},
+    cluster_resources::{ClusterResources, Error as ClusterResourceError},
     commons::pdb::PdbConfig,
     kube::ResourceExt,
 };
@@ -17,7 +17,7 @@ pub enum Error {
     CreatePdb { source: PdbError, role: String },
     #[snafu(display("Cannot apply PodDisruptionBudget [{name}]"))]
     ApplyPdb {
-        source: ClusterresourceError,
+        source: ClusterResourceError,
         name: String,
     },
 }

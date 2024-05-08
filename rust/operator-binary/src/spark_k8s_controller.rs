@@ -26,6 +26,7 @@ use stackable_operator::{
         pod::volume::VolumeBuilder,
         pod::PodBuilder,
     },
+    client::Error as ClientError,
     commons::{
         authentication::tls::{CaCert, TlsVerification},
         product_image_selection::ResolvedProductImage,
@@ -70,17 +71,11 @@ pub enum Error {
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef { source: MetaError },
     #[snafu(display("failed to apply role ServiceAccount"))]
-    ApplyServiceAccount {
-        source: stackable_operator::client::Error,
-    },
+    ApplyServiceAccount { source: ClientError },
     #[snafu(display("failed to apply global RoleBinding"))]
-    ApplyRoleBinding {
-        source: stackable_operator::client::Error,
-    },
+    ApplyRoleBinding { source: ClientError },
     #[snafu(display("failed to apply Job"))]
-    ApplyApplication {
-        source: stackable_operator::client::Error,
-    },
+    ApplyApplication { source: ClientError },
     #[snafu(display("failed to build stark-submit command"))]
     BuildCommand {
         source: stackable_spark_k8s_crd::Error,

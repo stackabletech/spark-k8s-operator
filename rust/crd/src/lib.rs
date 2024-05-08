@@ -15,12 +15,15 @@ use s3logdir::S3LogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::product_config_utils::{
-    transform_all_roles_to_config, validate_all_roles_and_groups_config,
+    transform_all_roles_to_config, validate_all_roles_and_groups_config, Error as ConfigError,
     ValidatedRoleConfigByPropertyKind,
 };
 use stackable_operator::role_utils::EmptyRoleConfig;
 use stackable_operator::{
-    builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+    builder::pod::volume::{
+        SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
+        VolumeBuilder,
+    },
     commons::{
         product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{CpuLimits, MemoryLimits, Resources},
@@ -73,18 +76,14 @@ pub enum Error {
     FragmentValidationFailure { source: ValidationError },
 
     #[snafu(display("failed to transform configs"))]
-    ProductConfigTransform {
-        source: stackable_operator::product_config_utils::Error,
-    },
+    ProductConfigTransform { source: ConfigError },
 
     #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
+    InvalidProductConfig { source: ConfigError },
 
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::pod::volume::SecretOperatorVolumeSourceBuilderError,
+        source: SecretOperatorVolumeSourceBuilderError,
     },
 
     #[snafu(display("failed to build S3 credentials Volume"))]

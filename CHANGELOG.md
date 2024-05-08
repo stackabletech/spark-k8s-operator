@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Update dependency versions ([#401])
+
+[#401]: https://github.com/stackabletech/spark-k8s-operator/pull/401
+
 ## [24.3.0] - 2024-03-20
 
 ### Added

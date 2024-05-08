@@ -18,18 +18,18 @@ jobs:
   actionlint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: reviewdog/action-actionlint@82693e9e3b239f213108d6e412506f8b54003586 # v1.39.1
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: reviewdog/action-actionlint@51bfb044ddaed55059d16f14daedbe05a9937dc1 # v1.45.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   flake8:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # tag=v5.0.0
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # tag=v5.1.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - uses: reviewdog/action-flake8@51c2708ac3e9463b4d27d0ba7d9e3ded608a6ad3 # v3.8.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -37,16 +37,16 @@ jobs:
   hadolint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: reviewdog/action-hadolint@f7d29ec6dd89022747bd18b5a151b62ac2f1555e # v1.36.0
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: reviewdog/action-hadolint@13c293e6679cd4c90fa41dd5155fb067a28c0a5f # v1.41.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   markdownlint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: reviewdog/action-markdownlint@6e02140816b5fcc7295ea7ae2a664af18190ff29 # v0.14.0
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: reviewdog/action-markdownlint@5bc6ad5ba9e1250878f351bafcc7ac0a11dc050f # v0.18.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           markdownlint_flags: '**/*(*.md|*.md.j2)'
@@ -54,24 +54,24 @@ jobs:
   shellcheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: reviewdog/action-shellcheck@96fa305c16b0f9cc9b093af22dcd09de1c8f1c2d # v1.19.0
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: reviewdog/action-shellcheck@72365a51bf6476fe952a117c3ff703eb7775e40a # v1.20.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   yamllint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: reviewdog/action-yamllint@722e651555c5ca6db0edaada08e049825f74e431 # v1.8.0
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: reviewdog/action-yamllint@8d79c3d034667db2792e328936811ed44953d691 # v1.14.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   misspell:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: reviewdog/action-misspell@4348e72b9038b006ffc37b6b0dd4421a2e9a68ef # v1.14.1
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: reviewdog/action-misspell@5bd7be2fc7ae56a517184f5c4bbcf2fd7afe3927 # v1.17.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           locale: "US"
@@ -82,8 +82,8 @@ jobs:
   languagetool:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: reviewdog/action-languagetool@0d1f05459d9d88744c06c58d389f0997bab95b59 # v1.13.2
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: reviewdog/action-languagetool@73e4df96aa7b1b741a32ee2e1fff3405d3461583 # v1.14.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           level: info

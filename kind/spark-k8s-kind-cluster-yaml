@@ -36,4 +36,3 @@ nodes:
   extraMounts:
     - hostPath: /tmp/kind-shared-volume
       containerPath: /kind-shared-volume
-

@@ -713,7 +713,7 @@ fn spark_job(
     let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
         .context(IllegalContainerNameSnafu)?;
 
-    let args = vec![job_commands.join(" ")];
+    let args = [job_commands.join(" ")];
 
     cb.image_from_product_image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])

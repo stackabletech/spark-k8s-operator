@@ -1299,6 +1299,7 @@ mod tests {
                 read_only: None,
                 sub_path: None,
                 sub_path_expr: None,
+                recursive_read_only: None,
             },
             VolumeMount {
                 mount_path: "/stackable/spark/executor-pod-templates".into(),
@@ -1307,6 +1308,7 @@ mod tests {
                 read_only: None,
                 sub_path: None,
                 sub_path_expr: None,
+                recursive_read_only: None,
             },
             VolumeMount {
                 mount_path: "/kerberos".into(),
@@ -1315,6 +1317,7 @@ mod tests {
                 read_only: None,
                 sub_path: None,
                 sub_path_expr: None,
+                recursive_read_only: None,
             },
         ];
 

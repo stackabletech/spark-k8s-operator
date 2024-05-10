@@ -198,7 +198,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     let resolved_product_image = spark_application
         .spec
         .spark_image
-        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
+        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
 
     let validated_product_config: ValidatedRoleConfigByPropertyKind = spark_application
         .validated_role_config(&resolved_product_image, &ctx.product_config)

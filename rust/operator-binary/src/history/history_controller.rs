@@ -179,7 +179,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     let resolved_product_image = shs
         .spec
         .image
-        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
+        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
     let s3_log_dir = S3LogDir::resolve(
         Some(&shs.spec.log_file_directory),
         shs.metadata.namespace.clone(),

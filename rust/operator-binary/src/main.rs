@@ -26,7 +26,6 @@ use tracing_futures::Instrument;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
-    pub const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 }
 
 #[derive(Parser)]
@@ -50,8 +49,8 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => {
-            SparkApplication::print_yaml_schema(built_info::CARGO_PKG_VERSION)?;
-            SparkHistoryServer::print_yaml_schema(built_info::CARGO_PKG_VERSION)?;
+            SparkApplication::print_yaml_schema(built_info::PKG_VERSION)?;
+            SparkHistoryServer::print_yaml_schema(built_info::PKG_VERSION)?;
         }
         Command::Run(ProductOperatorRun {
             product_config,

@@ -158,7 +158,7 @@ impl Configuration for RoleConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -167,7 +167,7 @@ impl Configuration for RoleConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -177,7 +177,7 @@ impl Configuration for RoleConfigFragment {
         _resource: &Self::Configurable,
         _role_name: &str,
         _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -230,7 +230,7 @@ impl Configuration for SubmitConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -239,7 +239,7 @@ impl Configuration for SubmitConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -249,7 +249,7 @@ impl Configuration for SubmitConfigFragment {
         _resource: &Self::Configurable,
         _role_name: &str,
         _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }

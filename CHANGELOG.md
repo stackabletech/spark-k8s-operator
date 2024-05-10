@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Update dependency versions ([#401])
+- Update Rust dependency versions, most notably operator-rs 0.67.1 ([#401])
 
 [#401]: https://github.com/stackabletech/spark-k8s-operator/pull/401
 

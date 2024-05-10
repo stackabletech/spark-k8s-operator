@@ -5,17 +5,11 @@ use product_config::{types::PropertyNameKind, writer::to_java_properties_string}
 use stackable_operator::kvp::{Label, Labels, ObjectLabels};
 use stackable_operator::{
     builder::{
-        configmap::{ConfigMapBuilder, Error as ConfigMapError},
-        meta::{Error as MetaError, ObjectMetaBuilder},
-        pod::{
-            container::{ContainerBuilder, Error as ContainerError},
-            volume::VolumeBuilder,
-            PodBuilder,
-        },
+        configmap::ConfigMapBuilder,
+        meta::ObjectMetaBuilder,
+        pod::{container::ContainerBuilder, volume::VolumeBuilder, PodBuilder},
     },
-    cluster_resources::{
-        ClusterResourceApplyStrategy, ClusterResources, Error as ClusterResourceError,
-    },
+    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         api::{
@@ -75,23 +69,37 @@ pub enum Error {
     ObjectHasNoNamespace,
     #[snafu(display("invalid config map {name}"))]
     InvalidConfigMap {
-        source: ConfigMapError,
+        source: stackable_operator::builder::configmap::Error,
         name: String,
     },
     #[snafu(display("invalid history container name"))]
-    InvalidContainerName { source: ContainerError },
+    InvalidContainerName {
+        source: stackable_operator::builder::pod::container::Error,
+    },
     #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef { source: MetaError },
+    ObjectMissingMetadataForOwnerRef {
+        source: stackable_operator::builder::meta::Error,
+    },
     #[snafu(display("failed to update the history server deployment"))]
-    ApplyDeployment { source: ClusterResourceError },
+    ApplyDeployment {
+        source: stackable_operator::cluster_resources::Error,
+    },
     #[snafu(display("failed to update history server config map"))]
-    ApplyConfigMap { source: ClusterResourceError },
+    ApplyConfigMap {
+        source: stackable_operator::cluster_resources::Error,
+    },
     #[snafu(display("failed to update history server service"))]
-    ApplyService { source: ClusterResourceError },
+    ApplyService {
+        source: stackable_operator::cluster_resources::Error,
+    },
     #[snafu(display("failed to apply role ServiceAccount"))]
-    ApplyServiceAccount { source: ClusterResourceError },
+    ApplyServiceAccount {
+        source: stackable_operator::cluster_resources::Error,
+    },
     #[snafu(display("failed to apply global RoleBinding"))]
-    ApplyRoleBinding { source: ClusterResourceError },
+    ApplyRoleBinding {
+        source: stackable_operator::cluster_resources::Error,
+    },
     #[snafu(display("product config validation failed"))]
     ProductConfigValidation {
         source: stackable_spark_k8s_crd::history::Error,
@@ -109,9 +117,13 @@ pub enum Error {
         source: stackable_spark_k8s_crd::s3logdir::Error,
     },
     #[snafu(display("failed to create cluster resources"))]
-    CreateClusterResources { source: ClusterResourceError },
+    CreateClusterResources {
+        source: stackable_operator::cluster_resources::Error,
+    },
     #[snafu(display("failed to delete orphaned resources"))]
-    DeleteOrphanedResources { source: ClusterResourceError },
+    DeleteOrphanedResources {
+        source: stackable_operator::cluster_resources::Error,
+    },
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress { source: product_logging::Error },
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
@@ -140,7 +152,9 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build Metadata"))]
-    MetadataBuild { source: MetaError },
+    MetadataBuild {
+        source: stackable_operator::builder::meta::Error,
+    },
 
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {

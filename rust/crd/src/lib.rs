@@ -15,7 +15,7 @@ use s3logdir::S3LogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::product_config_utils::{
-    transform_all_roles_to_config, validate_all_roles_and_groups_config, Error as ConfigError,
+    transform_all_roles_to_config, validate_all_roles_and_groups_config,
     ValidatedRoleConfigByPropertyKind,
 };
 use stackable_operator::role_utils::EmptyRoleConfig;
@@ -76,10 +76,14 @@ pub enum Error {
     FragmentValidationFailure { source: ValidationError },
 
     #[snafu(display("failed to transform configs"))]
-    ProductConfigTransform { source: ConfigError },
+    ProductConfigTransform {
+        source: stackable_operator::product_config_utils::Error,
+    },
 
     #[snafu(display("invalid product config"))]
-    InvalidProductConfig { source: ConfigError },
+    InvalidProductConfig {
+        source: stackable_operator::product_config_utils::Error,
+    },
 
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {

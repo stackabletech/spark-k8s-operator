@@ -24,7 +24,7 @@ use stackable_operator::{
     kube::{runtime::reflector::ObjectRef, ResourceExt},
     product_config_utils::{
         transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
-        Error as ConfigError, ValidatedRoleConfigByPropertyKind,
+        ValidatedRoleConfigByPropertyKind,
     },
     product_logging::{self, spec::Logging},
     role_utils::{Role, RoleGroupRef},
@@ -36,9 +36,13 @@ use strum::{Display, EnumIter};
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("failed to transform configs"))]
-    ProductConfigTransform { source: ConfigError },
+    ProductConfigTransform {
+        source: stackable_operator::product_config_utils::Error,
+    },
     #[snafu(display("invalid product config"))]
-    InvalidProductConfig { source: ConfigError },
+    InvalidProductConfig {
+        source: stackable_operator::product_config_utils::Error,
+    },
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
     #[snafu(display("the role group {role_group} is not defined"))]
@@ -335,7 +339,8 @@ impl Configuration for HistoryConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
+    {
         Ok(BTreeMap::new())
     }
 
@@ -343,7 +348,8 @@ impl Configuration for HistoryConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
+    {
         Ok(BTreeMap::new())
     }
 
@@ -352,7 +358,8 @@ impl Configuration for HistoryConfigFragment {
         _resource: &Self::Configurable,
         _role_name: &str,
         _file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, ConfigError> {
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
+    {
         Ok(BTreeMap::new())
     }
 }

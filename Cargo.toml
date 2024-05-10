@@ -15,7 +15,7 @@ built = { version = "0.6", features = ["chrono", "git2"] }
 clap = "4.3"
 futures = { version = "0.3", features = ["compat"] }
 product-config = { git = "https://github.com/stackabletech/product-config.git", tag = "0.6.0" }
-rstest = "0.18"
+rstest = "0.19"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

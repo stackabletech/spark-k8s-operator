@@ -73,9 +73,6 @@ mod test {
                 preferred_during_scheduling_ignored_during_execution: Some(vec![
                     WeightedPodAffinityTerm {
                         pod_affinity_term: PodAffinityTerm {
-                            mismatch_label_keys: None,
-                            match_label_keys: None,
-
                             label_selector: Some(LabelSelector {
                                 match_expressions: None,
                                 match_labels: Some(BTreeMap::from([
@@ -96,6 +93,9 @@ mod test {
                             namespace_selector: None,
                             namespaces: None,
                             topology_key: "kubernetes.io/hostname".to_string(),
+                            // These fields are only available starting with kubernetes 1.30
+                            mismatch_label_keys: None,
+                            match_label_keys: None,
                         },
                         weight: 70,
                     },

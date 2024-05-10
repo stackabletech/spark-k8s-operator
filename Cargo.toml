@@ -12,7 +12,7 @@ repository = "https://github.com/stackabletech/spark-k8s-operator"
 [workspace.dependencies]
 anyhow = "1.0"
 built = { version = "0.6", features = ["chrono", "git2"] }
-clap = "4.3"
+clap = "4.5"
 futures = { version = "0.3", features = ["compat"] }
 product-config = { git = "https://github.com/stackabletech/product-config.git", tag = "0.6.0" }
 rstest = "0.19"

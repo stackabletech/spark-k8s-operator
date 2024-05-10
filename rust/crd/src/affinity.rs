@@ -90,12 +90,8 @@ mod test {
                                     ),
                                 ])),
                             }),
-                            namespace_selector: None,
-                            namespaces: None,
                             topology_key: "kubernetes.io/hostname".to_string(),
-                            // These fields are only available starting with kubernetes 1.30
-                            mismatch_label_keys: None,
-                            match_label_keys: None,
+                            ..PodAffinityTerm::default()
                         },
                         weight: 70,
                     },

@@ -1300,28 +1300,19 @@ mod tests {
                 mount_path: "/stackable/spark/driver-pod-templates".into(),
                 mount_propagation: None,
                 name: "driver-pod-template".into(),
-                read_only: None,
-                sub_path: None,
-                sub_path_expr: None,
-                recursive_read_only: None,
+                ..VolumeMount::default()
             },
             VolumeMount {
                 mount_path: "/stackable/spark/executor-pod-templates".into(),
                 mount_propagation: None,
                 name: "executor-pod-template".into(),
-                read_only: None,
-                sub_path: None,
-                sub_path_expr: None,
-                recursive_read_only: None,
+                ..VolumeMount::default()
             },
             VolumeMount {
                 mount_path: "/kerberos".into(),
                 mount_propagation: None,
                 name: "keytab".into(),
-                read_only: None,
-                sub_path: None,
-                sub_path_expr: None,
-                recursive_read_only: None,
+                ..VolumeMount::default()
             },
         ];
 

@@ -1,0 +1,6 @@
+---
+self-hosted-runner:
+  # BuildJet machines we are using
+  labels:
+    - buildjet-2vcpu-ubuntu-2204-arm
+    - buildjet-4vcpu-ubuntu-2204-arm

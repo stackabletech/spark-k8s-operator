@@ -6,9 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Update Rust dependency versions, most notably operator-rs 0.67.1 ([#401])
+- Update Rust dependency versions, most notably operator-rs 0.67.1 ([#401]
+
+### Fixed
+
+- Use actual values of resource CPU settings for pod values, but still rounding up for parallelism ([#408]).
 
 [#401]: https://github.com/stackabletech/spark-k8s-operator/pull/401
+[#408]: https://github.com/stackabletech/spark-k8s-operator/pull/408
 
 ## [24.3.0] - 2024-03-20
 

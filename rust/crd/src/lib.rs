@@ -915,15 +915,17 @@ fn resources_to_driver_props(
         ..
     } = &driver_config.resources
     {
-        let min_cores = cores_from_quantity(min.0.clone())?;
-        let max_cores = cores_from_quantity(max.0.clone())?;
-        // will have default value from resources to apply if nothing set specifically
-        props.insert("spark.driver.cores".to_string(), max_cores.clone());
+        let driver_cores = cores_from_quantity(max.0.clone())?;
+        // take rounded value for driver.cores but actual values for the pod
+        props.insert("spark.driver.cores".to_string(), driver_cores.clone());
         props.insert(
             "spark.kubernetes.driver.request.cores".to_string(),
-            min_cores,
+            min.0.clone(),
         );
-        props.insert("spark.kubernetes.driver.limit.cores".to_string(), max_cores);
+        props.insert(
+            "spark.kubernetes.driver.limit.cores".to_string(),
+            max.0.clone(),
+        );
     }
 
     if let Resources {
@@ -955,17 +957,16 @@ fn resources_to_executor_props(
         ..
     } = &executor_config.resources
     {
-        let min_cores = cores_from_quantity(min.0.clone())?;
-        let max_cores = cores_from_quantity(max.0.clone())?;
-        // will have default value from resources to apply if nothing set specifically
-        props.insert("spark.executor.cores".to_string(), max_cores.clone());
+        let executor_cores = cores_from_quantity(max.0.clone())?;
+        // take rounded value for executor.cores (to determine the parallelism) but actual values for the pod
+        props.insert("spark.executor.cores".to_string(), executor_cores.clone());
         props.insert(
             "spark.kubernetes.executor.request.cores".to_string(),
-            min_cores,
+            min.0.clone(),
         );
         props.insert(
             "spark.kubernetes.executor.limit.cores".to_string(),
-            max_cores,
+            max.0.clone(),
         );
     }
 
@@ -1154,7 +1155,7 @@ mod tests {
             ),
             (
                 "spark.kubernetes.driver.request.cores".to_string(),
-                "1".to_string(),
+                "250m".to_string(),
             ),
         ]
         .into_iter()
@@ -1194,7 +1195,7 @@ mod tests {
             ("spark.executor.memory".to_string(), "128m".to_string()), // 128 and not 512 because memory overhead is subtracted
             (
                 "spark.kubernetes.executor.request.cores".to_string(),
-                "1".to_string(),
+                "250m".to_string(),
             ),
             (
                 "spark.kubernetes.executor.limit.cores".to_string(),

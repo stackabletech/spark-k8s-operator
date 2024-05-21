@@ -33,10 +33,10 @@ spec:
       resources:
       # these resources are set via Spark submit properties like "spark.driver.cores"
         limits:
-          cpu: "2"
+          cpu: 1200m
           memory: 1Gi
         requests:
-          cpu: "1"
+          cpu: 300m
           memory: 1Gi
 ---
 apiVersion: v1
@@ -55,5 +55,5 @@ spec:
           cpu: "2"
           memory: 1Gi
         requests:
-          cpu: "2"
+          cpu: 1250m
           memory: 1Gi

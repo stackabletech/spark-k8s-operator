@@ -58,26 +58,32 @@ To illustrate resource configuration consider the use-case where resources are d
 
 === CPU
 
-CPU request and limit will be rounded up to the next integer value, resulting in the following:
+CPU request and limit will be used as defined in the custom resource resulting in the following:
 
 
 |===
-|CRD |Spark conf
+|CRD |spark.kubernetes.{driver/executor} cores|spark.{driver/executor} cores (rounded up)
 
+|1800m
 |1800m
 |2
 
 |100m
+|100m
 |1
 
+|1.5
 |1.5
 |2
 
 |2
 |2
+|2
 |===
 
-Spark allows CPU limits to be set for the driver and executor using Spark settings (`spark.{driver|executor}.cores}`) as well as Kubernetes-specific ones (`spark.kubernetes.{driver,executor}.{request|limit}.cores`). `spark.kubernetes.executor.request.cores` takes precedence over `spark.executor.cores` in determining the pod CPU request, but does not affect task parallelism (the number of tasks an executor can run concurrently), so for this reason `spark.executor.cores` is set to the value of `spark.kubernetes.executor.limit.cores`.
+`spark.kubernetes.{driver,executor}.{request|limit}.cores` determine the actual pod CPU request and are taken directly from the manifest as defined by the user.
+`spark.{driver|executor}.cores}` are set to the rounded(-up) value of the manifest settings.
+Task parallelism (the number of tasks an executor can run concurrently), is determined by `spark.executor.cores`.
 
 === Memory
 

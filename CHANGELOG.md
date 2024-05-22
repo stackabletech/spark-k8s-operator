@@ -8,7 +8,14 @@ All notable changes to this project will be documented in this file.
 
 - Update Rust dependency versions, most notably operator-rs 0.67.1 ([#401])
 
+### Fixed
+
+- BREAKING (behaviour): Specified CPU resources are now applied correctly (instead of rounding it to the next whole number).
+  This might affect your jobs, as they now e.g. only have 200m CPU resources requested instead of the 1000m it had so far,
+  meaning they might slow down significantly ([#408]).
+
 [#401]: https://github.com/stackabletech/spark-k8s-operator/pull/401
+[#408]: https://github.com/stackabletech/spark-k8s-operator/pull/408
 
 ## [24.3.0] - 2024-03-20
 

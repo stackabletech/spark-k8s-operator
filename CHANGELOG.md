@@ -10,7 +10,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Use actual values of resource CPU settings for pod values, but still rounding up for parallelism ([#408]).
+- BREAKING (behaviour): Specified CPU resources are now applied correctly (instead of rounding it to the next whole number).
+  This might affect your jobs, as they now e.g. only have 200m CPU resources requested instead of the 1000m it had so far,
+  meaning they might slow down significantly([#408]).
 
 [#401]: https://github.com/stackabletech/spark-k8s-operator/pull/401
 [#408]: https://github.com/stackabletech/spark-k8s-operator/pull/408

@@ -37,12 +37,12 @@ The following table provides a high level overview of the relevant aspects of ea
 
 |Maven/Java packages
 |Small
-|Not guranteed
+|Not guaranteed
 |Small
 
 |Python packages
 |Small
-|Not guranteed
+|Not guaranteed
 |Small
 |===
 

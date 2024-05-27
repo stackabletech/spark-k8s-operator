@@ -3,15 +3,9 @@
 
 == Overview
 
-IMPORTANT: With the platform release 23.4.1 (and all previous releases), dynamic provisioning of dependencies using the Spark `packages` field doesn't work. This is a known problem with Spark and is tracked https://github.com/stackabletech/spark-k8s-operator/issues/141[here].
+IMPORTANT: With the platform release 23.4.1 and Apache Spark 3.3.x (and all previous releases), dynamic provisioning of dependencies using the Spark `packages` field doesn't work. This is a known problem with Spark and is tracked https://github.com/stackabletech/spark-k8s-operator/issues/141[here].
 
-The Stackable Spark-on-Kubernetes operator enables users to run Apache Spark workloads in a Kubernetes cluster easily by eliminating the requirement of having a local Spark installation. For this purpose, Stackble provides ready made container images with recent versions of Apache Spark and PySpark that provide the basis for running those workloads. Users can run their workloads on any recent Kubernetes cluster by applying a `SparkApplication` custom resource in which the job code, job dependencies, input and output data locations can be specified. The operator translates the user's `SparkApplication` manifest into a Kubernetes `Job` object and handles control to the Apache Spark scheduler for Kubernetes to construct the necessary driver and executor `Pods`.
-
-image::spark-k8s.png[Job Flow]
-
-When the job is finished, the `Pods` are terminated and the Kubernetes `Job` is completed.
-
-The container images provided by Stackable include Apache Spark and PySpark applications and libraries. In addtion they include commonly used libraries to connect to storage systems supporting the `hdfs://`, `s3a://` and `abfs://` protocols. This systems are commonly used to store data processed by Spark applications.
+The container images provided by Stackable include Apache Spark and PySpark applications and libraries. In addtion they include commonly used libraries to connect to storage systems supporting the `hdfs://`, `s3a://` and `abfs://` protocols. These systems are commonly used to store data processed by Spark applications.
 
 Sometimes the applications need to integrate with additional systems or use processing algorithms not included in the Apache Spark distribution. This guide explains how users can provision their Spark jobs with additional dependencies to support these requirements.
 

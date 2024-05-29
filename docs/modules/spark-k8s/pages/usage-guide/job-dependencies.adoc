@@ -138,7 +138,9 @@ spec:
 
 <1> Maven package coordinates for Apache Iceberg. This is downloaded from the Manven repository and made available to the Spark application.
 
-IMPORTANT: Currently it's not possible to provision dependencies that are loaded by the JVM's (system class loader)[https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ClassLoader.html#getSystemClassLoader()]. Such dependencies include JDBC drivers. If you need access to JDBC sources from your Spark application, consider building your own custom Spark image as shown above.
+IMPORTANT: Currently it's not possible to provision dependencies that are loaded by the JVM's https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ClassLoader.html#getSystemClassLoader()[system class loader].
+Such dependencies include JDBC drivers.
+If you need access to JDBC sources from your Spark application, consider building your own custom Spark image as shown above.
 
 === Python packages
 

@@ -9,18 +9,19 @@ This is a known problem with Spark and is tracked https://github.com/stackablete
 The container images provided by Stackable include Apache Spark and PySpark applications and libraries.
 In addition they include commonly used libraries to connect to storage systems supporting the `hdfs://`, `s3a://` and `abfs://` protocols. These systems are commonly used to store data processed by Spark applications.
 
-Sometimes the applications need to integrate with additional systems or use processing algorithms not included in the Apache Spark distribution. This guide explains how users can provision their Spark jobs with additional dependencies to support these requirements.
+Sometimes the applications need to integrate with additional systems or use processing algorithms not included in the Apache Spark distribution.
+This guide explains how you can provision your Spark jobs with additional dependencies to support these requirements.
 
 == Dependency provisioning
 
 There are multiple ways to submit Apache Spark jobs with external dependencies. Each has its own advantages and disadvantages and the choice of one over the other depends on existing technical and managerial constraints.
 
-To provision job dependencies in their workloads, users have to construct their `SparkApplication` with one of the following dependency specifications:
+To provision job dependencies in Spark workloads, you construct the `SparkApplication` with one of the following dependency specifications:
 
-- Custom Spark images
-- Dependency volumes
-- Maven/Java packages
-- Python packages
+* Custom Spark images
+* Dependency volumes
+* Maven/Java packages
+* Python packages
 
 The following table provides a high level overview of the relevant aspects of each method.
 
@@ -50,7 +51,7 @@ The following table provides a high level overview of the relevant aspects of ea
 
 === Custom Spark images
 
-With this method, users submit a `SparkApplication` for which the `sparkImage` refers to the full custom image name. It is recommended the users base their image on one of the Stackable images to ensure compatibility with the Stackable operator.
+With this method, you submit a `SparkApplication` for which the `sparkImage` refers to the full custom image name. It is recommended the you base the custom image on one of the Stackable images to ensure compatibility with the Stackable operator.
 
 Below is an example of a custom image that includes a JDBC driver:
 
@@ -84,7 +85,7 @@ spec:
 
 === Dependency volumes
 
-With this method, the user provisions the job dependencies from a `PersistentVolume` as shown in this example:
+With this method, the job dependencies are provisioned from a `PersistentVolume` as shown in this example:
 
 [source,yaml]
 ----
@@ -96,7 +97,7 @@ include::example$example-sparkapp-pvc.yaml[]
 <4> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
 <5> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
-NOTE: The Spark operator has no control over the contents of the dependency volume. It is the responsibility of the user to make sure all required dependencies are installed in the correct versions.
+NOTE: The Spark operator has no control over the contents of the dependency volume. It is your responsibility to make sure all required dependencies are installed in the correct versions.
 
 A `PersistentVolumeClaim` and the associated `PersistentVolume` can be defined like this:
 

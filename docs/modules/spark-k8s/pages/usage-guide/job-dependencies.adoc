@@ -3,7 +3,8 @@
 
 == Overview
 
-IMPORTANT: With the platform release 23.4.1 and Apache Spark 3.3.x (and all previous releases), dynamic provisioning of dependencies using the Spark `packages` field doesn't work. This is a known problem with Spark and is tracked https://github.com/stackabletech/spark-k8s-operator/issues/141[here].
+IMPORTANT: With the platform release 23.4.1 and Apache Spark 3.3.x (and all previous releases), dynamic provisioning of dependencies using the Spark `packages` field doesn't work.
+This is a known problem with Spark and is tracked https://github.com/stackabletech/spark-k8s-operator/issues/141[here].
 
 The container images provided by Stackable include Apache Spark and PySpark applications and libraries.
 In addition they include commonly used libraries to connect to storage systems supporting the `hdfs://`, `s3a://` and `abfs://` protocols. These systems are commonly used to store data processed by Spark applications.

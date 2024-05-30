@@ -159,7 +159,7 @@ spec:
   mainApplicationFile: /app/run.py # <1>
   deps:
     requirements:
-      - tabulate==0.8.9  # <3>
+      - tabulate==0.8.9  # <2>
 ... 
 ----
 

@@ -7,7 +7,7 @@ IMPORTANT: With the platform release 23.4.1 and Apache Spark 3.3.x (and all prev
 This is a known problem with Spark and is tracked https://github.com/stackabletech/spark-k8s-operator/issues/141[here].
 
 The container images provided by Stackable include Apache Spark and PySpark applications and libraries.
-In addition they include commonly used libraries to connect to storage systems supporting the `hdfs://`, `s3a://` and `abfs://` protocols. These systems are commonly used to store data processed by Spark applications.
+In addition, they include commonly used libraries to connect to storage systems supporting the `hdfs://`, `s3a://` and `abfs://` protocols. These systems are commonly used to store data processed by Spark applications.
 
 Sometimes the applications need to integrate with additional systems or use processing algorithms not included in the Apache Spark distribution.
 This guide explains how you can provision your Spark jobs with additional dependencies to support these requirements.
@@ -51,7 +51,7 @@ The following table provides a high level overview of the relevant aspects of ea
 
 === Custom Spark images
 
-With this method, you submit a `SparkApplication` for which the `sparkImage` refers to the full custom image name. It is recommended the you base the custom image on one of the Stackable images to ensure compatibility with the Stackable operator.
+With this method, you submit a `SparkApplication` for which the `sparkImage` refers to the full custom image name. It is recommended to start the custom image from one of the Stackable images to ensure compatibility with the Stackable operator.
 
 Below is an example of a custom image that includes a JDBC driver:
 
@@ -165,5 +165,4 @@ spec:
 
 <1> The main application file. In this example it is assumed that the file is part of a custom image.
 <2> A Python package that is used by the application and installed when the application is submitted.
-
 

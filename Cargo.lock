@@ -2021,7 +2021,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "stackable-operator"
 version = "0.69.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=fix/vector-log-processing#9b3e2e25a30fdf10633b29a14d5bc654e59e250e"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=fix/vector-log-processing#fa45a676e185c3668063ee0d2528fd400d586138"
 dependencies = [
  "chrono",
  "clap",
@@ -2057,7 +2057,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.3.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=fix/vector-log-processing#9b3e2e25a30fdf10633b29a14d5bc654e59e250e"
+source = "git+https://github.com/stackabletech//operator-rs.git?branch=fix/vector-log-processing#fa45a676e185c3668063ee0d2528fd400d586138"
 dependencies = [
  "darling",
  "proc-macro2",

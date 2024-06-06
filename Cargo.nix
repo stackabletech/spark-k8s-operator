@@ -6143,8 +6143,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
-          rev = "01e1fafd2ae17a4a40db205680ff39347fffb358";
-          sha256 = "09nsc90qiz4wxsw4kbrms174x30j8swid448xj4fkhjbm5pjv2dd";
+          rev = "9b3e2e25a30fdf10633b29a14d5bc654e59e250e";
+          sha256 = "11q56528m44hhxkqr1cyamacgrs6lrxy168cixrgvapjkjvxcfrm";
         };
         authors = [
           "Stackable GmbH <info@stackable.de>"
@@ -6292,8 +6292,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech//operator-rs.git";
-          rev = "01e1fafd2ae17a4a40db205680ff39347fffb358";
-          sha256 = "09nsc90qiz4wxsw4kbrms174x30j8swid448xj4fkhjbm5pjv2dd";
+          rev = "9b3e2e25a30fdf10633b29a14d5bc654e59e250e";
+          sha256 = "11q56528m44hhxkqr1cyamacgrs6lrxy168cixrgvapjkjvxcfrm";
         };
         procMacro = true;
         authors = [

@@ -1,0 +1,8 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >
+      kubectl cp ./prepared-logs.log4j2.xml
+      $NAMESPACE/spark-history-node-automatic-log-config-0:/stackable/log/spark-history/prepared-logs.log4j2.xml
+      --container vector

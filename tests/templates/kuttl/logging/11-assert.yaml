@@ -1,0 +1,8 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+commands:
+  - script: >-
+      kubectl exec --namespace=$NAMESPACE test-runner-0 --
+      python /tmp/test_log_aggregation.py -n $NAMESPACE

@@ -20,30 +20,34 @@ customConfig:
       type: vector
       version: "2"
   transforms:
+    validEvents:
+      type: filter
+      inputs: [vector]
+      condition: is_null(.errors)
 
     # SparkHistoryServer spark-history
 
     filteredSparkHistoryAutomaticLogConfigSparkHistory:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .pod == "spark-history-node-automatic-log-config-0" &&
         .container == "spark-history"
     filteredSparkHistoryAutomaticLogConfigVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .pod == "spark-history-node-automatic-log-config-0" &&
         .container == "vector"
     filteredSparkHistoryCustomLogConfigSparkHistory:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .pod == "spark-history-node-custom-log-config-0" &&
         .container == "spark-history"
     filteredSparkHistoryCustomLogConfigVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .pod == "spark-history-node-custom-log-config-0" &&
         .container == "vector"
@@ -52,42 +56,42 @@ customConfig:
 
     filteredSparkAutomaticLogConfigDriverSpark:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "spark"
     filteredSparkAutomaticLogConfigDriverJob:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "job"
     filteredSparkAutomaticLogConfigDriverVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "vector"
     filteredSparkAutomaticLogConfigExecutorSpark:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "spark"
     filteredSparkAutomaticLogConfigExecutorJob:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "job"
     filteredSparkAutomaticLogConfigExecutorVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
@@ -97,42 +101,42 @@ customConfig:
 
     filteredSparkCustomLogConfigDriverSpark:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "spark"
     filteredSparkCustomLogConfigDriverJob:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "job"
     filteredSparkCustomLogConfigDriverVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "vector"
     filteredSparkCustomLogConfigExecutorSpark:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "spark"
     filteredSparkCustomLogConfigExecutorJob:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "job"
     filteredSparkCustomLogConfigExecutorVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
@@ -142,42 +146,42 @@ customConfig:
 
     filteredPysparkAutomaticLogConfigDriverSpark:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "spark"
     filteredPysparkAutomaticLogConfigDriverRequirements:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "requirements"
     filteredPysparkAutomaticLogConfigDriverVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "vector"
     filteredPysparkAutomaticLogConfigExecutorSpark:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "spark"
     filteredPysparkAutomaticLogConfigExecutorRequirements:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "requirements"
     filteredPysparkAutomaticLogConfigExecutorVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
@@ -187,42 +191,42 @@ customConfig:
 
     filteredPysparkCustomLogConfigDriverSpark:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "spark"
     filteredPysparkCustomLogConfigDriverRequirements:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "requirements"
     filteredPysparkCustomLogConfigDriverVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "vector"
     filteredPysparkCustomLogConfigExecutorSpark:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "spark"
     filteredPysparkCustomLogConfigExecutorRequirements:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "requirements"
     filteredPysparkCustomLogConfigExecutorVector:
       type: filter
-      inputs: [vector]
+      inputs: [validEvents]
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
@@ -239,15 +243,16 @@ customConfig:
         is_null(.logger) ||
         is_null(.message)
   sinks:
-    out:
+    test:
       inputs: [filtered*]
+      type: blackhole
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    aggregator:
+      inputs: [vector]
       type: vector
       address: {{ lookup('env', 'VECTOR_AGGREGATOR') }}
       buffer:
         # Avoid back pressure from VECTOR_AGGREGATOR. The test should
         # not fail if the aggregator is not available.
         when_full: drop_newest
-{% else %}
-      type: blackhole
 {% endif %}

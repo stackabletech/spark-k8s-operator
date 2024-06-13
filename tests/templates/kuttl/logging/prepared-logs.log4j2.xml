@@ -1,0 +1,72 @@
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Instant epochSecond="1704063600" nanoOfSecond="000000000"/>
+    <Message>Valid log event with all possible tags and attributes</Message>
+    <Thrown name="TestException" localizedMessage="localized test message" message="test message">
+      <ExtendedStackTrace>
+        <ExtendedStackTraceItem class="TestClass" method="testMethod1" file="TestFile.java" line="123" exact="false" location="Test.jar" version="1.0.0" />
+        <ExtendedStackTraceItem class="TestClass" method="testMethod2" file="TestFile.java" line="456" exact="true" location="Test.jar" version="1.0.0" />
+      </ExtendedStackTrace>
+    </Thrown>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Message>Valid log event without the Instant tag</Message>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Instant nanoOfSecond="000000000"/>
+    <Message>Invalid log event without epochSecond</Message>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Instant epochSecond="1704063600"/>
+    <Message>Invalid log event without nanoOfSecond</Message>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Instant epochSecond="10000000000000" nanoOfSecond="000000000"/>
+    <Message>Invalid log event with invalid epochSecond</Message>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Message>Invalid log event without a timestamp</Message>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="10000000000000000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Message>Invalid log event with invalid timeMillis</Message>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" endOfBatch="false" threadId="1" threadPriority="5">
+    <Instant epochSecond="1704063600" nanoOfSecond="000000000"/>
+    <Message>Invalid log event without a logger</Message>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Instant epochSecond="1704063600" nanoOfSecond="000000000"/>
+    <Message>Invalid log event without a level</Message>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="CRITICAL" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Instant epochSecond="1704063600" nanoOfSecond="000000000"/>
+    <Message>Invalid log event with an unknown level</Message>
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Instant epochSecond="1704063600" nanoOfSecond="000000000"/>
+    <!-- <Message>Invalid log event without a message</Message> -->
+  </Event>
+
+  <NoEvent xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Instant epochSecond="1704063600" nanoOfSecond="000000000"/>
+    <Message>Invalid log event without the Event tag</Message>
+  </NoEvent>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Message>Unparsable log event</Message>
+    <Invalid tag ...
+  </Event>
+
+  <Event xmlns="http://logging.apache.org/log4j/2.0/events" timeMillis="1704063600000" thread="main" level="INFO" loggerName="TestLogger" endOfBatch="false" loggerFqcn="TestLogger" threadId="1" threadPriority="5">
+    <Instant epochSecond="1704063600" nanoOfSecond="000000000"/>
+    <Message>Valid log event after the unparsable one</Message>
+  </Event>

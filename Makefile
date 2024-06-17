@@ -12,7 +12,7 @@
 TAG    := $(shell git rev-parse --short HEAD)
 OPERATOR_NAME := spark-k8s-operator
 VERSION := $(shell cargo metadata --format-version 1 | jq -r '.packages[] | select(.name=="stackable-${OPERATOR_NAME}") | .version')
-ARCH := $(shell arch | sed -e 's#x86_64#amd64#' | sed -e 's#aarch64#arm64#')
+ARCH := $(shell uname -m | sed -e 's#x86_64#amd64#' | sed -e 's#aarch64#arm64#')
 
 DOCKER_REPO := docker.stackable.tech
 ORGANIZATION := stackable

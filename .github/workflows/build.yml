@@ -16,6 +16,10 @@ on:
       - '[0-9][0-9].[0-9]+.[0-9]+'
   pull_request:
   merge_group:
+  schedule:
+    # Run every Saturday morning: https://crontab.guru/#15_3_*_*_6
+    - cron: '15 3 * * 6'
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -64,11 +68,11 @@ jobs:
   #        repository: test
   #
   #    - all tagged releases land in stable:
-  #         condition: github.event_name == 'create' & github.ref.startswith('refs/tags/')
+  #         condition: github.event_name == 'push' & github.ref.startswith('refs/tags/')
   #         repository: stable
   #
-  #    - all pushes to main (i.e. PR-merges) land in dev:
-  #         condition: github.event_name == 'push' & github.ref == 'refs/heads/main'
+  #    - all pushes to main (i.e. PR-merges) and all scheduled/manual workflow runs on main land in dev:
+  #         condition: ( github.event_name == 'push' | github.event_name == 'schedule' | github.event_name == 'workflow_dispatch' ) & github.ref == 'refs/heads/main'
   #         repository: dev
   #
   # Any other scenarios (e.g. when a branch is created/pushed) will cause the publish step to be skipped, most commonly this is expected to happen for the
@@ -87,10 +91,10 @@ jobs:
           if [[ $TRIGGER == "pull_request" ]]; then
             echo "exporting test as target helm repo: ${{ env.TEST_REPO_HELM_URL }}"
             echo "helm_repo=${{ env.TEST_REPO_HELM_URL }}" >> $GITHUB_OUTPUT
-          elif [[ $TRIGGER == "push" && $GITHUB_REF == "refs/heads/main" ]]; then
+          elif [[ ( $TRIGGER == "push" || $TRIGGER == "schedule" || $TRIGGER == "workflow_dispatch" ) && $GITHUB_REF == "refs/heads/main" ]]; then
             echo "exporting dev as target helm repo: ${{ env.DEV_REPO_HELM_URL }}"
             echo "helm_repo=${{ env.DEV_REPO_HELM_URL }}" >> $GITHUB_OUTPUT
-          elif [[ ( $TRIGGER == "create" || $TRIGGER == "push" ) && $GITHUB_REF == refs/tags/* ]]; then
+          elif [[ $TRIGGER == "push" && $GITHUB_REF == refs/tags/* ]]; then
             echo "exporting stable as target helm repo: ${{ env.STABLE_REPO_HELM_URL }}"
             echo "helm_repo=${{ env.STABLE_REPO_HELM_URL }}" >> $GITHUB_OUTPUT
           else

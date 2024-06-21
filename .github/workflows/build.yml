@@ -308,7 +308,7 @@ jobs:
       - select_helm_repo
     strategy:
       matrix:
-        runner: ["ubuntu-latest", "buildjet-2vcpu-ubuntu-2204-arm"]
+        runner: ["ubuntu-latest", "ubicloud-standard-8-arm"]
     runs-on: ${{ matrix.runner }}
     permissions:
       id-token: write
@@ -356,13 +356,14 @@ jobs:
         uses: anchore/sbom-action/download-syft@e8d2a6937ecead383dfe75190d104edd1f9c5751 # v0.16.0
       - name: Build Docker image and Helm chart
         run: |
-          # Installing helm on BuildJet only
+          # Installing helm and yq on ubicloud-standard-8-arm only
           if [ "$(arch)" = "aarch64" ]; then
             curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-            sudo apt-get -y install apt-transport-https --yes
+            sudo apt-get -y install apt-transport-https
             echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
             sudo apt-get -y update
             sudo apt-get -y install helm
+            sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_arm64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
           fi
 
           make -e build

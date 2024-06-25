@@ -73,6 +73,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--skip-tests",
+        help="Do not actually run the tests.",
+        action="store_true",
+    )
+
+    parser.add_argument(
         "--skip-release",
         help="Do not install operators.",
         action="store_true",
@@ -349,7 +355,10 @@ def main(argv) -> int:
         gen_tests(opts.test_suite)
         with release_file(opts.operator) as f:
             maybe_install_release(opts.skip_release, f)
-        run_tests(opts.test, opts.parallel, opts.namespace, opts.skip_delete)
+        if opts.skip_tests:
+            logging.info("Skip running tests.")
+        else:
+            run_tests(opts.test, opts.parallel, opts.namespace, opts.skip_delete)
     except TestRunnerException:
         ret = 1
     return ret

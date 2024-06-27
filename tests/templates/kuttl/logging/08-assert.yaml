@@ -6,6 +6,6 @@ timeout: 900
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: pyspark-custom-log-config
+  name: pyspark-automatic-log-config
 status:
   phase: Succeeded

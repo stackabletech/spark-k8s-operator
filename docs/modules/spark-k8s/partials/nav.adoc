@@ -6,6 +6,8 @@
 ** xref:spark-k8s:usage-guide/job-dependencies.adoc[]
 ** xref:spark-k8s:usage-guide/resources.adoc[]
 ** xref:spark-k8s:usage-guide/s3.adoc[]
+** xref:spark-k8s:usage-guide/security.adoc[]
+** xref:spark-k8s:usage-guide/logging.adoc[]
 ** xref:spark-k8s:usage-guide/history-server.adoc[]
 ** xref:spark-k8s:usage-guide/examples.adoc[]
 ** xref:spark-k8s:usage-guide/operations/index.adoc[]

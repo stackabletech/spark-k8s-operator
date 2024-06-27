@@ -1,0 +1,8 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: >
+      kubectl create configmap prepared-logs
+      --from-file=prepared-logs.log4j2.xml
+      --namespace=$NAMESPACE

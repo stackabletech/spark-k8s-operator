@@ -59,6 +59,17 @@ spec:
                 loggers:
                   ROOT:
                     level: INFO
+        podOverrides:
+          spec:
+            containers:
+              - name: vector
+                volumeMounts:
+                  - name: prepared-logs
+                    mountPath: /stackable/log/prepared-logs
+            volumes:
+              - name: prepared-logs
+                configMap:
+                  name: prepared-logs
       custom-log-config:
         replicas: 1
         config:

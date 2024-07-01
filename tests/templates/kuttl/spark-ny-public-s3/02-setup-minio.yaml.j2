@@ -5,7 +5,7 @@ commands:
   - script: >-
       helm install minio
       --namespace $NAMESPACE
-      --version 12.6.4
+      --version 14.6.16
       -f helm-bitnami-minio-values.yaml
       --repo https://charts.bitnami.com/bitnami minio
     timeout: 240

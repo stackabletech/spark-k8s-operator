@@ -16,7 +16,7 @@ stackablectl operator install spark-k8s commons secret -k
 Build the `ny-tlc-report` image from the Dockerfile in this repository (apps/docker/Dockerfile) and then load it to the cluster:
 
 ````text
-kind load docker-image docker.stackable.tech/stackable/ny-tlc-report:0.1.0 --name stackable-data-platform
+kind load docker-image docker.stackable.tech/stackable/ny-tlc-report:0.2.0 --name stackable-data-platform
 ````
 
 ## Set up the `PersistentVolumeClaim`

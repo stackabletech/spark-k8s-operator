@@ -5,14 +5,14 @@ commands:
   - script: >-
       helm install eventlog-minio
       --namespace $NAMESPACE
-      --version 12.6.4
+      --version 14.6.16
       -f helm-bitnami-eventlog-minio-values.yaml
       --repo https://charts.bitnami.com/bitnami minio
     timeout: 240
   - script: >-
       helm install test-minio
       --namespace $NAMESPACE
-      --version 12.6.4
+      --version 14.6.16
       -f helm-bitnami-minio-values.yaml
       --repo https://charts.bitnami.com/bitnami minio
     timeout: 240

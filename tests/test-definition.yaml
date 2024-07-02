@@ -18,7 +18,7 @@ dimensions:
       # - 3.5.1,docker.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev
   - name: ny-tlc-report
     values:
-      - 0.1.0
+      - 0.2.0
   - name: s3-use-tls
     values:
       - "false"

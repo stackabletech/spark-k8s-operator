@@ -1,7 +1,7 @@
 
 ## Build job image
 
-    docker build -t docker.stackable.tech/stackable/ny-tlc-report:0.1.0 -t docker.stackable.tech/stackable/ny-tlc-report:latest -f apps/docker/Dockerfile apps/
+    docker build -t docker.stackable.tech/stackable/ny-tlc-report:0.2.0 -t docker.stackable.tech/stackable/ny-tlc-report:latest -f apps/docker/Dockerfile apps/
 
 ## Generate report from the public data set
 

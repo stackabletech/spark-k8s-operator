@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Update Rust dependency versions, most notably operator-rs 0.67.1 ([#401])
+- Bump `stackable-operator` to 0.70.0, `product-config` to 0.7.0, and other dependencies ([#401], [#425]).
 
 ### Fixed
 
@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 [#401]: https://github.com/stackabletech/spark-k8s-operator/pull/401
 [#408]: https://github.com/stackabletech/spark-k8s-operator/pull/408
 [#412]: https://github.com/stackabletech/spark-k8s-operator/pull/412
+[#425]: https://github.com/stackabletech/spark-k8s-operator/pull/425
 
 ## [24.3.0] - 2024-03-20
 

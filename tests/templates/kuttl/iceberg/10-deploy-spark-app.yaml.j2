@@ -41,8 +41,14 @@ spec:
           mountPath: /stackable/spark/jobs
   deps:
     packages:
-      # need to extract only the major and minor versions
-      - org.apache.iceberg:iceberg-spark-runtime-{{ test_scenario['values']['spark'].rsplit('.', maxsplit=1)[0] }}_2.12:1.4.0
+      #
+      # The iceberg runtime contains the spark and scala versions in the form :
+      #
+      #   <spark major>.<spark minor>_<scala major>.<scala minor>
+      #
+      # We extract the spark parts from the test scenario value.
+      #
+      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark'].split('.')[:2]) }}_2.12:1.5.2
   volumes:
     - name: script
       configMap:

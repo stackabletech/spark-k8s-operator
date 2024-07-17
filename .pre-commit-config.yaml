@@ -33,6 +33,12 @@ repos:
         types: [text]
         files: \.md(\.j2)*$
 
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+        args: ["--severity=info"]
+
   # WARNING (@NickLarsenNZ): Nix users need to install ruff first.
   # If you do not, you will need to delete the cached ruff binary shown in the
   # error message

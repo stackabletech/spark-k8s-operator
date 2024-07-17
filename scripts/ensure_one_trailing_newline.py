@@ -2,6 +2,7 @@
 Given the location of a file, trims all trailing blank lines and
 places a single one. Used as post-processing step for README rendering.
 """
+
 import re
 import unittest
 
@@ -34,7 +35,6 @@ def process_lines(lines):
 
 
 class TestCoreMethods(unittest.TestCase):
-
     def test_trailing_new_line(self):
         self.assertTrue(has_trailing_newline("something\n"))
         self.assertTrue(has_trailing_newline("\n"))

@@ -3,5 +3,5 @@
   "extends": [
     "local>stackabletech/.github:renovate-config"
   ],
-  "ignorePaths": [".github/workflows/build.yml", ".github/workflows/general_daily_security.yml", ".github/workflows/pr_reviewdog.yaml"]
+  "ignorePaths": [".github/workflows/build.yml", ".github/workflows/general_daily_security.yml", ".github/workflows/pr_pre-commit.yaml", ".github/workflows/pr_reviewdog.yaml"]
 }

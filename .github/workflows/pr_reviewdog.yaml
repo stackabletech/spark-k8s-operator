@@ -23,17 +23,6 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-  flake8:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # tag=v5.1.0
-        with:
-          python-version: "3.12"
-      - uses: reviewdog/action-flake8@99c2cfecdbc9111ec223b85b08af0e13a9a098dc # v3.10.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
   hadolint:
     runs-on: ubuntu-latest
     steps:

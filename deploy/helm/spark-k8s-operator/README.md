@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD034 -->
 # Helm Chart for Stackable Operator for Apache Spark-on-Kubernetes
 
 This Helm Chart can be used to install Custom Resource Definitions and the Operator for Apache Spark-on-Kubernetes provided by Stackable.
@@ -24,4 +25,4 @@ The operator has example requests included in the [`/examples`](https://github.c
 
 ## Links
 
-https://github.com/stackabletech/spark-k8s-operator
+<https://github.com/stackabletech/spark-k8s-operator>

@@ -1,4 +1,6 @@
 ---
+exclude: ^(Cargo\.nix|crate-hashes\.json|nix/.*)$
+
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
@@ -28,11 +30,19 @@ repos:
     rev: v0.40.0
     hooks:
       - id: markdownlint
+        types: [text]
+        files: \.md(\.j2)*$
 
-  - repo: https://github.com/PyCQA/flake8
-    rev: 7.0.0
+  # WARNING (@NickLarsenNZ): Nix users need to install ruff first.
+  # If you do not, you will need to delete the cached ruff binary shown in the
+  # error message
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.1
     hooks:
-      - id: flake8
+      # Run the linter.
+      - id: ruff
+      # Run the formatter.
+      - id: ruff-format
 
   - repo: local
     hooks:

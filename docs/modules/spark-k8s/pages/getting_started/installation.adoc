@@ -37,12 +37,8 @@ include::example$getting_started/getting_started.sh[tag=stackablectl-install-ope
 
 The tool will show
 
-----
-[INFO ] Installing commons operator
-[INFO ] Installing secret operator
-[INFO ] Installing listener operator
-[INFO ] Installing spark-k8s operator
-----
+[source]
+include::example$getting_started/code/install_output.txt[]
 
 TIP: Consult the xref:management:stackablectl:quickstart.adoc[] to learn more about how to use stackablectl. For
 example, you can use the `--cluster kind` flag to create a Kubernetes cluster with link:https://kind.sigs.k8s.io/[kind].

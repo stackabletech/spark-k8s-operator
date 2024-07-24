@@ -7,10 +7,10 @@ releases:
     description: Integration test
     products:
       commons:
-        operatorVersion: 0.0.0-dev
+        operatorVersion: 24.7.0
       secret:
-        operatorVersion: 0.0.0-dev
+        operatorVersion: 24.7.0
       listener:
-        operatorVersion: 0.0.0-dev
+        operatorVersion: 24.7.0
       spark-k8s:
-        operatorVersion: 0.0.0-dev
+        operatorVersion: 24.7.0

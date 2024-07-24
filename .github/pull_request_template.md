@@ -11,7 +11,7 @@
 # Author
 - [ ] Changes are OpenShift compatible
 - [ ] CRD changes approved
-- [ ] CRD documentation for all fields, following the [style guide](https://docs.stackable.tech/home/nightly/contributor/docs-style-guide).
+- [ ] CRD documentation for all fields, following the [style guide](https://docs.stackable.tech/home/nightly/contributor/docs/style-guide).
 - [ ] Helm chart can be installed and deployed operator works
 - [ ] Integration tests passed (for non trivial changes)
 - [ ] Changes need to be "offline" compatible
@@ -22,7 +22,7 @@
 - [ ] Code contains useful comments
 - [ ] Code contains useful logging statements
 - [ ] (Integration-)Test cases added
-- [ ] Documentation added or updated. Follows the [style guide](https://docs.stackable.tech/home/nightly/contributor/docs-style-guide).
+- [ ] Documentation added or updated. Follows the [style guide](https://docs.stackable.tech/home/nightly/contributor/docs/style-guide).
 - [ ] Changelog updated
 - [ ] Cargo.toml only contains references to git tags (not specific commits or branches)
 ```

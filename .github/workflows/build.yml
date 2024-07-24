@@ -368,7 +368,13 @@ jobs:
           make -e build
       - name: Publish Docker image and Helm chart
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: make -e publish
+        run: |
+          # We want to publish helmcharts only once as they have a common name, while still publishing both images with architecture specific tags
+          if [ "$(uname -m)" = "x86_64" ]; then
+            make -e publish
+          else
+            make -e docker-publish
+          fi
         # Output the name of the published image to the Job output for later use
       - id: printtag
         name: Output image name and tag

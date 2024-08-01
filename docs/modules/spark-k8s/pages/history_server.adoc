@@ -6,7 +6,7 @@ The Stackable Spark-on-Kubernetes operator runs Apache Spark workloads in a Kube
 
 == Deployment
 
-The example below demonstrates how to set up the history server running in one Pod with scheduled cleanups of the event logs. The event logs are loaded from an S3 bucket named `spark-logs` and the folder `eventlogs/`. The credentials for this bucket are provided by the secret class `s3-credentials-class`. For more details on how the Stackable Data Platform manages S3 resources see the xref:home:concepts:s3.adoc[S3 resources] page.
+The example below demonstrates how to set up the history server running in one Pod with scheduled cleanups of the event logs. The event logs are loaded from an S3 bucket named `spark-logs` and the folder `eventlogs/`. The credentials for this bucket are provided by the secret class `s3-credentials-class`. For more details on how the Stackable Data Platform manages S3 resources see the xref:concepts:s3.adoc[S3 resources] page.
 
 
 [source,yaml]

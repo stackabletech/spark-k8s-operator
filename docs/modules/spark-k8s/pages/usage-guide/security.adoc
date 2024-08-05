@@ -1,0 +1,163 @@
+= Security
+
+== Authentication
+
+Currently, the only supported authentication mechanism is Kerberos, which is disabled by default.
+
+Kerberos is a network authentication protocol that works on the basis of "tickets" to allow nodes communicating over a non-secure network to prove their identity to one another securely. It is used in Spark to authenticate users and to secure communication between Spark components.
+
+In this guide we show how to configure Spark applications to use Kerberos. The Stackable Secret Operator is used to generate the keytab files. In production environments, users might have different means to provision the keytab files.
+
+
+== Prerequisites
+
+It is assumed that you have a KDC server running in your cluster and that the Stackable Secret Operator is configured to provision the keytab files as described in xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation].
+
+If the Spark application processes data from a kerberized Hadoop cluster, follow the xref:hdfs-operator:usage-guide:security.adoc[HDFS operator guide] to configure HDFS with Kerberos.
+
+This guide makes use of a SecretClass named `kerberos-default`. It is assumed that this class exists and is configured with a `kerberosBackend`.
+
+== Steps
+
+There are three steps to configure a Spark application to use Kerberos:
+
+1. Provision the Spark `driver` end `executor` pods with the keytab and `krb5.conf` files.
+2. Provision the Spark `job` pod with the keytab and `krb5.conf` files.
+3. Instruct the Spark application to use Kerberos.
+
+=== Driver and Executor pods
+
+Install the keytab and the `krb5.conf` files in the Spark pods. The keytab file contains the credentials of the user that is used to authenticate with the Kerberos server. The `krb5.conf` file contains the configuration settings for the Kerberos client.
+
+In the example below, the Stackable Secret Operator is used to provision the keytab via a volume claim. The `krb5.conf` file is mounted as a ConfigMap.
+
+[source,yaml]
+----
+...
+driver:
+  config:
+    volumeMounts:
+      - name: kerberos
+        mountPath: /stackable/kerberos <1>
+executor:
+  config:
+    volumeMounts:
+      - name: kerberos
+        mountPath: /stackable/kerberos <2>
+volumes:
+  - name: kerberos-config
+    configMap:
+      name: krb5-kdc <3>
+  - name: kerberos
+    ephemeral:
+      volumeClaimTemplate:
+        metadata:
+          annotations:
+            secrets.stackable.tech/class: kerberos-default <4>
+            secrets.stackable.tech/scope: service=spark-teragen <5>
+            secrets.stackable.tech/kerberos.service.names: testuser <6>
+        spec:
+          storageClassName: secrets.stackable.tech
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: "1"
+----
+<1> Mount the keytab volume in the driver pod.
+<2> Mount the keytab volume in the executor pods.
+<3> Mount the `krb5.conf` file as a ConfigMap.
+<4> Name of the Secret class used to provision the keytab.
+<5> Scope of the Secret.
+<6> Name of the user for which the keytab is provisioned.
+
+
+=== Job pod
+
+Install the keytab and the `krb5.conf` files in the Spark `job` pod. This must be currently done via pod overrides. This is because the Spark application volumes are not currently visible to the `job` pod. We hope to address this limitation in a future release.
+
+[source,yaml]
+----
+job:
+  podOverrides:
+    spec:
+      volumes:
+        - name: kerberos-config
+          configMap:
+            name: krb5-kdc <1>
+        - name: kerberos
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: kerberos-default <2>
+                  secrets.stackable.tech/scope: service=spark-teragen <3>
+                  secrets.stackable.tech/kerberos.service.names: testuser <4>
+              spec:
+                storageClassName: secrets.stackable.tech
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "1"
+      containers:
+        - name: spark-submit
+          volumeMounts:
+            - name: kerberos <5>
+              mountPath: /stackable/kerberos
+----
+<1> Mount the `krb5.conf` file as a ConfigMap.
+<2> Name of the Secret class used to provision the keytab.
+<3> Scope of the Secret.
+<4> Name of the user for which the keytab is provisioned.
+<5> Mount the keytab volume in the job pod.
+
+
+
+=== Spark application
+
+Instruct the Spark application to use Kerberos by setting the `spark.kerberos.keytab` and `spark.kerberos.principal` properties in the `SparkApplication` CRD.
+
+Finally, instruct Spark to use the keytab and `krb5.conf` files provisioned in the previous steps.
+
+[source,yaml]
+----
+sparkConf:
+  "spark.kerberos.keytab": "/stackable/kerberos/keytab" <1>
+  "spark.kerberos.principal": "testuser/spark-teragen.default.svc.cluster.local@CLUSTER.LOCAL" <2>
+  "spark.driver.extraJavaOptions": "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf" <3>
+  "spark.executor.extraJavaOptions": "-Djava.security.krb5.conf=/stackable/kerberos/krb5.conf" <4>
+----
+<1> Location of the keytab file.
+<2> Principal name. This needs to have the format `<SERVICE_NAME>.default.svc.cluster.local@<REALM>` where `SERVICE_NAME` matches the volume claim annotation `secrets.stackable.tech/kerberos.service.names` and `REALM` must be `CLUSTER.LOCAL`.
+<3> Location of the Kerberos configuration for the application driver.
+<4> Location of the Kerberos configuration for the application executors.
+
+=== Hadoop
+
+When reading and writing data from a kerberized Hadoop cluster, a the HDFS discovery map must mounted the `SparkApplication` pods as follows:
+
+For the driver and executor pods:
+
+[source,yaml]
+----
+...
+driver:
+  config:
+    volumeMounts:
+      - name: hdfs-config
+        mountPath: /etc/hadoop/conf <1>
+executor:
+  config:
+    volumeMounts:
+      - name: hdfs-config
+        mountPath: /etc/hadoop/conf <2>
+volumes:
+  - name: hdfs-config
+    configMap:
+      name: hdfs-discovery-cm <3>
+----
+<1> Location of the HDFS configuration for the driver.
+<2> Location of the HDFS configuration for the executors.
+<3> Name of the HDFS discovery ConfigMap as published by the HDFS operator.
+

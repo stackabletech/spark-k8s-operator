@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Reduce CRD size from `1.2MB` to `103KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#450]):
+  - `podOverrides`
+  - `affinity`
+  - `volumes`
+  - `volumeMounts`
+
+[#450]: https://github.com/stackabletech/spark-k8s-operator/pull/450
+
 ## [24.7.0] - 2024-07-24
 
 ### Changed

@@ -387,7 +387,7 @@ impl SparkApplication {
                 SubmitConfigFragment {
                     volume_mounts:
                         Some(VolumeMounts {
-                            volume_mounts: Some(job_vm),
+                            volume_mounts: job_vm,
                         }),
                     ..
                 },
@@ -1140,7 +1140,7 @@ mod tests {
                 enable_vector_agent: false,
                 containers: BTreeMap::new(),
             },
-            volume_mounts: None,
+            volume_mounts: Default::default(),
             affinity: StackableAffinity::default(),
         };
 
@@ -1184,7 +1184,7 @@ mod tests {
                 enable_vector_agent: false,
                 containers: BTreeMap::new(),
             },
-            volume_mounts: None,
+            volume_mounts: Default::default(),
             affinity: StackableAffinity::default(),
         };
 

@@ -40,6 +40,7 @@ use stackable_operator::{
     product_logging,
     role_utils::{CommonConfiguration, Role, RoleGroup},
     schemars::{self, JsonSchema},
+    utils::crds::raw_object_list_schema,
 };
 use std::{
     cmp::max,
@@ -193,6 +194,7 @@ pub struct SparkApplicationSpec {
 
     /// A list of volumes that can be made available to the job, driver or executors via their volume mounts.
     #[serde(default)]
+    #[schemars(schema_with = "raw_object_list_schema")]
     pub volumes: Vec<Volume>,
 
     /// A list of environment variables that will be set in the job pod and the driver and executor
@@ -385,7 +387,7 @@ impl SparkApplication {
                 SubmitConfigFragment {
                     volume_mounts:
                         Some(VolumeMounts {
-                            volume_mounts: Some(job_vm),
+                            volume_mounts: job_vm,
                         }),
                     ..
                 },
@@ -1138,7 +1140,7 @@ mod tests {
                 enable_vector_agent: false,
                 containers: BTreeMap::new(),
             },
-            volume_mounts: None,
+            volume_mounts: Default::default(),
             affinity: StackableAffinity::default(),
         };
 
@@ -1182,7 +1184,7 @@ mod tests {
                 enable_vector_agent: false,
                 containers: BTreeMap::new(),
             },
-            volume_mounts: None,
+            volume_mounts: Default::default(),
             affinity: StackableAffinity::default(),
         };
 

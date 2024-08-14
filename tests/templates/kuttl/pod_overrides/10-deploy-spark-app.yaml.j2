@@ -24,7 +24,14 @@ spec:
       prefix: eventlogs/
       bucket:
         reference: spark-history-s3-bucket
+  env:
+    - name: TEST_SPARK_VAR_0
+      value: ORIGINAL
+    - name: TEST_SPARK_VAR_1
+      value: DONOTREPLACE
   job:
+    envOverrides: &envOverrides
+      TEST_SPARK_VAR_0: REPLACED
     podOverrides:
       spec:
         containers:
@@ -37,6 +44,7 @@ spec:
                 cpu: 1500m
                 memory: 1024Mi
   driver:
+    envOverrides: *envOverrides
     podOverrides:
       spec:
         containers:
@@ -50,6 +58,7 @@ spec:
                 memory: 1024Mi
   executor:
     replicas: 1
+    envOverrides: *envOverrides
     podOverrides:
       spec:
         containers:

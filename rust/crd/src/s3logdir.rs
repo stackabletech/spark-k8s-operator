@@ -117,7 +117,8 @@ impl S3LogDir {
     /// * spark.hadoop.fs.s3a.aws.credentials.provider
     /// * spark.hadoop.fs.s3a.access.key
     /// * spark.hadoop.fs.s3a.secret.key
-    /// instead, the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set
+    ///
+    /// Instead, the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set
     /// on the container start command.
     pub fn history_server_spark_config(&self) -> BTreeMap<String, String> {
         let mut result = BTreeMap::new();

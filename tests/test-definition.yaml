@@ -31,7 +31,7 @@ tests:
       - spark
       - s3-use-tls
       - openshift
-  - name: pod_overrides
+  - name: overrides
     dimensions:
       - spark
       - openshift

@@ -45,6 +45,8 @@ spec:
         replicas: 1
         config:
           cleaner: true
+        envOverrides:
+          TEST_SPARK_HIST_VAR_0: ORIGINAL
         podOverrides:
           spec:
             containers:

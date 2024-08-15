@@ -363,3 +363,64 @@ impl Configuration for HistoryConfigFragment {
         Ok(BTreeMap::new())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use indoc::indoc;
+
+    #[test]
+    pub fn test_env_overrides() {
+        let input = indoc! {r#"
+        ---
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkHistoryServer
+        metadata:
+          name: spark-history
+        spec:
+          image:
+            productVersion: 3.5.1
+          logFileDirectory:
+            s3:
+              prefix: eventlogs/
+              bucket:
+                reference: spark-history-s3-bucket
+          nodes:
+            envOverrides:
+              TEST_SPARK_HIST_VAR: ROLE
+            roleGroups:
+              default:
+                replicas: 1
+                config:
+                  cleaner: true
+                envOverrides:
+                  TEST_SPARK_HIST_VAR: ROLEGROUP
+        "#};
+
+        let deserializer = serde_yaml::Deserializer::from_str(input);
+        let history: SparkHistoryServer =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+
+        assert_eq!(
+            Some(&"ROLE".to_string()),
+            history
+                .spec
+                .nodes
+                .config
+                .env_overrides
+                .get("TEST_SPARK_HIST_VAR")
+        );
+        assert_eq!(
+            Some(&"ROLEGROUP".to_string()),
+            history
+                .spec
+                .nodes
+                .role_groups
+                .get("default")
+                .unwrap()
+                .config
+                .env_overrides
+                .get("TEST_SPARK_HIST_VAR")
+        );
+    }
+}

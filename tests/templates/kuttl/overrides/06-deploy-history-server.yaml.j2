@@ -40,13 +40,17 @@ spec:
   # For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
   #sparkConf:
   nodes:
+    envOverrides:
+      TEST_SPARK_HIST_VAR_ROLE: ROLE
+      TEST_SPARK_HIST_VAR_FROM_RG: ROLE
     roleGroups:
       default:
         replicas: 1
         config:
           cleaner: true
         envOverrides:
-          TEST_SPARK_HIST_VAR_0: ORIGINAL
+          TEST_SPARK_HIST_VAR_FROM_RG: ROLEGROUP
+          TEST_SPARK_HIST_VAR_RG: ROLEGROUP
         podOverrides:
           spec:
             containers:

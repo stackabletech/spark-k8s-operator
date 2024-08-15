@@ -370,7 +370,7 @@ mod test {
     use indoc::indoc;
 
     #[test]
-    pub fn test_env_overrides() {
+    pub fn test_env() {
         let input = indoc! {r#"
         ---
         apiVersion: spark.stackable.tech/v1alpha1

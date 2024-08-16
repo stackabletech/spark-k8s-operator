@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Fix envOverrides for spark cluster and history server ([#451]).
+- Fix `envOverrides` for SparkApplication and SparkHistoryServer ([#451]).
 
 [#450]: https://github.com/stackabletech/spark-k8s-operator/pull/450
 [#451]: https://github.com/stackabletech/spark-k8s-operator/pull/451

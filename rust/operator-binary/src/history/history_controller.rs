@@ -446,7 +446,7 @@ fn build_stateful_set(
 
     let merged_env_vars = env_vars(
         s3_log_dir,
-        shs.role().config.clone().env_overrides,
+        shs.role().config.env_overrides.clone(),
         role_group.config.env_overrides,
     );
 

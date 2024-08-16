@@ -728,33 +728,34 @@ impl SparkApplication {
     }
 
     pub fn merged_env(&self, role: SparkApplicationRole, env: &[EnvVar]) -> Vec<EnvVar> {
-        // use a BTree internally to enable replacement of existing keys
-        let mut env_vars: BTreeMap<String, EnvVar> = BTreeMap::new();
+        // Use a BTreeMap internally to enable replacement of existing keys
+        let mut env: BTreeMap<&String, EnvVar> = env
+            .iter()
+            .map(|env_var| (&env_var.name, env_var.clone()))
+            .collect();
 
-        for e in env {
-            env_vars.insert(e.clone().name, e.to_owned());
-        }
-
-        if let Some(env_map) = match role {
-            SparkApplicationRole::Submit => self.spec.job.clone().map(|j| j.env_overrides),
-            SparkApplicationRole::Driver => self.spec.driver.clone().map(|d| d.env_overrides),
+        // Merge the role-specific envOverrides on top
+        let role_envs = match role {
+            SparkApplicationRole::Submit => self.spec.job.as_ref().map(|j| &j.env_overrides),
+            SparkApplicationRole::Driver => self.spec.driver.as_ref().map(|d| &d.env_overrides),
             SparkApplicationRole::Executor => {
-                self.spec.executor.clone().map(|r| r.config.env_overrides)
+                self.spec.executor.as_ref().map(|e| &e.config.env_overrides)
             }
-        } {
-            for (k, v) in env_map {
-                env_vars.insert(
-                    k.clone(),
+        };
+        if let Some(role_envs) = role_envs {
+            env.extend(role_envs.iter().map(|(k, v)| {
+                (
+                    k,
                     EnvVar {
-                        name: k,
-                        value: Some(v),
-                        value_from: None,
+                        name: k.clone(),
+                        value: Some(v.clone()),
+                        ..Default::default()
                     },
-                );
-            }
+                )
+            }))
         }
 
-        env_vars.into_values().collect()
+        env.into_values().collect()
     }
 
     pub fn validated_role_config(

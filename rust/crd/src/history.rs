@@ -461,7 +461,7 @@ mod test {
     use stackable_operator::commons::s3::InlinedS3BucketSpec;
 
     #[test]
-    pub fn test_env() {
+    pub fn test_env_parsing() {
         let input = indoc! {r#"
         ---
         apiVersion: spark.stackable.tech/v1alpha1

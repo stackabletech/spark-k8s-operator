@@ -479,9 +479,10 @@ fn pod_template(
 ) -> Result<PodTemplateSpec> {
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
+    let merged_env = spark_application.merged_env(role.clone(), env);
 
     cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, s3logdir))
-        .add_env_vars(env.to_vec())
+        .add_env_vars(merged_env)
         .resources(config.resources.clone().into())
         .image_from_product_image(spark_image);
 
@@ -716,13 +717,14 @@ fn spark_job(
         .context(IllegalContainerNameSnafu)?;
 
     let args = [job_commands.join(" ")];
+    let merged_env = spark_application.merged_env(SparkApplicationRole::Submit, env);
 
     cb.image_from_product_image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![args.join(" && ")])
         .resources(job_config.resources.clone().into())
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, s3logdir))
-        .add_env_vars(env.to_vec())
+        .add_env_vars(merged_env)
         .add_env_var(
             "SPARK_SUBMIT_OPTS",
             format!(

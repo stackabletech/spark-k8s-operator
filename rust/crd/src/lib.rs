@@ -727,6 +727,37 @@ impl SparkApplication {
         }
     }
 
+    pub fn merged_env(&self, role: SparkApplicationRole, env: &[EnvVar]) -> Vec<EnvVar> {
+        // Use a BTreeMap internally to enable replacement of existing keys
+        let mut env: BTreeMap<&String, EnvVar> = env
+            .iter()
+            .map(|env_var| (&env_var.name, env_var.clone()))
+            .collect();
+
+        // Merge the role-specific envOverrides on top
+        let role_envs = match role {
+            SparkApplicationRole::Submit => self.spec.job.as_ref().map(|j| &j.env_overrides),
+            SparkApplicationRole::Driver => self.spec.driver.as_ref().map(|d| &d.env_overrides),
+            SparkApplicationRole::Executor => {
+                self.spec.executor.as_ref().map(|e| &e.config.env_overrides)
+            }
+        };
+        if let Some(role_envs) = role_envs {
+            env.extend(role_envs.iter().map(|(k, v)| {
+                (
+                    k,
+                    EnvVar {
+                        name: k.clone(),
+                        value: Some(v.clone()),
+                        ..Default::default()
+                    },
+                )
+            }))
+        }
+
+        env.into_values().collect()
+    }
+
     pub fn validated_role_config(
         &self,
         resolved_product_image: &ResolvedProductImage,

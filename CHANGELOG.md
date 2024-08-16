@@ -12,7 +12,12 @@ All notable changes to this project will be documented in this file.
   - `volumes`
   - `volumeMounts`
 
+### Fixed
+
+- Fix `envOverrides` for SparkApplication and SparkHistoryServer ([#451]).
+
 [#450]: https://github.com/stackabletech/spark-k8s-operator/pull/450
+[#451]: https://github.com/stackabletech/spark-k8s-operator/pull/451
 
 ## [24.7.0] - 2024-07-24
 

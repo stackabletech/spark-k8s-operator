@@ -15,8 +15,7 @@ use stackable_operator::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, EnvVar, PodSecurityContext, Service, ServiceAccount, ServicePort,
-                ServiceSpec,
+                ConfigMap, PodSecurityContext, Service, ServiceAccount, ServicePort, ServiceSpec,
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
@@ -36,14 +35,15 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
     time::Duration,
 };
+use stackable_spark_k8s_crd::constants::METRICS_PORT;
 use stackable_spark_k8s_crd::{
     constants::{
         ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
-        JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, OPERATOR_NAME,
-        SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME,
-        SPARK_UID, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
-        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, OPERATOR_NAME, SECRET_ACCESS_KEY,
+        SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
+        STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+        VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+        VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     history,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
@@ -58,8 +58,6 @@ use stackable_operator::builder::pod::resources::ResourceRequirementsBuilder;
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-const METRICS_PORT: u16 = 18081;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -440,6 +438,12 @@ fn build_stateful_set(
             ..PodSecurityContext::default()
         });
 
+    let role_group = shs
+        .rolegroup(rolegroupref)
+        .with_context(|_| CannotRetrieveRoleGroupSnafu)?;
+
+    let merged_env = shs.merged_env(s3_log_dir, role_group.config.env_overrides);
+
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
         .context(InvalidContainerNameSnafu)?
@@ -449,7 +453,7 @@ fn build_stateful_set(
         .args(command_args(s3_log_dir))
         .add_container_port("http", 18080)
         .add_container_port("metrics", METRICS_PORT.into())
-        .add_env_vars(env_vars(s3_log_dir))
+        .add_env_vars(merged_env)
         .add_volume_mounts(s3_log_dir.volume_mounts())
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
@@ -477,10 +481,6 @@ fn build_stateful_set(
 
     let mut pod_template = pb.build_template();
     pod_template.merge_from(shs.role().config.pod_overrides.clone());
-    let role_group = shs
-        .rolegroup(rolegroupref)
-        .with_context(|_| CannotRetrieveRoleGroupSnafu)?;
-
     pod_template.merge_from(role_group.config.pod_overrides);
 
     Ok(StatefulSet {
@@ -668,46 +668,6 @@ fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
     ]);
 
     vec![String::from("-c"), command.join(" && ")]
-}
-
-fn env_vars(s3logdir: &S3LogDir) -> Vec<EnvVar> {
-    let mut vars: Vec<EnvVar> = vec![];
-
-    // This env var prevents the history server from detaching itself from the
-    // start script because this leads to the Pod terminating immediately.
-    vars.push(EnvVar {
-        name: "SPARK_NO_DAEMONIZE".to_string(),
-        value: Some("true".into()),
-        value_from: None,
-    });
-    vars.push(EnvVar {
-        name: "SPARK_DAEMON_CLASSPATH".to_string(),
-        value: Some("/stackable/spark/extra-jars/*".into()),
-        value_from: None,
-    });
-
-    let mut history_opts = vec![
-        format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
-        format!(
-            "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
-        ),
-        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/config.yaml")
-    ];
-    if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
-        history_opts.extend(vec![
-            format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
-            format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
-            format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
-        ]);
-    }
-
-    vars.push(EnvVar {
-        name: "SPARK_HISTORY_OPTS".to_string(),
-        value: Some(history_opts.join(" ")),
-        value_from: None,
-    });
-    // if TLS is enabled build truststore
-    vars
 }
 
 fn labels<'a, T>(

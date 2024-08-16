@@ -1,8 +1,11 @@
+use crate::s3logdir::S3LogDir;
+use crate::tlscerts;
 use crate::{affinity::history_affinity, constants::*};
 
 use product_config::{types::PropertyNameKind, ProductConfigManager};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::k8s_openapi::api::core::v1::EnvVar;
 use stackable_operator::role_utils::RoleGroup;
 use stackable_operator::{
     commons::{
@@ -232,6 +235,93 @@ impl SparkHistoryServer {
         )
         .context(InvalidProductConfigSnafu)
     }
+
+    pub fn merged_env(
+        &self,
+        s3logdir: &S3LogDir,
+        role_group_env_overrides: HashMap<String, String>,
+    ) -> Vec<EnvVar> {
+        // Maps env var name to env var object. This allows env_overrides to work
+        // as expected (i.e. users can override the env var value).
+        let mut vars: BTreeMap<String, EnvVar> = BTreeMap::new();
+        let role_env_overrides = &self.role().config.env_overrides;
+
+        // This env var prevents the history server from detaching itself from the
+        // start script because this leads to the Pod terminating immediately.
+        vars.insert(
+            "SPARK_NO_DAEMONIZE".to_string(),
+            EnvVar {
+                name: "SPARK_NO_DAEMONIZE".to_string(),
+                value: Some("true".into()),
+                value_from: None,
+            },
+        );
+        vars.insert(
+            "SPARK_DAEMON_CLASSPATH".to_string(),
+            EnvVar {
+                name: "SPARK_DAEMON_CLASSPATH".to_string(),
+                value: Some("/stackable/spark/extra-jars/*".into()),
+                value_from: None,
+            },
+        );
+
+        let mut history_opts = vec![
+        format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+        format!(
+            "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
+        ),
+        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/config.yaml")
+    ];
+
+        // if TLS is enabled build truststore
+        if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
+            history_opts.extend(vec![
+                format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
+                format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
+                format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+            ]);
+        }
+
+        vars.insert(
+            "SPARK_HISTORY_OPTS".to_string(),
+            EnvVar {
+                name: "SPARK_HISTORY_OPTS".to_string(),
+                value: Some(history_opts.join(" ")),
+                value_from: None,
+            },
+        );
+
+        // apply the role overrides
+        let mut role_envs = role_env_overrides.iter().map(|env_var| {
+            (
+                env_var.0.clone(),
+                EnvVar {
+                    name: env_var.0.clone(),
+                    value: Some(env_var.1.to_owned()),
+                    value_from: None,
+                },
+            )
+        });
+
+        vars.extend(&mut role_envs);
+
+        // apply the role-group overrides
+        let mut role_group_envs = role_group_env_overrides.into_iter().map(|env_var| {
+            (
+                env_var.0.clone(),
+                EnvVar {
+                    name: env_var.0.clone(),
+                    value: Some(env_var.1),
+                    value_from: None,
+                },
+            )
+        });
+
+        vars.extend(&mut role_group_envs);
+
+        // convert to Vec
+        vars.into_values().collect()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, Display)]
@@ -368,6 +458,7 @@ impl Configuration for HistoryConfigFragment {
 mod test {
     use super::*;
     use indoc::indoc;
+    use stackable_operator::commons::s3::InlinedS3BucketSpec;
 
     #[test]
     pub fn test_env() {
@@ -401,17 +492,16 @@ mod test {
         let history: SparkHistoryServer =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
-        assert_eq!(
-            Some(&"ROLE".to_string()),
-            history
-                .spec
-                .nodes
-                .config
-                .env_overrides
-                .get("TEST_SPARK_HIST_VAR")
-        );
-        assert_eq!(
-            Some(&"ROLEGROUP".to_string()),
+        let s3_log_dir: S3LogDir = S3LogDir {
+            bucket: InlinedS3BucketSpec {
+                bucket_name: None,
+                connection: None,
+            },
+            prefix: "prefix".to_string(),
+        };
+
+        let merged_env = history.merged_env(
+            &s3_log_dir,
             history
                 .spec
                 .nodes
@@ -420,7 +510,17 @@ mod test {
                 .unwrap()
                 .config
                 .env_overrides
-                .get("TEST_SPARK_HIST_VAR")
+                .clone(),
+        );
+
+        let env_map: BTreeMap<&str, Option<String>> = merged_env
+            .iter()
+            .map(|env_var| (env_var.name.as_str(), env_var.value.clone()))
+            .collect();
+
+        assert_eq!(
+            Some(&Some("ROLEGROUP".to_string())),
+            env_map.get("TEST_SPARK_HIST_VAR")
         );
     }
 }

@@ -292,12 +292,12 @@ impl SparkHistoryServer {
         );
 
         // apply the role overrides
-        let mut role_envs = role_env_overrides.iter().map(|env_var| {
+        let mut role_envs = role_env_overrides.iter().map(|(env_name, env_value)| {
             (
-                env_var.0.clone(),
+                env_name.clone(),
                 EnvVar {
-                    name: env_var.0.clone(),
-                    value: Some(env_var.1.to_owned()),
+                    name: env_name.clone(),
+                    value: Some(env_value.to_owned()),
                     value_from: None,
                 },
             )
@@ -306,16 +306,19 @@ impl SparkHistoryServer {
         vars.extend(&mut role_envs);
 
         // apply the role-group overrides
-        let mut role_group_envs = role_group_env_overrides.into_iter().map(|env_var| {
-            (
-                env_var.0.clone(),
-                EnvVar {
-                    name: env_var.0.clone(),
-                    value: Some(env_var.1),
-                    value_from: None,
-                },
-            )
-        });
+        let mut role_group_envs =
+            role_group_env_overrides
+                .into_iter()
+                .map(|(env_name, env_value)| {
+                    (
+                        env_name.clone(),
+                        EnvVar {
+                            name: env_name.clone(),
+                            value: Some(env_value),
+                            value_from: None,
+                        },
+                    )
+                });
 
         vars.extend(&mut role_group_envs);
 

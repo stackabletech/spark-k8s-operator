@@ -5,7 +5,7 @@ commands:
   - script: >-
       helm install spark-vector-aggregator vector
       --namespace $NAMESPACE
-      --version 0.26.0
+      --version 0.35.0
       --repo https://helm.vector.dev
       --values spark-vector-aggregator-values.yaml
 ---

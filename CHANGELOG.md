@@ -4,10 +4,48 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Reduce CRD size from `1.2MB` to `103KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#450]):
+  - `podOverrides`
+  - `affinity`
+  - `volumes`
+  - `volumeMounts`
+
+### Fixed
+
+- Fix `envOverrides` for SparkApplication and SparkHistoryServer ([#451]).
+
+[#450]: https://github.com/stackabletech/spark-k8s-operator/pull/450
+[#451]: https://github.com/stackabletech/spark-k8s-operator/pull/451
+
+## [24.7.0] - 2024-07-24
+
+### Changed
+
+- Bump `stackable-operator` to 0.70.0, `product-config` to 0.7.0, and other dependencies ([#401], [#425]).
+
+### Fixed
+
+- BREAKING (behaviour): Specified CPU resources are now applied correctly (instead of rounding it to the next whole number).
+  This might affect your jobs, as they now e.g. only have 200m CPU resources requested instead of the 1000m it had so far,
+  meaning they might slow down significantly ([#408]).
+- Processing of corrupted log events fixed; If errors occur, the error
+  messages are added to the log event ([#412]).
+
+[#401]: https://github.com/stackabletech/spark-k8s-operator/pull/401
+[#408]: https://github.com/stackabletech/spark-k8s-operator/pull/408
+[#412]: https://github.com/stackabletech/spark-k8s-operator/pull/412
+[#425]: https://github.com/stackabletech/spark-k8s-operator/pull/425
+
+## [24.3.0] - 2024-03-20
+
 ### Added
 
 - Helm: support labels in values.yaml ([#344]).
+- Support version `3.5.1` ([#373]).
 - Support version `3.4.2` ([#357]).
+- `spec.job.config.volumeMounts` property to easily mount volumes on the job pod ([#359])
 
 ### Changed
 
@@ -29,6 +67,8 @@ All notable changes to this project will be documented in this file.
 [#344]: https://github.com/stackabletech/spark-k8s-operator/pull/344
 [#355]: https://github.com/stackabletech/spark-k8s-operator/pull/355
 [#357]: https://github.com/stackabletech/spark-k8s-operator/pull/357
+[#359]: https://github.com/stackabletech/spark-k8s-operator/pull/359
+[#373]: https://github.com/stackabletech/spark-k8s-operator/pull/373
 
 ## [23.11.0] - 2023-11-24
 

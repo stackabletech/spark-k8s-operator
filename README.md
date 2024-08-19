@@ -1,9 +1,11 @@
+<!-- markdownlint-disable MD041 -->
 <p align="center">
   <img width="150" src="./.readme/static/borrowed/Icon_Stackable.svg" alt="Stackable Logo"/>
 </p>
 
 <h1 align="center">Stackable Operator for Apache Spark</h1>
 
+<!-- markdownlint-disable MD041 -->
 ![Build Actions Status](https://ci.stackable.tech/buildStatus/icon?job=spark-k8s%2doperator%2dit%2dnightly&subject=Integration%20Tests)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/stackabletech/spark-k8s-operator/graphs/commit-activity)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
@@ -13,6 +15,7 @@
 
 This is a Kubernetes operator to manage [Apache Spark](https://spark.apache.org/) jobs.
 
+<!-- markdownlint-disable MD041 MD051 -->
 It is part of the Stackable Data Platform, a curated selection of the best open source data apps like Apache Kafka, Apache Druid, Trino or Apache Spark, [all](#other-operators) working together seamlessly. Based on Kubernetes, it runs everywhere – [on prem or in the cloud](#supported-platforms).
 
 ## Installation
@@ -25,6 +28,7 @@ Read on to get started with it, or see it in action in one of our [demos](https:
 
 You can follow this [tutorial](https://docs.stackable.tech/home/stable/spark-k8s/getting_started/first_steps) .
 
+<!-- markdownlint-disable MD041 -->
 ## Documentation
 
 The stable documentation for this operator can be found [here](https://docs.stackable.tech/home/stable/spark-k8s).
@@ -34,6 +38,7 @@ The documentation for all Stackable products can be found at [docs.stackable.tec
 
 If you have a question about the Stackable Data Platform contact us via our [homepage](https://stackable.tech/) or ask a public questions in our [Discussions forum](https://github.com/orgs/stackabletech/discussions).
 
+<!-- markdownlint-disable MD041 -->
 ## About The Stackable Data Platform
 
 This operator is written and maintained by [Stackable](https://stackable.tech) and it is part of a larger data platform.
@@ -60,7 +65,6 @@ We develop and test our operators on the following cloud platforms:
 * Kubernetes (for an up to date list of supported versions please check the release notes in our [docs](https://docs.stackable.tech))
 * Red Hat OpenShift
 
-
 ## Other Operators
 
 These are the operators that are currently part of the Stackable Data Platform:
@@ -86,7 +90,10 @@ And our internal operators:
 
 ## Contributing
 
-Contributions are welcome. Follow our [Contributors Guide](https://docs.stackable.tech/home/stable/contributor/index.html) to learn how you can contribute.
+Contributions are welcome.
+Follow our [Contributors Guide](https://docs.stackable.tech/home/stable/contributor/index.html) to learn how you can contribute.
+All contributors will have to sign a [Contributor License Agreement](https://github.com/stackabletech/.github/blob/main/cla.md).
+This is enforced automatically when you submit a Pull Request where a bot will guide you through the process.
 
 ## License
 
@@ -95,3 +102,5 @@ Contributions are welcome. Follow our [Contributors Guide](https://docs.stackabl
 ## Support
 
 Get started with the community edition! If you want professional support, [we offer subscription plans and custom licensing](https://stackable.tech/en/plans/).
+
+<!-- markdownlint-disable MD041 MD022 MD032 -->

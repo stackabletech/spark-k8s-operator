@@ -12,4 +12,4 @@ spec:
   clusterConfig:
     listenerClass: cluster-internal  # <1>
 ----
-<1> The default `cluster-internal` setting. 
+<1> The default `cluster-internal` setting.

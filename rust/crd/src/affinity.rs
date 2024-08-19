@@ -47,7 +47,7 @@ mod test {
           name: spark-history
         spec:
           image:
-            productVersion: 3.5.0
+            productVersion: 3.5.1
           logFileDirectory:
             s3:
               prefix: eventlogs/
@@ -90,9 +90,8 @@ mod test {
                                     ),
                                 ])),
                             }),
-                            namespace_selector: None,
-                            namespaces: None,
                             topology_key: "kubernetes.io/hostname".to_string(),
+                            ..PodAffinityTerm::default()
                         },
                         weight: 70,
                     },

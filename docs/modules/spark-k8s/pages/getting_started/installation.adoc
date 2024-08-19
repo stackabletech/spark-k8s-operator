@@ -37,11 +37,9 @@ include::example$getting_started/getting_started.sh[tag=stackablectl-install-ope
 
 The tool will show
 
+[source]
 ----
-[INFO ] Installing commons operator
-[INFO ] Installing secret operator
-[INFO ] Installing listener operator
-[INFO ] Installing spark-k8s operator
+include::example$getting_started/install_output.txt[]
 ----
 
 TIP: Consult the xref:management:stackablectl:quickstart.adoc[] to learn more about how to use stackablectl. For

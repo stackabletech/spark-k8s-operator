@@ -7,9 +7,9 @@ commands:
   - command: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv minio-client:/tmp
   - command: kubectl cp -n $NAMESPACE ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'].split(',')[0] }}.jar  minio-client:/tmp/ny-tlc-report.jar
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure alias set minio https://minio:9000 spark sparkspark
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc alias set --insecure  minio https://minio:9000 spark sparkspark
 {% else %}
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure alias set minio http://minio:9000 spark sparkspark
+  - command: kubectl exec -n $NAMESPACE minio-client -- mc alias set --insecure minio http://minio:9000 spark sparkspark
 {% endif %}
   - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure cp /tmp/yellow_tripdata_2021-07.csv minio/my-bucket
   - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure cp /tmp/ny-tlc-report.jar minio/my-bucket

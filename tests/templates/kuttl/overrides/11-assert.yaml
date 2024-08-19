@@ -1,0 +1,15 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+commands:
+  - script: kubectl -n $NAMESPACE get job spark-pi-s3-1 -o yaml | yq '.spec.template.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_0").value' | grep 'REPLACED'
+  - script: kubectl -n $NAMESPACE get job spark-pi-s3-1 -o yaml | yq '.spec.template.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_1").value' | grep 'DONOTREPLACE'
+  - script: kubectl -n $NAMESPACE get cm spark-pi-s3-1-driver-pod-template -o json | jq -r '.data."template.yaml"' | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_0").value' | grep 'REPLACED'
+  - script: kubectl -n $NAMESPACE get cm spark-pi-s3-1-driver-pod-template -o json | jq -r '.data."template.yaml"' | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_1").value' | grep 'DONOTREPLACE'
+  - script: kubectl -n $NAMESPACE get cm spark-pi-s3-1-executor-pod-template -o json | jq -r '.data."template.yaml"' | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_0").value' | grep 'REPLACED'
+  - script: kubectl -n $NAMESPACE get cm spark-pi-s3-1-executor-pod-template -o json | jq -r '.data."template.yaml"' | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_1").value' | grep 'DONOTREPLACE'
+  - script: |
+      POD=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/instance=spark-pi-s3-1 -o name | head -n 1 | sed -e 's#pod/##')
+      kubectl -n $NAMESPACE get pod $POD -o yaml | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_0").value' | grep 'REPLACED'
+      kubectl -n $NAMESPACE get pod $POD -o yaml | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_1").value' | grep 'DONOTREPLACE'

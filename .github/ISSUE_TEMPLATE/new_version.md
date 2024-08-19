@@ -7,25 +7,25 @@ assignees: ''
 
 ---
 
-**Which new version of Apache Spark-on-Kubernetes should we support?**
+## Which new version of Apache Spark-on-Kubernetes should we support?
 
 Please specify the version, version range or version numbers to support, please also add these to the issue title
 
-**Additional information**
+## Additional information
 
 If possible, provide a link to release notes/changelog
 
-**Changes required**
+## Changes required
 
 Are there any upstream changes that we need to support?
 e.g. new features, changed features, deprecated features etc.
 
+## Implementation checklist
 
-
-**Implementation checklist**
-
-Please don't change anything in this list.
-Not all of these steps are necessary for all versions.
+<!--
+    Please don't change anything in this list.
+    Not all of these steps are necessary for all versions.
+-->
 
 - [ ] Update the Docker image
 - [ ] Update documentation to include supported version(s)

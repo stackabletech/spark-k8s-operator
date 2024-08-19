@@ -36,6 +36,7 @@ use stackable_operator::{
     product_config_utils::Configuration,
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
+    utils::crds::raw_object_list_schema,
 };
 use strum::{Display, EnumIter};
 
@@ -113,10 +114,13 @@ pub enum SparkMode {
 pub struct RoleConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
+
     #[fragment_attrs(serde(default))]
     pub logging: Logging<SparkContainer>,
+
     #[fragment_attrs(serde(default, flatten))]
-    pub volume_mounts: Option<VolumeMounts>,
+    pub volume_mounts: VolumeMounts,
+
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
 }
@@ -146,7 +150,7 @@ impl RoleConfig {
         s3conn: &Option<S3ConnectionSpec>,
         s3logdir: &Option<S3LogDir>,
     ) -> Vec<VolumeMount> {
-        let volume_mounts = self.volume_mounts.clone().unwrap_or_default().into();
+        let volume_mounts = self.volume_mounts.clone().into();
         spark_application.add_common_volume_mounts(volume_mounts, s3conn, s3logdir, true)
     }
 }
@@ -158,7 +162,7 @@ impl Configuration for RoleConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -167,7 +171,7 @@ impl Configuration for RoleConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -177,7 +181,7 @@ impl Configuration for RoleConfigFragment {
         _resource: &Self::Configurable,
         _role_name: &str,
         _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -200,6 +204,8 @@ impl Configuration for RoleConfigFragment {
 pub struct SubmitConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
+    #[fragment_attrs(serde(default, flatten))]
+    pub volume_mounts: Option<VolumeMounts>,
 }
 
 impl SubmitConfig {
@@ -216,6 +222,7 @@ impl SubmitConfig {
                 },
                 storage: SparkStorageConfigFragment {},
             },
+            volume_mounts: Some(VolumeMounts::default()),
         }
     }
 }
@@ -227,7 +234,7 @@ impl Configuration for SubmitConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -236,7 +243,7 @@ impl Configuration for SubmitConfigFragment {
         &self,
         _resource: &Self::Configurable,
         _role_name: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -246,7 +253,7 @@ impl Configuration for SubmitConfigFragment {
         _resource: &Self::Configurable,
         _role_name: &str,
         _file: &str,
-    ) -> stackable_operator::product_config_utils::ConfigResult<BTreeMap<String, Option<String>>>
+    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
     }
@@ -256,7 +263,9 @@ impl Configuration for SubmitConfigFragment {
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VolumeMounts {
-    pub volume_mounts: Option<Vec<VolumeMount>>,
+    /// Volume mounts for the spark-submit, driver and executor pods.
+    #[schemars(schema_with = "raw_object_list_schema")]
+    pub volume_mounts: Vec<VolumeMount>,
 }
 
 impl Atomic for VolumeMounts {}
@@ -266,12 +275,12 @@ impl<'a> IntoIterator for &'a VolumeMounts {
     type IntoIter = slice::Iter<'a, VolumeMount>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.volume_mounts.as_deref().unwrap_or_default().iter()
+        self.volume_mounts.iter()
     }
 }
 
 impl From<VolumeMounts> for Vec<VolumeMount> {
     fn from(value: VolumeMounts) -> Self {
-        value.volume_mounts.unwrap_or_default()
+        value.volume_mounts
     }
 }

@@ -21,7 +21,7 @@ pub enum Error {
     LabelInstanceNotFound { pod_name: String },
     #[snafu(display("Failed to update status for application [{name}]"))]
     ApplySparkApplicationStatus {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
         name: String,
     },
     #[snafu(display("Pod name not found"))]
@@ -32,7 +32,7 @@ pub enum Error {
     PodStatusPhaseNotFound { pod_name: String },
     #[snafu(display("Spark application [{name}] not found"))]
     SparkApplicationNotFound {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
         name: String,
     },
 }

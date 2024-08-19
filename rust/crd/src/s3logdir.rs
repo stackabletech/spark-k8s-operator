@@ -7,7 +7,10 @@ use crate::{
     tlscerts,
 };
 use stackable_operator::{
-    builder::{SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+    builder::pod::volume::{
+        SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
+        VolumeBuilder,
+    },
     commons::{
         authentication::tls::{CaCert, TlsVerification},
         s3::{InlinedS3BucketSpec, S3AccessStyle},
@@ -18,7 +21,6 @@ use stackable_operator::{
 use std::collections::BTreeMap;
 
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::SecretFormat;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -27,7 +29,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 pub enum Error {
     #[snafu(display("s3 bucket error"))]
     S3Bucket {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::commons::s3::Error,
     },
 
     #[snafu(display("missing bucket name for history logs"))]
@@ -41,7 +43,7 @@ pub enum Error {
 
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {
-        source: stackable_operator::builder::SecretOperatorVolumeSourceBuilderError,
+        source: SecretOperatorVolumeSourceBuilderError,
     },
 
     #[snafu(display("failed to build credentials Volume"))]
@@ -115,7 +117,8 @@ impl S3LogDir {
     /// * spark.hadoop.fs.s3a.aws.credentials.provider
     /// * spark.hadoop.fs.s3a.access.key
     /// * spark.hadoop.fs.s3a.secret.key
-    /// instead, the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set
+    ///
+    /// Instead, the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set
     /// on the container start command.
     pub fn history_server_spark_config(&self) -> BTreeMap<String, String> {
         let mut result = BTreeMap::new();

@@ -3,4 +3,3 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 ./getting_started.sh stackablectl
-

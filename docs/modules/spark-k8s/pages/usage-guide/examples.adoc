@@ -2,31 +2,17 @@
 
 The following examples have the following `spec` fields in common:
 
-- `version`: the current version is "1.0"
-- `sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
-- `mode`: only `cluster` is currently supported
-- `mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
-- `args`: these are the arguments passed directly to the application. In the examples below it is e.g. the input path for part of the public New York taxi dataset.
-- `sparkConf`: these list spark configuration settings that are passed directly to `spark-submit` and which are best defined explicitly by the user. Since the `SparkApplication` "knows" that there is an external dependency (the s3 bucket where the data and/or the application is located) and how that dependency should be treated (i.e. what type of credential checks are required, if any), it is better to have these things declared together.
-- `volumes`: refers to any volumes needed by the `SparkApplication`, in this case an underlying `PersistentVolumeClaim`.
-- `driver`: driver-specific settings, including any volume mounts.
-- `executor`: executor-specific settings, including any volume mounts.
+* `version`: the current version is "1.0"
+* `sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
+* `mode`: only `cluster` is currently supported
+* `mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
+* `args`: these are the arguments passed directly to the application. In the examples below it is e.g. the input path for part of the public New York taxi dataset.
+* `sparkConf`: these list spark configuration settings that are passed directly to `spark-submit` and which are best defined explicitly by the user. Since the `SparkApplication` "knows" that there is an external dependency (the s3 bucket where the data and/or the application is located) and how that dependency should be treated (i.e. what type of credential checks are required, if any), it is better to have these things declared together.
+* `volumes`: refers to any volumes needed by the `SparkApplication`, in this case an underlying `PersistentVolumeClaim`.
+* `driver`: driver-specific settings, including any volume mounts.
+* `executor`: executor-specific settings, including any volume mounts.
 
 Job-specific settings are annotated below.
-
-== Pyspark: externally located artifact and dataset
-
-[source,yaml]
-----
-include::example$example-sparkapp-external-dependencies.yaml[]
-----
-
-<1> Job python artifact (external)
-<2> Job argument (external)
-<3> List of python job requirements: these will be installed in the pods via `pip`
-<4> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in s3)
-<5> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
-<6> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
 
 == Pyspark: externally located dataset, artifact available via PVC/volume mount
 

@@ -5,9 +5,9 @@ metadata:
   name: example-sparkapp-image
   namespace: default
 spec:
-  image: docker.stackable.tech/stackable/ny-tlc-report:0.1.0 # <1>
+  image: docker.stackable.tech/stackable/ny-tlc-report:0.2.0 # <1>
   sparkImage:
-    productVersion: 3.5.0
+    productVersion: 3.5.1
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py # <2>
   args:

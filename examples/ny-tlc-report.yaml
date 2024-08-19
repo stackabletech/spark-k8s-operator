@@ -13,9 +13,9 @@ metadata:
   name: spark-ny-cm
 spec:
   sparkImage:
-    productVersion: 3.5.0
+    productVersion: 3.5.1
   mode: cluster
-  mainApplicationFile: s3a://my-bucket/ny-tlc-report-1.1.0-3.5.0.jar
+  mainApplicationFile: s3a://my-bucket/ny-tlc-report-1.1.0-3.5.1.jar
   mainClass: tech.stackable.demo.spark.NYTLCReport
   volumes:
     - name: cm-job-arguments

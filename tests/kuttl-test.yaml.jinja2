@@ -14,9 +14,10 @@ parallel: 2
 # deleted, and, if not overridden, in TestSteps, TestAsserts, and
 # Commands. If not set, the timeout is 30 seconds by default.
 #
-# The deletion of a namespace can take a while until all resources are
-# gracefully shut down. If the timeout is reached in the meantime, even
-# a successful test case is considered a failure.
+# The deletion of a namespace can take a while until all resources,
+# especially PersistentVolumeClaims, are gracefully shut down. If the
+# timeout is reached in the meantime, even a successful test case is
+# considered a failure.
 #
 # For instance, the termination grace period of the Vector aggregator in
 # the logging tests is set to 60 seconds. If there are logs entries
@@ -24,4 +25,4 @@ parallel: 2
 # the VECTOR_AGGREGATOR environment variable, then the test aggregator
 # uses this period of time by trying to forward the events. In this
 # case, deleting a namespace with several Pods takes about 90 seconds.
-timeout: 120
+timeout: 300

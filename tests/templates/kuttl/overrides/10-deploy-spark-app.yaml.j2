@@ -1,0 +1,72 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-pi-s3-1
+spec:
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: "/stackable/spark/examples/jars/spark-examples.jar"
+  sparkConf:
+    spark.kubernetes.file.upload.path: "s3a://my-bucket"
+  s3connection:
+    reference: spark-data-s3-connection
+  logFileDirectory:
+    s3:
+      prefix: eventlogs/
+      bucket:
+        reference: spark-history-s3-bucket
+  env:
+    - name: TEST_SPARK_VAR_0
+      value: ORIGINAL
+    - name: TEST_SPARK_VAR_1
+      value: DONOTREPLACE
+  job:
+    envOverrides: &envOverrides
+      TEST_SPARK_VAR_0: REPLACED
+    podOverrides:
+      spec:
+        containers:
+          - name: spark-submit
+            resources:
+              requests:
+                cpu: 500m
+                memory: 512Mi
+              limits:
+                cpu: 1500m
+                memory: 1024Mi
+  driver:
+    envOverrides: *envOverrides
+    podOverrides:
+      spec:
+        containers:
+          - name: spark
+            resources:
+              requests:
+                cpu: 500m
+                memory: 512Mi
+              limits:
+                cpu: 1500m
+                memory: 1024Mi
+  executor:
+    replicas: 1
+    envOverrides: *envOverrides
+    podOverrides:
+      spec:
+        containers:
+          - name: spark
+            resources:
+              requests:
+                cpu: 500m
+                memory: 512Mi
+              limits:
+                cpu: 1500m
+                memory: 1024Mi

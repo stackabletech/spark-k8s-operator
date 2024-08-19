@@ -16,10 +16,12 @@ use stackable_spark_k8s_crd::{
 use crate::product_logging::{self, resolve_vector_aggregator_address};
 use product_config::types::PropertyNameKind;
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::resources::ResourceRequirementsBuilder;
 use stackable_operator::k8s_openapi::DeepMerge;
 use stackable_operator::{
-    builder::{ConfigMapBuilder, ContainerBuilder, ObjectMetaBuilder, PodBuilder, VolumeBuilder},
+    builder::{
+        configmap::ConfigMapBuilder, meta::ObjectMetaBuilder, pod::container::ContainerBuilder,
+        pod::resources::ResourceRequirementsBuilder, pod::volume::VolumeBuilder, pod::PodBuilder,
+    },
     commons::{
         authentication::tls::{CaCert, TlsVerification},
         product_image_selection::ResolvedProductImage,
@@ -62,19 +64,19 @@ pub enum Error {
     ObjectHasNoNamespace,
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::meta::Error,
     },
     #[snafu(display("failed to apply role ServiceAccount"))]
     ApplyServiceAccount {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
     #[snafu(display("failed to apply global RoleBinding"))]
     ApplyRoleBinding {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
     #[snafu(display("failed to apply Job"))]
     ApplyApplication {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::client::Error,
     },
     #[snafu(display("failed to build stark-submit command"))]
     BuildCommand {
@@ -82,13 +84,13 @@ pub enum Error {
     },
     #[snafu(display("failed to build the pod template config map"))]
     PodTemplateConfigMap {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::configmap::Error,
     },
     #[snafu(display("pod template serialization"))]
     PodTemplateSerde { source: serde_yaml::Error },
     #[snafu(display("s3 bucket error"))]
     S3Bucket {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::commons::s3::Error,
     },
     #[snafu(display("tls non-verification not supported"))]
     S3TlsNoVerificationNotSupported,
@@ -102,7 +104,7 @@ pub enum Error {
     UnrecognisedContainerName,
     #[snafu(display("illegal container name"))]
     IllegalContainerName {
-        source: stackable_operator::error::Error,
+        source: stackable_operator::builder::pod::container::Error,
     },
     #[snafu(display("failed to resolve the s3 log dir configuration"))]
     S3LogDir {
@@ -122,7 +124,7 @@ pub enum Error {
     },
     #[snafu(display("failed to generate product config"))]
     GenerateProductConfig {
-        source: stackable_operator::product_config_utils::ConfigError,
+        source: stackable_operator::product_config_utils::Error,
     },
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
@@ -140,7 +142,7 @@ pub enum Error {
 
     #[snafu(display("failed to build Metadata"))]
     MetadataBuild {
-        source: stackable_operator::builder::ObjectMetaBuilderError,
+        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("failed to get required Labels"))]
@@ -206,7 +208,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     let resolved_product_image = spark_application
         .spec
         .spark_image
-        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::CARGO_PKG_VERSION);
+        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
 
     let validated_product_config: ValidatedRoleConfigByPropertyKind = spark_application
         .validated_role_config(&resolved_product_image, &ctx.product_config)
@@ -477,9 +479,10 @@ fn pod_template(
 ) -> Result<PodTemplateSpec> {
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
+    let merged_env = spark_application.merged_env(role.clone(), env);
 
     cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, s3logdir))
-        .add_env_vars(env.to_vec())
+        .add_env_vars(merged_env)
         .resources(config.resources.clone().into())
         .image_from_product_image(spark_image);
 
@@ -713,14 +716,15 @@ fn spark_job(
     let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
         .context(IllegalContainerNameSnafu)?;
 
-    let args = vec![job_commands.join(" ")];
+    let args = [job_commands.join(" ")];
+    let merged_env = spark_application.merged_env(SparkApplicationRole::Submit, env);
 
     cb.image_from_product_image(spark_image)
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![args.join(" && ")])
         .resources(job_config.resources.clone().into())
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, s3logdir))
-        .add_env_vars(env.to_vec())
+        .add_env_vars(merged_env)
         .add_env_var(
             "SPARK_SUBMIT_OPTS",
             format!(

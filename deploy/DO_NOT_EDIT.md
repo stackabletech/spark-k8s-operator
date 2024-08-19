@@ -1,3 +1,5 @@
+# DO NOT EDIT
+
 These Helm charts and manifests are automatically generated.
 Please do not edit anything except for files explicitly mentioned below in this
 directory manually.

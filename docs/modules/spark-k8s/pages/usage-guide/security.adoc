@@ -1,0 +1,97 @@
+= Security
+
+== Authentication
+
+Currently, the only supported authentication mechanism is Kerberos, which is disabled by default.
+
+Kerberos is a network authentication protocol that works on the basis of "tickets" to allow nodes communicating over a non-secure network to prove their identity to one another securely. It is used in Spark to authenticate users and to secure communication between Spark components.
+
+In this guide we show how to configure Spark applications to use Kerberos while accessing data in an HDFS cluster. The Stackable Secret Operator is used to generate the keytab files. In production environments, users might have different means to provision the keytab files.
+
+
+== Prerequisites
+
+It is assumed that you have a KDC server running in your cluster and that the Stackable Secret Operator is configured to provision the keytab files as described in the xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation].
+
+For details on HDFS and Kerberos, see the xref:hdfs-operator:usage-guide:security.adoc[HDFS operator guide].
+
+This guide makes use of a SecretClass named `kerberos`. It is assumed that this class exists and is configured with a `kerberosBackend`.
+
+== Steps
+
+There are three steps to configure a Spark application to use Kerberos:
+
+1. Provision the Spark `driver` end `executor` pods with the keytab and `krb5.conf` files.
+2. Provision the Spark `job` pod with the keytab and `krb5.conf` files.
+3. Instruct the Spark application to use Kerberos.
+
+=== Driver and Executor pods
+
+Install the keytab and the `krb5.conf` files in the Spark pods. The keytab file contains the credentials of the user that is used to authenticate with the Kerberos server. The `krb5.conf` file contains the configuration settings for the Kerberos client.
+
+In the example below, the Stackable Secret Operator is used to provision the keytab via a volume claim. For brevity the configuration shared by the job, driver and executor pods is only specified once and then referenced in all other places where needed.
+
+[source,yaml]
+----
+...
+job:
+  config: &config
+    volumeMounts:
+      - name: kerberos
+        mountPath: /stackable/kerberos <1>
+      - name: kerberos
+        mountPath: /etc/krb5.conf <2>
+        subPath: krb5.conf
+      - name: hdfs-config
+        mountPath: /stackable/config/hdfs <3>
+    envOverrides:
+      HADOOP_CONF_DIR: /stackable/config/hdfs
+
+driver:
+  config: *config
+
+executor:
+  config: *config
+
+volumes:
+  - name: hdfs-config <4>
+    configMap:
+      name: hdfs 
+  - name: kerberos
+    ephemeral:
+      volumeClaimTemplate:
+        metadata:
+          annotations:
+            secrets.stackable.tech/class: kerberos <5>
+            secrets.stackable.tech/scope: service=spark <6>
+            secrets.stackable.tech/kerberos.service.names: spark <7>
+        spec:
+          storageClassName: secrets.stackable.tech
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: "1"
+----
+<1> Mount the keytab from the kerberos volume.
+<2> Mount the `krb5.conf` file from the kerberos volume.
+<3> Mount the Hadoop configuration files from the `hdfs-config` module.
+<4> Hadoop configuration files as published by the Hdfs operator.
+<5> Name of the Secret class used to provision the keytab.
+<6> Scope of the Secret.
+<7> Name of the user for which the keytab is provisioned.
+
+
+=== Spark application
+
+Instruct the Spark application to use Kerberos by setting the `spark.kerberos.keytab` and `spark.kerberos.principal` properties in the `SparkApplication` CRD.
+
+[source,yaml]
+----
+sparkConf:
+  "spark.kerberos.keytab": "/stackable/kerberos/keytab" <1>
+  "spark.kerberos.principal": "spark/spark.default.svc.cluster.local@CLUSTER.LOCAL" <2>
+----
+<1> Location of the keytab file.
+<2> Principal name. This needs to have the format `<SERVICE_NAME>.default.svc.cluster.local@<REALM>` where `SERVICE_NAME` matches the volume claim annotation `secrets.stackable.tech/kerberos.service.names` and `REALM` must be `CLUSTER.LOCAL` unless a different realm was used explicitly. In that case, the `KERBEROS_REALM` environment variable must also be set accordingly.
+

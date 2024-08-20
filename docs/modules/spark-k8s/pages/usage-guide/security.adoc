@@ -6,7 +6,7 @@ Currently, the only supported authentication mechanism is Kerberos, which is dis
 
 Kerberos is a network authentication protocol that works on the basis of "tickets" to allow nodes communicating over a non-secure network to prove their identity to one another securely. It is used in Spark to authenticate users and to secure communication between Spark components.
 
-In this guide we show how to configure Spark applications to use Kerberos while accessing data in HDFS cluster. The Stackable Secret Operator is used to generate the keytab files. In production environments, users might have different means to provision the keytab files.
+In this guide we show how to configure Spark applications to use Kerberos while accessing data in an HDFS cluster. The Stackable Secret Operator is used to generate the keytab files. In production environments, users might have different means to provision the keytab files.
 
 
 == Prerequisites

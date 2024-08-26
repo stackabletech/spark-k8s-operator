@@ -13,7 +13,7 @@ In this guide we show how to configure Spark applications to use Kerberos while 
 
 It is assumed that you have a KDC server running in your cluster and that the Stackable Secret Operator is configured to provision the keytab files as described in the xref:home:secret-operator:secretclass.adoc#backend-kerberoskeytab[secret-operator documentation].
 
-For details on HDFS and Kerberos, see the xref:hdfs-operator:usage-guide:security.adoc[HDFS operator guide].
+For details on HDFS and Kerberos, see the xref:hdfs:usage-guide/security.adoc[HDFS operator guide].
 
 This guide makes use of a SecretClass named `kerberos`. It is assumed that this class exists and is configured with a `kerberosBackend`.
 

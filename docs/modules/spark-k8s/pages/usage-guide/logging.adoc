@@ -5,3 +5,49 @@ The Spark operator installs a https://vector.dev/docs/setup/deployment/roles/#ag
 It is the user's responsibility to install and configure the vector aggregator, but the agents can discover the aggregator automatically using a discovery ConfigMap as described in the xref:concepts:logging.adoc[logging concepts].
 
 NOTE: Only logs produced by the application's driver and executors are collected. Logs produced by `spark-submit` are discarded.
+
+== History server
+
+The following snippet shows how to configure log aggregation for the history server:
+
+[source,yaml]
+----
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+metadata:
+  name: spark-history
+spec:
+  vectorAggregatorConfigMapName: spark-vector-aggregator-discovery # <1>
+  nodes:
+    roleGroups:
+      default:
+        config:
+          logging:
+            enableVectorAgent: true # <2>
+            containers:
+              spark-history: #<3>
+                console:
+                  level: INFO
+                file:
+                  level: INFO
+                loggers:
+                  ROOT:
+                    level: INFO
+...
+----
+<1> Name of a ConfigMap that referenced the vector aggregator. See example below.
+<2> Enable the vector agent in the history pod.
+<3> Configure log levels for file and console outputs.
+
+Example vector aggregator configuration.
+
+[source,yaml]
+----
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-vector-aggregator-discovery
+data:
+  ADDRESS: spark-vector-aggregator:6123
+----

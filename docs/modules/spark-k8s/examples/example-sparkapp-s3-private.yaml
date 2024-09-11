@@ -5,7 +5,7 @@ metadata:
   name: example-sparkapp-s3-private
 spec:
   sparkImage:
-    productVersion: 3.5.1
+    productVersion: 3.5.2
   mode: cluster
   mainApplicationFile: s3a://my-bucket/spark-examples.jar # <1>
   mainClass: org.apache.spark.examples.SparkPi # <2>

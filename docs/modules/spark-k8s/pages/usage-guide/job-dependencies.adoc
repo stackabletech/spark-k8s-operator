@@ -57,7 +57,7 @@ Below is an example of a custom image that includes a JDBC driver:
 
 [source, Dockerfile]
 ----
-FROM docker.stackable.tech/stackable/spark-k8s:3.5.1-stackable24.3.0 # <1>
+FROM docker.stackable.tech/stackable/spark-k8s:3.5.2-stackable24.11.0 # <1>
 
 RUN curl --fail -o /stackable/spark/jars/postgresql-42.6.0.jar "https://jdbc.postgresql.org/download/postgresql-42.6.0.jar"
 ----
@@ -74,8 +74,8 @@ metadata:
   name: spark-jdbc
 spec:
   sparkImage:
-    custom: "docker.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev" # <1>
-    productVersion: "3.5.1" # <2>
+    custom: "docker.stackable.tech/sandbox/spark-k8s:3.5.2-stackable0.0.0-dev" # <1>
+    productVersion: "3.5.2" # <2>
     pullPolicy: IfNotPresent # <3>
 ...
 ----
@@ -160,9 +160,8 @@ spec:
   deps:
     requirements:
       - tabulate==0.8.9  # <2>
-... 
+...
 ----
 
 <1> The main application file. In this example it is assumed that the file is part of a custom image.
 <2> A Python package that is used by the application and installed when the application is submitted.
-

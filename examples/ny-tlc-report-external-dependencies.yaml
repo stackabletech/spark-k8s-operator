@@ -6,7 +6,7 @@ metadata:
   namespace: default
 spec:
   sparkImage:
-    productVersion: 3.5.1
+    productVersion: 3.5.2
     pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: s3a://my-bucket/ny_tlc_report.py

@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
   - `affinity`
   - `volumes`
   - `volumeMounts`
+- Update tests and docs to Spark version 3.5.2 ([#459])
 
 ### Fixed
 
@@ -18,6 +19,7 @@ All notable changes to this project will be documented in this file.
 
 [#450]: https://github.com/stackabletech/spark-k8s-operator/pull/450
 [#451]: https://github.com/stackabletech/spark-k8s-operator/pull/451
+[#459]: https://github.com/stackabletech/spark-k8s-operator/pull/459
 
 ## [24.7.0] - 2024-07-24
 

@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fix `envOverrides` for SparkApplication and SparkHistoryServer ([#451]).
-- Ensure SparkApplications can only create a single single submit Job. Fix for #457 ([#460]).
+- Ensure SparkApplications can only create a single submit Job. Fix for #457 ([#460]).
 
 ### Removed
 

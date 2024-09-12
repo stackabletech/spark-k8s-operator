@@ -1,0 +1,7 @@
+= Spark Applications
+
+Spark applications are submitted to the Spark Operator as SparkApplication resources. These resources are used to define the configuration of the Spark job, including the image to use, the main application file, and the number of executors to start.
+
+Upon creation, the application's status set to `Unknown`. As the operator creates the necessary resources, the status of the application transisions through different phases that reflect the phase of the driver Pod. A successful application will eventually reach the `Succeeded` phase.
+
+The operator will never reconcile an application once it has been created. To resubmit an application, a new SparkApplication resource must be created.

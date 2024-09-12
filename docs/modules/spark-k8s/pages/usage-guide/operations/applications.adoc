@@ -4,4 +4,4 @@ Spark applications are submitted to the Spark Operator as SparkApplication resou
 
 Upon creation, the application's status set to `Unknown`. As the operator creates the necessary resources, the status of the application transisions through different phases that reflect the phase of the driver Pod. A successful application will eventually reach the `Succeeded` phase.
 
-The operator will never reconcile an application once it has been created. To resubmit an application, a new SparkApplication resource must be created.
+NOTE: The operator will never reconcile an application once it has been created. To resubmit an application, a new SparkApplication resource must be created.

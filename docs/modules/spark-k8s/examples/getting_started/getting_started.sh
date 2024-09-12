@@ -73,7 +73,7 @@ metadata:
   namespace: default
 spec:
   sparkImage:
-    productVersion: 3.5.1
+    productVersion: 3.5.2
   mode: cluster
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py
   driver:

@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file.
 
 - Fix `envOverrides` for SparkApplication and SparkHistoryServer ([#451]).
 
+### Removed
+
+- Support for Spark versions 3.4.2 and 3.4.3 has been dropped ([#459]).
+
 [#450]: https://github.com/stackabletech/spark-k8s-operator/pull/450
 [#451]: https://github.com/stackabletech/spark-k8s-operator/pull/451
 [#459]: https://github.com/stackabletech/spark-k8s-operator/pull/459

@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fix `envOverrides` for SparkApplication and SparkHistoryServer ([#451]).
+- Ensure SparkApplications can only create a single single submit Job. Fix for #457 ([#460]).
 
 ### Removed
 
@@ -24,6 +25,7 @@ All notable changes to this project will be documented in this file.
 [#450]: https://github.com/stackabletech/spark-k8s-operator/pull/450
 [#451]: https://github.com/stackabletech/spark-k8s-operator/pull/451
 [#459]: https://github.com/stackabletech/spark-k8s-operator/pull/459
+[#460]: https://github.com/stackabletech/spark-k8s-operator/pull/460
 
 ## [24.7.0] - 2024-07-24
 

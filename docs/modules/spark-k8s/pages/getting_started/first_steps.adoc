@@ -36,7 +36,7 @@ A running process will look like this:
 
 image::getting_started/spark_running.png[Spark job]
 
-* `pyspark-pi-xxxx`: this is the initialising job that creates the spark-submit command (named as `metadata.name` with a unique suffix)
+* `pyspark-pi-xxxx`: this is the initializing job that creates the spark-submit command (named as `metadata.name` with a unique suffix)
 * `pyspark-pi-xxxxxxx-driver`: the driver pod that drives the execution
 * `pythonpi-xxxxxxxxx-exec-x`: the set of executors started by the driver (in our example `spec.executor.instances` was set to 3 which is why we have 3 executors)
 

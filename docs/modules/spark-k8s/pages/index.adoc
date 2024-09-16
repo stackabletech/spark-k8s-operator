@@ -1,5 +1,5 @@
 = Stackable Operator for Apache Spark
-:description: The Stackable operator for Apache Spark is a Kubernetes operator that can manage Apache Spark clusters. Learn about its features, resources, dependencies and demos, and see the list of supported Spark versions.
+:description: Manage Apache Spark clusters on Kubernetes with Stackable Operator, featuring SparkApplication CRDs, history server, S3 integration, and demos for big data tasks.
 :keywords: Stackable operator, Apache Spark, Kubernetes, operator, data science, engineer, big data, CRD, StatefulSet, ConfigMap, Service, S3, demo, version
 :spark: https://spark.apache.org/
 :github: https://github.com/stackabletech/spark-k8s-operator/

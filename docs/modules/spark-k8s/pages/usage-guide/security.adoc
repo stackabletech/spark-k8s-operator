@@ -1,4 +1,5 @@
 = Security
+:description: Learn how to configure Apache Spark applications with Kerberos authentication using Stackable Secret Operator for secure data access in HDFS.
 
 == Authentication
 

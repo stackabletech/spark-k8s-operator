@@ -1,6 +1,7 @@
 = Getting started
 
-This guide will get you started with Spark using the Stackable Operator for Apache Spark. It will guide you through the installation of the Operator and its dependencies, executing your first Spark job and reviewing its result.
+This guide will get you started with Spark using the Stackable Operator for Apache Spark.
+It will guide you through the installation of the Operator and its dependencies, executing your first Spark job and reviewing its result.
 
 == Prerequisites
 

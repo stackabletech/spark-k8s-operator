@@ -1,13 +1,18 @@
 = Spark History Server
+:description: Set up Spark History Server on Kubernetes to access Spark logs via S3, with configuration for cleanups and web UI access details.
 :page-aliases: history_server.adoc
 
 == Overview
 
-The Stackable Spark-on-Kubernetes operator runs Apache Spark workloads in a Kubernetes cluster, whereby driver- and executor-pods are created for the duration of the job and then terminated. One or more Spark History Server instances can be deployed independently of `SparkApplication` jobs and used as an end-point for spark logging, so that job information can be viewed once the job pods are no longer available.
+The Stackable Spark-on-Kubernetes operator runs Apache Spark workloads in a Kubernetes cluster, whereby driver- and executor-pods are created for the duration of the job and then terminated.
+One or more Spark History Server instances can be deployed independently of SparkApplication jobs and used as an end-point for spark logging, so that job information can be viewed once the job pods are no longer available.
 
 == Deployment
 
-The example below demonstrates how to set up the history server running in one Pod with scheduled cleanups of the event logs. The event logs are loaded from an S3 bucket named `spark-logs` and the folder `eventlogs/`. The credentials for this bucket are provided by the secret class `s3-credentials-class`. For more details on how the Stackable Data Platform manages S3 resources see the xref:concepts:s3.adoc[S3 resources] page.
+The example below demonstrates how to set up the history server running in one Pod with scheduled cleanups of the event logs.
+The event logs are loaded from an S3 bucket named `spark-logs` and the folder `eventlogs/`.
+The credentials for this bucket are provided by the secret class `s3-credentials-class`.
+For more details on how the Stackable Data Platform manages S3 resources see the xref:concepts:s3.adoc[S3 resources] page.
 
 
 [source,yaml]
@@ -52,7 +57,8 @@ include::example$example-history-app.yaml[]
 
 == History Web UI
 
-To access the history server web UI, use one of the `NodePort` services created by the operator. For the example above, the operator created two services as shown:
+To access the history server web UI, use one of the `NodePort` services created by the operator.
+For the example above, the operator created two services as shown:
 
 [source,bash]
 ----
@@ -70,13 +76,17 @@ image::history-server-ui.png[History Server Console]
 
 For a role group of the Spark history server, you can specify: `configOverrides` for the following files:
 
-- `security.properties`
+* `security.properties`
 
 === The security.properties file
 
-The `security.properties` file is used to configure JVM security properties. It is very seldom that users need to tweak any of these, but there is one use-case that stands out, and that users need to be aware of: the JVM DNS cache.
+The `security.properties` file is used to configure JVM security properties.
+It is very seldom that users need to tweak any of these, but there is one use-case that stands out, and that users need to be aware of: the JVM DNS cache.
 
-The JVM manages its own cache of successfully resolved host names as well as a cache of host names that cannot be resolved. Some products of the Stackable platform are very sensible to the contents of these caches and their performance is heavily affected by them. As of version 3.4.0, Apache Spark may perform poorly if the positive cache is disabled. To cache resolved host names, and thus speeding up queries you can configure the TTL of entries in the positive cache like this:
+The JVM manages its own cache of successfully resolved host names as well as a cache of host names that cannot be resolved.
+Some products of the Stackable platform are very sensible to the contents of these caches and their performance is heavily affected by them.
+As of version 3.4.0, Apache Spark may perform poorly if the positive cache is disabled.
+To cache resolved host names, and thus speeding up queries you can configure the TTL of entries in the positive cache like this:
 
 [source,yaml]
 ----

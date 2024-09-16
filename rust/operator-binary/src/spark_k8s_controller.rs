@@ -155,6 +155,7 @@ pub enum Error {
     CreateVolumes {
         source: stackable_spark_k8s_crd::Error,
     },
+
     #[snafu(display("Failed to update status for application [{name}]"))]
     ApplySparkApplicationStatus {
         source: stackable_operator::client::Error,

@@ -230,6 +230,21 @@ pub struct JobDependencies {
 }
 
 impl SparkApplication {
+    /// Returns if this [`SparkApplication`] has already created a Kubernetes Job doing the actual `spark-submit`.
+    ///
+    /// This is needed because Kubernetes will remove the succeeded Job after some time. When the spark-k8s-operator is
+    /// restarted it would re-create the Job, resulting in the Spark job running multiple times. This function assumes
+    /// that the [`SparkApplication`]'s status will always be set when the Kubernetes Job is created. It therefore
+    /// checks if the status is set to determine if the Job was already created in the past.
+    ///
+    /// See the bug report [#457](https://github.com/stackabletech/spark-k8s-operator/issues/457) for details.
+    pub fn k8s_job_has_been_created(&self) -> bool {
+        self.status
+            .as_ref()
+            .map(|s| !s.phase.is_empty())
+            .unwrap_or_default()
+    }
+
     pub fn submit_job_config_map_name(&self) -> String {
         format!("{app_name}-submit-job", app_name = self.name_any())
     }

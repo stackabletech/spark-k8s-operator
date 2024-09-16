@@ -10,7 +10,7 @@ use product_config::writer::to_java_properties_string;
 use stackable_operator::time::Duration;
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, tlscerts, RoleConfig, SparkApplication, SparkApplicationRole,
-    SparkContainer, SubmitConfig,
+    SparkApplicationStatus, SparkContainer, SubmitConfig,
 };
 
 use crate::product_logging::{self, resolve_vector_aggregator_address};
@@ -155,6 +155,12 @@ pub enum Error {
     CreateVolumes {
         source: stackable_spark_k8s_crd::Error,
     },
+
+    #[snafu(display("Failed to update status for application {name:?}"))]
+    ApplySparkApplicationStatus {
+        source: stackable_operator::client::Error,
+        name: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -169,6 +175,14 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     tracing::info!("Starting reconcile");
 
     let client = &ctx.client;
+
+    if spark_application.k8s_job_has_been_created() {
+        tracing::info!(
+            spark_application = spark_application.name_any(),
+            "Skipped reconciling SparkApplication with non empty status"
+        );
+        return Ok(Action::await_change());
+    }
 
     let opt_s3conn = match spark_application.spec.s3connection.as_ref() {
         Some(s3bd) => s3bd
@@ -345,6 +359,22 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .apply_patch(CONTROLLER_NAME, &job, &job)
         .await
         .context(ApplyApplicationSnafu)?;
+
+    // Fix for #457
+    // Update the status of the SparkApplication immediately after creating the Job
+    // to ensure the Job is not created again after being recycled by Kubernetes.
+    client
+        .apply_patch_status(
+            CONTROLLER_NAME,
+            spark_application.as_ref(),
+            &SparkApplicationStatus {
+                phase: "Unknown".to_string(),
+            },
+        )
+        .await
+        .with_context(|_| ApplySparkApplicationStatusSnafu {
+            name: spark_application.name_any(),
+        })?;
 
     Ok(Action::await_change())
 }

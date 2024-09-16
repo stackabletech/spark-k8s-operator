@@ -175,7 +175,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 
     let client = &ctx.client;
 
-    if spark_application.status.is_some() {
+    if spark_application.k8s_job_has_been_created() {
         tracing::info!(
             spark_application = spark_application.name_any(),
             "Skipped reconciling SparkApplication with non empty status"

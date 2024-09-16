@@ -4,14 +4,41 @@ name: pre-commit
 on:
   pull_request:
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN_VERSION: "1.80.1"
+  HADOLINT_VERSION: "v2.12.0"
+
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
         with:
           python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN_VERSION }}
+          components: rustfmt,clippy
+      - name: Setup Hadolint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LOCATION_DIR="$HOME/.local/bin"
+          LOCATION_BIN="$LOCATION_DIR/hadolint"
+
+          SYSTEM=$(uname -s)
+          ARCH=$(uname -m)
+
+          mkdir -p "$LOCATION_DIR"
+          curl -sL -o "${LOCATION_BIN}" "https://github.com/hadolint/hadolint/releases/download/${{ env.HADOLINT_VERSION }}/hadolint-$SYSTEM-$ARCH"
+          chmod 700 "${LOCATION_BIN}"
+
+          echo "$LOCATION_DIR" >> "$GITHUB_PATH"
       - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
         with:
-          extra_args: "" # Disable --all-files until we have time to fix druid/stackable/bin/run-druid
+          extra_args: "--from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}"

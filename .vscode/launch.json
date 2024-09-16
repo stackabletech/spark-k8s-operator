@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug operator binary",
+            "cargo": {
+                "args": ["build"],
+                "filter": {
+                    "name": "stackable-{[ operator.name }]",
+                    "kind": "bin"
+                }
+            },
+            "args": ["run"],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

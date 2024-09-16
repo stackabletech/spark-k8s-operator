@@ -175,8 +175,6 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
 
     let client = &ctx.client;
 
-    // Fix for #457
-    // Skip reconcyling the SparkApplication if it has a non empty status.
     if spark_application.status.is_some() {
         tracing::info!(
             spark_application = spark_application.name_any(),

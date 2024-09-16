@@ -57,7 +57,7 @@ executor:
 volumes:
   - name: hdfs-config <4>
     configMap:
-      name: hdfs 
+      name: hdfs
   - name: kerberos
     ephemeral:
       volumeClaimTemplate:

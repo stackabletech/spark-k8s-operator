@@ -179,8 +179,8 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     // Skip reconcyling the SparkApplication if it has a non empty status.
     if spark_application.status.is_some() {
         tracing::info!(
-            "Skip reconciling SparkApplication [{}] with non empty status",
-            spark_application.name_any()
+            spark_application = spark_application.name_any(),
+            "Skipped reconciling SparkApplication with non empty status"
         );
         return Ok(Action::await_change());
     }

@@ -1,4 +1,5 @@
 = Examples
+:description: Explore Spark job examples with various setups for PySpark and Scala, including external datasets, PVC mounts, and S3 access configurations.
 
 The following examples have the following `spec` fields in common:
 

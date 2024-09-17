@@ -1,4 +1,5 @@
 = Job Dependencies
+:description: Learn how to provision dependencies for Spark jobs using custom images, volumes, Maven packages, or Python packages, and their trade-offs.
 :page-aliases: job_dependencies.adoc
 
 == Overview

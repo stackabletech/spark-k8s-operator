@@ -1,20 +1,20 @@
 = Installation
+:description: Learn how to set up Spark with the Stackable Operator, from installation to running your first job, including prerequisites and resource recommendations.
 
 On this page you will install the Stackable Spark-on-Kubernetes operator as well as the commons, secret and listener operators
 which are required by all Stackable operators.
 
 == Dependencies
 
-Spark applications almost always require dependencies like database drivers, REST api clients and many others. These
-dependencies must be available on the `classpath` of each executor (and in some cases of the driver, too). There are
-multiple ways to provision Spark jobs with such dependencies: some are built into Spark itself while others are
-implemented at the operator level. In this guide we are going to keep things simple and look at executing a Spark job
-that has a minimum of dependencies.
+Spark applications almost always require dependencies like database drivers, REST api clients and many others.
+These dependencies must be available on the `classpath` of each executor (and in some cases of the driver, too).
+There are multiple ways to provision Spark jobs with such dependencies: some are built into Spark itself while others are implemented at the operator level.
+In this guide we are going to keep things simple and look at executing a Spark job that has a minimum of dependencies.
 
 More information about the different ways to define Spark jobs and their dependencies is given on the following pages:
 
-- xref:usage-guide/index.adoc[]
-- xref:job_dependencies.adoc[]
+* xref:usage-guide/index.adoc[]
+* xref:job_dependencies.adoc[]
 
 == Stackable Operators
 
@@ -25,8 +25,8 @@ There are 2 ways to install Stackable operators
 
 === stackablectl
 
-`stackablectl` is the command line tool to interact with Stackable operators and our recommended way to install
-Operators. Follow the xref:management:stackablectl:installation.adoc[installation steps] for your platform.
+`stackablectl` is the command line tool to interact with Stackable operators and our recommended way to install Operators.
+Follow the xref:management:stackablectl:installation.adoc[installation steps] for your platform.
 
 After you have installed `stackablectl` run the following command to install the Spark-k8s operator:
 
@@ -42,12 +42,13 @@ The tool will show
 include::example$getting_started/install_output.txt[]
 ----
 
-TIP: Consult the xref:management:stackablectl:quickstart.adoc[] to learn more about how to use stackablectl. For
-example, you can use the `--cluster kind` flag to create a Kubernetes cluster with link:https://kind.sigs.k8s.io/[kind].
+TIP: Consult the xref:management:stackablectl:quickstart.adoc[] to learn more about how to use stackablectl.
+For example, you can use the `--cluster kind` flag to create a Kubernetes cluster with link:https://kind.sigs.k8s.io/[kind].
 
 === Helm
 
-You can also use Helm to install the operator. Add the Stackable Helm repository:
+You can also use Helm to install the operator.
+Add the Stackable Helm repository:
 [source,bash]
 ----
 include::example$getting_started/getting_started.sh[tag=helm-add-repo]
@@ -59,8 +60,8 @@ Then install the Stackable Operators:
 include::example$getting_started/getting_started.sh[tag=helm-install-operators]
 ----
 
-Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for the `SparkApplication` (as well as the
-CRDs for the required operators). You are now ready to create a Spark job.
+Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for the SparkApplication (as well as the CRDs for the required operators).
+You are now ready to create a Spark job.
 
 == What's next
 

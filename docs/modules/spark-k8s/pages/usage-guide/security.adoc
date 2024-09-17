@@ -1,4 +1,5 @@
 = Security
+:description: Learn how to configure Apache Spark applications with Kerberos authentication using Stackable Secret Operator for secure data access in HDFS.
 
 == Authentication
 
@@ -56,7 +57,7 @@ executor:
 volumes:
   - name: hdfs-config <4>
     configMap:
-      name: hdfs 
+      name: hdfs
   - name: kerberos
     ephemeral:
       volumeClaimTemplate:
@@ -94,4 +95,3 @@ sparkConf:
 ----
 <1> Location of the keytab file.
 <2> Principal name. This needs to have the format `<SERVICE_NAME>.default.svc.cluster.local@<REALM>` where `SERVICE_NAME` matches the volume claim annotation `secrets.stackable.tech/kerberos.service.names` and `REALM` must be `CLUSTER.LOCAL` unless a different realm was used explicitly. In that case, the `KERBEROS_REALM` environment variable must also be set accordingly.
-

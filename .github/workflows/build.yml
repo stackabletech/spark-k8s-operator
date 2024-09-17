@@ -88,18 +88,18 @@ jobs:
           TRIGGER: ${{ github.event_name }}
           GITHUB_REF: ${{ github.ref }}
         run: |
-          if [[ $TRIGGER == "pull_request" ]]; then
+          if [[ "$TRIGGER" == "pull_request" ]]; then
             echo "exporting test as target helm repo: ${{ env.TEST_REPO_HELM_URL }}"
-            echo "helm_repo=${{ env.TEST_REPO_HELM_URL }}" >> $GITHUB_OUTPUT
-          elif [[ ( $TRIGGER == "push" || $TRIGGER == "schedule" || $TRIGGER == "workflow_dispatch" ) && $GITHUB_REF == "refs/heads/main" ]]; then
+            echo "helm_repo=${{ env.TEST_REPO_HELM_URL }}" >> "$GITHUB_OUTPUT"
+          elif [[ ( "$TRIGGER" == "push" || "$TRIGGER" == "schedule" || "$TRIGGER" == "workflow_dispatch" ) && "$GITHUB_REF" == "refs/heads/main" ]]; then
             echo "exporting dev as target helm repo: ${{ env.DEV_REPO_HELM_URL }}"
-            echo "helm_repo=${{ env.DEV_REPO_HELM_URL }}" >> $GITHUB_OUTPUT
-          elif [[ $TRIGGER == "push" && $GITHUB_REF == refs/tags/* ]]; then
+            echo "helm_repo=${{ env.DEV_REPO_HELM_URL }}" >> "$GITHUB_OUTPUT"
+          elif [[ "$TRIGGER" == "push" && $GITHUB_REF == refs/tags/* ]]; then
             echo "exporting stable as target helm repo: ${{ env.STABLE_REPO_HELM_URL }}"
-            echo "helm_repo=${{ env.STABLE_REPO_HELM_URL }}" >> $GITHUB_OUTPUT
+            echo "helm_repo=${{ env.STABLE_REPO_HELM_URL }}" >> "$GITHUB_OUTPUT"
           else
             echo "Unknown trigger and ref combination encountered, skipping publish step: $TRIGGER $GITHUB_REF"
-            echo "helm_repo=skip" >> $GITHUB_OUTPUT
+            echo "helm_repo=skip" >> "$GITHUB_OUTPUT"
           fi
 
   run_cargodeny:
@@ -379,7 +379,7 @@ jobs:
       - id: printtag
         name: Output image name and tag
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: echo "IMAGE_TAG=$(make -e print-docker-tag)" >> $GITHUB_OUTPUT
+        run: echo "IMAGE_TAG=$(make -e print-docker-tag)" >> "$GITHUB_OUTPUT"
 
   create_manifest_list:
     name: Build and publish manifest list
@@ -437,4 +437,4 @@ jobs:
           ARCH_FOR_PREFLIGHT="$(arch | sed -e 's#x86_64#amd64#' | sed -e 's#aarch64#arm64#')"
           ./preflight-linux-amd64 check container "$IMAGE_TAG" --platform "${ARCH_FOR_PREFLIGHT}" > preflight.out
       - name: "Passed?"
-        run: '[ "$(cat preflight.out | jq -r .passed)" == true ]'
+        run: '[ "$(jq -r .passed < preflight.out)" == true ]'

@@ -66,13 +66,13 @@ repos:
       - id: regenerate-charts
         name: regenerate-charts
         language: system
-        entry: make regenerate-charts
+        entry: nix-shell --run 'make regenerate-charts'
         stages: [commit, merge-commit, manual]
         pass_filenames: false
 
       - id: cargo-test
         name: cargo-test
         language: system
-        entry: cargo test
+        entry: nix-shell --run 'cargo test'
         stages: [commit, merge-commit, manual]
         pass_filenames: false

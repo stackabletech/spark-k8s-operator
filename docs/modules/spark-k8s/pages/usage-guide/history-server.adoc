@@ -23,7 +23,7 @@ include::example$example-history-server.yaml[]
 <2> Directory within the S3 bucket where the log files are located.
     This directory is required and must exist before setting up the history server.
 <3> The S3 bucket definition, here provided in-line.
-<4> Additional history server configuration properties can be provided here as a map. 
+<4> Additional history server configuration properties can be provided here as a map.
     For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
 <5> This deployment has only one Pod.
     Multiple history servers can be started, all reading the same event logs by increasing the replica count.

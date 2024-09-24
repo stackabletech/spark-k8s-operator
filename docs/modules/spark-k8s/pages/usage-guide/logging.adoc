@@ -1,6 +1,8 @@
 = Logging
 
-The Spark operator installs a https://vector.dev/docs/setup/deployment/roles/#agent[vector agent] as a side-car container in every application Pod except the `job` Pod that runs `spark-submit`. It also configures the logging framework to output logs in XML format. This is the same https://logging.apache.org/log4j/2.x/manual/layouts.html#XMLLayout[format] used across all Stackable products and it enables the https://vector.dev/docs/setup/deployment/roles/#aggregator[vector aggregator] to collect logs across the entire platform.
+The Spark operator installs a https://vector.dev/docs/setup/deployment/roles/#agent[vector agent] as a side-car container in every application Pod except the `job` Pod that runs `spark-submit`.
+It also configures the logging framework to output logs in XML format.
+This is the same https://logging.apache.org/log4j/2.x/manual/layouts.html#XMLLayout[format] used across all Stackable products and it enables the https://vector.dev/docs/setup/deployment/roles/#aggregator[vector aggregator] to collect logs across the entire platform.
 
 It is the user's responsibility to install and configure the vector aggregator, but the agents can discover the aggregator automatically using a discovery ConfigMap as described in the xref:concepts:logging.adoc[logging concepts].
 
@@ -35,12 +37,12 @@ spec:
                     level: INFO
 ...
 ----
-<1> Name of a ConfigMap that referenced the vector aggregator. See example below.
+<1> Name of a ConfigMap that referenced the vector aggregator.
+    See example below.
 <2> Enable the vector agent in the history pod.
 <3> Configure log levels for file and console outputs.
 
-Example vector aggregator configuration.
-
+.Example vector aggregator configuration
 [source,yaml]
 ----
 ---

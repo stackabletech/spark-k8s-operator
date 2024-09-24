@@ -2,10 +2,8 @@
 :description: Set up Spark History Server on Kubernetes to access Spark logs via S3, with configuration for cleanups and web UI access details.
 :page-aliases: history_server.adoc
 
-== Overview
-
 The Stackable Spark-on-Kubernetes operator runs Apache Spark workloads in a Kubernetes cluster, whereby driver- and executor-pods are created for the duration of the job and then terminated.
-One or more Spark History Server instances can be deployed independently of SparkApplication jobs and used as an end-point for spark logging, so that job information can be viewed once the job pods are no longer available.
+One or more Spark History Server instances can be deployed independently of SparkApplication jobs and used as an endpoint for Spark logging, so that job information can be viewed once the job pods are no longer available.
 
 == Deployment
 
@@ -14,25 +12,30 @@ The event logs are loaded from an S3 bucket named `spark-logs` and the folder `e
 The credentials for this bucket are provided by the secret class `s3-credentials-class`.
 For more details on how the Stackable Data Platform manages S3 resources see the xref:concepts:s3.adoc[S3 resources] page.
 
-
 [source,yaml]
 ----
 include::example$example-history-server.yaml[]
 ----
 
-<1> The location of the event logs. Must be a S3 bucket. Future implementations might add support for other shared filesystems such as HDFS.
-<2> Folder within the S3 bucket where the log files are located. This folder is required and must exist before setting up the history server.
+<1> The location of the event logs.
+    Must be an S3 bucket.
+    Future implementations might add support for other shared filesystems such as HDFS.
+<2> Directory within the S3 bucket where the log files are located.
+    This directory is required and must exist before setting up the history server.
 <3> The S3 bucket definition, here provided in-line.
-<4> Additional history server configuration properties can be provided here as a map. For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
-<5> This deployment has only one Pod. Multiple history servers can be started, all reading the same event logs by increasing the replica count.
-<6> This history server will automatically clean up old log files by using default properties. You can change any of these by using the `sparkConf` map.
+<4> Additional history server configuration properties can be provided here as a map. 
+    For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
+<5> This deployment has only one Pod.
+    Multiple history servers can be started, all reading the same event logs by increasing the replica count.
+<6> This history server automatically cleans up old log files by using default properties.
+    Change any of these by using the `sparkConf` map.
 
 NOTE: Only one role group can have scheduled cleanups enabled (`cleaner: true`) and this role group cannot have more than 1 replica.
 
 The secret with S3 credentials must contain at least the following two keys:
 
-* `accessKey` - the access key of a user with read and write access to the event log bucket.
-* `secretKey` - the secret key of a user with read and write access to the event log bucket.
+* `accessKey` -- the access key of a user with read and write access to the event log bucket.
+* `secretKey` -- the secret key of a user with read and write access to the event log bucket.
 
 Any other entries of the Secret are ignored by the operator.
 

@@ -2,6 +2,7 @@
 :description: Learn how to configure S3 access in SparkApplications using inline credentials or external resources, including TLS for secure connections.
 
 You can specify S3 connection details directly inside the SparkApplication specification or by referring to an external S3Bucket custom resource.
+Refer to the xref:concepts:s3.adoc[S3 concept documentation] for general information about S3 resources on the Stackable Data Platform.
 
 == S3 access using credentials
 
@@ -20,7 +21,7 @@ s3connection: # <1>
 <1> Entry point for the S3 connection configuration.
 <2> Connection host.
 <3> Optional connection port.
-<4> Name of the `Secret` object expected to contain the following keys: `accessKey` and `secretKey`
+<4> Name of the Secret object expected to contain the following keys: `accessKey` and `secretKey`.
 
 It is also possible to configure the  connection details as a separate Kubernetes resource and only refer to that object from the SparkApplication like this:
 
@@ -52,7 +53,8 @@ This has the advantage that one connection configuration can be shared across Sp
 
 == S3 access with TLS
 
-A custom certificate can also be used for S3 access. In the example below, a Secret containing a custom certificate is referenced, which will used a to create a custom truststore which is used by Spark for S3-bucket access:
+A custom certificate can be used for S3 access.
+In the example below, a Secret containing a custom certificate is referenced, which is used to create a custom truststore for Spark to access the S3 bucket:
 
 [source,yaml]
 ----
@@ -73,8 +75,9 @@ spec:
         caCert:
           secretClass: minio-tls-certificates  # <2>
 ----
-<1> Name of the `Secret` object expected to contain the following keys: `accessKey` and `secretKey` (as in the previous example).
-<2> Name of the `Secret` object containing the custom certificate. The certificate should comprise the 3 files named as shown below:
+<1> Name of the Secret object expected to contain the following keys: `accessKey` and `secretKey` (as in the previous example).
+<2> Name of the Secret object containing the custom certificate.
+    The certificate should comprise the 3 files named as shown below:
 
 [source,yaml]
 ----

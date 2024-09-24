@@ -4,7 +4,8 @@
 The following examples have the following `spec` fields in common:
 
 * `version`: the current version is "1.0"
-* `sparkImage`: the docker image that will be used by job, driver and executor pods. This can be provided by the user.
+* `sparkImage`: the docker image that is used by job, driver and executor pods.
+  This can be provided by the user.
 * `mode`: only `cluster` is currently supported
 * `mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
 * `args`: these are the arguments passed directly to the application. In the examples below it is e.g. the input path for part of the public New York taxi dataset.
@@ -22,10 +23,10 @@ Job-specific settings are annotated below.
 include::example$example-sparkapp-image.yaml[]
 ----
 
-<1> Job image: this contains the job artifact that will be retrieved from the volume mount backed by the PVC
+<1> Job image: this contains the job artifact that is retrieved from the volume mount backed by the PVC
 <2> Job python artifact (local)
 <3> Job argument (external)
-<4> List of python job requirements: these will be installed in the pods via `pip`
+<4> List of python job requirements: these are installed in the Pods via `pip`.
 <5> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in an S3 store)
 
 == JVM (Scala): externally located artifact and dataset
@@ -34,7 +35,6 @@ include::example$example-sparkapp-image.yaml[]
 ----
 include::example$example-sparkapp-pvc.yaml[]
 ----
-
 <1> Job artifact located on S3.
 <2> Job main class
 <3> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in an S3 store, accessed without credentials)
@@ -70,5 +70,5 @@ include::example$example-sparkapp-configmap.yaml[]
 <3> Job scala artifact that requires an input argument
 <4> The volume backed by the configuration map
 <5> The expected job argument, accessed via the mounted configuration map file
-<6> The name of the volume backed by the configuration map that will be mounted to the driver/executor
-<7> The mount location of the volume (this will contain a file `/arguments/job-args.txt`)
+<6> The name of the volume backed by the configuration map that is mounted to the driver/executor
+<7> The mount location of the volume (this contains a file `/arguments/job-args.txt`)

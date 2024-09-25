@@ -12,5 +12,11 @@ releases:
         operatorVersion: 0.0.0-dev
       listener:
         operatorVersion: 0.0.0-dev
+      zookeeper:
+        operatorVersion: 0.0.0-dev
+      hdfs:
+        operatorVersion: 0.0.0-dev
+      hbase:
+        operatorVersion: 0.0.0-dev
       spark-k8s:
         operatorVersion: 0.0.0-dev

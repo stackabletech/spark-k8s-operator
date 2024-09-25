@@ -1,0 +1,104 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: test-spark-hbase-connector
+spec:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    # pullPolicy: IfNotPresent
+    pullPolicy: Always
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/jobs/test-hbase.py
+  sparkConf:
+    spark.driver.extraClassPath: /stackable/spark/config
+    spark.executor.extraClassPath: /stackable/spark/config
+  driver:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: script
+          mountPath: /stackable/spark/jobs
+        - name: hbase-config
+          mountPath: /stackable/spark/config/hbase-site.xml
+          subPath: hbase-site.xml
+        - name: hdfs-config
+          mountPath: /stackable/spark/config/hdfs-site.xml
+          subPath: hdfs-site.xml
+        - name: hdfs-config
+          mountPath: /stackable/spark/config/core-site.xml
+          subPath: core-site.xml
+  executor:
+    replicas: 1
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: script
+          mountPath: /stackable/spark/jobs
+        - name: hbase-config
+          mountPath: /stackable/spark/config/hbase-site.xml
+          subPath: hbase-site.xml
+        - name: hdfs-config
+          mountPath: /stackable/spark/config/hdfs-site.xml
+          subPath: hdfs-site.xml
+        - name: hdfs-config
+          mountPath: /stackable/spark/config/core-site.xml
+          subPath: core-site.xml
+  volumes:
+    - name: script
+      configMap:
+        name: test-hbase
+    - name: hbase-config
+      configMap:
+        name: test-hbase
+    - name: hdfs-config
+      configMap:
+        name: test-hdfs
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-hbase
+data:
+  test-hbase.py: |
+    import os
+    from pyspark.sql import SparkSession
+    from pyspark.sql.types import *
+
+    spark = SparkSession.builder.appName("test-hbase").getOrCreate()
+
+    df = spark.createDataFrame(
+      [("row1", "Hello, Stackable!")],
+      "key: string, value: string"
+    )
+
+    spark._jvm.org.apache.hadoop.hbase.spark.HBaseContext(
+      spark._jsc.sc(),
+      spark._jvm.org.apache.hadoop.hbase.HBaseConfiguration.create(),
+      None,
+    )
+
+    catalog = '{\
+    "table":{"namespace":"default","name":"test-hbase"},\
+    "rowkey":"key",\
+    "columns":{\
+    "key":{"cf":"rowkey","col":"key","type":"string"},\
+    "value":{"cf":"cf1","col":"value","type":"string"}\
+    }}'
+
+    df\
+      .write\
+      .format("org.apache.hadoop.hbase.spark")\
+      .option('catalog', catalog)\
+      .option('newtable', '5')\
+      .save()

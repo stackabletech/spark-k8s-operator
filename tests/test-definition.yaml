@@ -5,8 +5,10 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.5.1
-      - 3.5.2
+      # - 3.5.1
+      # - 3.5.2
+      - 3.5.1,docker.stackable.tech/sandbox/sigi/spark-hbase-connector/stackable/spark-k8s:3.5.1-stackable0.0.0-dev
+      - 3.5.2,docker.stackable.tech/sandbox/sigi/spark-hbase-connector/stackable/spark-k8s:3.5.2-stackable0.0.0-dev
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 3.5.1,docker.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev
@@ -14,6 +16,16 @@ dimensions:
     values:
       - 3.5.2
       # - 3.5.1,docker.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev
+  - name: hbase
+    values:
+      - 2.6.0
+      - 2.4.18
+  - name: hdfs-latest
+    values:
+      - 3.4.0
+  - name: zookeeper-latest
+    values:
+      - 3.9.2
   - name: ny-tlc-report
     values:
       - 0.2.0
@@ -82,6 +94,13 @@ tests:
     dimensions:
       - spark-delta-lake
       - delta
+      - openshift
+  - name: hbase-connector
+    dimensions:
+      - spark
+      - hbase
+      - hdfs-latest
+      - zookeeper-latest
       - openshift
 suites:
   - name: nightly

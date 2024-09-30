@@ -19,7 +19,7 @@ More information about the different ways to define Spark jobs and their depende
 == Stackable Operators
 
 There are multiple ways to install the Stackable Operator for Apache Spark.
-xref:management:stackablectl:index.adoc[] is the preferred way but Helm is also supported.
+xref:management:stackablectl:index.adoc[] is the preferred way, but Helm is also supported.
 OpenShift users may prefer installing the operator from the RedHat Certified Operator catalog using the OpenShift web console.
 
 [tabs]

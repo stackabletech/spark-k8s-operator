@@ -10,7 +10,7 @@ This operator accepts the following command line parameters:
 
 *Multiple values:* false
 
-The operator will **only** watch for resources in the provided namespace `test`:
+The operator **only** watches for resources in the provided namespace `test`:
 
 [source]
 ----

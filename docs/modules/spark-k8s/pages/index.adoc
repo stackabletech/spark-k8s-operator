@@ -22,7 +22,7 @@ Its in-memory processing and fault-tolerant architecture make it ideal for a var
 == Getting started
 
 Follow the xref:getting_started/index.adoc[] guide to get started with Apache Spark using the Stackable operator.
-The guide will lead you through the installation of the operator and running your first Spark application on Kubernetes.
+The guide leads you through the installation of the operator and running your first Spark application on Kubernetes.
 
 == How the operator works
 
@@ -62,7 +62,7 @@ A ConfigMap supplies the necessary configuration, and there is a service to conn
 The {spark-rbac}[Spark-Kubernetes RBAC documentation] describes what is needed for `spark-submit` jobs to run successfully:
 minimally a role/cluster-role to allow the driver pod to create and manage executor pods.
 
-However, to add security each `spark-submit` job launched by the operator will be assigned its own ServiceAccount.
+However, to add security each `spark-submit` job launched by the operator is assigned its own ServiceAccount.
 
 During the operator installation, a cluster role named `spark-k8s-clusterrole` is created with pre-defined permissions.
 

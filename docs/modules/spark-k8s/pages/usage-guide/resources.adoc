@@ -58,7 +58,7 @@ To illustrate resource configuration consider the use-case where resources are d
 
 === CPU
 
-CPU request and limit will be used as defined in the custom resource resulting in the following:
+CPU request and limit are used as defined in the custom resource resulting in the following:
 
 
 |===
@@ -87,7 +87,10 @@ Task parallelism (the number of tasks an executor can run concurrently), is dete
 
 === Memory
 
-Memory values are not rounded as is the case with CPU. Values for `spark.{driver|executor}.memory}` - this is the amount of memory to use for the driver process (i.e. where SparkContext is initialized) and executor processes respectively - are passed to Spark in such as a way that the overheads added by Spark are already implicitly declared: this overhead will be applied using a factor of 0.1 (JVM jobs) or 0.4 (non-JVM jobs), being not less than 384MB, the minimum overhead applied by Spark. Once the overhead is applied, the effective value is the one defined by the user. This keeps the values transparent: what is defined in the CRD is what is actually provisioned for the process.
+Memory values are not rounded as is the case with CPU.
+Values for `spark.{driver|executor}.memory}` -- this is the amount of memory to use for the driver process (i.e. where SparkContext is initialized) and executor processes respectively -- are passed to Spark in such as a way that the overheads added by Spark are already implicitly declared: this overhead is applied using a factor of 0.1 (JVM jobs) or 0.4 (non-JVM jobs), being not less than 384MB, the minimum overhead applied by Spark.
+Once the overhead is applied, the effective value is the one defined by the user.
+This keeps the values transparent: what is defined in the CRD is what is actually provisioned for the process.
 
 An alternative is to do define the spark.conf settings explicitly and then let Spark apply the overheads to those values.
 
@@ -125,7 +128,7 @@ A SparkApplication defines the following resources:
     ...
 ----
 
-This will result in the following Pod definitions:
+This results in the following Pod definitions:
 
 For the job:
 

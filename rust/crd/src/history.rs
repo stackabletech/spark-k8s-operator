@@ -5,8 +5,6 @@ use crate::{affinity::history_affinity, constants::*};
 use product_config::{types::PropertyNameKind, ProductConfigManager};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::k8s_openapi::api::core::v1::EnvVar;
-use stackable_operator::role_utils::RoleGroup;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -15,22 +13,20 @@ use stackable_operator::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             Resources, ResourcesFragment,
         },
-        s3::S3BucketDef,
+        s3::S3BucketInlineOrReference,
     },
     config::{
-        fragment,
-        fragment::{Fragment, ValidationError},
+        fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::CustomResource,
-    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
+    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
     product_config_utils::{
         transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
         ValidatedRoleConfigByPropertyKind,
     },
     product_logging::{self, spec::Logging},
-    role_utils::{Role, RoleGroupRef},
+    role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
 };
 use std::collections::{BTreeMap, HashMap};
@@ -338,7 +334,7 @@ pub enum LogFileDirectorySpec {
 #[serde(rename_all = "camelCase")]
 pub struct S3LogFileDirectorySpec {
     pub prefix: String,
-    pub bucket: S3BucketDef,
+    pub bucket: S3BucketInlineOrReference,
 }
 
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -461,7 +457,10 @@ impl Configuration for HistoryConfigFragment {
 mod test {
     use super::*;
     use indoc::indoc;
-    use stackable_operator::commons::s3::InlinedS3BucketSpec;
+    use stackable_operator::commons::{
+        s3::{ResolvedS3Bucket, ResolvedS3Connection},
+        tls_verification::TlsClientDetails,
+    };
 
     #[test]
     pub fn test_env_overrides() {
@@ -496,9 +495,15 @@ mod test {
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
         let s3_log_dir: S3LogDir = S3LogDir {
-            bucket: InlinedS3BucketSpec {
-                bucket_name: None,
-                connection: None,
+            bucket: ResolvedS3Bucket {
+                bucket_name: "my-bucket".to_string(),
+                connection: ResolvedS3Connection {
+                    host: "my-s3".to_string().try_into().unwrap(),
+                    port: None,
+                    access_style: Default::default(),
+                    credentials: None,
+                    tls: TlsClientDetails { tls: None },
+                },
             },
             prefix: "prefix".to_string(),
         };

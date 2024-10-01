@@ -158,7 +158,11 @@ impl S3LogDir {
     }
 
     fn url(&self) -> String {
-        format!("s3a://{}/{}", self.bucket.bucket_name, self.prefix)
+        format!(
+            "s3a://{bucket_name}/{prefix}",
+            bucket_name = self.bucket.bucket_name,
+            prefix = self.prefix
+        );
     }
 
     pub fn volumes(&self) -> Result<Vec<Volume>, Error> {

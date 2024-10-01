@@ -162,7 +162,7 @@ impl S3LogDir {
             "s3a://{bucket_name}/{prefix}",
             bucket_name = self.bucket.bucket_name,
             prefix = self.prefix
-        );
+        )
     }
 
     pub fn volumes(&self) -> Result<Vec<Volume>, Error> {

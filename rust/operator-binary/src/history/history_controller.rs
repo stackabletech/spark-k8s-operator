@@ -35,7 +35,7 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
     time::Duration,
 };
-use stackable_spark_k8s_crd::constants::METRICS_PORT;
+use stackable_spark_k8s_crd::constants::{METRICS_PORT, SPARK_ENV_SH_FILE_NAME};
 use stackable_spark_k8s_crd::{
     constants::{
         ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
@@ -48,7 +48,7 @@ use stackable_spark_k8s_crd::{
     history,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
     s3logdir::S3LogDir,
-    tlscerts,
+    tlscerts, to_spark_env_sh_string,
 };
 use std::collections::HashMap;
 use std::{collections::BTreeMap, sync::Arc};
@@ -350,6 +350,16 @@ fn build_config_map(
                 .build(),
         )
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
+        .add_data(
+            SPARK_ENV_SH_FILE_NAME,
+            to_spark_env_sh_string(
+                config
+                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
+                    .cloned()
+                    .unwrap_or_default()
+                    .iter(),
+            ),
+        )
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
             to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {

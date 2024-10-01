@@ -814,6 +814,7 @@ impl SparkApplication {
             (
                 vec![
                     PropertyNameKind::Env,
+                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
                     PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                 ],
                 Role {
@@ -836,6 +837,7 @@ impl SparkApplication {
             (
                 vec![
                     PropertyNameKind::Env,
+                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
                     PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                 ],
                 Role {
@@ -858,6 +860,7 @@ impl SparkApplication {
             (
                 vec![
                     PropertyNameKind::Env,
+                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
                     PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                 ],
                 Role {
@@ -1030,6 +1033,20 @@ fn resources_to_executor_props(
     }
 
     Ok(())
+}
+
+/// Create the content of the file spark-env.sh.
+/// The properties are serialized in the form 'export {k}="{v}"' without
+/// escaping neither the key nor the value. The user is responsible for
+/// providing escaped values.
+pub fn to_spark_env_sh_string<'a, T>(properties: T) -> String
+where
+    T: Iterator<Item = (&'a String, &'a String)>,
+{
+    properties
+        .map(|(k, v)| format!("export {k}=\"{v}\""))
+        .collect::<Vec<String>>()
+        .join("\n")
 }
 
 #[cfg(test)]

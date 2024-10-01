@@ -32,6 +32,11 @@ spec:
   job:
     envOverrides: &envOverrides
       TEST_SPARK_VAR_0: REPLACED
+    configOverrides:
+      security.properties:
+        test.job.securityProperties: test
+      spark-env.sh:
+        TEST_JOB_SPARK-ENV-SH: TEST
     podOverrides:
       spec:
         containers:
@@ -45,6 +50,11 @@ spec:
                 memory: 1024Mi
   driver:
     envOverrides: *envOverrides
+    configOverrides:
+      security.properties:
+        test.driver.securityProperties: test
+      spark-env.sh:
+        TEST_DRIVER_SPARK-ENV-SH: TEST
     podOverrides:
       spec:
         containers:
@@ -59,6 +69,11 @@ spec:
   executor:
     replicas: 1
     envOverrides: *envOverrides
+    configOverrides:
+      security.properties:
+        test.executor.securityProperties: test
+      spark-env.sh:
+        TEST_EXECUTOR_SPARK-ENV-SH: TEST
     podOverrides:
       spec:
         containers:

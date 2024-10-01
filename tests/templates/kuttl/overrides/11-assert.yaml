@@ -13,3 +13,36 @@ commands:
       POD=$(kubectl -n $NAMESPACE get pod -l app.kubernetes.io/instance=spark-pi-s3-1 -o name | head -n 1 | sed -e 's#pod/##')
       kubectl -n $NAMESPACE get pod $POD -o yaml | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_0").value' | grep 'REPLACED'
       kubectl -n $NAMESPACE get pod $POD -o yaml | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_1").value' | grep 'DONOTREPLACE'
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-pi-s3-1-submit-job
+data:
+  security.properties: |
+    networkaddress.cache.negative.ttl=0
+    networkaddress.cache.ttl=30
+    test.job.securityProperties=test
+  spark-env.sh: export TEST_JOB_SPARK-ENV-SH="TEST"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-pi-s3-1-driver-pod-template
+data:
+  security.properties: |
+    networkaddress.cache.negative.ttl=0
+    networkaddress.cache.ttl=30
+    test.driver.securityProperties=test
+  spark-env.sh: export TEST_DRIVER_SPARK-ENV-SH="TEST"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-pi-s3-1-executor-pod-template
+data:
+  security.properties: |
+    networkaddress.cache.negative.ttl=0
+    networkaddress.cache.ttl=30
+    test.executor.securityProperties=test
+  spark-env.sh: export TEST_EXECUTOR_SPARK-ENV-SH="TEST"

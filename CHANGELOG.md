@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Make spark-env.sh configurable via `configOverrides` ([#473]).
+
 ### Changed
 
 - Reduce CRD size from `1.2MB` to `103KB` by accepting arbitrary YAML input instead of the underlying schema for the following fields ([#450]):
@@ -26,6 +30,7 @@ All notable changes to this project will be documented in this file.
 [#451]: https://github.com/stackabletech/spark-k8s-operator/pull/451
 [#459]: https://github.com/stackabletech/spark-k8s-operator/pull/459
 [#460]: https://github.com/stackabletech/spark-k8s-operator/pull/460
+[#473]: https://github.com/stackabletech/spark-k8s-operator/pull/473
 
 ## [24.7.0] - 2024-07-24
 

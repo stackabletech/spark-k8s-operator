@@ -101,7 +101,7 @@ For details on the JVM security see https://docs.oracle.com/en/java/javase/11/se
 
 == Environment Variables
 
-In a similar fashion, environment variables can be (over)written. For example per role group:
+Similarly, environment variables can be (over)written. For example per role group:
 
 [source,yaml]
 ----

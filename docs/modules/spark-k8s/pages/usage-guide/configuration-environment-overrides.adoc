@@ -1,0 +1,132 @@
+= Configuration & Environment Overrides
+
+The cluster definition also supports overriding configuration properties and environment variables, either per role or per role group, where the more specific override (role group) has precedence over the less specific one (role).
+
+IMPORTANT: Overriding operator-set properties (such as the ports) can interfere with the operator and can lead to problems.
+
+
+== Configuration Properties
+
+For a role or role group, at the same level of `config`, you can specify `configOverrides` for the following files:
+
+* `spark-env.sh`
+* `security.properties`
+
+NOTE: `spark-defaults.conf` is not required here, because the properties defined in {crd-docs}/spark.stackable.tech/sparkhistoryserver/v1alpha1/#spec-sparkConf[`sparkConf` (SparkHistoryServer)] and {crd-docs}/spark.stackable.tech/sparkapplication/v1alpha1/#spec-sparkConf[`sparkConf` (SparkApplication)] are already added to this file.
+
+For example, if you want to set the `networkaddress.cache.ttl`, it can be configured in the SparkHistoryServer resource like so:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      configOverrides:
+        security.properties:
+          networkaddress.cache.ttl: "30"
+      replicas: 1
+----
+
+Just as for the `config`, it is possible to specify this at the role level as well:
+
+[source,yaml]
+----
+nodes:
+  configOverrides:
+    security.properties:
+      networkaddress.cache.ttl: "30"
+  roleGroups:
+    default:
+      replicas: 1
+----
+
+All override property values must be strings.
+
+The same applies to the `job`, `driver` and `executor` roles of the SparkApplication.
+
+=== The spark-env.sh file
+
+The `spark-env.sh` file is used to set environment variables.
+Usually, environment variables are configured in `envOverrides`, but `envOverrides` only allow to set static values.
+The values in `spark-env.sh` are evaluated by the shell.
+For instance, if a SAS token is stored in a Secret and should be used for the Spark History Server, this token could be first stored in an environment variable via `podOverrides` and then added to the `SPARK_HISTORY_OPTS`:
+
+[source,yaml]
+----
+podOverrides:
+  spec:
+    containers:
+    - name: spark-history
+      env:
+      - name: SAS_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: adls-spark-credentials
+            key: sas-token
+configOverrides:
+  spark-env.sh:
+    SPARK_HISTORY_OPTS: >-
+      $SPARK_HISTORY_OPTS
+      -Dspark.hadoop.fs.azure.sas.fixed.token.mystorageaccount.dfs.core.windows.net=$SAS_TOKEN
+----
+
+NOTE: The given properties are written to `spark-env.sh` in the form `export KEY="VALUE"`.
+Make sure to escape the value already in the specification.
+Be aware that some environment variables may already be set, so prepend or append a reference to them in the value, as it is done in the example.
+
+=== The security.properties file
+
+The `security.properties` file is used to configure JVM security properties.
+It is very seldom that users need to tweak any of these, but there is one use-case that stands out, and that users need to be aware of: the JVM DNS cache.
+
+The JVM manages its own cache of successfully resolved host names as well as a cache of host names that cannot be resolved.
+Some products of the Stackable platform are very sensible to the contents of these caches and their performance is heavily affected by them.
+As of version 3.4.0, Apache Spark may perform poorly if the positive cache is disabled.
+To cache resolved host names, and thus speeding up queries you can configure the TTL of entries in the positive cache like this:
+
+[source,yaml]
+----
+spec:
+  nodes:
+    configOverrides:
+      security.properties:
+        networkaddress.cache.ttl: "30"
+        networkaddress.cache.negative.ttl: "0"
+----
+
+NOTE: The operator configures DNS caching by default as shown in the example above.
+
+For details on the JVM security see https://docs.oracle.com/en/java/javase/11/security/java-security-overview1.html
+
+
+== Environment Variables
+
+In a similar fashion, environment variables can be (over)written. For example per role group:
+
+[source,yaml]
+----
+nodes:
+  roleGroups:
+    default:
+      envOverrides:
+        MY_ENV_VAR: "MY_VALUE"
+      replicas: 1
+----
+
+or per role:
+
+[source,yaml]
+----
+nodes:
+  envOverrides:
+    MY_ENV_VAR: "MY_VALUE"
+  roleGroups:
+    default:
+      replicas: 1
+----
+
+
+== Pod overrides
+
+The Spark operator also supports Pod overrides, allowing you to override any property that you can set on a Kubernetes Pod.
+Read the xref:concepts:overrides.adoc#pod-overrides[Pod overrides documentation] to learn more about this feature.

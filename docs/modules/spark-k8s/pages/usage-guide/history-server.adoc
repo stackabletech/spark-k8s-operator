@@ -74,32 +74,3 @@ spark-history-node-cleaner   NodePort    10.96.203.43    <none>        18080:325
 By setting up port forwarding on 18080 the UI can be opened by pointing your browser to `http://localhost:18080`:
 
 image::history-server-ui.png[History Server Console]
-
-== Configuration Properties
-
-For a role group of the Spark history server, you can specify: `configOverrides` for the following files:
-
-* `security.properties`
-
-=== The security.properties file
-
-The `security.properties` file is used to configure JVM security properties.
-It is very seldom that users need to tweak any of these, but there is one use-case that stands out, and that users need to be aware of: the JVM DNS cache.
-
-The JVM manages its own cache of successfully resolved host names as well as a cache of host names that cannot be resolved.
-Some products of the Stackable platform are very sensible to the contents of these caches and their performance is heavily affected by them.
-As of version 3.4.0, Apache Spark may perform poorly if the positive cache is disabled.
-To cache resolved host names, and thus speeding up queries you can configure the TTL of entries in the positive cache like this:
-
-[source,yaml]
-----
-  nodes:
-    configOverrides:
-      security.properties:
-        networkaddress.cache.ttl: "30"
-        networkaddress.cache.negative.ttl: "0"
-----
-
-NOTE: The operator configures DNS caching by default as shown in the example above.
-
-For details on the JVM security see https://docs.oracle.com/en/java/javase/11/security/java-security-overview1.html

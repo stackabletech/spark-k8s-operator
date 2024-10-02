@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- BREAKING: The fields `connection` and `host` on `S3Connection` as well as `bucketName` on `S3Bucket`are now mandatory ([#472]).
 - Fix `envOverrides` for SparkApplication and SparkHistoryServer ([#451]).
 - Ensure SparkApplications can only create a single submit Job. Fix for #457 ([#460]).
 
@@ -26,6 +27,7 @@ All notable changes to this project will be documented in this file.
 [#451]: https://github.com/stackabletech/spark-k8s-operator/pull/451
 [#459]: https://github.com/stackabletech/spark-k8s-operator/pull/459
 [#460]: https://github.com/stackabletech/spark-k8s-operator/pull/460
+[#472]: https://github.com/stackabletech/spark-k8s-operator/pull/472
 
 ## [24.7.0] - 2024-07-24
 

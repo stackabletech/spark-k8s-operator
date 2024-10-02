@@ -2,9 +2,9 @@ use crate::history::operations::pdb::add_pdbs;
 use crate::product_logging::{self, resolve_vector_aggregator_address};
 use crate::Ctx;
 use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
-use stackable_operator::kvp::{Label, Labels, ObjectLabels};
 use stackable_operator::{
     builder::{
+        self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{container::ContainerBuilder, volume::VolumeBuilder, PodBuilder},
@@ -25,8 +25,9 @@ use stackable_operator::{
         runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
     },
+    kvp::{Label, Labels, ObjectLabels},
     product_logging::{
-        framework::{calculate_log_volume_size_limit, vector_container},
+        framework::{calculate_log_volume_size_limit, vector_container, LoggingError},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -65,72 +66,94 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 pub enum Error {
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
+
     #[snafu(display("invalid config map {name}"))]
     InvalidConfigMap {
         source: stackable_operator::builder::configmap::Error,
         name: String,
     },
+
     #[snafu(display("invalid history container name"))]
     InvalidContainerName {
         source: stackable_operator::builder::pod::container::Error,
     },
+
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
     },
+
     #[snafu(display("failed to update the history server deployment"))]
     ApplyDeployment {
         source: stackable_operator::cluster_resources::Error,
     },
+
     #[snafu(display("failed to update history server config map"))]
     ApplyConfigMap {
         source: stackable_operator::cluster_resources::Error,
     },
+
     #[snafu(display("failed to update history server service"))]
     ApplyService {
         source: stackable_operator::cluster_resources::Error,
     },
+
     #[snafu(display("failed to apply role ServiceAccount"))]
     ApplyServiceAccount {
         source: stackable_operator::cluster_resources::Error,
     },
+
     #[snafu(display("failed to apply global RoleBinding"))]
     ApplyRoleBinding {
         source: stackable_operator::cluster_resources::Error,
     },
+
     #[snafu(display("product config validation failed"))]
     ProductConfigValidation {
         source: stackable_spark_k8s_crd::history::Error,
     },
+
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig {
         source: stackable_spark_k8s_crd::history::Error,
     },
+
     #[snafu(display("number of cleaner rolegroups exceeds 1"))]
     TooManyCleanerRoleGroups,
+
     #[snafu(display("number of cleaner replicas exceeds 1"))]
     TooManyCleanerReplicas,
-    #[snafu(display("failed to resolve the s3 log dir confirguration"))]
+
+    #[snafu(display("failed to resolve the s3 log dir configuration"))]
     S3LogDir {
         source: stackable_spark_k8s_crd::s3logdir::Error,
     },
+
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
         source: stackable_operator::cluster_resources::Error,
     },
+
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::cluster_resources::Error,
     },
+
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress { source: product_logging::Error },
+
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
         source: product_logging::Error,
         cm_name: String,
     },
+
+    #[snafu(display("failed to configure logging"))]
+    ConfigureLogging { source: LoggingError },
+
     #[snafu(display("cannot retrieve role group"))]
     CannotRetrieveRoleGroup { source: history::Error },
+
     #[snafu(display(
         "History server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
         rolegroup
@@ -139,6 +162,7 @@ pub enum Error {
         source: product_config::writer::PropertiesWriterError,
         rolegroup: String,
     },
+
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
         source: crate::history::operations::pdb::Error,
@@ -163,6 +187,14 @@ pub enum Error {
     #[snafu(display("failed to get create the S3 log dir"))]
     CreateS3LogDirVolumes {
         source: stackable_spark_k8s_crd::s3logdir::Error,
+    },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
     },
 }
 
@@ -417,11 +449,13 @@ fn build_stateful_set(
                 .with_config_map(rolegroupref.object_name())
                 .build(),
         )
+        .context(AddVolumeSnafu)?
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
                 .with_config_map(log_config_map)
                 .build(),
         )
+        .context(AddVolumeSnafu)?
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
                 .with_empty_dir(
@@ -430,7 +464,9 @@ fn build_stateful_set(
                 )
                 .build(),
         )
+        .context(AddVolumeSnafu)?
         .add_volumes(s3_log_dir.volumes().context(CreateS3LogDirVolumesSnafu)?)
+        .context(AddVolumeSnafu)?
         .security_context(PodSecurityContext {
             run_as_user: Some(SPARK_UID),
             run_as_group: Some(0),
@@ -455,28 +491,35 @@ fn build_stateful_set(
         .add_container_port("metrics", METRICS_PORT.into())
         .add_env_vars(merged_env)
         .add_volume_mounts(s3_log_dir.volume_mounts())
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+        .context(AddVolumeMountSnafu)?
         .build();
     pb.add_container(container);
 
     if config.logging.enable_vector_agent {
-        pb.add_container(vector_container(
-            resolved_product_image,
-            VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_LOG,
-            config
-                .logging
-                .containers
-                .get(&SparkHistoryServerContainer::Vector),
-            ResourceRequirementsBuilder::new()
-                .with_cpu_request("250m")
-                .with_cpu_limit("500m")
-                .with_memory_request("128Mi")
-                .with_memory_limit("128Mi")
-                .build(),
-        ));
+        pb.add_container(
+            vector_container(
+                resolved_product_image,
+                VOLUME_MOUNT_NAME_CONFIG,
+                VOLUME_MOUNT_NAME_LOG,
+                config
+                    .logging
+                    .containers
+                    .get(&SparkHistoryServerContainer::Vector),
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("500m")
+                    .with_memory_request("128Mi")
+                    .with_memory_limit("128Mi")
+                    .build(),
+            )
+            .context(ConfigureLoggingSnafu)?,
+        );
     }
 
     let mut pod_template = pb.build_template();
@@ -631,7 +674,9 @@ fn spark_defaults(
     s3_log_dir: &S3LogDir,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
 ) -> Result<String, Error> {
-    let mut log_dir_settings = s3_log_dir.history_server_spark_config();
+    let mut log_dir_settings = s3_log_dir
+        .history_server_spark_config()
+        .context(S3LogDirSnafu)?;
 
     // add cleaner spark settings if requested
     log_dir_settings.extend(cleaner_config(shs, rolegroupref)?);

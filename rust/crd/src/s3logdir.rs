@@ -12,26 +12,20 @@ use stackable_operator::{
         VolumeBuilder,
     },
     commons::{
-        authentication::tls::{CaCert, TlsVerification},
-        s3::{InlinedS3BucketSpec, S3AccessStyle},
+        s3::{ResolvedS3Bucket, S3AccessStyle, S3Error},
         secret_class::SecretClassVolume,
     },
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
 };
 use std::collections::BTreeMap;
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("s3 bucket error"))]
-    S3Bucket {
-        source: stackable_operator::commons::s3::Error,
-    },
-
     #[snafu(display("missing bucket name for history logs"))]
     BucketNameMissing,
 
@@ -50,10 +44,13 @@ pub enum Error {
     CredentialsVolumeBuild {
         source: stackable_operator::commons::secret_class::SecretClassVolumeError,
     },
+
+    #[snafu(display("failed to configure S3 connection/bucket"))]
+    ConfigureS3 { source: S3Error },
 }
 
 pub struct S3LogDir {
-    pub bucket: InlinedS3BucketSpec,
+    pub bucket: ResolvedS3Bucket,
     pub prefix: String,
 }
 
@@ -64,50 +61,34 @@ impl S3LogDir {
         client: &stackable_operator::client::Client,
     ) -> Result<Option<S3LogDir>, Error> {
         #[allow(irrefutable_let_patterns)]
-        let (s3bucket, prefix) =
-            if let Some(S3(S3LogFileDirectorySpec { bucket, prefix })) = log_file_dir {
-                (
-                    bucket
-                        .resolve(client, namespace.unwrap().as_str())
-                        .await
-                        .context(S3BucketSnafu)
-                        .ok(),
-                    prefix.clone(),
-                )
-            } else {
-                // !!!!!
-                // Ugliness alert!
-                // No point in trying to resolve the connection anymore since there is no
-                // log_file_dir in the first place.
-                // This can casually happen for Spark applications that don't use a history server
-                // !!!!!
-                return Ok(None);
-            };
+        let (bucket, prefix) = if let Some(S3(S3LogFileDirectorySpec {
+            bucket: bucket_def,
+            prefix,
+        })) = log_file_dir
+        {
+            (
+                bucket_def
+                    .clone()
+                    .resolve(client, namespace.unwrap().as_str())
+                    .await
+                    .context(ConfigureS3Snafu)?,
+                prefix.clone(),
+            )
+        } else {
+            // !!!!!
+            // Ugliness alert!
+            // No point in trying to resolve the connection anymore since there is no
+            // log_file_dir in the first place.
+            // This can casually happen for Spark applications that don't use a history server
+            // !!!!!
+            return Ok(None);
+        };
 
-        // Check that a bucket name has been defined
-        s3bucket
-            .as_ref()
-            .and_then(|i| i.bucket_name.as_ref())
-            .context(BucketNameMissingSnafu)?;
-
-        if let Some(conn) = s3bucket.as_ref().and_then(|i| i.connection.as_ref()) {
-            if let Some(tls) = &conn.tls {
-                match &tls.verification {
-                    TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                    TlsVerification::Server(server_verification) => {
-                        match &server_verification.ca_cert {
-                            CaCert::WebPki {} => {}
-                            CaCert::SecretClass(_) => {}
-                        }
-                    }
-                }
-            }
+        if bucket.connection.tls.uses_tls() && !bucket.connection.tls.uses_tls() {
+            return S3TlsNoVerificationNotSupportedSnafu.fail();
         }
 
-        Ok(Some(S3LogDir {
-            bucket: s3bucket.unwrap(),
-            prefix,
-        }))
+        Ok(Some(S3LogDir { bucket, prefix }))
     }
 
     /// Constructs the properties needed for loading event logs from S3.
@@ -120,78 +101,67 @@ impl S3LogDir {
     ///
     /// Instead, the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set
     /// on the container start command.
-    pub fn history_server_spark_config(&self) -> BTreeMap<String, String> {
-        let mut result = BTreeMap::new();
+    pub fn history_server_spark_config(&self) -> Result<BTreeMap<String, String>, Error> {
+        let connection = &self.bucket.connection;
 
-        result.insert("spark.history.fs.logDirectory".to_string(), self.url());
-
-        if let Some(endpoint) = self.bucket.endpoint() {
-            result.insert("spark.hadoop.fs.s3a.endpoint".to_string(), endpoint);
-        }
-
-        if let Some(conn) = self.bucket.connection.as_ref() {
-            if let Some(S3AccessStyle::Path) = conn.access_style {
-                result.insert(
-                    "spark.hadoop.fs.s3a.path.style.access".to_string(),
-                    "true".to_string(),
-                );
-            }
-        }
-
-        result
+        Ok(BTreeMap::from([
+            ("spark.history.fs.logDirectory".to_string(), self.url()),
+            (
+                "spark.hadoop.fs.s3a.endpoint".to_string(),
+                connection.endpoint().context(ConfigureS3Snafu)?.to_string(),
+            ),
+            (
+                "spark.hadoop.fs.s3a.path.style.access".to_string(),
+                (connection.access_style == S3AccessStyle::Path).to_string(),
+            ),
+        ]))
     }
 
-    pub fn application_spark_config(&self) -> BTreeMap<String, String> {
-        let mut result = BTreeMap::new();
-        result.insert("spark.eventLog.enabled".to_string(), "true".to_string());
-        result.insert("spark.eventLog.dir".to_string(), self.url());
+    pub fn application_spark_config(&self) -> Result<BTreeMap<String, String>, Error> {
+        let mut result = BTreeMap::from([
+            ("spark.eventLog.enabled".to_string(), "true".to_string()),
+            ("spark.eventLog.dir".to_string(), self.url()),
+        ]);
 
-        let bucket_name = self.bucket.bucket_name.as_ref().unwrap().clone();
-        if let Some(endpoint) = self.bucket.endpoint() {
+        let connection = &self.bucket.connection;
+        let bucket_name = &self.bucket.bucket_name;
+        result.insert(
+            format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.endpoint"),
+            connection.endpoint().context(ConfigureS3Snafu)?.to_string(),
+        );
+        result.insert(
+            format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.path.style.access"),
+            (connection.access_style == S3AccessStyle::Path).to_string(),
+        );
+        if let Some(secret_dir) = self.credentials_mount_path() {
+            // We don't use the credentials at all here but assume they are available
             result.insert(
-                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.endpoint"),
-                endpoint,
+                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.access.key"),
+                format!("\"$(cat {secret_dir}/{ACCESS_KEY_ID})\""),
+            );
+            result.insert(
+                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.secret.key"),
+                format!("\"$(cat {secret_dir}/{SECRET_ACCESS_KEY})\""),
+            );
+            result.insert(
+                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),
+                "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider".to_string(),
+            );
+        } else {
+            result.insert(
+                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),
+                "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider".to_string(),
             );
         }
 
-        if let Some(conn) = self.bucket.connection.as_ref() {
-            if let Some(S3AccessStyle::Path) = conn.access_style {
-                result.insert(
-                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.path.style.access"),
-                    "true".to_string(),
-                );
-            }
-
-            if let Some(secret_dir) = self.credentials_mount_path() {
-                // We don't use the credentials at all here but assume they are available
-                result.insert(
-                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.access.key"),
-                    format!("$(cat {secret_dir}/{ACCESS_KEY_ID})"),
-                );
-                result.insert(
-                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.secret.key"),
-                    format!("$(cat {secret_dir}/{SECRET_ACCESS_KEY})"),
-                );
-                result.insert(
-                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),
-                    "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider".to_string(),
-                );
-            } else {
-                result.insert(
-                    format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),
-                    "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider".to_string(),
-                );
-            }
-        }
-
-        result
+        Ok(result)
     }
 
     fn url(&self) -> String {
         format!(
-            "s3a://{}/{}",
-            self.bucket.bucket_name.as_ref().unwrap().clone(), // this is guaranteed to exist at this point
-            self.prefix
+            "s3a://{bucket_name}/{prefix}",
+            bucket_name = self.bucket.bucket_name,
+            prefix = self.prefix
         )
     }
 
@@ -251,10 +221,7 @@ impl S3LogDir {
     }
 
     pub fn credentials(&self) -> Option<SecretClassVolume> {
-        self.bucket
-            .connection
-            .as_ref()
-            .and_then(|conn| conn.credentials.clone())
+        self.bucket.connection.credentials.clone()
     }
 
     pub fn credentials_mount_path(&self) -> Option<String> {

@@ -1314,6 +1314,10 @@ mod tests {
             vec![
                 (PropertyNameKind::Env, BTreeMap::new()),
                 (
+                    PropertyNameKind::File("spark-env.sh".into()),
+                    BTreeMap::new(),
+                ),
+                (
                     PropertyNameKind::File("security.properties".into()),
                     vec![
                         ("networkaddress.cache.negative.ttl".into(), "0".into()),

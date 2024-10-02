@@ -1,7 +1,6 @@
-use stackable_operator::commons::authentication::tls::{Tls, TlsServerVerification};
 use stackable_operator::commons::{
-    authentication::tls::{CaCert, TlsVerification},
-    s3::S3ConnectionSpec,
+    s3::{ResolvedS3Connection, S3ConnectionSpec},
+    tls_verification::{CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification},
 };
 
 use crate::{
@@ -12,17 +11,20 @@ use crate::{
     s3logdir::S3LogDir,
 };
 
-pub fn tls_secret_name(s3conn: &Option<S3ConnectionSpec>) -> Option<&str> {
-    if let Some(S3ConnectionSpec {
+pub fn tls_secret_name(s3conn: &ResolvedS3Connection) -> Option<&str> {
+    if let ResolvedS3Connection {
         tls:
-            Some(Tls {
-                verification:
-                    TlsVerification::Server(TlsServerVerification {
-                        ca_cert: CaCert::SecretClass(ref secret_name),
+            TlsClientDetails {
+                tls:
+                    Some(Tls {
+                        verification:
+                            TlsVerification::Server(TlsServerVerification {
+                                ca_cert: CaCert::SecretClass(ref secret_name),
+                            }),
                     }),
-            }),
+            },
         ..
-    }) = s3conn
+    } = s3conn
     {
         return Some(secret_name);
     }
@@ -36,7 +38,7 @@ pub fn tls_secret_names<'a>(
 ) -> Option<Vec<&'a str>> {
     let mut names = Vec::new();
 
-    if let Some(secret_name) = tls_secret_name(s3conn) {
+    if let Some(secret_name) = s3conn.as_ref().and_then(|s3conn| tls_secret_name(s3conn)) {
         names.push(secret_name);
     }
 

@@ -7,7 +7,15 @@ use std::{
 };
 
 use product_config::writer::to_java_properties_string;
-use stackable_operator::time::Duration;
+use stackable_operator::{
+    builder,
+    commons::{
+        s3::S3Error,
+        tls_verification::{CaCert, TlsVerification},
+    },
+    product_logging::framework::LoggingError,
+    time::Duration,
+};
 use stackable_spark_k8s_crd::{
     constants::*, s3logdir::S3LogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
     SparkApplication, SparkApplicationRole, SparkApplicationStatus, SparkContainer, SubmitConfig,
@@ -22,11 +30,7 @@ use stackable_operator::{
         configmap::ConfigMapBuilder, meta::ObjectMetaBuilder, pod::container::ContainerBuilder,
         pod::resources::ResourceRequirementsBuilder, pod::volume::VolumeBuilder, pod::PodBuilder,
     },
-    commons::{
-        authentication::tls::{CaCert, TlsVerification},
-        product_image_selection::ResolvedProductImage,
-        s3::S3ConnectionSpec,
-    },
+    commons::{product_image_selection::ResolvedProductImage, s3::S3ConnectionSpec},
     k8s_openapi::{
         api::{
             batch::v1::{Job, JobSpec},
@@ -62,74 +66,95 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 pub enum Error {
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
+
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
     },
+
     #[snafu(display("failed to apply role ServiceAccount"))]
     ApplyServiceAccount {
         source: stackable_operator::client::Error,
     },
+
     #[snafu(display("failed to apply global RoleBinding"))]
     ApplyRoleBinding {
         source: stackable_operator::client::Error,
     },
+
     #[snafu(display("failed to apply Job"))]
     ApplyApplication {
         source: stackable_operator::client::Error,
     },
+
     #[snafu(display("failed to build stark-submit command"))]
     BuildCommand {
         source: stackable_spark_k8s_crd::Error,
     },
+
     #[snafu(display("failed to build the pod template config map"))]
     PodTemplateConfigMap {
         source: stackable_operator::builder::configmap::Error,
     },
+
     #[snafu(display("pod template serialization"))]
     PodTemplateSerde { source: serde_yaml::Error },
-    #[snafu(display("s3 bucket error"))]
-    S3Bucket {
-        source: stackable_operator::commons::s3::Error,
-    },
+
+    #[snafu(display("failed to configure S3 connection/bucket"))]
+    ConfigureS3 { source: S3Error },
+
     #[snafu(display("tls non-verification not supported"))]
     S3TlsNoVerificationNotSupported,
+
     #[snafu(display("ca-cert verification not supported"))]
     S3TlsCaVerificationNotSupported,
+
     #[snafu(display("failed to resolve and merge config"))]
     FailedToResolveConfig {
         source: stackable_spark_k8s_crd::Error,
     },
+
     #[snafu(display("failed to recognise the container name"))]
     UnrecognisedContainerName,
+
     #[snafu(display("illegal container name"))]
     IllegalContainerName {
         source: stackable_operator::builder::pod::container::Error,
     },
+
     #[snafu(display("failed to resolve the s3 log dir configuration"))]
     S3LogDir {
         source: stackable_spark_k8s_crd::s3logdir::Error,
     },
+
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress { source: product_logging::Error },
+
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
         source: product_logging::Error,
         cm_name: String,
     },
+
+    #[snafu(display("failed to configure logging"))]
+    ConfigureLogging { source: LoggingError },
+
     #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
     JvmSecurityProperties {
         source: product_config::writer::PropertiesWriterError,
         role: SparkApplicationRole,
     },
+
     #[snafu(display("failed to generate product config"))]
     GenerateProductConfig {
         source: stackable_operator::product_config_utils::Error,
     },
+
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
         source: stackable_spark_k8s_crd::Error,
     },
+
     #[snafu(display("invalid submit config"))]
     SubmitConfig {
         source: stackable_spark_k8s_crd::Error,
@@ -161,6 +186,14 @@ pub enum Error {
         source: stackable_operator::client::Error,
         name: String,
     },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: builder::pod::container::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -185,20 +218,21 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     }
 
     let opt_s3conn = match spark_application.spec.s3connection.as_ref() {
-        Some(s3bd) => s3bd
-            .resolve(
-                client,
-                spark_application.metadata.namespace.as_deref().unwrap(),
-            )
-            .await
-            .context(S3BucketSnafu)
-            .ok(),
+        Some(s3bd) => Some(
+            s3bd.clone()
+                .resolve(
+                    client,
+                    spark_application.metadata.namespace.as_deref().unwrap(),
+                )
+                .await
+                .context(ConfigureS3Snafu)?,
+        ),
         _ => None,
     };
 
     // check early for valid verification options
     if let Some(conn) = opt_s3conn.as_ref() {
-        if let Some(tls) = &conn.tls {
+        if let Some(tls) = &conn.tls.tls {
             match &tls.verification {
                 TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
                 TlsVerification::Server(server_verification) => {
@@ -388,107 +422,126 @@ fn init_containers(
 ) -> Result<Vec<Container>> {
     let mut jcb = ContainerBuilder::new(&SparkContainer::Job.to_string())
         .context(IllegalContainerNameSnafu)?;
-    let job_container = spark_application.spec.image.as_ref().map(|job_image| {
-        let mut args = Vec::new();
-        if let Some(ContainerLogConfig {
-            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-        }) = logging.containers.get(&SparkContainer::Job)
-        {
-            args.push(capture_shell_output(
-                VOLUME_MOUNT_PATH_LOG,
-                &SparkContainer::Job.to_string(),
-                log_config,
-            ));
-        };
-        args.push(format!("echo Copying job files to {VOLUME_MOUNT_PATH_JOB}"));
-        args.push(format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"));
-        // Wait until the log file is written.
-        args.push("sleep 1".into());
+    let job_container = match &spark_application.spec.image {
+        Some(job_image) => {
+            let mut args = Vec::new();
+            if let Some(ContainerLogConfig {
+                choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+            }) = logging.containers.get(&SparkContainer::Job)
+            {
+                args.push(capture_shell_output(
+                    VOLUME_MOUNT_PATH_LOG,
+                    &SparkContainer::Job.to_string(),
+                    log_config,
+                ));
+            };
+            args.push(format!("echo Copying job files to {VOLUME_MOUNT_PATH_JOB}"));
+            args.push(format!("cp /jobs/* {VOLUME_MOUNT_PATH_JOB}"));
+            // Wait until the log file is written.
+            args.push("sleep 1".into());
 
-        jcb.image(job_image)
-            .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-            .args(vec![args.join(" && ")])
-            .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
-            .resources(
-                ResourceRequirementsBuilder::new()
-                    .with_cpu_request("250m")
-                    .with_cpu_limit("500m")
-                    .with_memory_request("128Mi")
-                    .with_memory_limit("128Mi")
+            Some(
+                jcb.image(job_image)
+                    .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+                    .args(vec![args.join(" && ")])
+                    .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
+                    .context(AddVolumeMountSnafu)?
+                    .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+                    .context(AddVolumeMountSnafu)?
+                    .resources(
+                        ResourceRequirementsBuilder::new()
+                            .with_cpu_request("250m")
+                            .with_cpu_limit("500m")
+                            .with_memory_request("128Mi")
+                            .with_memory_limit("128Mi")
+                            .build(),
+                    )
                     .build(),
             )
-            .build()
-    });
+        }
+        None => None,
+    };
 
     let mut rcb = ContainerBuilder::new(&SparkContainer::Requirements.to_string())
         .context(IllegalContainerNameSnafu)?;
-    let requirements_container = spark_application.requirements().map(|req| {
-        let mut args = Vec::new();
-        if let Some(ContainerLogConfig {
-            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-        }) = logging.containers.get(&SparkContainer::Requirements)
-        {
-            args.push(capture_shell_output(
-                VOLUME_MOUNT_PATH_LOG,
-                &SparkContainer::Requirements.to_string(),
-                log_config,
+    let requirements_container = match spark_application.requirements() {
+        Some(req) => {
+            let mut args = Vec::new();
+            if let Some(ContainerLogConfig {
+                choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+            }) = logging.containers.get(&SparkContainer::Requirements)
+            {
+                args.push(capture_shell_output(
+                    VOLUME_MOUNT_PATH_LOG,
+                    &SparkContainer::Requirements.to_string(),
+                    log_config,
+                ));
+            };
+            args.push(format!(
+                "echo Installing requirements to {VOLUME_MOUNT_PATH_REQ}: {req}"
             ));
-        };
-        args.push(format!(
-            "echo Installing requirements to {VOLUME_MOUNT_PATH_REQ}: {req}"
-        ));
-        args.push(format!(
-            "pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"
-        ));
+            args.push(format!(
+                "pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"
+            ));
 
-        rcb.image(&spark_image.image)
-            .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-            .args(vec![args.join(" && ")])
-            .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
-            .image_pull_policy(&spark_image.image_pull_policy);
+            rcb.image(&spark_image.image)
+                .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+                .args(vec![args.join(" && ")])
+                .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+                .context(AddVolumeMountSnafu)?
+                .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+                .context(AddVolumeMountSnafu)?
+                .image_pull_policy(&spark_image.image_pull_policy);
 
-        rcb.resources(
-            ResourceRequirementsBuilder::new()
-                .with_cpu_request("250m")
-                .with_cpu_limit("1000m")
-                .with_memory_request("1024Mi")
-                .with_memory_limit("1024Mi")
-                .build(),
-        );
-
-        rcb.build()
-    });
-
-    // if TLS is enabled, build TrustStore and put secret inside.
-    let mut tcb = ContainerBuilder::new(&SparkContainer::Tls.to_string())
-        .context(IllegalContainerNameSnafu)?;
-    let mut args = Vec::new();
-
-    let tls_container = tlscerts::tls_secret_names(s3conn, s3logdir).map(|cert_secrets| {
-        args.extend(tlscerts::convert_system_trust_store_to_pkcs12());
-        for cert_secret in cert_secrets {
-            args.extend(tlscerts::import_truststore(cert_secret));
-            tcb.add_volume_mount(
-                cert_secret,
-                format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}"),
-            );
-        }
-        tcb.image(&spark_image.image)
-            .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-            .args(vec![args.join(" && ")])
-            .add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE)
-            .resources(
+            rcb.resources(
                 ResourceRequirementsBuilder::new()
                     .with_cpu_request("250m")
                     .with_cpu_limit("1000m")
                     .with_memory_request("1024Mi")
                     .with_memory_limit("1024Mi")
                     .build(),
+            );
+
+            Some(rcb.build())
+        }
+        None => None,
+    };
+
+    // if TLS is enabled, build TrustStore and put secret inside.
+    let mut tcb = ContainerBuilder::new(&SparkContainer::Tls.to_string())
+        .context(IllegalContainerNameSnafu)?;
+    let mut args = Vec::new();
+
+    let tls_container = match tlscerts::tls_secret_names(s3conn, s3logdir) {
+        Some(cert_secrets) => {
+            args.extend(tlscerts::convert_system_trust_store_to_pkcs12());
+            for cert_secret in cert_secrets {
+                args.extend(tlscerts::import_truststore(cert_secret));
+                tcb.add_volume_mount(
+                    cert_secret,
+                    format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}"),
+                )
+                .context(AddVolumeMountSnafu)?;
+            }
+            Some(
+                tcb.image(&spark_image.image)
+                    .command(vec!["/bin/bash".to_string(), "-c".to_string()])
+                    .args(vec![args.join(" && ")])
+                    .add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE)
+                    .context(AddVolumeMountSnafu)?
+                    .resources(
+                        ResourceRequirementsBuilder::new()
+                            .with_cpu_request("250m")
+                            .with_cpu_limit("1000m")
+                            .with_memory_request("1024Mi")
+                            .with_memory_limit("1024Mi")
+                            .build(),
+                    )
+                    .build(),
             )
-            .build()
-    });
+        }
+        None => None,
+    };
 
     Ok(vec![job_container, requirements_container, tls_container]
         .into_iter()
@@ -512,6 +565,7 @@ fn pod_template(
     let merged_env = spark_application.merged_env(role.clone(), env);
 
     cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, s3logdir))
+        .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env)
         .resources(config.resources.clone().into())
         .image_from_product_image(spark_image);
@@ -545,6 +599,7 @@ fn pod_template(
     )
     .add_container(cb.build())
     .add_volumes(volumes.to_vec())
+    .context(AddVolumeSnafu)?
     .security_context(security_context())
     .image_pull_secrets_from_product_image(spark_image)
     .affinity(&config.affinity);
@@ -563,18 +618,21 @@ fn pod_template(
     }
 
     if config.logging.enable_vector_agent {
-        pb.add_container(vector_container(
-            spark_image,
-            VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_LOG,
-            config.logging.containers.get(&SparkContainer::Vector),
-            ResourceRequirementsBuilder::new()
-                .with_cpu_request("250m")
-                .with_cpu_limit("500m")
-                .with_memory_request("128Mi")
-                .with_memory_limit("128Mi")
-                .build(),
-        ));
+        pb.add_container(
+            vector_container(
+                spark_image,
+                VOLUME_MOUNT_NAME_CONFIG,
+                VOLUME_MOUNT_NAME_LOG,
+                config.logging.containers.get(&SparkContainer::Vector),
+                ResourceRequirementsBuilder::new()
+                    .with_cpu_request("250m")
+                    .with_cpu_limit("500m")
+                    .with_memory_request("128Mi")
+                    .with_memory_limit("128Mi")
+                    .build(),
+            )
+            .context(ConfigureLoggingSnafu)?,
+        );
     }
 
     let mut pod_template = pb.build_template();
@@ -776,6 +834,7 @@ fn spark_job(
         .args(vec![args.join(" && ")])
         .resources(job_config.resources.clone().into())
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, s3logdir))
+        .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env)
         .add_env_var(
             "SPARK_SUBMIT_OPTS",

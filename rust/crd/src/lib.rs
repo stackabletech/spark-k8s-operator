@@ -14,11 +14,6 @@ use product_config::{types::PropertyNameKind, ProductConfigManager};
 use s3logdir::S3LogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::product_config_utils::{
-    transform_all_roles_to_config, validate_all_roles_and_groups_config,
-    ValidatedRoleConfigByPropertyKind,
-};
-use stackable_operator::role_utils::EmptyRoleConfig;
 use stackable_operator::{
     builder::pod::volume::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
@@ -27,9 +22,12 @@ use stackable_operator::{
     commons::{
         product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{CpuLimits, MemoryLimits, Resources},
-        s3::{S3AccessStyle, S3ConnectionDef, S3ConnectionSpec},
+        s3::{S3AccessStyle, S3ConnectionInlineOrReference, S3ConnectionSpec, S3Error},
     },
-    config::{fragment, fragment::ValidationError, merge::Merge},
+    config::{
+        fragment::{self, ValidationError},
+        merge::Merge,
+    },
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
         apimachinery::pkg::api::resource::Quantity,
@@ -37,8 +35,12 @@ use stackable_operator::{
     kube::{CustomResource, ResourceExt},
     kvp::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
+    product_config_utils::{
+        transform_all_roles_to_config, validate_all_roles_and_groups_config,
+        ValidatedRoleConfigByPropertyKind,
+    },
     product_logging,
-    role_utils::{CommonConfiguration, Role, RoleGroup},
+    role_utils::{CommonConfiguration, EmptyRoleConfig, Role, RoleGroup},
     schemars::{self, JsonSchema},
     utils::crds::raw_object_list_schema,
 };
@@ -96,8 +98,11 @@ pub enum Error {
         source: stackable_operator::commons::secret_class::SecretClassVolumeError,
     },
 
-    #[snafu(display("failed to build S3 log directory credentials Volume"))]
-    S3LogDirCredentialsVolumeBuild { source: s3logdir::Error },
+    #[snafu(display("failed to configure S3 connection/bucket"))]
+    ConfigureS3 { source: S3Error },
+
+    #[snafu(display("failed to configure S3 log directory"))]
+    ConfigureS3LogDir { source: s3logdir::Error },
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
@@ -186,7 +191,7 @@ pub struct SparkApplicationSpec {
     /// Configure an S3 connection that the SparkApplication has access to.
     /// Read more in the [Spark S3 usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/s3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3connection: Option<S3ConnectionDef>,
+    pub s3connection: Option<S3ConnectionInlineOrReference>,
 
     /// Arguments passed directly to the job artifact.
     #[serde(default)]
@@ -311,7 +316,7 @@ impl SparkApplication {
         if let Some(log_dir) = s3logdir.as_ref() {
             if let Some(volume) = log_dir
                 .credentials_volume()
-                .context(S3LogDirCredentialsVolumeBuildSnafu)?
+                .context(ConfigureS3LogDirSnafu)?
             {
                 result.push(volume);
             }
@@ -547,29 +552,25 @@ impl SparkApplication {
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
         // for possible S3 related properties
-        if let Some(endpoint) = s3conn.as_ref().and_then(|conn| conn.endpoint()) {
-            submit_cmd.push(format!("--conf spark.hadoop.fs.s3a.endpoint={}", endpoint));
-        }
-
-        if let Some(conn) = s3conn.as_ref() {
-            match conn.access_style {
-                Some(S3AccessStyle::Path) => {
-                    submit_cmd
-                        .push("--conf spark.hadoop.fs.s3a.path.style.access=true".to_string());
-                }
-                Some(S3AccessStyle::VirtualHosted) => {}
-                None => {}
-            }
-            if let Some(credentials) = &conn.credentials {
+        if let Some(s3conn) = s3conn.as_ref() {
+            submit_cmd.push(format!(
+                "--conf spark.hadoop.fs.s3a.endpoint=\"{}\"",
+                s3conn.endpoint().context(ConfigureS3Snafu)?
+            ));
+            submit_cmd.push(format!(
+                "--conf spark.hadoop.fs.s3a.path.style.access={}",
+                s3conn.access_style == S3AccessStyle::Path
+            ));
+            if let Some(credentials) = &s3conn.credentials {
                 let secret_class_name = credentials.secret_class.clone();
                 let secret_dir = format!("{S3_SECRET_DIR_NAME}/{secret_class_name}");
 
                 // We don't use the credentials at all here but assume they are available
                 submit_cmd.push(format!(
-                    "--conf spark.hadoop.fs.s3a.access.key=$(cat {secret_dir}/{ACCESS_KEY_ID})"
+                    "--conf spark.hadoop.fs.s3a.access.key=\"$(cat {secret_dir}/{ACCESS_KEY_ID})\""
                 ));
                 submit_cmd.push(format!(
-                    "--conf spark.hadoop.fs.s3a.secret.key=$(cat {secret_dir}/{SECRET_ACCESS_KEY})"
+                    "--conf spark.hadoop.fs.s3a.secret.key=\"$(cat {secret_dir}/{SECRET_ACCESS_KEY})\""
                 ));
                 submit_cmd.push("--conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider".to_string());
             } else {
@@ -645,7 +646,11 @@ impl SparkApplication {
         }
 
         if let Some(log_dir) = s3_log_dir {
-            submit_conf.extend(log_dir.application_spark_config());
+            submit_conf.extend(
+                log_dir
+                    .application_spark_config()
+                    .context(ConfigureS3LogDirSnafu)?,
+            );
         }
 
         if !self.packages().is_empty() {

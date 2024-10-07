@@ -47,7 +47,7 @@ The same applies to the `job`, `driver` and `executor` roles of the SparkApplica
 === The spark-env.sh file
 
 The `spark-env.sh` file is used to set environment variables.
-Usually, environment variables are configured in `envOverrides`, but `envOverrides` only allow to set static values.
+Usually, environment variables are configured in `envOverrides`, but `envOverrides` only allow static values to be set.
 The values in `spark-env.sh` are evaluated by the shell.
 For instance, if a SAS token is stored in a Secret and should be used for the Spark History Server, this token could be first stored in an environment variable via `podOverrides` and then added to the `SPARK_HISTORY_OPTS`:
 

@@ -82,7 +82,7 @@ It is very seldom that users need to tweak any of these, but there is one use-ca
 The JVM manages its own cache of successfully resolved host names as well as a cache of host names that cannot be resolved.
 Some products of the Stackable platform are very sensitive to the contents of these caches and their performance is heavily affected by them.
 As of version 3.4.0, Apache Spark may perform poorly if the positive cache is disabled.
-To cache resolved host names, and thus speeding up queries you can configure the TTL of entries in the positive cache like this:
+To cache resolved host names, and thus speed up queries, you can configure the TTL of entries in the positive cache like this:
 
 [source,yaml]
 ----

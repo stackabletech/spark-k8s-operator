@@ -47,7 +47,7 @@ The same applies to the `job`, `driver` and `executor` roles of the SparkApplica
 === The spark-env.sh file
 
 The `spark-env.sh` file is used to set environment variables.
-Usually, environment variables are configured in `envOverrides`, but `envOverrides` only allow static values to be set.
+Usually, environment variables are configured in `envOverrides` or {crd-docs}/spark.stackable.tech/sparkapplication/v1alpha1/#spec-env[`env` (SparkApplication)], but both options only allow static values to be set.
 The values in `spark-env.sh` are evaluated by the shell.
 For instance, if a SAS token is stored in a Secret and should be used for the Spark History Server, this token could be first stored in an environment variable via `podOverrides` and then added to the `SPARK_HISTORY_OPTS`:
 
@@ -123,6 +123,24 @@ nodes:
   roleGroups:
     default:
       replicas: 1
+----
+
+In a SparkApplication, environment variables can also be defined with the {crd-docs}/spark.stackable.tech/sparkapplication/v1alpha1/#spec-env[`env`] property for the job, driver and executor pods at once.
+The result is basically the same as with `envOverrides`, but `env` also allows to reference Secrets and so on:
+
+[source,yaml]
+----
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+spec:
+  env:
+  - name: SAS_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: adls-spark-credentials
+        key: sas-token
+  ...
 ----
 
 

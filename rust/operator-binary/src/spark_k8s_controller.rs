@@ -17,8 +17,8 @@ use stackable_operator::{
     time::Duration,
 };
 use stackable_spark_k8s_crd::{
-    constants::*, s3logdir::S3LogDir, tlscerts, RoleConfig, SparkApplication, SparkApplicationRole,
-    SparkApplicationStatus, SparkContainer, SubmitConfig,
+    constants::*, s3logdir::S3LogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
+    SparkApplication, SparkApplicationRole, SparkApplicationStatus, SparkContainer, SubmitConfig,
 };
 
 use crate::product_logging::{self, resolve_vector_aggregator_address};
@@ -724,6 +724,17 @@ fn pod_template_config_map(
     .context(InvalidLoggingConfigSnafu { cm_name })?;
 
     if let Some(product_config) = product_config {
+        cm_builder.add_data(
+            SPARK_ENV_SH_FILE_NAME,
+            to_spark_env_sh_string(
+                product_config
+                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
+                    .cloned()
+                    .unwrap_or_default()
+                    .iter(),
+            ),
+        );
+
         let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
             .get(&PropertyNameKind::File(
                 JVM_SECURITY_PROPERTIES_FILE.to_string(),
@@ -767,6 +778,17 @@ fn submit_job_config_map(
     );
 
     if let Some(product_config) = product_config {
+        cm_builder.add_data(
+            SPARK_ENV_SH_FILE_NAME,
+            to_spark_env_sh_string(
+                product_config
+                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
+                    .cloned()
+                    .unwrap_or_default()
+                    .iter(),
+            ),
+        );
+
         let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
             .get(&PropertyNameKind::File(
                 JVM_SECURITY_PROPERTIES_FILE.to_string(),

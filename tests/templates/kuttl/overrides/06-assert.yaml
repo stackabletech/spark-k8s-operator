@@ -21,3 +21,23 @@ spec:
               memory: 512Mi
 status:
   readyReplicas: 1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-history-node-default
+data:
+  security.properties: |
+    test.securityProperties.fromRg=rolegroup
+    test.securityProperties.rg=rolegroup
+    test.securityProperties.role=role
+  spark-defaults.conf: |-
+    spark.hadoop.fs.s3a.endpoint https://eventlog-minio:9000/
+    spark.hadoop.fs.s3a.path.style.access true
+    spark.history.fs.cleaner.enabled true
+    spark.history.fs.logDirectory s3a://spark-logs/eventlogs/
+    test.sparkConf true
+  spark-env.sh: |-
+    export TEST_SPARK-ENV-SH_FROM_RG="ROLEGROUP"
+    export TEST_SPARK-ENV-SH_RG="ROLEGROUP"
+    export TEST_SPARK-ENV-SH_ROLE="ROLE"

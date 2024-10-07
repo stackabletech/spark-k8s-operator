@@ -212,6 +212,7 @@ impl SparkHistoryServer {
             (
                 vec![
                     PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
+                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
                     PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
                 ],
                 self.spec.nodes.clone(),

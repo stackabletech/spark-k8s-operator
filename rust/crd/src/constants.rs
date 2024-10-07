@@ -74,6 +74,7 @@ pub const HISTORY_ROLE_NAME: &str = "node";
 pub const SPARK_IMAGE_BASE_NAME: &str = "spark-k8s";
 
 pub const SPARK_DEFAULTS_FILE_NAME: &str = "spark-defaults.conf";
+pub const SPARK_ENV_SH_FILE_NAME: &str = "spark-env.sh";
 
 pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
 pub const SPARK_UID: i64 = 1000;

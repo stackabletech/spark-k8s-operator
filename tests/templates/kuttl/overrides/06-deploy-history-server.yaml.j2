@@ -38,11 +38,19 @@ spec:
       bucket:
         reference: spark-history-s3-bucket
   # For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
-  #sparkConf:
+  sparkConf:
+    test.sparkConf: "true"
   nodes:
     envOverrides:
       TEST_SPARK_HIST_VAR_ROLE: ROLE
       TEST_SPARK_HIST_VAR_FROM_RG: ROLE
+    configOverrides:
+      security.properties:
+        test.securityProperties.role: role
+        test.securityProperties.fromRg: role
+      spark-env.sh:
+        TEST_SPARK-ENV-SH_ROLE: ROLE
+        TEST_SPARK-ENV-SH_FROM_RG: ROLE
     roleGroups:
       default:
         replicas: 1
@@ -51,6 +59,13 @@ spec:
         envOverrides:
           TEST_SPARK_HIST_VAR_FROM_RG: ROLEGROUP
           TEST_SPARK_HIST_VAR_RG: ROLEGROUP
+        configOverrides:
+          security.properties:
+            test.securityProperties.fromRg: rolegroup
+            test.securityProperties.rg: rolegroup
+          spark-env.sh:
+            TEST_SPARK-ENV-SH_FROM_RG: ROLEGROUP
+            TEST_SPARK-ENV-SH_RG: ROLEGROUP
         podOverrides:
           spec:
             containers:

@@ -1041,7 +1041,7 @@ fn resources_to_executor_props(
 }
 
 /// Create the content of the file spark-env.sh.
-/// The properties are serialized in the form 'export {k}="{v}"' without
+/// The properties are serialized in the form 'export {k}="{v}"',
 /// escaping neither the key nor the value. The user is responsible for
 /// providing escaped values.
 pub fn to_spark_env_sh_string<'a, T>(properties: T) -> String

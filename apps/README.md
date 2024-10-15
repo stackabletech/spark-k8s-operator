@@ -12,6 +12,6 @@ Notes:
 
 ## Links
 
-[0] TLC trip data set https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page
-[1] AWS Java SDK https://github.com/aws/aws-sdk-java
-[2] Hadoop AWS module https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html
+[0] [TLC trip data set](https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
+[1] [AWS Java SDK](https://github.com/aws/aws-sdk-java)
+[2] [Hadoop AWS module](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html)

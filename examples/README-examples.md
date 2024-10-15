@@ -9,11 +9,11 @@ This note outlines a few things that are needed to run these examples on a local
 Create a new local cluster (e.g. with [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/) and the [stackablectl tool](https://github.com/stackabletech/stackablectl)). This creates a cluster named `stackable-data-platform`.
 
 ````text
-kind delete clusters --all
-stackablectl operator install spark-k8s commons secret -k
+kind create cluster --name stackable-data-platform
+stackablectl operator install spark-k8s commons secret
 ````
 
-Build the `ny-tlc-report` image from the Dockerfile in this repository (apps/docker/Dockerfile) and then load it to the cluster:
+Load the `ny-tlc-report` image to the cluster:
 
 ````text
 kind load docker-image docker.stackable.tech/stackable/ny-tlc-report:0.2.0 --name stackable-data-platform

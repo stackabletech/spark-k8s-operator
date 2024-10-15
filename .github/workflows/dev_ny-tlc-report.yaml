@@ -1,0 +1,89 @@
+---
+name: Build and publish ny-tlc-report
+
+env:
+  IMAGE_NAME: ny-tlc-report
+  IMAGE_VERSION: 0.2.0
+  REGISTRY_PATH: stackable
+  DOCKERFILE_PATH: "apps/docker/Dockerfile"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - apps/docker/Dockerfile
+      - apps/ny_tlc_report.py
+      - .github/workflows/dev_ny-tlc-report.yaml
+
+jobs:
+  build:
+    name: Build/Publish ${{ matrix.runner.arch }} Image
+    permissions:
+      id-token: write
+    runs-on: ${{ matrix.runner.name }}
+    strategy:
+      matrix:
+        runner:
+          - {name: "ubuntu-latest", arch: "amd64"}
+          - {name: "ubicloud-standard-8-arm", arch: "arm64"}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Build image
+        id: build
+        uses: stackabletech/actions/build-container-image@013e6482fbc0edf2d38cf9220fc931f6a81336fb # v0.0.6
+        with:
+          image-name: ${{ env.IMAGE_NAME }}
+          image-index-manifest-tag: ${{ env.IMAGE_VERSION }}
+          container-file: ${{ env.DOCKERFILE_PATH }}
+
+      - name: Publish Container Image on docker.stackable.tech
+        uses: stackabletech/actions/publish-image@013e6482fbc0edf2d38cf9220fc931f6a81336fb # v0.0.6
+        with:
+          image-registry-uri: docker.stackable.tech
+          image-registry-username: github
+          image-registry-password: ${{ secrets.NEXUS_PASSWORD }}
+          image-repository: stackable/${{ env.IMAGE_NAME }}
+          image-manifest-tag: ${{ steps.build.outputs.image-manifest-tag }}
+          source-image-uri: ${{ steps.build.outputs.image-manifest-uri }}
+
+      - name: Publish Container Image on oci.stackable.tech
+        uses: stackabletech/actions/publish-image@013e6482fbc0edf2d38cf9220fc931f6a81336fb # v0.0.6
+        with:
+          image-registry-uri: oci.stackable.tech
+          image-registry-username: robot$stackable+github-action-build
+          image-registry-password: ${{ secrets.HARBOR_ROBOT_STACKABLE_GITHUB_ACTION_BUILD_SECRET }}
+          image-repository: ${{ env.REGISTRY_PATH }}/${{ env.IMAGE_NAME }}
+          image-manifest-tag: ${{ steps.build.outputs.image-manifest-tag }}
+          source-image-uri: ${{ steps.build.outputs.image-manifest-uri }}
+
+  publish_manifests:
+    name: Build/Publish Manifest
+    needs: [build]
+    permissions:
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Publish and Sign Image Index Manifest to docker.stackable.tech
+        uses: stackabletech/actions/publish-index-manifest@013e6482fbc0edf2d38cf9220fc931f6a81336fb # v0.0.6
+        with:
+          image-registry-uri: docker.stackable.tech
+          image-registry-username: github
+          image-registry-password: ${{ secrets.NEXUS_PASSWORD }}
+          image-repository: stackable/${{ env.IMAGE_NAME }}
+          image-index-manifest-tag: ${{ env.IMAGE_VERSION }}
+
+      - name: Publish and Sign Image Index Manifest to oci.stackable.tech
+        uses: stackabletech/actions/publish-index-manifest@013e6482fbc0edf2d38cf9220fc931f6a81336fb # v0.0.6
+        with:
+          image-registry-uri: oci.stackable.tech
+          image-registry-username: robot$stackable+github-action-build
+          image-registry-password: ${{ secrets.HARBOR_ROBOT_STACKABLE_GITHUB_ACTION_BUILD_SECRET }}
+          image-repository: ${{ env.REGISTRY_PATH }}/${{ env.IMAGE_NAME }}
+          image-index-manifest-tag: ${{ env.IMAGE_VERSION }}

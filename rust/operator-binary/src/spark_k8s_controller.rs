@@ -17,7 +17,7 @@ use stackable_operator::{
     time::Duration,
 };
 use stackable_spark_k8s_crd::{
-    constants::*, s3logdir::S3LogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
+    constants::*, s3logdir::ResolvedLogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
     SparkApplication, SparkApplicationRole, SparkApplicationStatus, SparkContainer, SubmitConfig,
 };
 
@@ -245,13 +245,19 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         }
     }
 
-    let s3logdir = S3LogDir::resolve(
-        spark_application.spec.log_file_directory.as_ref(),
-        spark_application.metadata.namespace.clone(),
-        client,
-    )
-    .await
-    .context(S3LogDirSnafu)?;
+    let logdir = if let Some(log_file_dir) = &spark_application.spec.log_file_directory {
+        Some(
+            ResolvedLogDir::resolve(
+                log_file_dir,
+                spark_application.metadata.namespace.clone(),
+                client,
+            )
+            .await
+            .context(S3LogDirSnafu)?,
+        )
+    } else {
+        None
+    };
 
     let resolved_product_image = spark_application
         .spec
@@ -287,7 +293,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     .await
     .context(ResolveVectorAggregatorAddressSnafu)?;
 
-    let env_vars = spark_application.env(&opt_s3conn, &s3logdir);
+    let env_vars = spark_application.env(&opt_s3conn, &logdir);
 
     let driver_config = spark_application
         .driver_config()
@@ -305,7 +311,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         driver_product_config,
         &env_vars,
         &opt_s3conn,
-        &s3logdir,
+        &logdir,
         vector_aggregator_address.as_deref(),
         &resolved_product_image,
     )?;
@@ -334,7 +340,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         executor_product_config,
         &env_vars,
         &opt_s3conn,
-        &s3logdir,
+        &logdir,
         vector_aggregator_address.as_deref(),
         &resolved_product_image,
     )?;
@@ -351,7 +357,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .build_command(
             serviceaccount.metadata.name.as_ref().unwrap(),
             &opt_s3conn,
-            &s3logdir,
+            &logdir,
             &resolved_product_image.image,
         )
         .context(BuildCommandSnafu)?;
@@ -386,7 +392,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         &env_vars,
         &job_commands,
         &opt_s3conn,
-        &s3logdir,
+        &logdir,
         &submit_config,
     )?;
     client
@@ -417,7 +423,7 @@ fn init_containers(
     spark_application: &SparkApplication,
     logging: &Logging<SparkContainer>,
     s3conn: &Option<S3ConnectionSpec>,
-    s3logdir: &Option<S3LogDir>,
+    logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
 ) -> Result<Vec<Container>> {
     let mut jcb = ContainerBuilder::new(&SparkContainer::Job.to_string())
@@ -512,7 +518,7 @@ fn init_containers(
         .context(IllegalContainerNameSnafu)?;
     let mut args = Vec::new();
 
-    let tls_container = match tlscerts::tls_secret_names(s3conn, s3logdir) {
+    let tls_container = match tlscerts::tls_secret_names(s3conn, logdir) {
         Some(cert_secrets) => {
             args.extend(tlscerts::convert_system_trust_store_to_pkcs12());
             for cert_secret in cert_secrets {
@@ -557,14 +563,14 @@ fn pod_template(
     volumes: &[Volume],
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
-    s3logdir: &Option<S3LogDir>,
+    logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
 ) -> Result<PodTemplateSpec> {
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
     let merged_env = spark_application.merged_env(role.clone(), env);
 
-    cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, s3logdir))
+    cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env)
         .resources(config.resources.clone().into())
@@ -608,7 +614,7 @@ fn pod_template(
         spark_application,
         &config.logging,
         s3conn,
-        s3logdir,
+        logdir,
         spark_image,
     )
     .unwrap();
@@ -650,7 +656,7 @@ fn pod_template_config_map(
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
-    s3logdir: &Option<S3LogDir>,
+    logdir: &Option<ResolvedLogDir>,
     vector_aggregator_address: Option<&str>,
     spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
@@ -669,7 +675,7 @@ fn pod_template_config_map(
     };
 
     let mut volumes = spark_application
-        .volumes(s3conn, s3logdir, Some(&log_config_map))
+        .volumes(s3conn, logdir, Some(&log_config_map))
         .context(CreateVolumesSnafu)?;
     volumes.push(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
@@ -684,7 +690,7 @@ fn pod_template_config_map(
         volumes.as_ref(),
         env,
         s3conn,
-        s3logdir,
+        logdir,
         spark_image,
     )?;
 
@@ -820,7 +826,7 @@ fn spark_job(
     env: &[EnvVar],
     job_commands: &[String],
     s3conn: &Option<S3ConnectionSpec>,
-    s3logdir: &Option<S3LogDir>,
+    logdir: &Option<ResolvedLogDir>,
     job_config: &SubmitConfig,
 ) -> Result<Job> {
     let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
@@ -833,7 +839,7 @@ fn spark_job(
         .command(vec!["/bin/bash".to_string(), "-c".to_string()])
         .args(vec![args.join(" && ")])
         .resources(job_config.resources.clone().into())
-        .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, s3logdir))
+        .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, logdir))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env)
         .add_env_var(
@@ -862,7 +868,7 @@ fn spark_job(
     ];
     volumes.extend(
         spark_application
-            .volumes(s3conn, s3logdir, None)
+            .volumes(s3conn, logdir, None)
             .context(CreateVolumesSnafu)?,
     );
 

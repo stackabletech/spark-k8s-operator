@@ -8,7 +8,7 @@ use crate::{
         STACKABLE_MOUNT_PATH_TLS, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE,
         SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
     },
-    s3logdir::S3LogDir,
+    s3logdir::ResolvedLogDir,
 };
 
 pub fn tls_secret_name(s3conn: &ResolvedS3Connection) -> Option<&str> {
@@ -34,7 +34,7 @@ pub fn tls_secret_name(s3conn: &ResolvedS3Connection) -> Option<&str> {
 
 pub fn tls_secret_names<'a>(
     s3conn: &'a Option<S3ConnectionSpec>,
-    s3logdir: &'a Option<S3LogDir>,
+    logdir: &'a Option<ResolvedLogDir>,
 ) -> Option<Vec<&'a str>> {
     let mut names = Vec::new();
 
@@ -42,8 +42,8 @@ pub fn tls_secret_names<'a>(
         names.push(secret_name);
     }
 
-    if let Some(logdir) = s3logdir {
-        if let Some(secret_name) = tls_secret_name(&logdir.bucket.connection) {
+    if let Some(logdir) = logdir {
+        if let Some(secret_name) = logdir.tls_secret_name() {
             names.push(secret_name);
         }
     }

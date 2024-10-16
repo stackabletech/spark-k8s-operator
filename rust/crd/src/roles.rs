@@ -13,11 +13,11 @@
 //! each role is named "default". These roles are transparent to the user.
 //!
 //! The history server has its own role completely unrelated to this module.
+use crate::ResolvedLogDir;
 use std::{collections::BTreeMap, slice};
 
 use serde::{Deserialize, Serialize};
 
-use crate::s3logdir::S3LogDir;
 use crate::SparkApplication;
 use stackable_operator::{
     commons::{
@@ -148,10 +148,10 @@ impl RoleConfig {
         &self,
         spark_application: &SparkApplication,
         s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
+        logdir: &Option<ResolvedLogDir>,
     ) -> Vec<VolumeMount> {
         let volume_mounts = self.volume_mounts.clone().into();
-        spark_application.add_common_volume_mounts(volume_mounts, s3conn, s3logdir, true)
+        spark_application.add_common_volume_mounts(volume_mounts, s3conn, logdir, true)
     }
 }
 

@@ -49,6 +49,103 @@ pub enum Error {
     ConfigureS3 { source: S3Error },
 }
 
+pub enum ResolvedLogDir {
+    S3(S3LogDir),
+    Custom(String),
+}
+
+impl ResolvedLogDir {
+    pub async fn resolve(
+        log_file_dir: &LogFileDirectorySpec,
+        namespace: Option<String>,
+        client: &stackable_operator::client::Client,
+    ) -> Result<ResolvedLogDir, Error> {
+        match log_file_dir {
+            S3(s3_log_dir) => S3LogDir::resolve(s3_log_dir, namespace, client)
+                .await
+                .map(ResolvedLogDir::S3),
+            LogFileDirectorySpec::CustomLogDirectory(custom_log_dir) => {
+                Ok(ResolvedLogDir::Custom(custom_log_dir.to_owned()))
+            }
+        }
+    }
+
+    pub fn tls_enabled(&self) -> bool {
+        self.tls_secret_name().is_some()
+    }
+
+    pub fn tls_secret_name(&self) -> Option<&str> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => {
+                tlscerts::tls_secret_name(&s3_log_dir.bucket.connection)
+            }
+            ResolvedLogDir::Custom(_) => None,
+        }
+    }
+
+    pub fn history_server_spark_config(&self) -> Result<BTreeMap<String, String>, Error> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.history_server_spark_config(),
+            ResolvedLogDir::Custom(custom_log_dir) => Ok(BTreeMap::from([(
+                "spark.history.fs.logDirectory".to_string(),
+                custom_log_dir.to_string(),
+            )])),
+        }
+    }
+
+    pub fn application_spark_config(&self) -> Result<BTreeMap<String, String>, Error> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.application_spark_config(),
+            ResolvedLogDir::Custom(custom_log_dir) => Ok(BTreeMap::from([
+                ("spark.eventLog.enabled".to_string(), "true".to_string()),
+                ("spark.eventLog.dir".to_string(), custom_log_dir.to_string()),
+            ])),
+        }
+    }
+
+    pub fn volumes(&self) -> Result<Vec<Volume>, Error> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.volumes(),
+            ResolvedLogDir::Custom(_) => Ok(vec![]),
+        }
+    }
+
+    pub fn volume_mounts(&self) -> Vec<VolumeMount> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.volume_mounts(),
+            ResolvedLogDir::Custom(_) => vec![],
+        }
+    }
+
+    pub fn credentials_volume(&self) -> Result<Option<Volume>, Error> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.credentials_volume(),
+            ResolvedLogDir::Custom(_) => Ok(None),
+        }
+    }
+
+    pub fn credentials_volume_mount(&self) -> Option<VolumeMount> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.credentials_volume_mount(),
+            ResolvedLogDir::Custom(_) => None,
+        }
+    }
+
+    pub fn credentials(&self) -> Option<SecretClassVolume> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.credentials(),
+            ResolvedLogDir::Custom(_) => None,
+        }
+    }
+
+    pub fn credentials_mount_path(&self) -> Option<String> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.credentials_mount_path(),
+            ResolvedLogDir::Custom(_) => None,
+        }
+    }
+}
+
 pub struct S3LogDir {
     pub bucket: ResolvedS3Bucket,
     pub prefix: String,
@@ -56,39 +153,25 @@ pub struct S3LogDir {
 
 impl S3LogDir {
     pub async fn resolve(
-        log_file_dir: Option<&LogFileDirectorySpec>,
+        log_file_dir: &S3LogFileDirectorySpec,
         namespace: Option<String>,
         client: &stackable_operator::client::Client,
-    ) -> Result<Option<S3LogDir>, Error> {
-        #[allow(irrefutable_let_patterns)]
-        let (bucket, prefix) = if let Some(S3(S3LogFileDirectorySpec {
-            bucket: bucket_def,
-            prefix,
-        })) = log_file_dir
-        {
-            (
-                bucket_def
-                    .clone()
-                    .resolve(client, namespace.unwrap().as_str())
-                    .await
-                    .context(ConfigureS3Snafu)?,
-                prefix.clone(),
-            )
-        } else {
-            // !!!!!
-            // Ugliness alert!
-            // No point in trying to resolve the connection anymore since there is no
-            // log_file_dir in the first place.
-            // This can casually happen for Spark applications that don't use a history server
-            // !!!!!
-            return Ok(None);
-        };
+    ) -> Result<S3LogDir, Error> {
+        let bucket = log_file_dir
+            .bucket
+            .clone()
+            .resolve(client, namespace.unwrap().as_str())
+            .await
+            .context(ConfigureS3Snafu)?;
 
         if bucket.connection.tls.uses_tls() && !bucket.connection.tls.uses_tls() {
             return S3TlsNoVerificationNotSupportedSnafu.fail();
         }
 
-        Ok(Some(S3LogDir { bucket, prefix }))
+        Ok(S3LogDir {
+            bucket,
+            prefix: log_file_dir.prefix.to_owned(),
+        })
     }
 
     /// Constructs the properties needed for loading event logs from S3.

@@ -67,12 +67,12 @@ repos:
         name: regenerate-charts
         language: system
         entry: make regenerate-charts
-        stages: [commit, merge-commit, manual]
+        stages: [pre-commit, pre-merge-commit, manual]
         pass_filenames: false
 
       - id: cargo-test
         name: cargo-test
         language: system
         entry: cargo test
-        stages: [commit, merge-commit, manual]
+        stages: [pre-commit, pre-merge-commit, manual]
         pass_filenames: false

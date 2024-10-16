@@ -1,6 +1,8 @@
-FROM registry.access.redhat.com/ubi8/ubi-minimal AS builder
+# We want to automatically use the latest. We also don't tag our images with a version.
+# hadolint ignore=DL3007
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest AS builder
 LABEL maintainer="Stackable GmbH"
 
 WORKDIR /jobs
 
-COPY ny_tlc_report.py .
+COPY apps/ny_tlc_report.py .

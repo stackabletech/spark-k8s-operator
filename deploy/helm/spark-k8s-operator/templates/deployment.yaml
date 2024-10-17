@@ -47,8 +47,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['internal.stackable.tech/image']
+            {{- if .Values.kubernetesClusterDomain }}
             - name: KUBERNETES_CLUSTER_DOMAIN
-              value: {{ .Values.kubernetesClusterDomain | default "cluster.local" | quote }}
+              value: {{ .Values.kubernetesClusterDomain | quote }}
+            {{- end }}
       volumes:
         - name: config-spec
           configMap:

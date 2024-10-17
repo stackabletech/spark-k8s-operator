@@ -1,0 +1,40 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-pi
+spec:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  mode: cluster
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: local:///stackable/spark/examples/jars/spark-examples.jar
+  sparkConf:
+    spark.driver.extraClassPath: /stackable/hdfs-config
+  logFileDirectory:
+    customLogDirectory: hdfs:////
+  driver:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: hdfs-config
+          mountPath: /stackable/hdfs-config
+  executor:
+    replicas: 1
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+  volumes:
+    - name: hdfs-config
+      configMap:
+        name: test-hdfs

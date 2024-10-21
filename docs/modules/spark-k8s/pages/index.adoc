@@ -37,8 +37,8 @@ The SparkApplication resource is the main point of interaction with the operator
 An exhaustive list of options is given in the {crd}[SparkApplication CRD reference {external-link-icon}^].
 
 The xref:usage-guide/history-server.adoc[SparkHistoryServer] has a single `node` role.
-It is used to deploy a https://spark.apache.org/docs/latest/monitoring.html#viewing-after-the-fact[Spark history server] that displays application logs from S3 buckets.
-Of course, your applications need to write their logs to the same buckets.
+It is used to deploy a https://spark.apache.org/docs/latest/monitoring.html#viewing-after-the-fact[Spark history server] that displays application logs.
+Of course, your applications need to write their logs to the same location.
 
 === Kubernetes resources
 

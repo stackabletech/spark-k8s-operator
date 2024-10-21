@@ -17,9 +17,7 @@ For more details on how the Stackable Data Platform manages S3 resources see the
 include::example$example-history-server.yaml[]
 ----
 
-<1> The location of the event logs.
-    Must be an S3 bucket.
-    Future implementations might add support for other shared filesystems such as HDFS.
+<1> The location of the event logs, see <<log-dir-variants>> for other options.
 <2> Directory within the S3 bucket where the log files are located.
     This directory is required and must exist before setting up the history server.
 <3> The S3 bucket definition, here provided in-line.
@@ -56,7 +54,91 @@ include::example$example-history-app.yaml[]
 <5> Bucket to store logs. This must match the bucket used by the history server.
 <6> Credentials used to write event logs. These can, of course, differ from the credentials used to process data.
 
+[#log-dir-variants]
+== Supported file systems for storing log events
 
+=== S3
+
+As already shown in the example above, the event logs can be stored in an S3 bucket:
+
+[source,yaml]
+----
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+spec:
+  logFileDirectory:
+    s3:
+      prefix: eventlogs/
+      bucket:
+        ...
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+spec:
+  logFileDirectory:
+    s3:
+      prefix: eventlogs/
+      bucket:
+        ...
+----
+
+=== Custom log directory
+
+If there is no structure provided for the desired file system, it can nevertheless be set with the property `customLogDirectory`.
+Additional configuration overrides may be necessary in this case.
+
+For instance, to store the Spark event logs in HDFS, the following configuration could be used:
+
+[source,yaml]
+----
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+spec:
+  logFileDirectory:
+    customLogDirectory: hdfs://simple-hdfs/eventlogs/  # <1>
+  nodes:
+    envOverrides:
+      HADOOP_CONF_DIR: /stackable/hdfs-config  # <2>
+    podOverrides:
+      spec:
+        containers:
+        - name: spark-history
+          volumeMounts:
+          - name: hdfs-config
+            mountPath: /stackable/hdfs-config
+        volumes:
+        - name: hdfs-config
+          configMap:
+            name: hdfs  # <3>
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+spec:
+  logFileDirectory:
+    customLogDirectory: hdfs://simple-hdfs/eventlogs/  # <4>
+  sparkConf:
+    spark.driver.extraClassPath: /stackable/hdfs-config  # <5>
+  driver:
+    config:
+      volumeMounts:
+      - name: hdfs-config
+        mountPath: /stackable/hdfs-config
+  volumes:
+  - name: hdfs-config
+    configMap:
+      name: hdfs
+----
+
+<1> A custom log directory that is used for the Spark option `spark.history.fs.logDirectory`.
+    The required dependencies must be on the class path.
+    This is the case for HDFS.
+<2> The Spark History Server looks for the Hadoop configuration in the directory defined by the environment variable `HADOOP_CONF_DIR`.
+<3> The ConfigMap containing the Hadoop configuration files `core-site.xml` and `hdfs-site.xml`.
+<4> A custom log directory that is used for the Spark option `spark.eventLog.dir`.
+    Additionally, the Spark option `spark.eventLog.enabled` is set to `true`.
+<5> The Spark driver looks for the Hadoop configuration on the class path.
 
 == History Web UI
 

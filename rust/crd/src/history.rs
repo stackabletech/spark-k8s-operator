@@ -1,5 +1,4 @@
-use crate::s3logdir::S3LogDir;
-use crate::tlscerts;
+use crate::logdir::ResolvedLogDir;
 use crate::{affinity::history_affinity, constants::*};
 
 use product_config::{types::PropertyNameKind, ProductConfigManager};
@@ -78,7 +77,6 @@ pub struct SparkHistoryServerSpec {
     pub vector_aggregator_config_map_name: Option<String>,
 
     /// The log file directory definition used by the Spark history server.
-    /// Currently only S3 buckets are supported.
     pub log_file_directory: LogFileDirectorySpec,
 
     /// A map of key/value strings that will be passed directly to Spark when deploying the history server.
@@ -235,7 +233,7 @@ impl SparkHistoryServer {
 
     pub fn merged_env(
         &self,
-        s3logdir: &S3LogDir,
+        logdir: &ResolvedLogDir,
         role_group_env_overrides: HashMap<String, String>,
     ) -> Vec<EnvVar> {
         // Maps env var name to env var object. This allows env_overrides to work
@@ -271,7 +269,7 @@ impl SparkHistoryServer {
     ];
 
         // if TLS is enabled build truststore
-        if tlscerts::tls_secret_name(&s3logdir.bucket.connection).is_some() {
+        if logdir.tls_enabled() {
             history_opts.extend(vec![
                 format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
                 format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
@@ -327,8 +325,11 @@ impl SparkHistoryServer {
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, Display)]
 #[serde(rename_all = "camelCase")]
 pub enum LogFileDirectorySpec {
+    /// An S3 bucket storing the log events
     #[strum(serialize = "s3")]
     S3(S3LogFileDirectorySpec),
+    /// A custom log directory
+    CustomLogDirectory(String),
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
@@ -456,6 +457,8 @@ impl Configuration for HistoryConfigFragment {
 
 #[cfg(test)]
 mod test {
+    use crate::logdir::S3LogDir;
+
     use super::*;
     use indoc::indoc;
     use stackable_operator::commons::{
@@ -495,7 +498,7 @@ mod test {
         let history: SparkHistoryServer =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
-        let s3_log_dir: S3LogDir = S3LogDir {
+        let log_dir = ResolvedLogDir::S3(S3LogDir {
             bucket: ResolvedS3Bucket {
                 bucket_name: "my-bucket".to_string(),
                 connection: ResolvedS3Connection {
@@ -507,10 +510,10 @@ mod test {
                 },
             },
             prefix: "prefix".to_string(),
-        };
+        });
 
         let merged_env = history.merged_env(
-            &s3_log_dir,
+            &log_dir,
             history
                 .spec
                 .nodes

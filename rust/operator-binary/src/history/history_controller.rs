@@ -37,6 +37,7 @@ use stackable_operator::{
     time::Duration,
 };
 use stackable_spark_k8s_crd::constants::{METRICS_PORT, SPARK_ENV_SH_FILE_NAME};
+use stackable_spark_k8s_crd::logdir::ResolvedLogDir;
 use stackable_spark_k8s_crd::{
     constants::{
         ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
@@ -48,7 +49,6 @@ use stackable_spark_k8s_crd::{
     },
     history,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
-    s3logdir::S3LogDir,
     tlscerts, to_spark_env_sh_string,
 };
 use std::collections::HashMap;
@@ -124,9 +124,9 @@ pub enum Error {
     #[snafu(display("number of cleaner replicas exceeds 1"))]
     TooManyCleanerReplicas,
 
-    #[snafu(display("failed to resolve the s3 log dir configuration"))]
-    S3LogDir {
-        source: stackable_spark_k8s_crd::s3logdir::Error,
+    #[snafu(display("failed to resolve the log dir configuration"))]
+    LogDir {
+        source: stackable_spark_k8s_crd::logdir::Error,
     },
 
     #[snafu(display("failed to create cluster resources"))]
@@ -184,9 +184,9 @@ pub enum Error {
             stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
     },
 
-    #[snafu(display("failed to get create the S3 log dir"))]
-    CreateS3LogDirVolumes {
-        source: stackable_spark_k8s_crd::s3logdir::Error,
+    #[snafu(display("failed to create the log dir volumes specification"))]
+    CreateLogDirVolumesSpec {
+        source: stackable_spark_k8s_crd::logdir::Error,
     },
 
     #[snafu(display("failed to add needed volume"))]
@@ -224,13 +224,13 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
         .spec
         .image
         .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
-    let s3_log_dir = S3LogDir::resolve(
-        Some(&shs.spec.log_file_directory),
+    let log_dir = ResolvedLogDir::resolve(
+        &shs.spec.log_file_directory,
         shs.metadata.namespace.clone(),
         client,
     )
     .await
-    .context(S3LogDirSnafu)?;
+    .context(LogDirSnafu)?;
 
     let vector_aggregator_address = resolve_vector_aggregator_address(
         client,
@@ -299,7 +299,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &merged_config,
                 &resolved_product_image.app_version_label,
                 &rgr,
-                s3_log_dir.as_ref().unwrap(),
+                &log_dir,
                 vector_aggregator_address.as_deref(),
             )?;
             cluster_resources
@@ -311,7 +311,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 &shs,
                 &resolved_product_image,
                 &rgr,
-                s3_log_dir.as_ref().unwrap(),
+                &log_dir,
                 &merged_config,
                 &serviceaccount,
             )?;
@@ -351,12 +351,12 @@ fn build_config_map(
     merged_config: &HistoryConfig,
     app_version_label: &str,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
-    s3_log_dir: &S3LogDir,
+    log_dir: &ResolvedLogDir,
     vector_aggregator_address: Option<&str>,
 ) -> Result<ConfigMap, Error> {
     let cm_name = rolegroupref.object_name();
 
-    let spark_defaults = spark_defaults(shs, s3_log_dir, rolegroupref)?;
+    let spark_defaults = spark_defaults(shs, log_dir, rolegroupref)?;
 
     let jvm_sec_props: BTreeMap<String, Option<String>> = config
         .get(&PropertyNameKind::File(
@@ -421,7 +421,7 @@ fn build_stateful_set(
     shs: &SparkHistoryServer,
     resolved_product_image: &ResolvedProductImage,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
-    s3_log_dir: &S3LogDir,
+    log_dir: &ResolvedLogDir,
     config: &HistoryConfig,
     serviceaccount: &ServiceAccount,
 ) -> Result<StatefulSet, Error> {
@@ -475,7 +475,7 @@ fn build_stateful_set(
                 .build(),
         )
         .context(AddVolumeSnafu)?
-        .add_volumes(s3_log_dir.volumes().context(CreateS3LogDirVolumesSnafu)?)
+        .add_volumes(log_dir.volumes().context(CreateLogDirVolumesSpecSnafu)?)
         .context(AddVolumeSnafu)?
         .security_context(PodSecurityContext {
             run_as_user: Some(SPARK_UID),
@@ -488,7 +488,7 @@ fn build_stateful_set(
         .rolegroup(rolegroupref)
         .with_context(|_| CannotRetrieveRoleGroupSnafu)?;
 
-    let merged_env = shs.merged_env(s3_log_dir, role_group.config.env_overrides);
+    let merged_env = shs.merged_env(log_dir, role_group.config.env_overrides);
 
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
@@ -496,11 +496,11 @@ fn build_stateful_set(
         .image_from_product_image(resolved_product_image)
         .resources(config.resources.clone().into())
         .command(vec!["/bin/bash".to_string()])
-        .args(command_args(s3_log_dir))
+        .args(command_args(log_dir))
         .add_container_port("http", 18080)
         .add_container_port("metrics", METRICS_PORT.into())
         .add_env_vars(merged_env)
-        .add_volume_mounts(s3_log_dir.volume_mounts())
+        .add_volume_mounts(log_dir.volume_mounts())
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
@@ -681,12 +681,10 @@ fn build_history_role_serviceaccount(
 #[allow(clippy::result_large_err)]
 fn spark_defaults(
     shs: &SparkHistoryServer,
-    s3_log_dir: &S3LogDir,
+    log_dir: &ResolvedLogDir,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
 ) -> Result<String, Error> {
-    let mut log_dir_settings = s3_log_dir
-        .history_server_spark_config()
-        .context(S3LogDirSnafu)?;
+    let mut log_dir_settings = log_dir.history_server_spark_config().context(LogDirSnafu)?;
 
     // add cleaner spark settings if requested
     log_dir_settings.extend(cleaner_config(shs, rolegroupref)?);
@@ -702,17 +700,17 @@ fn spark_defaults(
         .join("\n"))
 }
 
-fn command_args(s3logdir: &S3LogDir) -> Vec<String> {
+fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
     let mut command = vec![];
 
-    if let Some(secret_dir) = s3logdir.credentials_mount_path() {
+    if let Some(secret_dir) = logdir.credentials_mount_path() {
         command.extend(vec![
             format!("export AWS_ACCESS_KEY_ID=\"$(cat {secret_dir}/{ACCESS_KEY_ID})\""),
             format!("export AWS_SECRET_ACCESS_KEY=\"$(cat {secret_dir}/{SECRET_ACCESS_KEY})\""),
         ]);
     }
 
-    if let Some(secret_name) = tlscerts::tls_secret_name(&s3logdir.bucket.connection) {
+    if let Some(secret_name) = logdir.tls_secret_name() {
         command.extend(vec![format!("mkdir -p {STACKABLE_TRUST_STORE}")]);
         command.extend(tlscerts::convert_system_trust_store_to_pkcs12());
         command.extend(tlscerts::import_truststore(secret_name));

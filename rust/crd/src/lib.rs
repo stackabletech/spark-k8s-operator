@@ -3,15 +3,15 @@
 pub mod affinity;
 pub mod constants;
 pub mod history;
+pub mod logdir;
 pub mod roles;
-pub mod s3logdir;
 pub mod tlscerts;
 
 pub use crate::roles::*;
 use constants::*;
 use history::LogFileDirectorySpec;
+use logdir::ResolvedLogDir;
 use product_config::{types::PropertyNameKind, ProductConfigManager};
-use s3logdir::S3LogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -101,8 +101,8 @@ pub enum Error {
     #[snafu(display("failed to configure S3 connection/bucket"))]
     ConfigureS3 { source: S3Error },
 
-    #[snafu(display("failed to configure S3 log directory"))]
-    ConfigureS3LogDir { source: s3logdir::Error },
+    #[snafu(display("failed to configure log directory"))]
+    ConfigureLogDir { source: logdir::Error },
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
@@ -208,7 +208,6 @@ pub struct SparkApplicationSpec {
     pub env: Vec<EnvVar>,
 
     /// The log file directory definition used by the Spark history server.
-    /// Currently only S3 buckets are supported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log_file_directory: Option<LogFileDirectorySpec>,
 }
@@ -280,7 +279,7 @@ impl SparkApplication {
     pub fn volumes(
         &self,
         s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
+        logdir: &Option<ResolvedLogDir>,
         log_config_map: Option<&str>,
     ) -> Result<Vec<Volume>, Error> {
         let mut result: Vec<Volume> = self.spec.volumes.clone();
@@ -313,11 +312,8 @@ impl SparkApplication {
             );
         }
 
-        if let Some(log_dir) = s3logdir.as_ref() {
-            if let Some(volume) = log_dir
-                .credentials_volume()
-                .context(ConfigureS3LogDirSnafu)?
-            {
+        if let Some(log_dir) = logdir.as_ref() {
+            if let Some(volume) = log_dir.credentials_volume().context(ConfigureLogDirSnafu)? {
                 result.push(volume);
             }
         }
@@ -348,7 +344,7 @@ impl SparkApplication {
                     .build(),
             );
         }
-        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, s3logdir) {
+        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir) {
             result.push(
                 VolumeBuilder::new(STACKABLE_TRUST_STORE_NAME)
                     .with_empty_dir(None::<String>, Some(Quantity("5Mi".to_string())))
@@ -385,7 +381,7 @@ impl SparkApplication {
     pub fn spark_job_volume_mounts(
         &self,
         s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
+        logdir: &Option<ResolvedLogDir>,
     ) -> Vec<VolumeMount> {
         let mut tmpl_mounts = vec![
             VolumeMount {
@@ -400,7 +396,7 @@ impl SparkApplication {
             },
         ];
 
-        tmpl_mounts = self.add_common_volume_mounts(tmpl_mounts, s3conn, s3logdir, false);
+        tmpl_mounts = self.add_common_volume_mounts(tmpl_mounts, s3conn, logdir, false);
 
         if let Some(CommonConfiguration {
             config:
@@ -424,7 +420,7 @@ impl SparkApplication {
         &self,
         mut mounts: Vec<VolumeMount>,
         s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
+        logdir: &Option<ResolvedLogDir>,
         logging_enabled: bool,
     ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
@@ -457,7 +453,7 @@ impl SparkApplication {
             });
         }
 
-        if let Some(vm) = s3logdir.as_ref().and_then(|o| o.credentials_volume_mount()) {
+        if let Some(vm) = logdir.as_ref().and_then(|o| o.credentials_volume_mount()) {
             mounts.push(vm);
         }
 
@@ -482,7 +478,7 @@ impl SparkApplication {
                 ..VolumeMount::default()
             });
         }
-        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, s3logdir) {
+        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir) {
             mounts.push(VolumeMount {
                 name: STACKABLE_TRUST_STORE_NAME.into(),
                 mount_path: STACKABLE_TRUST_STORE.into(),
@@ -521,7 +517,7 @@ impl SparkApplication {
         &self,
         serviceaccount_name: &str,
         s3conn: &Option<S3ConnectionSpec>,
-        s3_log_dir: &Option<S3LogDir>,
+        log_dir: &Option<ResolvedLogDir>,
         spark_image: &str,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
@@ -584,7 +580,7 @@ impl SparkApplication {
         let mut extra_java_opts = vec![format!(
             "-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
         )];
-        if tlscerts::tls_secret_names(s3conn, s3_log_dir).is_some() {
+        if tlscerts::tls_secret_names(s3conn, log_dir).is_some() {
             extra_java_opts.extend(vec![
                 format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
                 format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
@@ -645,11 +641,11 @@ impl SparkApplication {
             submit_conf.insert("spark.executor.instances".to_string(), replicas.to_string());
         }
 
-        if let Some(log_dir) = s3_log_dir {
+        if let Some(log_dir) = log_dir {
             submit_conf.extend(
                 log_dir
                     .application_spark_config()
-                    .context(ConfigureS3LogDirSnafu)?,
+                    .context(ConfigureLogDirSnafu)?,
             );
         }
 
@@ -683,7 +679,7 @@ impl SparkApplication {
     pub fn env(
         &self,
         s3conn: &Option<S3ConnectionSpec>,
-        s3logdir: &Option<S3LogDir>,
+        logdir: &Option<ResolvedLogDir>,
     ) -> Vec<EnvVar> {
         let mut e: Vec<EnvVar> = self.spec.env.clone();
         if self.requirements().is_some() {
@@ -695,7 +691,7 @@ impl SparkApplication {
                 value_from: None,
             });
         }
-        if tlscerts::tls_secret_names(s3conn, s3logdir).is_some() {
+        if tlscerts::tls_secret_names(s3conn, logdir).is_some() {
             e.push(EnvVar {
                 name: "STACKABLE_TLS_STORE_PASSWORD".to_string(),
                 value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),

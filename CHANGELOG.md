@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Make spark-env.sh configurable via `configOverrides` ([#473]).
+- The Spark history server can now service logs from HDFS compatible systems ([#479]).
 
 ### Changed
 
@@ -33,6 +34,7 @@ All notable changes to this project will be documented in this file.
 [#460]: https://github.com/stackabletech/spark-k8s-operator/pull/460
 [#472]: https://github.com/stackabletech/spark-k8s-operator/pull/472
 [#473]: https://github.com/stackabletech/spark-k8s-operator/pull/473
+[#479]: https://github.com/stackabletech/spark-k8s-operator/pull/479
 
 ## [24.7.0] - 2024-07-24
 

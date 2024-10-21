@@ -1,0 +1,39 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+metadata:
+  name: spark-history
+spec:
+  image:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  logFileDirectory:
+    customLogDirectory: hdfs:////
+  nodes:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 1
+    envOverrides:
+      HADOOP_CONF_DIR: /stackable/hdfs-config
+    podOverrides:
+      spec:
+        containers:
+          - name: spark-history
+            volumeMounts:
+              - name: hdfs-config
+                mountPath: /stackable/hdfs-config
+        volumes:
+          - name: hdfs-config
+            configMap:
+              name: test-hdfs

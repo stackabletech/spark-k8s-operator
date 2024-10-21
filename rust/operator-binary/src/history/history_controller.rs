@@ -37,7 +37,7 @@ use stackable_operator::{
     time::Duration,
 };
 use stackable_spark_k8s_crd::constants::{METRICS_PORT, SPARK_ENV_SH_FILE_NAME};
-use stackable_spark_k8s_crd::s3logdir::ResolvedLogDir;
+use stackable_spark_k8s_crd::logdir::ResolvedLogDir;
 use stackable_spark_k8s_crd::{
     constants::{
         ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
@@ -124,9 +124,9 @@ pub enum Error {
     #[snafu(display("number of cleaner replicas exceeds 1"))]
     TooManyCleanerReplicas,
 
-    #[snafu(display("failed to resolve the s3 log dir configuration"))]
-    S3LogDir {
-        source: stackable_spark_k8s_crd::s3logdir::Error,
+    #[snafu(display("failed to resolve the log dir configuration"))]
+    LogDir {
+        source: stackable_spark_k8s_crd::logdir::Error,
     },
 
     #[snafu(display("failed to create cluster resources"))]
@@ -184,9 +184,9 @@ pub enum Error {
             stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
     },
 
-    #[snafu(display("failed to get create the S3 log dir"))]
-    CreateS3LogDirVolumes {
-        source: stackable_spark_k8s_crd::s3logdir::Error,
+    #[snafu(display("failed to create the log dir volumes specification"))]
+    CreateLogDirVolumesSpec {
+        source: stackable_spark_k8s_crd::logdir::Error,
     },
 
     #[snafu(display("failed to add needed volume"))]
@@ -230,7 +230,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
         client,
     )
     .await
-    .context(S3LogDirSnafu)?;
+    .context(LogDirSnafu)?;
 
     let vector_aggregator_address = resolve_vector_aggregator_address(
         client,
@@ -475,7 +475,7 @@ fn build_stateful_set(
                 .build(),
         )
         .context(AddVolumeSnafu)?
-        .add_volumes(log_dir.volumes().context(CreateS3LogDirVolumesSnafu)?)
+        .add_volumes(log_dir.volumes().context(CreateLogDirVolumesSpecSnafu)?)
         .context(AddVolumeSnafu)?
         .security_context(PodSecurityContext {
             run_as_user: Some(SPARK_UID),
@@ -684,9 +684,7 @@ fn spark_defaults(
     log_dir: &ResolvedLogDir,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
 ) -> Result<String, Error> {
-    let mut log_dir_settings = log_dir
-        .history_server_spark_config()
-        .context(S3LogDirSnafu)?;
+    let mut log_dir_settings = log_dir.history_server_spark_config().context(LogDirSnafu)?;
 
     // add cleaner spark settings if requested
     log_dir_settings.extend(cleaner_config(shs, rolegroupref)?);

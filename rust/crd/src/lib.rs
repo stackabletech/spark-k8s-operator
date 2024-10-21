@@ -3,15 +3,15 @@
 pub mod affinity;
 pub mod constants;
 pub mod history;
+pub mod logdir;
 pub mod roles;
-pub mod s3logdir;
 pub mod tlscerts;
 
 pub use crate::roles::*;
 use constants::*;
 use history::LogFileDirectorySpec;
+use logdir::ResolvedLogDir;
 use product_config::{types::PropertyNameKind, ProductConfigManager};
-use s3logdir::ResolvedLogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -101,8 +101,8 @@ pub enum Error {
     #[snafu(display("failed to configure S3 connection/bucket"))]
     ConfigureS3 { source: S3Error },
 
-    #[snafu(display("failed to configure S3 log directory"))]
-    ConfigureS3LogDir { source: s3logdir::Error },
+    #[snafu(display("failed to configure log directory"))]
+    ConfigureLogDir { source: logdir::Error },
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
@@ -313,10 +313,7 @@ impl SparkApplication {
         }
 
         if let Some(log_dir) = logdir.as_ref() {
-            if let Some(volume) = log_dir
-                .credentials_volume()
-                .context(ConfigureS3LogDirSnafu)?
-            {
+            if let Some(volume) = log_dir.credentials_volume().context(ConfigureLogDirSnafu)? {
                 result.push(volume);
             }
         }
@@ -648,7 +645,7 @@ impl SparkApplication {
             submit_conf.extend(
                 log_dir
                     .application_spark_config()
-                    .context(ConfigureS3LogDirSnafu)?,
+                    .context(ConfigureLogDirSnafu)?,
             );
         }
 

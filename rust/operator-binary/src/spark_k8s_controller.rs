@@ -17,7 +17,7 @@ use stackable_operator::{
     time::Duration,
 };
 use stackable_spark_k8s_crd::{
-    constants::*, s3logdir::ResolvedLogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
+    constants::*, logdir::ResolvedLogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
     SparkApplication, SparkApplicationRole, SparkApplicationStatus, SparkContainer, SubmitConfig,
 };
 
@@ -122,9 +122,9 @@ pub enum Error {
         source: stackable_operator::builder::pod::container::Error,
     },
 
-    #[snafu(display("failed to resolve the s3 log dir configuration"))]
-    S3LogDir {
-        source: stackable_spark_k8s_crd::s3logdir::Error,
+    #[snafu(display("failed to resolve the log dir configuration"))]
+    LogDir {
+        source: stackable_spark_k8s_crd::logdir::Error,
     },
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
@@ -253,7 +253,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
                 client,
             )
             .await
-            .context(S3LogDirSnafu)?,
+            .context(LogDirSnafu)?,
         )
     } else {
         None

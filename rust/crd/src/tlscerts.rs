@@ -8,7 +8,7 @@ use crate::{
         STACKABLE_MOUNT_PATH_TLS, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE,
         SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
     },
-    s3logdir::ResolvedLogDir,
+    logdir::ResolvedLogDir,
 };
 
 pub fn tls_secret_name(s3conn: &ResolvedS3Connection) -> Option<&str> {

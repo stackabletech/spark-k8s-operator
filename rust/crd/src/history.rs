@@ -1,4 +1,4 @@
-use crate::s3logdir::ResolvedLogDir;
+use crate::logdir::ResolvedLogDir;
 use crate::{affinity::history_affinity, constants::*};
 
 use product_config::{types::PropertyNameKind, ProductConfigManager};
@@ -77,7 +77,6 @@ pub struct SparkHistoryServerSpec {
     pub vector_aggregator_config_map_name: Option<String>,
 
     /// The log file directory definition used by the Spark history server.
-    /// Currently only S3 buckets are supported.
     pub log_file_directory: LogFileDirectorySpec,
 
     /// A map of key/value strings that will be passed directly to Spark when deploying the history server.
@@ -456,7 +455,7 @@ impl Configuration for HistoryConfigFragment {
 
 #[cfg(test)]
 mod test {
-    use crate::s3logdir::S3LogDir;
+    use crate::logdir::S3LogDir;
 
     use super::*;
     use indoc::indoc;

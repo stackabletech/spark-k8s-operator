@@ -72,7 +72,8 @@ async fn main() -> anyhow::Result<()> {
             );
 
             let client =
-                stackable_operator::client::create_client(Some(OPERATOR_NAME.to_string())).await?;
+                stackable_operator::client::initialize_operator(Some(OPERATOR_NAME.to_string()))
+                    .await?;
 
             let ctx = Ctx {
                 client: client.clone(),

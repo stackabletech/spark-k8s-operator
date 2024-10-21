@@ -95,8 +95,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--operator",
         help="Patch operator version in release.yaml. Format <operator>=<version>",
-        nargs="*",
+        action="append",
         type=cli_parse_operator_args,
+        default=[],
+    )
+
+    parser.add_argument(
+        "--skip-operator",
+        help="Skip given operator(s) when installing a release.",
+        action="append",
         default=[],
     )
 
@@ -138,7 +145,7 @@ def cli_parse_operator_args(args: str) -> tuple[str, str]:
             f"Invalid operator argument: {args}. Must be in format <operator>=<version>"
         )
     op, version = args.split("=", maxsplit=1)
-    return (op, version)
+    return op, version
 
 
 def cli_log_level(cli_arg: str) -> int:
@@ -179,11 +186,13 @@ def have_requirements() -> None:
 
 @contextlib.contextmanager
 def release_file(
-    operators: list[tuple[str, str]] = [],
+    operators: list[tuple[str, str]], skip_ops: list[str]
 ) -> collections.abc.Generator[str, None, None]:
-    """Patch release.yaml with operator versions if needed.
+    """Generate a (possibly modified) copy of the release.yaml file.
 
-    If no --operator is set, the default release file is used.
+    Operator versions passed as --operator take precedence over the release.yaml contents.
+
+    Operators passed as --skip-operator are excluded from the resulting release.yaml contents.
 
     If an invalid operator name is provided (i.e. one that doesn't exist in the
     original release file), a TestRunnerException is raised.
@@ -194,36 +203,61 @@ def release_file(
 
     def _patch():
         release_file = os.path.join("tests", "release.yaml")
-        # Make a copy so we can mutate it without affecting the original
-        ops_copy = operators.copy()
+        # A marker to validate that all ops were patched
         patched_release = []
         with open(release_file, "r") as f:
+            patched_ops = []
             patch_version = ""
             for line in f:
                 if patch_version:
                     line = re.sub(":.+$", f": {patch_version}", line)
                     patch_version = ""
                 else:
-                    for op, version in ops_copy:
+                    for op, version in operators:
                         if op in line:
                             patch_version = version
-                            ops_copy.remove((op, version))  # found an operator to patch
+                            patched_ops.append(op)
                             break
-                patched_release.append(line)
-        if ops_copy:
-            # Some --operator args were not found in the release file. This is
-            # most likely a typo and CI pipelines should terminate early in such
-            # cases.
+                patched_release.append(line.rstrip("\n"))
+
+            # Sanity test that cli didn't contain garbage that is silently discarded
+            ops_not_patched = set([op for op, _ in operators]) - set(patched_ops)
+            if ops_not_patched:
+                logging.error(
+                    f"Patched operators [{', '.join(ops_not_patched)}] not found in {release_file}"
+                )
+                raise TestRunnerException()
+
+        # Filter out skip operators
+        release_contents = []
+        skip_lines = 0
+        valid_skip_ops = []
+        for line in patched_release:
+            if skip_lines:
+                skip_lines -= 1
+                continue
+            for op in skip_ops:
+                if op in line:
+                    # Every product section has 1 line of additional config to skip
+                    skip_lines = 1
+                    valid_skip_ops.append(op)
+                    break
+            else:
+                release_contents.append(line)
+        # Sanity test that cli didn't contain garbage that is silently discarded
+        ops_not_skipped = set(skip_ops) - set(valid_skip_ops)
+        if ops_not_skipped:
             logging.error(
-                f"Operators {', '.join([op for op, _ in ops_copy])} not found in {release_file}"
+                f"Skipped operators [{', '.join(ops_not_skipped)}] not found in {release_file}"
             )
             raise TestRunnerException()
+
         with tempfile.NamedTemporaryFile(
             mode="w",
             delete=False,
             prefix="patched",
         ) as f:
-            pcontents = "".join(patched_release)
+            pcontents = "\n".join(release_contents)
             logging.debug(f"Writing patched release to {f.name}: {pcontents}\n")
             f.write(pcontents)
             return f.name
@@ -353,7 +387,7 @@ def main(argv) -> int:
         logging.basicConfig(encoding="utf-8", level=opts.log_level)
         have_requirements()
         gen_tests(opts.test_suite)
-        with release_file(opts.operator) as f:
+        with release_file(opts.operator, opts.skip_operator) as f:
             maybe_install_release(opts.skip_release, f)
         if opts.skip_tests:
             logging.info("Skip running tests.")

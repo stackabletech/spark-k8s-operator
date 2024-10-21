@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 - The Spark history server can now service logs from HDFS compatible systems ([#479]).
 - The operator can now run on Kubernetes clusters using a non-default cluster domain. It should automatically detect the
   correct domain to use, but you can also use the env var `KUBERNETES_CLUSTER_DOMAIN` to set the domain explicitly
-  or use the helm-chart property `kubernetesClusterDomain` ([#xxx]).
+  or use the helm-chart property `kubernetesClusterDomain` ([#480]).
 
 ### Changed
 
@@ -38,7 +38,7 @@ All notable changes to this project will be documented in this file.
 [#472]: https://github.com/stackabletech/spark-k8s-operator/pull/472
 [#473]: https://github.com/stackabletech/spark-k8s-operator/pull/473
 [#479]: https://github.com/stackabletech/spark-k8s-operator/pull/479
-[#xxx]: https://github.com/stackabletech/spark-k8s-operator/pull/xxx
+[#480]: https://github.com/stackabletech/spark-k8s-operator/pull/480
 
 ## [24.7.0] - 2024-07-24
 

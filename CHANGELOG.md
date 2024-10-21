@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Make spark-env.sh configurable via `configOverrides` ([#473]).
-- Allow specifying a custom log directory ([#479]).
+- The Spark history server can now service logs from HDFS compatible systems ([#479]).
 
 ### Changed
 

@@ -615,13 +615,19 @@ spec:
                       x-kubernetes-preserve-unknown-fields: true
                   type: object
                 logFileDirectory:
-                  description: The log file directory definition used by the Spark history server. Currently only S3 buckets are supported.
+                  description: The log file directory definition used by the Spark history server.
                   nullable: true
                   oneOf:
                     - required:
                         - s3
+                    - required:
+                        - customLogDirectory
                   properties:
+                    customLogDirectory:
+                      description: A custom log directory
+                      type: string
                     s3:
+                      description: An S3 bucket storing the log events
                       properties:
                         bucket:
                           oneOf:
@@ -1065,12 +1071,18 @@ spec:
                       type: string
                   type: object
                 logFileDirectory:
-                  description: The log file directory definition used by the Spark history server. Currently only S3 buckets are supported.
+                  description: The log file directory definition used by the Spark history server.
                   oneOf:
                     - required:
                         - s3
+                    - required:
+                        - customLogDirectory
                   properties:
+                    customLogDirectory:
+                      description: A custom log directory
+                      type: string
                     s3:
+                      description: An S3 bucket storing the log events
                       properties:
                         bucket:
                           oneOf:

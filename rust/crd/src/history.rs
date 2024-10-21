@@ -325,8 +325,10 @@ impl SparkHistoryServer {
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, Display)]
 #[serde(rename_all = "camelCase")]
 pub enum LogFileDirectorySpec {
+    /// An S3 bucket storing the log events
     #[strum(serialize = "s3")]
     S3(S3LogFileDirectorySpec),
+    /// A custom log directory
     CustomLogDirectory(String),
 }
 

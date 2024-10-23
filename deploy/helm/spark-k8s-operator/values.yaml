@@ -42,7 +42,6 @@ tolerations: []
 
 affinity: {}
 
-# When running on a non-default Kubernetes cluster domain and the auto detection is not working correctly,
-# you can set your custom cluster domain here.
-# See the https://docs.stackable.tech/home/stable/guides/kubernetes-cluster-domain guide for details
+# When running on a non-default Kubernetes cluster domain, the cluster domain can be configured here.
+# See the https://docs.stackable.tech/home/stable/guides/kubernetes-cluster-domain guide for details.
 # kubernetesClusterDomain: my-cluster.local

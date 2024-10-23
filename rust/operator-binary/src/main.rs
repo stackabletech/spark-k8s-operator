@@ -56,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
             product_config,
             watch_namespace,
             tracing_target,
+            cluster_info_opts,
         }) => {
             stackable_operator::logging::initialize_logging(
                 "SPARK_K8S_OPERATOR_LOG",
@@ -71,9 +72,11 @@ async fn main() -> anyhow::Result<()> {
                 built_info::RUSTC_VERSION,
             );
 
-            let client =
-                stackable_operator::client::initialize_operator(Some(OPERATOR_NAME.to_string()))
-                    .await?;
+            let client = stackable_operator::client::initialize_operator(
+                Some(OPERATOR_NAME.to_string()),
+                &cluster_info_opts,
+            )
+            .await?;
 
             let ctx = Ctx {
                 client: client.clone(),

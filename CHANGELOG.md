@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 
 - Make spark-env.sh configurable via `configOverrides` ([#473]).
 - The Spark history server can now service logs from HDFS compatible systems ([#479]).
+- The operator can now run on Kubernetes clusters using a non-default cluster domain.
+  Use the env var `KUBERNETES_CLUSTER_DOMAIN` or the operator Helm chart property `kubernetesClusterDomain` to set a non-default cluster domain ([#480]).
 
 ### Changed
 
@@ -35,6 +37,7 @@ All notable changes to this project will be documented in this file.
 [#472]: https://github.com/stackabletech/spark-k8s-operator/pull/472
 [#473]: https://github.com/stackabletech/spark-k8s-operator/pull/473
 [#479]: https://github.com/stackabletech/spark-k8s-operator/pull/479
+[#480]: https://github.com/stackabletech/spark-k8s-operator/pull/480
 
 ## [24.7.0] - 2024-07-24
 

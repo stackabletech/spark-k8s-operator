@@ -6,7 +6,7 @@ default_language_version:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c # 4.6.0
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b # 5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -28,7 +28,7 @@ repos:
       - id: yamllint
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: f295829140d25717bc79368d3f966fc1f67a824f # 0.41.0
+    rev: aa975a18c9a869648007d33864034dbc7481fe5e # 0.42.0
     hooks:
       - id: markdownlint
         types: [text]
@@ -44,7 +44,7 @@ repos:
   # If you do not, you will need to delete the cached ruff binary shown in the
   # error message
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: f1ebc5730d98440041cc43e4d69829ad598ae1e7 # 0.6.3
+    rev: 8983acb92ee4b01924893632cf90af926fa608f0 # 0.7.0
     hooks:
       # Run the linter.
       - id: ruff
@@ -52,7 +52,7 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/rhysd/actionlint
-    rev: 62dc61a45fc95efe8c800af7a557ab0b9165d63b # 1.7.1
+    rev: 4e683ab8014a63fafa117492a0c6053758e6d593 # 1.7.3
     hooks:
       - id: actionlint
 

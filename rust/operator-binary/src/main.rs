@@ -13,6 +13,7 @@ use stackable_operator::cli::{Command, ProductOperatorRun};
 use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
 use stackable_operator::k8s_openapi::api::core::v1::Pod;
 use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
+use stackable_operator::kube::core::DeserializeGuard;
 use stackable_operator::kube::runtime::{controller::Controller, watcher};
 use stackable_operator::logging::controller::report_controller_reconciled;
 use stackable_operator::CustomResourceExt;
@@ -83,11 +84,11 @@ async fn main() -> anyhow::Result<()> {
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
             let app_controller = Controller::new(
-                watch_namespace.get_api::<SparkApplication>(&client),
+                watch_namespace.get_api::<DeserializeGuard<SparkApplication>>(&client),
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<ConfigMap>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
                 watcher::Config::default(),
             )
             .shutdown_on_signal()
@@ -106,12 +107,12 @@ async fn main() -> anyhow::Result<()> {
             .instrument(info_span!("app_controller"));
 
             let pod_driver_controller = Controller::new(
-                watch_namespace.get_api::<Pod>(&client),
+                watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default()
                     .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
-                watch_namespace.get_api::<Pod>(&client),
+                watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default(),
             )
             .shutdown_on_signal()
@@ -129,23 +130,23 @@ async fn main() -> anyhow::Result<()> {
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
             let history_controller = Controller::new(
-                watch_namespace.get_api::<SparkHistoryServer>(&client),
+                watch_namespace.get_api::<DeserializeGuard<SparkHistoryServer>>(&client),
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<SparkHistoryServer>(&client),
+                watch_namespace.get_api::<DeserializeGuard<SparkHistoryServer>>(&client),
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<StatefulSet>(&client),
+                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<Service>(&client),
+                watch_namespace.get_api::<DeserializeGuard<Service>>(&client),
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<ConfigMap>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
                 watcher::Config::default(),
             )
             .shutdown_on_signal()

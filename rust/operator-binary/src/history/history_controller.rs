@@ -2,6 +2,7 @@ use crate::history::operations::pdb::add_pdbs;
 use crate::product_logging::{self, resolve_vector_aggregator_address};
 use crate::Ctx;
 use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
+use stackable_operator::kube::core::{error_boundary, DeserializeGuard};
 use stackable_operator::{
     builder::{
         self,
@@ -196,6 +197,11 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+
+    #[snafu(display("SparkHistoryServer object is invalid"))]
+    InvalidSparkHistoryServer {
+        source: error_boundary::InvalidObject,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -206,8 +212,17 @@ impl ReconcilerError for Error {
     }
 }
 /// Updates the status of the SparkApplication that started the pod.
-pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Action> {
+pub async fn reconcile(
+    shs: Arc<DeserializeGuard<SparkHistoryServer>>,
+    ctx: Arc<Ctx>,
+) -> Result<Action> {
     tracing::info!("Starting reconcile history server");
+
+    let shs = shs
+        .0
+        .as_ref()
+        .map_err(error_boundary::InvalidObject::clone)
+        .context(InvalidSparkHistoryServerSnafu)?;
 
     let client = &ctx.client;
 
@@ -244,7 +259,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
 
     // Use a dedicated service account for history server pods.
     let (serviceaccount, rolebinding) =
-        build_history_role_serviceaccount(&shs, &resolved_product_image.app_version_label)?;
+        build_history_role_serviceaccount(shs, &resolved_product_image.app_version_label)?;
     let serviceaccount = cluster_resources
         .add(client, serviceaccount)
         .await
@@ -261,7 +276,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
         .iter()
     {
         let service = build_service(
-            &shs,
+            shs,
             &resolved_product_image.app_version_label,
             role_name,
             None,
@@ -273,7 +288,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
 
         for (rolegroup_name, rolegroup_config) in role_config.iter() {
             let rgr = RoleGroupRef {
-                cluster: ObjectRef::from_obj(&*shs),
+                cluster: ObjectRef::from_obj(shs),
                 role: role_name.into(),
                 role_group: rolegroup_name.into(),
             };
@@ -283,7 +298,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 .context(FailedToResolveConfigSnafu)?;
 
             let service = build_service(
-                &shs,
+                shs,
                 &resolved_product_image.app_version_label,
                 role_name,
                 Some(&rgr),
@@ -294,7 +309,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 .context(ApplyServiceSnafu)?;
 
             let config_map = build_config_map(
-                &shs,
+                shs,
                 rolegroup_config,
                 &merged_config,
                 &resolved_product_image.app_version_label,
@@ -308,7 +323,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
                 .context(ApplyConfigMapSnafu)?;
 
             let sts = build_stateful_set(
-                &shs,
+                shs,
                 &resolved_product_image,
                 &rgr,
                 &log_dir,
@@ -324,7 +339,7 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
         let role_config = &shs.spec.nodes.role_config;
         add_pdbs(
             &role_config.pod_disruption_budget,
-            &shs,
+            shs,
             client,
             &mut cluster_resources,
         )
@@ -340,8 +355,15 @@ pub async fn reconcile(shs: Arc<SparkHistoryServer>, ctx: Arc<Ctx>) -> Result<Ac
     Ok(Action::await_change())
 }
 
-pub fn error_policy(_obj: Arc<SparkHistoryServer>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(*Duration::from_secs(5))
+pub fn error_policy(
+    _obj: Arc<DeserializeGuard<SparkHistoryServer>>,
+    error: &Error,
+    _ctx: Arc<Ctx>,
+) -> Action {
+    match error {
+        Error::InvalidSparkHistoryServer { .. } => Action::await_change(),
+        _ => Action::requeue(*Duration::from_secs(5)),
+    }
 }
 
 #[allow(clippy::result_large_err)]

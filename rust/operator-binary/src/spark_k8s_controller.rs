@@ -43,6 +43,7 @@ use stackable_operator::{
         Resource,
     },
     kube::{
+        core::{error_boundary, DeserializeGuard},
         runtime::{controller::Action, reflector::ObjectRef},
         ResourceExt,
     },
@@ -194,6 +195,11 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+
+    #[snafu(display("SparkApplication object is invalid"))]
+    InvalidSparkApplication {
+        source: error_boundary::InvalidObject,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -204,8 +210,17 @@ impl ReconcilerError for Error {
     }
 }
 
-pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) -> Result<Action> {
+pub async fn reconcile(
+    spark_application: Arc<DeserializeGuard<SparkApplication>>,
+    ctx: Arc<Ctx>,
+) -> Result<Action> {
     tracing::info!("Starting reconcile");
+
+    let spark_application = spark_application
+        .0
+        .as_ref()
+        .map_err(error_boundary::InvalidObject::clone)
+        .context(InvalidSparkApplicationSnafu)?;
 
     let client = &ctx.client;
 
@@ -269,7 +284,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .context(InvalidProductConfigSnafu)?;
 
     let (serviceaccount, rolebinding) =
-        build_spark_role_serviceaccount(&spark_application, &resolved_product_image)?;
+        build_spark_role_serviceaccount(spark_application, &resolved_product_image)?;
     client
         .apply_patch(CONTROLLER_NAME, &serviceaccount, &serviceaccount)
         .await
@@ -305,7 +320,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             .and_then(|r| r.get(&"default".to_string()));
 
     let driver_pod_template_config_map = pod_template_config_map(
-        &spark_application,
+        spark_application,
         SparkApplicationRole::Driver,
         &driver_config,
         driver_product_config,
@@ -334,7 +349,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             .and_then(|r| r.get(&"default".to_string()));
 
     let executor_pod_template_config_map = pod_template_config_map(
-        &spark_application,
+        spark_application,
         SparkApplicationRole::Executor,
         &executor_config,
         executor_product_config,
@@ -372,7 +387,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
             .and_then(|r| r.get(&"default".to_string()));
 
     let submit_job_config_map = submit_job_config_map(
-        &spark_application,
+        spark_application,
         submit_product_config,
         &resolved_product_image,
     )?;
@@ -386,7 +401,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
         .context(ApplyApplicationSnafu)?;
 
     let job = spark_job(
-        &spark_application,
+        spark_application,
         &resolved_product_image,
         &serviceaccount,
         &env_vars,
@@ -406,7 +421,7 @@ pub async fn reconcile(spark_application: Arc<SparkApplication>, ctx: Arc<Ctx>) 
     client
         .apply_patch_status(
             CONTROLLER_NAME,
-            spark_application.as_ref(),
+            spark_application,
             &SparkApplicationStatus {
                 phase: "Unknown".to_string(),
             },
@@ -984,6 +999,13 @@ fn security_context() -> PodSecurityContext {
     }
 }
 
-pub fn error_policy(_obj: Arc<SparkApplication>, _error: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(*Duration::from_secs(5))
+pub fn error_policy(
+    _obj: Arc<DeserializeGuard<SparkApplication>>,
+    error: &Error,
+    _ctx: Arc<Ctx>,
+) -> Action {
+    match error {
+        Error::InvalidSparkApplication { .. } => Action::await_change(),
+        _ => Action::requeue(*Duration::from_secs(5)),
+    }
 }

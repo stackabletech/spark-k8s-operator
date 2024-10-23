@@ -25,6 +25,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING: The fields `connection` and `host` on `S3Connection` as well as `bucketName` on `S3Bucket`are now mandatory ([#472]).
 - Fix `envOverrides` for SparkApplication and SparkHistoryServer ([#451]).
 - Ensure SparkApplications can only create a single submit Job. Fix for #457 ([#460]).
+- Invalid `SparkApplication`/`SparkHistoryServer`  objects don't cause the operator to stop functioning (#[482]).
 
 ### Removed
 

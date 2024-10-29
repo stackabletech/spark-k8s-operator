@@ -5,10 +5,10 @@
         "homepage": null,
         "owner": "stackabletech",
         "repo": "beku.py",
-        "rev": "f5ef0199b0c3c8aa277a275a9d3c624eb5804f27",
-        "sha256": "1yx3ypn312p27d6zfnqcfnkarj9hirmm6gij9345kgnx5p2xfb1d",
+        "rev": "1ebc9e7b70fb8ee11dfb569ae45b3bcd63666d0e",
+        "sha256": "1zg24h5wdis7cysa08r8vvbw2rpyx6fgv148i1lg54dwd3sa0h0d",
         "type": "tarball",
-        "url": "https://github.com/stackabletech/beku.py/archive/f5ef0199b0c3c8aa277a275a9d3c624eb5804f27.tar.gz",
+        "url": "https://github.com/stackabletech/beku.py/archive/1ebc9e7b70fb8ee11dfb569ae45b3bcd63666d0e.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "crate2nix": {
@@ -29,10 +29,10 @@
         "homepage": "",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "8b908192e64224420e2d59dfd9b2e4309e154c5d",
-        "sha256": "1yfsvb2cjinlydcmy8maaa2qafh2sqnn7h6mq80syzvr81li2kcy",
+        "rev": "0fcb98acb6633445764dafe180e6833eb0f95208",
+        "sha256": "1prmbz0c686b7583s6mcnrm67ky5xsks5zdspvkcb1vs6qsm5jp2",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/8b908192e64224420e2d59dfd9b2e4309e154c5d.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/0fcb98acb6633445764dafe180e6833eb0f95208.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }

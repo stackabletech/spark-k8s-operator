@@ -16,6 +16,10 @@
       stackable-secret-operator = attrs: {
         buildInputs = [ pkgs.protobuf pkgs.rustfmt ];
       };
+      stackable-opa-user-info-fetcher = attrs: {
+        # TODO: why is this not pulled in via libgssapi-sys?
+        buildInputs = [ pkgs.krb5 ];
+      };
       krb5-sys = attrs: {
         nativeBuildInputs = [ pkgs.pkg-config ];
         buildInputs = [ pkgs.krb5 ];

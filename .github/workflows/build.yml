@@ -384,6 +384,7 @@ jobs:
 
   create_manifest_list:
     name: Build and publish manifest list
+    if: ${{ !github.event.pull_request.head.repo.fork }}
     needs:
       - package_and_publish
     runs-on: ubuntu-latest

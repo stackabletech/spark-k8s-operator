@@ -1,0 +1,114 @@
+---
+name: Integration Test
+run-name: |
+  Integration Test on ${{ inputs.test-platform }}-${{ inputs.test-architecture }} (${{ inputs.test-run == 'all' && 'all' || format('{0}={1}', inputs.test-run, inputs.test-parameter) }})
+
+env:
+  DEFAULT_TEST_PLATFORM: kind-1.31.0
+  DEFAULT_TEST_ARCHITECTURE: amd64
+  DEFAULT_TEST_RUN: all
+  DEFAULT_TEST_PARAMETER: "" # Unused when the test-run is 'all'
+  TEST_PLATFORM: ${{ inputs.test-platform }}
+  TEST_ARCHITECTURE: ${{ inputs.test-architecture }}
+  TEST_RUN: ${{ inputs.test-run }}
+  TEST_PARAMETER: ${{ inputs.test-parameter }}
+
+on:
+  schedule:
+    # At 00:00 on Sunday. See: https://crontab.guru/#0_0_*_*_0
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+    inputs:
+      test-platform:
+        description: |
+          The test platform to run on (kind doesn't support `arm64`)
+        required: true
+        type: choice
+        options:
+          - kind-1.31.0
+          - kind-1.30.3
+          - aks-1.29
+          - aks-1.28
+          - aks-1.27
+          - eks-1.29
+          - eks-1.28
+          - eks-1.27
+          - gke-1.29
+          - gke-1.28
+          - gke-1.27
+          - okd-4.15
+          - okd-4.14
+          - okd-4.13
+      test-architecture:
+        description: |
+          The architecture the tests will run on
+        required: true
+        type: choice
+        options:
+          - amd64
+          - arm64
+      test-run:
+        description: Type of test run
+        required: true
+        type: choice
+        options:
+          - all
+          - test-suite
+          - test
+      test-parameter:
+        description: Parameter to `--test-suite` or `--test` (ignored for `all`)
+        default: smoke
+
+jobs:
+  test:
+    name: Run Integration Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Override integration test options for scheduled run
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "TEST_PLATFORM=$DEFAULT_TEST_PLATFORM" | tee -a "$GITHUB_ENV"
+          echo "TEST_ARCHITECTURE=$DEFAULT_TEST_ARCHITECTURE" | tee -a "$GITHUB_ENV"
+          echo "TEST_RUN=$DEFAULT_TEST_RUN" | tee -a "$GITHUB_ENV"
+          echo "TEST_PARAMETER=$DEFAULT_TEST_PARAMETER" | tee -a "$GITHUB_ENV"
+
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+
+      - name: Run Integration Test
+        id: test
+        uses: stackabletech/actions/run-integration-test@5b66858af3597c4ea34f9b33664b8034a1d28427 # v0.3.0
+        with:
+          test-platform: ${{ env.TEST_PLATFORM }}-${{ env.TEST_ARCHITECTURE }}
+          test-run: ${{ env.TEST_RUN }}
+          test-parameter: ${{ env.TEST_PARAMETER }}
+          replicated-api-token: ${{ secrets.REPLICATED_API_TOKEN }}
+
+      - name: Send Notification
+        if: ${{ failure() }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_INTEGRATION_TEST_TOKEN }}
+        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0 # v1.27.0
+        with:
+          channel-id: "C07UYJYSMSN" # notifications-integration-tests
+          payload: |
+              {
+                "text": "Integration Test *${{ github.repository }}* failed",
+                "attachments": [
+                  {
+                    "pretext": "Started at ${{ steps.test.outputs.start-time }}, failed at ${{ steps.test.outputs.end-time }}",
+                    "color": "#aa0000",
+                    "actions": [
+                      {
+                        "type": "button",
+                        "text": "Go to integration test run",
+                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                      }
+                    ]
+                  }
+                ]
+              }

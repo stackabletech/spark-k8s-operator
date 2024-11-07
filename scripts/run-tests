@@ -313,7 +313,7 @@ def maybe_install_release(skip_release: bool, release_file: str) -> None:
         raise TestRunnerException()
 
 
-def gen_tests(test_suite: str) -> None:
+def gen_tests(test_suite: str, namespace: str) -> None:
     try:
         beku_cmd = [
             "beku",
@@ -328,6 +328,8 @@ def gen_tests(test_suite: str) -> None:
         ]
         if test_suite:
             beku_cmd.extend(["--suite", test_suite])
+        if namespace:
+            beku_cmd.extend(["--namespace", namespace])
 
         logging.debug(f"Running : {beku_cmd}")
         subprocess.run(
@@ -386,7 +388,7 @@ def main(argv) -> int:
         opts = parse_args(argv[1:])
         logging.basicConfig(encoding="utf-8", level=opts.log_level)
         have_requirements()
-        gen_tests(opts.test_suite)
+        gen_tests(opts.test_suite, opts.namespace)
         with release_file(opts.operator, opts.skip_operator) as f:
             maybe_install_release(opts.skip_release, f)
         if opts.skip_tests:

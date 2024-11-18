@@ -29,6 +29,9 @@ SHELL=/usr/bin/env bash -euo pipefail
 render-readme:
 	scripts/render_readme.sh
 
+render-docs:
+	scripts/docs_templating.sh
+
 ## Docker related targets
 docker-build:
 	docker build --force-rm --build-arg VERSION=${VERSION} -t "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}-${ARCH}" -f docker/Dockerfile .

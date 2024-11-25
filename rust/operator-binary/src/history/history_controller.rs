@@ -659,6 +659,8 @@ fn build_service(
     })
 }
 
+// TODO: This function should be replaced with operator-rs build_rbac_resources.
+// See: https://github.com/stackabletech/spark-k8s-operator/issues/499
 #[allow(clippy::result_large_err)]
 fn build_history_role_serviceaccount(
     shs: &SparkHistoryServer,

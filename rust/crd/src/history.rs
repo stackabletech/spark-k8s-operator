@@ -27,6 +27,7 @@ use stackable_operator::{
     product_logging::{self, spec::Logging},
     role_utils::{Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
+    time::Duration,
 };
 use std::collections::{BTreeMap, HashMap};
 use strum::{Display, EnumIter};
@@ -400,9 +401,16 @@ pub struct HistoryConfig {
     pub logging: Logging<SparkHistoryServerContainer>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+    /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
+    /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
+    #[fragment_attrs(serde(default))]
+    pub requested_secret_lifetime: Option<Duration>,
 }
 
 impl HistoryConfig {
+    // Auto TLS certificate lifetime
+    const DEFAULT_HISTORY_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+
     fn default_config(cluster_name: &str) -> HistoryConfigFragment {
         HistoryConfigFragment {
             cleaner: None,
@@ -419,6 +427,7 @@ impl HistoryConfig {
             },
             logging: product_logging::spec::default_logging(),
             affinity: history_affinity(cluster_name),
+            requested_secret_lifetime: Some(Self::DEFAULT_HISTORY_SECRET_LIFETIME),
         }
     }
 }

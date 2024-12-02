@@ -36,6 +36,7 @@ use stackable_operator::{
     product_config_utils::Configuration,
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
+    time::Duration,
     utils::crds::raw_object_list_schema,
 };
 use strum::{Display, EnumIter};
@@ -123,9 +124,17 @@ pub struct RoleConfig {
 
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+
+    /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
+    /// That this can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
+    #[fragment_attrs(serde(default))]
+    pub requested_secret_lifetime: Option<Duration>,
 }
 
 impl RoleConfig {
+    // Auto TLS certificate lifetime
+    const DEFAULT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+
     pub fn default_config() -> RoleConfigFragment {
         RoleConfigFragment {
             resources: ResourcesFragment {
@@ -142,6 +151,7 @@ impl RoleConfig {
             logging: product_logging::spec::default_logging(),
             volume_mounts: Some(VolumeMounts::default()),
             affinity: Default::default(),
+            requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
         }
     }
     pub fn volume_mounts(
@@ -206,9 +216,16 @@ pub struct SubmitConfig {
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default, flatten))]
     pub volume_mounts: Option<VolumeMounts>,
+    /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
+    /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
+    #[fragment_attrs(serde(default))]
+    pub requested_secret_lifetime: Option<Duration>,
 }
 
 impl SubmitConfig {
+    // Auto TLS certificate lifetime
+    const DEFAULT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+
     pub fn default_config() -> SubmitConfigFragment {
         SubmitConfigFragment {
             resources: ResourcesFragment {
@@ -223,6 +240,7 @@ impl SubmitConfig {
                 storage: SparkStorageConfigFragment {},
             },
             volume_mounts: Some(VolumeMounts::default()),
+            requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
         }
     }
 }

@@ -126,7 +126,7 @@ pub struct RoleConfig {
     pub affinity: StackableAffinity,
 
     /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
-    /// That this can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
+    /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
 }

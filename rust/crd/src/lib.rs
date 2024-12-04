@@ -14,6 +14,7 @@ use logdir::ResolvedLogDir;
 use product_config::{types::PropertyNameKind, ProductConfigManager};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::time::Duration;
 use stackable_operator::{
     builder::pod::volume::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
@@ -281,6 +282,7 @@ impl SparkApplication {
         s3conn: &Option<S3ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
         log_config_map: Option<&str>,
+        requested_secret_lifetime: &Duration,
     ) -> Result<Vec<Volume>, Error> {
         let mut result: Vec<Volume> = self.spec.volumes.clone();
 
@@ -356,6 +358,7 @@ impl SparkApplication {
                         .ephemeral(
                             SecretOperatorVolumeSourceBuilder::new(cert_secret)
                                 .with_format(SecretFormat::TlsPkcs12)
+                                .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
                                 .build()
                                 .context(TlsCertSecretClassVolumeBuildSnafu)?,
                         )
@@ -1068,6 +1071,7 @@ mod tests {
 
     use indoc::indoc;
     use rstest::rstest;
+    use stackable_operator::time::Duration;
     use std::collections::{BTreeMap, HashMap};
 
     #[test]
@@ -1206,6 +1210,7 @@ mod tests {
             },
             volume_mounts: Default::default(),
             affinity: StackableAffinity::default(),
+            requested_secret_lifetime: Some(Duration::from_days_unchecked(1)),
         };
 
         let mut props = BTreeMap::new();
@@ -1250,6 +1255,7 @@ mod tests {
             },
             volume_mounts: Default::default(),
             affinity: StackableAffinity::default(),
+            requested_secret_lifetime: Some(Duration::from_days_unchecked(1)),
         };
 
         let mut props = BTreeMap::new();

@@ -6912,7 +6912,7 @@ rec {
       };
       "stackable-spark-k8s-crd" = rec {
         crateName = "stackable-spark-k8s-crd";
-        version = "24.11.0";
+        version = "24.11.1-rc1";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./rust/crd; };
         libName = "stackable_spark_k8s_crd";
@@ -6973,7 +6973,7 @@ rec {
       };
       "stackable-spark-k8s-operator" = rec {
         crateName = "stackable-spark-k8s-operator";
-        version = "24.11.0";
+        version = "24.11.1-rc1";
         edition = "2021";
         crateBin = [
           {

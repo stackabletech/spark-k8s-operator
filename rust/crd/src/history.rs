@@ -410,7 +410,7 @@ pub struct HistoryConfig {
 
 impl HistoryConfig {
     // Auto TLS certificate lifetime
-    const DEFAULT_HISTORY_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+    const DEFAULT_HISTORY_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
     fn default_config(cluster_name: &str) -> HistoryConfigFragment {
         HistoryConfigFragment {

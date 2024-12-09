@@ -133,7 +133,7 @@ pub struct RoleConfig {
 
 impl RoleConfig {
     // Auto TLS certificate lifetime
-    const DEFAULT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+    const DEFAULT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
     pub fn default_config() -> RoleConfigFragment {
         RoleConfigFragment {
@@ -225,7 +225,7 @@ pub struct SubmitConfig {
 
 impl SubmitConfig {
     // Auto TLS certificate lifetime
-    const DEFAULT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(7);
+    const DEFAULT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
     pub fn default_config() -> SubmitConfigFragment {
         SubmitConfigFragment {

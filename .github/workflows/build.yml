@@ -13,7 +13,8 @@ on:
       - trying
       - "renovate/**"
     tags:
-      - '[0-9][0-9].[0-9]+.[0-9]+(-rc[0-9]+)?'
+      - '[0-9][0-9].[0-9]+.[0-9]+'
+      - '[0-9][0-9].[0-9]+.[0-9]+-rc[0-9]+'
   pull_request:
   merge_group:
   schedule:
@@ -345,11 +346,15 @@ jobs:
           crate: cargo-edit
           bin: cargo-set-version
       - name: Update version if PR against main branch
-        if: ${{ github.event_name == 'pull_request' && github.ref == 'refs/heads/main' }}
-        run: cargo set-version --offline --workspace 0.0.0-pr${{ github.event.pull_request.number }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PR_VERSION="0.0.0-pr${PR_NUMBER}"
+          cargo set-version --offline --workspace "$PR_VERSION"
       - name: Update version if PR against non-main branch
         # For PRs to be merged against a release branch, use the version that has already been set in the calling script.
-        if: ${{ github.event_name == 'pull_request' && github.ref != 'refs/heads/main' }}
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.event.pull_request.base.ref, 'release-') }}
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
@@ -420,11 +425,15 @@ jobs:
           crate: cargo-edit
           bin: cargo-set-version
       - name: Update version if PR against main branch
-        if: ${{ github.event_name == 'pull_request' && github.ref == 'refs/heads/main' }}
-        run: cargo set-version --offline --workspace 0.0.0-pr${{ github.event.pull_request.number }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PR_VERSION="0.0.0-pr${PR_NUMBER}"
+          cargo set-version --offline --workspace "$PR_VERSION"
       - name: Update version if PR against non-main branch
         # For PRs to be merged against a release branch, use the version that has already been set in the calling script.
-        if: ${{ github.event_name == 'pull_request' && github.ref != 'refs/heads/main' }}
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.event.pull_request.base.ref, 'release-') }}
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |

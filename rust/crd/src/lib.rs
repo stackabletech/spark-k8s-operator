@@ -527,9 +527,7 @@ impl SparkApplication {
         let mode = &self.spec.mode;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
-        let mut submit_cmd: Vec<String> = vec![];
-
-        submit_cmd.extend(vec![
+        let mut submit_cmd = vec![
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
@@ -547,7 +545,7 @@ impl SparkApplication {
             format!("--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*"),
             format!("--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
             format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
-        ]);
+        ];
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
         // for possible S3 related properties
@@ -676,7 +674,10 @@ impl SparkApplication {
 
         submit_cmd.extend(self.spec.args.clone());
 
-        Ok(submit_cmd)
+        Ok(vec![
+            format!("CONTAINERDEBUG_LOG_DIRECTORY={VOLUME_MOUNT_PATH_LOG}/containerdebug containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
+            submit_cmd.join(" "),
+        ])
     }
 
     pub fn env(

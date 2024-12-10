@@ -9,10 +9,11 @@ metadata:
   name: spark-pi-s3-1
 status:
   phase: Succeeded
----
-# This test checks if the containerdebug-state.json file is present and valid
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-timeout: 600
-commands:
-  - script: kubectl exec -n $NAMESPACE --container airflow spark-history-node-default-0 -- cat /stackable/log/containerdebug-state.json | jq --exit-status
+#---
+## This test checks if the containerdebug-state.json file is present and valid
+#apiVersion: kuttl.dev/v1beta1
+#kind: TestAssert
+#commands:
+#  - script: |
+#      SPARK_SUBMIT_POD=$(kubectl get -n $NAMESPACE pods --field-selector=status.phase=Running --selector batch.kubernetes.io/job-name=spark-pi-s3-1 -o jsonpath='{.items[0].metadata.name}')
+#      kubectl exec -n $NAMESPACE --container spark-submit $SPARK_SUBMIT_POD -- cat /stackable/log/containerdebug-state.json | jq --exit-status

@@ -466,8 +466,14 @@ fn init_containers(
 
             Some(
                 jcb.image(job_image)
-                    .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-                    .args(vec![args.join(" && ")])
+                    .command(vec![
+                        "/bin/bash".to_string(),
+                        "-x".to_string(),
+                        "-euo".to_string(),
+                        "pipefail".to_string(),
+                        "-c".to_string(),
+                    ])
+                    .args(vec![args.join("\n")])
                     .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
                     .context(AddVolumeMountSnafu)?
                     .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
@@ -509,8 +515,14 @@ fn init_containers(
             ));
 
             rcb.image(&spark_image.image)
-                .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-                .args(vec![args.join(" && ")])
+                .command(vec![
+                    "/bin/bash".to_string(),
+                    "-x".to_string(),
+                    "-euo".to_string(),
+                    "pipefail".to_string(),
+                    "-c".to_string(),
+                ])
+                .args(vec![args.join("\n")])
                 .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
                 .context(AddVolumeMountSnafu)?
                 .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
@@ -549,8 +561,14 @@ fn init_containers(
             }
             Some(
                 tcb.image(&spark_image.image)
-                    .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-                    .args(vec![args.join(" && ")])
+                    .command(vec![
+                        "/bin/bash".to_string(),
+                        "-x".to_string(),
+                        "-euo".to_string(),
+                        "pipefail".to_string(),
+                        "-c".to_string(),
+                    ])
+                    .args(vec![args.join("\n")])
                     .add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE)
                     .context(AddVolumeMountSnafu)?
                     .resources(
@@ -863,12 +881,17 @@ fn spark_job(
     let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
         .context(IllegalContainerNameSnafu)?;
 
-    let args = [job_commands.join(" ")];
     let merged_env = spark_application.merged_env(SparkApplicationRole::Submit, env);
 
     cb.image_from_product_image(spark_image)
-        .command(vec!["/bin/bash".to_string(), "-c".to_string()])
-        .args(vec![args.join(" && ")])
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+            "-c".to_string(),
+        ])
+        .args(vec![job_commands.join("\n")])
         .resources(job_config.resources.clone().into())
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, logdir))
         .context(AddVolumeMountSnafu)?

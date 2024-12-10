@@ -527,7 +527,13 @@ fn build_stateful_set(
         .context(InvalidContainerNameSnafu)?
         .image_from_product_image(resolved_product_image)
         .resources(merged_config.resources.clone().into())
-        .command(vec!["/bin/bash".to_string()])
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+            "-c".to_string(),
+        ])
         .args(command_args(log_dir))
         .add_container_port("http", 18080)
         .add_container_port("metrics", METRICS_PORT.into())
@@ -751,10 +757,10 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
     }
 
     command.extend(vec![
+        format!("CONTAINERDEBUG_LOG_DIRECTORY={VOLUME_MOUNT_PATH_LOG}/containerdebug containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
         format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
-
-    vec![String::from("-c"), command.join(" && ")]
+    vec![command.join("\n")]
 }
 
 fn labels<'a, T>(

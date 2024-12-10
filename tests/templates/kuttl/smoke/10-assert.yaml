@@ -9,3 +9,10 @@ metadata:
   name: spark-pi-s3-1
 status:
   phase: Succeeded
+---
+# This test checks if the containerdebug-state.json file is present and valid
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+commands:
+  - script: kubectl exec -n $NAMESPACE --container airflow spark-history-node-default-0 -- cat /stackable/log/containerdebug-state.json | jq --exit-status

@@ -326,18 +326,18 @@ impl SparkApplication {
                     .with_config_map(log_config_map)
                     .build(),
             );
-
-            result.push(
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
-                    .with_empty_dir(
-                        None::<String>,
-                        Some(product_logging::framework::calculate_log_volume_size_limit(
-                            &[MAX_SPARK_LOG_FILES_SIZE, MAX_INIT_LOG_FILES_SIZE],
-                        )),
-                    )
-                    .build(),
-            );
         }
+        // This volume is also used by the containerdebug process so it must always be there.
+        result.push(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+                .with_empty_dir(
+                    None::<String>,
+                    Some(product_logging::framework::calculate_log_volume_size_limit(
+                        &[MAX_SPARK_LOG_FILES_SIZE, MAX_INIT_LOG_FILES_SIZE],
+                    )),
+                )
+                .build(),
+        );
 
         if !self.packages().is_empty() {
             result.push(
@@ -395,6 +395,12 @@ impl SparkApplication {
             VolumeMount {
                 name: VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES.into(),
                 mount_path: VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES.into(),
+                ..VolumeMount::default()
+            },
+            // This is used at least by the containerdebug process
+            VolumeMount {
+                name: VOLUME_MOUNT_NAME_LOG.into(),
+                mount_path: VOLUME_MOUNT_PATH_LOG.into(),
                 ..VolumeMount::default()
             },
         ];
@@ -675,7 +681,7 @@ impl SparkApplication {
         submit_cmd.extend(self.spec.args.clone());
 
         Ok(vec![
-            format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug/containerdebug-state.json --loop &"),
+            format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
             submit_cmd.join(" "),
         ])
     }
@@ -1384,6 +1390,12 @@ mod tests {
                 mount_path: "/stackable/spark/executor-pod-templates".into(),
                 mount_propagation: None,
                 name: "executor-pod-template".into(),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                mount_path: "/stackable/log".into(),
+                mount_propagation: None,
+                name: "log".into(),
                 ..VolumeMount::default()
             },
             VolumeMount {

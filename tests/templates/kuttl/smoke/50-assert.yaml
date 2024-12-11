@@ -3,6 +3,7 @@
 #
 # It needs to run as soon as the spark application has been submitted because
 # once it is completed the pods are terminated.
+#
 # Unfortunately it's impossible to test the driver and the executor pods in a
 # reliable way.
 #
@@ -11,10 +12,4 @@ kind: TestAssert
 commands:
   - script: |
       SPARK_SUBMIT_POD=$(kubectl get -n $NAMESPACE pods --field-selector=status.phase=Running --selector batch.kubernetes.io/job-name=spark-pi-s3-1 -o jsonpath='{.items[0].metadata.name}')
-      kubectl exec -n $NAMESPACE --container spark-submit $SPARK_SUBMIT_POD -- cat /stackable/log/containerdebug-state.json | jq --exit-status
-  #- script: |
-  #    SPARK_DRIVER_POD=$(kubectl get -n $NAMESPACE pod --field-selector=status.phase=Running --selector=spark-role=driver,spark-app-name=spark-pi -o jsonpath='{.items[0].metadata.name}')
-  #    kubectl exec -n $NAMESPACE --container spark-submit $SPARK_DRIVER_POD -- cat /stackable/log/containerdebug-state.json | jq --exit-status
-  #- script: |
-  #    SPARK_EXECUTOR_POD=$(kubectl get -n $NAMESPACE pods --field-selector=status.phase=Running --selector spark-role=executor,spark-app-name=spark-pi -o jsonpath='{.items[0].metadata.name}')
-  #    kubectl exec -n $NAMESPACE --container spark-submit $SPARK_EXECUTOR_POD -- cat /stackable/log/containerdebug-state.json | jq --exit-status
+      kubectl exec -n $NAMESPACE --container spark-submit $SPARK_SUBMIT_POD -- cat /stackable/log/containerdebug/containerdebug-state.json | jq --exit-status

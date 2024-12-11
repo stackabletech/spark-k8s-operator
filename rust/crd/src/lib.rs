@@ -675,7 +675,7 @@ impl SparkApplication {
         submit_cmd.extend(self.spec.args.clone());
 
         Ok(vec![
-            format!("CONTAINERDEBUG_LOG_DIRECTORY={VOLUME_MOUNT_PATH_LOG}/containerdebug containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
+            format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug/containerdebug-state.json --loop &"),
             submit_cmd.join(" "),
         ])
     }

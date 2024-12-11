@@ -15,4 +15,4 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 60
 commands:
-  - script: kubectl exec -n $NAMESPACE --container spark-history spark-history-node-default-0 -- cat /stackable/log/containerdebug-state.json | jq --exit-status
+  - script: kubectl exec -n $NAMESPACE --container spark-history spark-history-node-default-0 -- cat /stackable/log/containerdebug/containerdebug-state.json | jq --exit-status

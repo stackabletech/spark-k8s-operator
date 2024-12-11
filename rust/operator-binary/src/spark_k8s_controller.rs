@@ -614,7 +614,7 @@ fn pod_template(
 
     cb.add_env_var(
         "_STACKABLE_PRE_HOOK",
-        format!("CONTAINERDEBUG_LOG_DIRECTORY={VOLUME_MOUNT_PATH_LOG}/containerdebug containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
+        format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug/containerdebug-state.json --loop &"),
     );
 
     if config.logging.enable_vector_agent {

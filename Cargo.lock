@@ -2233,7 +2233,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-spark-k8s-crd"
-version = "24.11.1-rc1"
+version = "24.11.1-rc2"
 dependencies = [
  "indoc",
  "product-config",
@@ -2250,7 +2250,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-spark-k8s-operator"
-version = "24.11.1-rc1"
+version = "24.11.1-rc2"
 dependencies = [
  "anyhow",
  "built",

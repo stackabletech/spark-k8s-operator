@@ -1,4 +1,4 @@
-Installed commons=24.11.1-rc1 operator
-Installed secret=24.11.1-rc1 operator
-Installed listener=24.11.1-rc1 operator
-Installed spark-k8s=24.11.1-rc1 operator
+Installed commons=24.11.1-rc2 operator
+Installed secret=24.11.1-rc2 operator
+Installed listener=24.11.1-rc2 operator
+Installed spark-k8s=24.11.1-rc2 operator

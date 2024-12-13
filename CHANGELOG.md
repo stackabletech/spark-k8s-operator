@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- The lifetime of auto generated TLS certificates is now configurable with the role and roleGroup
+  config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#501]).
+
+[#501]: https://github.com/stackabletech/spark-k8s-operator/pull/501
+
+## [24.11.0] - 2024-11-18
+
+### Added
+
 - Make spark-env.sh configurable via `configOverrides` ([#473]).
 - The Spark history server can now service logs from HDFS compatible systems ([#479]).
 - The operator can now run on Kubernetes clusters using a non-default cluster domain.

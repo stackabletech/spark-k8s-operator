@@ -29,6 +29,9 @@ SHELL=/usr/bin/env bash -euo pipefail
 render-readme:
 	scripts/render_readme.sh
 
+render-docs:
+	scripts/docs_templating.sh
+
 ## Docker related targets
 docker-build:
 	docker build --force-rm --build-arg VERSION=${VERSION} -t "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}-${ARCH}" -f docker/Dockerfile .
@@ -48,7 +51,7 @@ docker-publish:
 	# Uses the keyless signing flow with Github Actions as identity provider\
 	cosign sign -y "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}@$$REPO_DIGEST_OF_IMAGE";\
 	# Generate the SBOM for the operator image, this leverages the already generated SBOM for the operator binary by cargo-cyclonedx\
-	syft scan --output cyclonedx-json=sbom.json --select-catalogers "-cargo-auditable-binary-cataloger" --scope all-layers --source-name "${OPERATOR_NAME}" --source-version "${VERSION}-${ARCH}" "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}@$$REPO_DIGEST_OF_IMAGE";\
+	syft scan --output cyclonedx-json@1.5=sbom.json --select-catalogers "-cargo-auditable-binary-cataloger,+sbom-cataloger" --scope all-layers --source-name "${OPERATOR_NAME}" --source-version "${VERSION}-${ARCH}" "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}@$$REPO_DIGEST_OF_IMAGE";\
 	# Determine the PURL for the container image\
 	URLENCODED_REPO_DIGEST_OF_IMAGE=$$(echo "$$REPO_DIGEST_OF_IMAGE" | sed 's/:/%3A/g');\
 	PURL="pkg:oci/${OPERATOR_NAME}@$$URLENCODED_REPO_DIGEST_OF_IMAGE?arch=${ARCH}&repository_url=${DOCKER_REPO}%2F${ORGANIZATION}%2F${OPERATOR_NAME}";\
@@ -74,7 +77,7 @@ docker-publish:
 	# Uses the keyless signing flow with Github Actions as identity provider\
 	cosign sign -y "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}@$$REPO_DIGEST_OF_IMAGE";\
 	# Generate the SBOM for the operator image, this leverages the already generated SBOM for the operator binary by cargo-cyclonedx\
-	syft scan --output cyclonedx-json=sbom.json --select-catalogers "-cargo-auditable-binary-cataloger" --scope all-layers --source-name "${OPERATOR_NAME}" --source-version "${VERSION}-${ARCH}" "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}@$$REPO_DIGEST_OF_IMAGE";\
+	syft scan --output cyclonedx-json@1.5=sbom.json --select-catalogers "-cargo-auditable-binary-cataloger,+sbom-cataloger" --scope all-layers --source-name "${OPERATOR_NAME}" --source-version "${VERSION}-${ARCH}" "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}@$$REPO_DIGEST_OF_IMAGE";\
 	# Determine the PURL for the container image\
 	URLENCODED_REPO_DIGEST_OF_IMAGE=$$(echo "$$REPO_DIGEST_OF_IMAGE" | sed 's/:/%3A/g');\
 	PURL="pkg:oci/${OPERATOR_NAME}@$$URLENCODED_REPO_DIGEST_OF_IMAGE?arch=${ARCH}&repository_url=${OCI_REGISTRY_HOSTNAME}%2F${OCI_REGISTRY_PROJECT_IMAGES}%2F${OPERATOR_NAME}";\

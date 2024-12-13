@@ -16,6 +16,7 @@ use stackable_operator::{
         secret_class::SecretClassVolume,
     },
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
+    time::Duration,
 };
 use std::collections::BTreeMap;
 
@@ -103,9 +104,9 @@ impl ResolvedLogDir {
         }
     }
 
-    pub fn volumes(&self) -> Result<Vec<Volume>, Error> {
+    pub fn volumes(&self, requested_secret_lifetime: &Duration) -> Result<Vec<Volume>, Error> {
         match self {
-            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.volumes(),
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.volumes(requested_secret_lifetime),
             ResolvedLogDir::Custom(_) => Ok(vec![]),
         }
     }
@@ -248,7 +249,7 @@ impl S3LogDir {
         )
     }
 
-    pub fn volumes(&self) -> Result<Vec<Volume>, Error> {
+    pub fn volumes(&self, requested_secret_lifetime: &Duration) -> Result<Vec<Volume>, Error> {
         let mut volumes: Vec<Volume> = self.credentials_volume()?.into_iter().collect();
 
         if let Some(secret_name) = tlscerts::tls_secret_name(&self.bucket.connection) {
@@ -257,6 +258,7 @@ impl S3LogDir {
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(secret_name)
                             .with_format(SecretFormat::TlsPkcs12)
+                            .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
                             .build()
                             .context(TlsCertSecretClassVolumeBuildSnafu)?,
                     )

@@ -65,6 +65,9 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("missing secret lifetime"))]
+    MissingSecretLifetime,
+
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
 
@@ -444,7 +447,7 @@ fn build_stateful_set(
     resolved_product_image: &ResolvedProductImage,
     rolegroupref: &RoleGroupRef<SparkHistoryServer>,
     log_dir: &ResolvedLogDir,
-    config: &HistoryConfig,
+    merged_config: &HistoryConfig,
     serviceaccount: &ServiceAccount,
 ) -> Result<StatefulSet, Error> {
     let log_config_map = if let Some(ContainerLogConfig {
@@ -452,7 +455,7 @@ fn build_stateful_set(
             Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
                 custom: ConfigMapLogConfig { config_map },
             })),
-    }) = config
+    }) = merged_config
         .logging
         .containers
         .get(&SparkHistoryServerContainer::SparkHistory)
@@ -473,6 +476,9 @@ fn build_stateful_set(
 
     let mut pb = PodBuilder::new();
 
+    let requested_secret_lifetime = merged_config
+        .requested_secret_lifetime
+        .context(MissingSecretLifetimeSnafu)?;
     pb.service_account_name(serviceaccount.name_unchecked())
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
@@ -497,7 +503,11 @@ fn build_stateful_set(
                 .build(),
         )
         .context(AddVolumeSnafu)?
-        .add_volumes(log_dir.volumes().context(CreateLogDirVolumesSpecSnafu)?)
+        .add_volumes(
+            log_dir
+                .volumes(&requested_secret_lifetime)
+                .context(CreateLogDirVolumesSpecSnafu)?,
+        )
         .context(AddVolumeSnafu)?
         .security_context(PodSecurityContext {
             run_as_user: Some(SPARK_UID),
@@ -516,7 +526,7 @@ fn build_stateful_set(
     let container = ContainerBuilder::new(container_name)
         .context(InvalidContainerNameSnafu)?
         .image_from_product_image(resolved_product_image)
-        .resources(config.resources.clone().into())
+        .resources(merged_config.resources.clone().into())
         .command(vec!["/bin/bash".to_string()])
         .args(command_args(log_dir))
         .add_container_port("http", 18080)
@@ -533,13 +543,13 @@ fn build_stateful_set(
         .build();
     pb.add_container(container);
 
-    if config.logging.enable_vector_agent {
+    if merged_config.logging.enable_vector_agent {
         pb.add_container(
             vector_container(
                 resolved_product_image,
                 VOLUME_MOUNT_NAME_CONFIG,
                 VOLUME_MOUNT_NAME_LOG,
-                config
+                merged_config
                     .logging
                     .containers
                     .get(&SparkHistoryServerContainer::Vector),
@@ -659,6 +669,8 @@ fn build_service(
     })
 }
 
+// TODO: This function should be replaced with operator-rs build_rbac_resources.
+// See: https://github.com/stackabletech/spark-k8s-operator/issues/499
 #[allow(clippy::result_large_err)]
 fn build_history_role_serviceaccount(
     shs: &SparkHistoryServer,

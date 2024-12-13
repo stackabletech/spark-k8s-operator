@@ -65,6 +65,9 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("missing secret lifetime"))]
+    MissingSecretLifetime,
+
     #[snafu(display("object has no namespace"))]
     ObjectHasNoNamespace,
 
@@ -667,7 +670,7 @@ fn pod_template(
 fn pod_template_config_map(
     spark_application: &SparkApplication,
     role: SparkApplicationRole,
-    config: &RoleConfig,
+    merged_config: &RoleConfig,
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
@@ -682,15 +685,23 @@ fn pod_template_config_map(
             Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
                 custom: ConfigMapLogConfig { config_map },
             })),
-    }) = config.logging.containers.get(&SparkContainer::Spark)
+    }) = merged_config.logging.containers.get(&SparkContainer::Spark)
     {
         config_map.into()
     } else {
         cm_name.clone()
     };
 
+    let requested_secret_lifetime = merged_config
+        .requested_secret_lifetime
+        .context(MissingSecretLifetimeSnafu)?;
     let mut volumes = spark_application
-        .volumes(s3conn, logdir, Some(&log_config_map))
+        .volumes(
+            s3conn,
+            logdir,
+            Some(&log_config_map),
+            &requested_secret_lifetime,
+        )
         .context(CreateVolumesSnafu)?;
     volumes.push(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
@@ -701,7 +712,7 @@ fn pod_template_config_map(
     let template = pod_template(
         spark_application,
         role.clone(),
-        config,
+        merged_config,
         volumes.as_ref(),
         env,
         s3conn,
@@ -737,7 +748,7 @@ fn pod_template_config_map(
             role_group: String::new(),
         },
         vector_aggregator_address,
-        &config.logging,
+        &merged_config.logging,
         SparkContainer::Spark,
         SparkContainer::Vector,
         &mut cm_builder,
@@ -881,9 +892,12 @@ fn spark_job(
             )
             .build(),
     ];
+    let requested_secret_lifetime = job_config
+        .requested_secret_lifetime
+        .context(MissingSecretLifetimeSnafu)?;
     volumes.extend(
         spark_application
-            .volumes(s3conn, logdir, None)
+            .volumes(s3conn, logdir, None, &requested_secret_lifetime)
             .context(CreateVolumesSnafu)?,
     );
 

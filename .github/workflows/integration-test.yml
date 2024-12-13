@@ -14,19 +14,23 @@ env:
   TEST_PARAMETER: ${{ inputs.test-parameter }}
 
 on:
-  schedule:
+  # schedule:
     # At 00:00 on Sunday. See: https://crontab.guru/#0_0_*_*_0
-    - cron: "0 0 * * 0"
+    # - cron: "0 0 * * 0"
   workflow_dispatch:
     inputs:
       test-platform:
         description: |
-          The test platform to run on (kind doesn't support `arm64`)
+          The test platform to run on
         required: true
         type: choice
         options:
-          - kind-1.31.0
-          - kind-1.30.3
+          - kind-1.31.2
+          - kind-1.30.6
+          - rke2-1.31.2
+          - rke2-1.30.6
+          - k3s-1.31.2
+          - k3s-1.30.6
           - aks-1.29
           - aks-1.28
           - aks-1.27
@@ -41,7 +45,8 @@ on:
           - okd-4.13
       test-architecture:
         description: |
-          The architecture the tests will run on
+          The architecture the tests will run on. Consult the run-integration-test action README for
+          more details on supported architectures for each distribution
         required: true
         type: choice
         options:
@@ -81,7 +86,7 @@ jobs:
 
       - name: Run Integration Test
         id: test
-        uses: stackabletech/actions/run-integration-test@5b66858af3597c4ea34f9b33664b8034a1d28427 # v0.3.0
+        uses: stackabletech/actions/run-integration-test@95626907fd8cae2f17c862ae40bcab1aa5a2c854 # v0.5.0
         with:
           test-platform: ${{ env.TEST_PLATFORM }}-${{ env.TEST_ARCHITECTURE }}
           test-run: ${{ env.TEST_RUN }}

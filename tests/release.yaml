@@ -7,16 +7,16 @@ releases:
     description: Integration test
     products:
       commons:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
       secret:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
       listener:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
       zookeeper:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
       hdfs:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
       hbase:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2
       spark-k8s:
-        operatorVersion: 24.11.1-rc1
+        operatorVersion: 24.11.1-rc2

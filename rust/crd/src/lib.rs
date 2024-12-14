@@ -692,6 +692,15 @@ impl SparkApplication {
         logdir: &Option<ResolvedLogDir>,
     ) -> Vec<EnvVar> {
         let mut e: Vec<EnvVar> = self.spec.env.clone();
+
+        // Needed by the `containerdebug` process running in the background of the `spark-submit`
+        // container to log it's tracing information to.
+        e.push(EnvVar {
+            name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            value: Some(format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug")),
+            value_from: None,
+        });
+
         if self.requirements().is_some() {
             e.push(EnvVar {
                 name: "PYTHONPATH".to_string(),

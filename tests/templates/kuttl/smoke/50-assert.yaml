@@ -1,0 +1,15 @@
+---
+# This test checks if the containerdebug-state.json file is present and valid.
+#
+# It needs to run as soon as the spark application has been submitted because
+# once it is completed the pods are terminated.
+#
+# Unfortunately it's impossible to test the driver and the executor pods in a
+# reliable way.
+#
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+  - script: |
+      SPARK_SUBMIT_POD=$(kubectl get -n $NAMESPACE pods --field-selector=status.phase=Running --selector batch.kubernetes.io/job-name=spark-pi-s3-1 -o jsonpath='{.items[0].metadata.name}')
+      kubectl exec -n $NAMESPACE --container spark-submit $SPARK_SUBMIT_POD -- cat /stackable/log/containerdebug-state.json | jq --exit-status '"valid JSON"'

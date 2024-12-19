@@ -326,18 +326,18 @@ impl SparkApplication {
                     .with_config_map(log_config_map)
                     .build(),
             );
-
-            result.push(
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
-                    .with_empty_dir(
-                        None::<String>,
-                        Some(product_logging::framework::calculate_log_volume_size_limit(
-                            &[MAX_SPARK_LOG_FILES_SIZE, MAX_INIT_LOG_FILES_SIZE],
-                        )),
-                    )
-                    .build(),
-            );
         }
+        // This volume is also used by the containerdebug process so it must always be there.
+        result.push(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+                .with_empty_dir(
+                    None::<String>,
+                    Some(product_logging::framework::calculate_log_volume_size_limit(
+                        &[MAX_SPARK_LOG_FILES_SIZE, MAX_INIT_LOG_FILES_SIZE],
+                    )),
+                )
+                .build(),
+        );
 
         if !self.packages().is_empty() {
             result.push(
@@ -466,13 +466,15 @@ impl SparkApplication {
                 mount_path: VOLUME_MOUNT_PATH_LOG_CONFIG.into(),
                 ..VolumeMount::default()
             });
-
-            mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_LOG.into(),
-                mount_path: VOLUME_MOUNT_PATH_LOG.into(),
-                ..VolumeMount::default()
-            });
         }
+
+        // This is used at least by the containerdebug process.
+        // The volume is always there.
+        mounts.push(VolumeMount {
+            name: VOLUME_MOUNT_NAME_LOG.into(),
+            mount_path: VOLUME_MOUNT_PATH_LOG.into(),
+            ..VolumeMount::default()
+        });
 
         if !self.packages().is_empty() {
             mounts.push(VolumeMount {
@@ -527,9 +529,7 @@ impl SparkApplication {
         let mode = &self.spec.mode;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
-        let mut submit_cmd: Vec<String> = vec![];
-
-        submit_cmd.extend(vec![
+        let mut submit_cmd = vec![
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
@@ -547,7 +547,7 @@ impl SparkApplication {
             format!("--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*"),
             format!("--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
             format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
-        ]);
+        ];
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
         // for possible S3 related properties
@@ -676,7 +676,10 @@ impl SparkApplication {
 
         submit_cmd.extend(self.spec.args.clone());
 
-        Ok(submit_cmd)
+        Ok(vec![
+            format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
+            submit_cmd.join(" "),
+        ])
     }
 
     pub fn env(
@@ -685,6 +688,27 @@ impl SparkApplication {
         logdir: &Option<ResolvedLogDir>,
     ) -> Vec<EnvVar> {
         let mut e: Vec<EnvVar> = self.spec.env.clone();
+
+        // These env variables enable the `containerdebug` process in driver and executor pods.
+        // More precisely, this process runs in the background of every `spark` container.
+        // - `CONTAINERDEBUG_LOG_DIRECTORY` - is the location where tracing information from the process
+        // is written. This directory is created by the process itself.
+        // - `_STACKABLE_PRE_HOOK` - is evaluated by the entrypoint script (run-spark.sh) in the Spark images
+        // before the actual JVM process is started. The result of this evaluation is that the
+        // `containerdebug` process is executed in the background.
+        e.extend(vec![
+            EnvVar {
+                name: "CONTAINERDEBUG_LOG_DIRECTORY".into(),
+                value: Some(format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug")),
+                value_from: None,
+            },
+            EnvVar {
+                name: "_STACKABLE_PRE_HOOK".into(),
+                value: Some(format!( "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &")),
+                value_from: None,
+            },
+        ]);
+
         if self.requirements().is_some() {
             e.push(EnvVar {
                 name: "PYTHONPATH".to_string(),
@@ -1383,6 +1407,12 @@ mod tests {
                 mount_path: "/stackable/spark/executor-pod-templates".into(),
                 mount_propagation: None,
                 name: "executor-pod-template".into(),
+                ..VolumeMount::default()
+            },
+            VolumeMount {
+                mount_path: "/stackable/log".into(),
+                mount_propagation: None,
+                name: "log".into(),
                 ..VolumeMount::default()
             },
             VolumeMount {

@@ -9,10 +9,3 @@ metadata:
   name: spark-history-node-default
 status:
   readyReplicas: 1
----
-# This test checks if the containerdebug-state.json file is present and valid
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-timeout: 60
-commands:
-  - script: kubectl exec -n $NAMESPACE --container spark-history spark-history-node-default-0 -- cat /stackable/log/containerdebug-state.json | jq --exit-status

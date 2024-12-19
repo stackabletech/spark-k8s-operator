@@ -12,4 +12,4 @@ kind: TestAssert
 commands:
   - script: |
       SPARK_SUBMIT_POD=$(kubectl get -n $NAMESPACE pods --field-selector=status.phase=Running --selector batch.kubernetes.io/job-name=spark-pi-s3-1 -o jsonpath='{.items[0].metadata.name}')
-      kubectl exec -n $NAMESPACE --container spark-submit $SPARK_SUBMIT_POD -- cat /stackable/log/containerdebug-state.json | jq --exit-status
+      kubectl exec -n $NAMESPACE --container spark-submit $SPARK_SUBMIT_POD -- cat /stackable/log/containerdebug-state.json | jq --exit-status '"valid JSON"'

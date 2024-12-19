@@ -692,7 +692,7 @@ impl SparkApplication {
         // These env variables enable the `containerdebug` process in driver and executor pods.
         // More precisely, this process runs in the background of every `spark` container.
         // - `CONTAINERDEBUG_LOG_DIRECTORY` - is the location where tracing information from the process
-        // is written. This directory is created by the process it's self.
+        // is written. This directory is created by the process itself.
         // - `_STACKABLE_PRE_HOOK` - is evaluated by the entrypoint script (run-spark.sh) in the Spark images
         // before the actual JVM process is started. The result of this evaluation is that the
         // `containerdebug` process is executed in the background.

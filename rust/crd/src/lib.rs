@@ -397,12 +397,6 @@ impl SparkApplication {
                 mount_path: VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES.into(),
                 ..VolumeMount::default()
             },
-            // This is used at least by the containerdebug process
-            VolumeMount {
-                name: VOLUME_MOUNT_NAME_LOG.into(),
-                mount_path: VOLUME_MOUNT_PATH_LOG.into(),
-                ..VolumeMount::default()
-            },
         ];
 
         tmpl_mounts = self.add_common_volume_mounts(tmpl_mounts, s3conn, logdir, false);
@@ -472,13 +466,15 @@ impl SparkApplication {
                 mount_path: VOLUME_MOUNT_PATH_LOG_CONFIG.into(),
                 ..VolumeMount::default()
             });
-
-            mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_LOG.into(),
-                mount_path: VOLUME_MOUNT_PATH_LOG.into(),
-                ..VolumeMount::default()
-            });
         }
+
+        // This is used at least by the containerdebug process.
+        // The volume is always there.
+        mounts.push(VolumeMount {
+            name: VOLUME_MOUNT_NAME_LOG.into(),
+            mount_path: VOLUME_MOUNT_PATH_LOG.into(),
+            ..VolumeMount::default()
+        });
 
         if !self.packages().is_empty() {
             mounts.push(VolumeMount {
@@ -693,13 +689,25 @@ impl SparkApplication {
     ) -> Vec<EnvVar> {
         let mut e: Vec<EnvVar> = self.spec.env.clone();
 
-        // Needed by the `containerdebug` process running in the background of the `spark-submit`
-        // container to log it's tracing information to.
-        e.push(EnvVar {
-            name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-            value: Some(format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug")),
-            value_from: None,
-        });
+        // These env variables enable the `containerdebug` process in driver and executor pods.
+        // More precisely, this process runs in the background of every `spark` container.
+        // - `CONTAINERDEBUG_LOG_DIRECTORY` - is the location where tracing information from the process
+        // is written. This directory is created by the process it's self.
+        // - `_STACKABLE_PRE_HOOK` - is evaluated by the entrypoint script (run-spark.sh) in the Spark images
+        // before the actual JVM process is started. The result of this evaluation is that the
+        // `containerdebug` process is executed in the background.
+        e.extend(vec![
+            EnvVar {
+                name: "CONTAINERDEBUG_LOG_DIRECTORY".into(),
+                value: Some(format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug")),
+                value_from: None,
+            },
+            EnvVar {
+                name: "_STACKABLE_PRE_HOOK".into(),
+                value: Some(format!( "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &")),
+                value_from: None,
+            },
+        ]);
 
         if self.requirements().is_some() {
             e.push(EnvVar {

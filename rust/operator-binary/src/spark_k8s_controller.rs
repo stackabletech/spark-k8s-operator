@@ -612,31 +612,6 @@ fn pod_template(
         .resources(config.resources.clone().into())
         .image_from_product_image(spark_image);
 
-    // These env variables enable the `containerdebug` process in driver and executor pods.
-    // More precisely, this process runs in the background of every `spark` container.
-    // - `CONTAINERDEBUG_LOG_DIRECTORY` - is the location where tracing information from the process
-    // is written. This directory is created by the process it's self.
-    // - `_STACKABLE_PRE_HOOK` - is evaluated by the entrypoint script (run-spark.sh) in the Spark images
-    // before the actual JVM process is started. The result of this evaluation is that the
-    // `containerdebug` process is executed in the background.
-    cb.add_env_vars(
-        [
-            EnvVar {
-                name: "CONTAINERDEBUG_LOG_DIRECTORY".into(),
-                value: Some(format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug")),
-                value_from: None,
-            },
-            EnvVar {
-                name: "_STACKABLE_PRE_HOOK".into(),
-                value: Some(format!(
-            "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-        )),
-                value_from: None,
-            },
-        ]
-        .into(),
-    );
-
     if config.logging.enable_vector_agent {
         cb.add_env_var(
             "_STACKABLE_POST_HOOK",

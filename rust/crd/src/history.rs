@@ -242,6 +242,16 @@ impl SparkHistoryServer {
         let mut vars: BTreeMap<String, EnvVar> = BTreeMap::new();
         let role_env_overrides = &self.role().config.env_overrides;
 
+        // Needed by the `containerdebug` running in the background of the history container
+        // to log it's tracing information to.
+        vars.insert(
+            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            EnvVar {
+                name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                value: Some(format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug")),
+                value_from: None,
+            },
+        );
         // This env var prevents the history server from detaching itself from the
         // start script because this leads to the Pod terminating immediately.
         vars.insert(

@@ -4,7 +4,7 @@ This operator accepts the following environment variables:
 
 == KUBERNETES_CLUSTER_DOMAIN
 
-*Default value*: cluster.local
+*Default value*: cluster.local.
 
 *Required*: false
 
@@ -16,7 +16,7 @@ Please see the documentation xref:guides:kubernetes-cluster-domain.adoc[on confi
 
 [source]
 ----
-export KUBERNETES_CLUSTER_DOMAIN=mycluster.local
+export KUBERNETES_CLUSTER_DOMAIN=mycluster.local.
 cargo run -- run
 ----
 
@@ -28,7 +28,7 @@ docker run \
 --name spark-k8s-operator \
 --network host \
 --env KUBECONFIG=/home/stackable/.kube/config \
---env KUBERNETES_CLUSTER_DOMAIN=mycluster.local \
+--env KUBERNETES_CLUSTER_DOMAIN=mycluster.local. \
 --mount type=bind,source="$HOME/.kube/config",target="/home/stackable/.kube/config" \
 docker.stackable.tech/stackable/spark-k8s-operator:latest
 ----

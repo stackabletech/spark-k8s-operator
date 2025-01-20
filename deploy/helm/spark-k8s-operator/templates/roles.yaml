@@ -96,6 +96,7 @@ rules:
       - events
     verbs:
       - create
+      - patch
   - apiGroups:
       - spark.stackable.tech
     resources:

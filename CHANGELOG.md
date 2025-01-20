@@ -9,9 +9,15 @@ All notable changes to this project will be documented in this file.
 - The lifetime of auto generated TLS certificates is now configurable with the role and roleGroup
   config property `requestedSecretLifetime`. This helps reducing frequent Pod restarts ([#501]).
 - Run a `containerdebug` process in the background of each Spark container to collect debugging information ([#508]).
+- Aggregate emitted Kubernetes events on the CustomResources ([#xxx]).
+
+### Changed
+
+- Append a dot (`.`) to the default cluster domain to reduce DNS requests ([#xxx]).
 
 [#501]: https://github.com/stackabletech/spark-k8s-operator/pull/501
 [#508]: https://github.com/stackabletech/spark-k8s-operator/pull/508
+[#xxx]: https://github.com/stackabletech/spark-k8s-operator/pull/xxx
 
 ## [24.11.0] - 2024-11-18
 

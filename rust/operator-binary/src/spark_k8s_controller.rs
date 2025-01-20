@@ -289,11 +289,11 @@ pub async fn reconcile(
     let (serviceaccount, rolebinding) =
         build_spark_role_serviceaccount(spark_application, &resolved_product_image)?;
     client
-        .apply_patch(CONTROLLER_NAME, &serviceaccount, &serviceaccount)
+        .apply_patch(SPARK_CONTROLLER_NAME, &serviceaccount, &serviceaccount)
         .await
         .context(ApplyServiceAccountSnafu)?;
     client
-        .apply_patch(CONTROLLER_NAME, &rolebinding, &rolebinding)
+        .apply_patch(SPARK_CONTROLLER_NAME, &rolebinding, &rolebinding)
         .await
         .context(ApplyRoleBindingSnafu)?;
 
@@ -335,7 +335,7 @@ pub async fn reconcile(
     )?;
     client
         .apply_patch(
-            CONTROLLER_NAME,
+            SPARK_CONTROLLER_NAME,
             &driver_pod_template_config_map,
             &driver_pod_template_config_map,
         )
@@ -364,7 +364,7 @@ pub async fn reconcile(
     )?;
     client
         .apply_patch(
-            CONTROLLER_NAME,
+            SPARK_CONTROLLER_NAME,
             &executor_pod_template_config_map,
             &executor_pod_template_config_map,
         )
@@ -396,7 +396,7 @@ pub async fn reconcile(
     )?;
     client
         .apply_patch(
-            CONTROLLER_NAME,
+            SPARK_CONTROLLER_NAME,
             &submit_job_config_map,
             &submit_job_config_map,
         )
@@ -414,7 +414,7 @@ pub async fn reconcile(
         &submit_config,
     )?;
     client
-        .apply_patch(CONTROLLER_NAME, &job, &job)
+        .apply_patch(SPARK_CONTROLLER_NAME, &job, &job)
         .await
         .context(ApplyApplicationSnafu)?;
 
@@ -423,7 +423,7 @@ pub async fn reconcile(
     // to ensure the Job is not created again after being recycled by Kubernetes.
     client
         .apply_patch_status(
-            CONTROLLER_NAME,
+            SPARK_CONTROLLER_NAME,
             spark_application,
             &SparkApplicationStatus {
                 phase: "Unknown".to_string(),

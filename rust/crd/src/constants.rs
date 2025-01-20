@@ -1,3 +1,5 @@
+use const_format::concatcp;
+
 use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 
 pub const APP_NAME: &str = "spark-k8s";
@@ -65,9 +67,17 @@ pub const MAX_INIT_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
 };
 
 pub const OPERATOR_NAME: &str = "spark.stackable.tech";
-pub const CONTROLLER_NAME: &str = "sparkapplication";
+
+pub const SPARK_CONTROLLER_NAME: &str = "sparkapplication";
+pub const FULL_SPARK_CONTROLLER_NAME: &str = concatcp!(SPARK_CONTROLLER_NAME, '.', OPERATOR_NAME);
+
 pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
+pub const FULL_POD_DRIVER_CONTROLLER_NAME: &str =
+    concatcp!(POD_DRIVER_CONTROLLER_NAME, '.', OPERATOR_NAME);
+
 pub const HISTORY_CONTROLLER_NAME: &str = "history";
+pub const FULL_HISTORY_CONTROLLER_NAME: &str =
+    concatcp!(HISTORY_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
 pub const HISTORY_ROLE_NAME: &str = "node";
 

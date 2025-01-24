@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+const_format.workspace = true
 product-config.workspace = true
 semver.workspace = true
 serde.workspace = true

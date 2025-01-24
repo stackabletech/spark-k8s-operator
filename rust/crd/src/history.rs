@@ -25,7 +25,7 @@ use stackable_operator::{
         ValidatedRoleConfigByPropertyKind,
     },
     product_logging::{self, spec::Logging},
-    role_utils::{Role, RoleGroup, RoleGroupRef},
+    role_utils::{GenericProductSpecificCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     time::Duration,
 };
@@ -139,7 +139,7 @@ impl SparkHistoryServer {
     pub fn rolegroup(
         &self,
         rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
-    ) -> Result<RoleGroup<HistoryConfigFragment>, Error> {
+    ) -> Result<RoleGroup<HistoryConfigFragment, GenericProductSpecificCommonConfig>, Error> {
         self.spec
             .nodes
             .role_groups

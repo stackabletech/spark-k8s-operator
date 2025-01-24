@@ -14,6 +14,7 @@ use logdir::ResolvedLogDir;
 use product_config::{types::PropertyNameKind, ProductConfigManager};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use stackable_operator::role_utils::{GenericProductSpecificCommonConfig, GenericRoleConfig};
 use stackable_operator::time::Duration;
 use stackable_operator::{
     builder::pod::volume::{
@@ -41,7 +42,7 @@ use stackable_operator::{
         ValidatedRoleConfigByPropertyKind,
     },
     product_logging,
-    role_utils::{CommonConfiguration, EmptyRoleConfig, Role, RoleGroup},
+    role_utils::{CommonConfiguration, Role, RoleGroup},
     schemars::{self, JsonSchema},
     utils::crds::raw_object_list_schema,
 };
@@ -165,19 +166,19 @@ pub struct SparkApplicationSpec {
     /// The reason this property uses its own type (SubmitConfigFragment) is because logging is not
     /// supported for spark-submit processes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub job: Option<CommonConfiguration<SubmitConfigFragment>>,
+    pub job: Option<CommonConfiguration<SubmitConfigFragment, GenericProductSpecificCommonConfig>>,
 
     /// The driver role specifies the configuration that, together with the driver pod template, is used by
     /// Spark to create driver pods.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub driver: Option<CommonConfiguration<RoleConfigFragment>>,
+    pub driver: Option<CommonConfiguration<RoleConfigFragment, GenericProductSpecificCommonConfig>>,
 
     /// The executor role specifies the configuration that, together with the driver pod template, is used by
     /// Spark to create the executor pods.
     /// This is RoleGroup instead of plain CommonConfiguration because it needs to allows for the number of replicas.
     /// to be specified.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub executor: Option<RoleGroup<RoleConfigFragment>>,
+    pub executor: Option<RoleGroup<RoleConfigFragment, GenericProductSpecificCommonConfig>>,
 
     /// A map of key/value strings that will be passed directly to spark-submit.
     #[serde(default)]
@@ -512,9 +513,9 @@ impl SparkApplication {
             app_name: APP_NAME,
             app_version,
             operator_name: OPERATOR_NAME,
-            controller_name: CONTROLLER_NAME,
+            controller_name: SPARK_CONTROLLER_NAME,
             role,
-            role_group: CONTROLLER_NAME,
+            role_group: SPARK_CONTROLLER_NAME,
         }
     }
 
@@ -824,17 +825,18 @@ impl SparkApplication {
             }
         };
 
-        let executor_conf = if self.spec.executor.is_some() {
-            self.spec.executor.as_ref().unwrap().clone()
-        } else {
-            RoleGroup {
-                replicas: Some(1),
-                config: CommonConfiguration {
-                    config: RoleConfig::default_config(),
-                    ..CommonConfiguration::default()
-                },
-            }
-        };
+        let executor_conf: RoleGroup<RoleConfigFragment, GenericProductSpecificCommonConfig> =
+            if self.spec.executor.is_some() {
+                self.spec.executor.as_ref().unwrap().clone()
+            } else {
+                RoleGroup {
+                    replicas: Some(1),
+                    config: CommonConfiguration {
+                        config: RoleConfig::default_config(),
+                        ..CommonConfiguration::default()
+                    },
+                }
+            };
 
         let mut roles_to_validate = HashMap::new();
         roles_to_validate.insert(
@@ -847,7 +849,7 @@ impl SparkApplication {
                 ],
                 Role {
                     config: submit_conf.clone(),
-                    role_config: EmptyRoleConfig::default(),
+                    role_config: GenericRoleConfig::default(),
                     role_groups: [(
                         "default".to_string(),
                         RoleGroup {
@@ -870,7 +872,7 @@ impl SparkApplication {
                 ],
                 Role {
                     config: driver_conf.clone(),
-                    role_config: EmptyRoleConfig::default(),
+                    role_config: GenericRoleConfig::default(),
                     role_groups: [(
                         "default".to_string(),
                         RoleGroup {
@@ -893,7 +895,7 @@ impl SparkApplication {
                 ],
                 Role {
                     config: executor_conf.config.clone(),
-                    role_config: EmptyRoleConfig::default(),
+                    role_config: GenericRoleConfig::default(),
                     role_groups: [("default".to_string(), executor_conf)].into(),
                 }
                 .erase(),

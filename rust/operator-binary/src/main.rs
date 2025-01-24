@@ -92,18 +92,17 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
 
-            let event_recorder = Arc::new(Recorder::new(
+            let ctx = Ctx {
+                client: client.clone(),
+                product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
+            };
+            let spark_event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
                 Reporter {
                     controller: SPARK_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
                 },
             ));
-
-            let ctx = Ctx {
-                client: client.clone(),
-                product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
-            };
             let app_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<SparkApplication>>(&client),
                 watcher::Config::default(),
@@ -125,10 +124,10 @@ async fn main() -> anyhow::Result<()> {
                 |result| {
                     // The event_recorder needs to be shared across all invocations, so that
                     // events are correctly aggregated
-                    let event_recorder = event_recorder.clone();
+                    let spark_event_recorder = spark_event_recorder.clone();
                     async move {
                         report_controller_reconciled(
-                            &event_recorder,
+                            &spark_event_recorder,
                             SPARK_FULL_CONTROLLER_NAME,
                             &result,
                         )
@@ -137,6 +136,13 @@ async fn main() -> anyhow::Result<()> {
                 },
             );
 
+            let pod_driver_event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: POD_DRIVER_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default()
@@ -159,10 +165,10 @@ async fn main() -> anyhow::Result<()> {
                 |result| {
                     // The event_recorder needs to be shared across all invocations, so that
                     // events are correctly aggregated
-                    let event_recorder = event_recorder.clone();
+                    let pod_driver_event_recorder = pod_driver_event_recorder.clone();
                     async move {
                         report_controller_reconciled(
-                            &event_recorder,
+                            &pod_driver_event_recorder,
                             POD_DRIVER_FULL_CONTROLLER_NAME,
                             &result,
                         )
@@ -176,6 +182,13 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
+            let history_event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: HISTORY_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
             let history_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<SparkHistoryServer>>(&client),
                 watcher::Config::default(),
@@ -209,10 +222,10 @@ async fn main() -> anyhow::Result<()> {
                 |result| {
                     // The event_recorder needs to be shared across all invocations, so that
                     // events are correctly aggregated
-                    let event_recorder = event_recorder.clone();
+                    let history_event_recorder = history_event_recorder.clone();
                     async move {
                         report_controller_reconciled(
-                            &event_recorder,
+                            &history_event_recorder,
                             HISTORY_FULL_CONTROLLER_NAME,
                             &result,
                         )

@@ -29,8 +29,8 @@ use stackable_operator::{
 
 use stackable_spark_k8s_crd::{
     constants::{
-        FULL_HISTORY_CONTROLLER_NAME, FULL_POD_DRIVER_CONTROLLER_NAME, FULL_SPARK_CONTROLLER_NAME,
-        OPERATOR_NAME, POD_DRIVER_CONTROLLER_NAME,
+        HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_CONTROLLER_NAME,
+        POD_DRIVER_FULL_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
     },
     history::SparkHistoryServer,
     SparkApplication,
@@ -95,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
             let event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
                 Reporter {
-                    controller: FULL_SPARK_CONTROLLER_NAME.to_string(),
+                    controller: SPARK_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
                 },
             ));
@@ -129,7 +129,7 @@ async fn main() -> anyhow::Result<()> {
                     async move {
                         report_controller_reconciled(
                             &event_recorder,
-                            FULL_SPARK_CONTROLLER_NAME,
+                            SPARK_FULL_CONTROLLER_NAME,
                             &result,
                         )
                         .await;
@@ -163,7 +163,7 @@ async fn main() -> anyhow::Result<()> {
                     async move {
                         report_controller_reconciled(
                             &event_recorder,
-                            FULL_POD_DRIVER_CONTROLLER_NAME,
+                            POD_DRIVER_FULL_CONTROLLER_NAME,
                             &result,
                         )
                         .await;
@@ -213,7 +213,7 @@ async fn main() -> anyhow::Result<()> {
                     async move {
                         report_controller_reconciled(
                             &event_recorder,
-                            FULL_HISTORY_CONTROLLER_NAME,
+                            HISTORY_FULL_CONTROLLER_NAME,
                             &result,
                         )
                         .await;

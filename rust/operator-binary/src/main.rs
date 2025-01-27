@@ -29,8 +29,8 @@ use stackable_operator::{
 
 use stackable_spark_k8s_crd::{
     constants::{
-        HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_CONTROLLER_NAME,
-        POD_DRIVER_FULL_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
+        HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
+        SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
     },
     history::SparkHistoryServer,
     SparkApplication,
@@ -146,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default()
-                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{POD_DRIVER_CONTROLLER_NAME},spark-role=driver")),
+                 .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{SPARK_CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),

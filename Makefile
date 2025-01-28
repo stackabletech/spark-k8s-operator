@@ -89,7 +89,7 @@ docker-publish:
 	# Attest the SBOM to the image\
 	cosign attest -y --predicate sbom.merged.json --type cyclonedx "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}@$$REPO_DIGEST_OF_IMAGE"
 
-# This assumes "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}-amd64 and "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}-arm64 are build and pushed
+# This assumes "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}-amd64 and "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}-arm64 are built and pushed
 docker-manifest-list-build:
 	docker manifest create "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}" --amend "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}-amd64" --amend "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}-arm64"
 	docker manifest create "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}" --amend "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}-amd64" --amend "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}-arm64"
@@ -119,7 +119,7 @@ docker-manifest-list-publish:
 docker: docker-build docker-publish
 
 print-docker-tag:
-	@echo "${DOCKER_REPO}/${ORGANIZATION}/${OPERATOR_NAME}:${VERSION}"
+	@echo "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}"
 
 helm-publish:
 	# Push to Nexus

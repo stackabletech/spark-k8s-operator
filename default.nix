@@ -40,7 +40,7 @@
     };
   }
 , meta ? pkgs.lib.importJSON ./nix/meta.json
-, dockerName ? "docker.stackable.tech/sandbox/${meta.operator.name}"
+, dockerName ? "oci.stackable.tech/sandbox/${meta.operator.name}"
 , dockerTag ? null
 }:
 rec {

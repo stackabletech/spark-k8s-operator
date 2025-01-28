@@ -1,8 +1,8 @@
 # If tilt_options.json exists read it and load the default_registry value from it
 settings = read_json('tilt_options.json', default={})
-registry = settings.get('default_registry', 'docker.stackable.tech/sandbox')
+registry = settings.get('default_registry', 'oci.stackable.tech/sandbox')
 
-# Configure default registry either read from config file above, or with default value of "docker.stackable.tech/sandbox"
+# Configure default registry either read from config file above, or with default value of "oci.stackable.tech/sandbox"
 default_registry(registry)
 
 meta = read_json('nix/meta.json')
@@ -23,8 +23,8 @@ if os.path.exists('result'):
    k8s_yaml('result/crds.yaml')
 
 # We need to set the correct image annotation on the operator Deployment to use e.g.
-# docker.stackable.tech/sandbox/opa-operator:7y19m3d8clwxlv34v5q2x4p7v536s00g instead of
-# docker.stackable.tech/sandbox/opa-operator:0.0.0-dev (which does not exist)
+# oci.stackable.tech/sandbox/opa-operator:7y19m3d8clwxlv34v5q2x4p7v536s00g instead of
+# oci.stackable.tech/sandbox/opa-operator:0.0.0-dev (which does not exist)
 k8s_kind('Deployment', image_json_path='{.spec.template.metadata.annotations.internal\\.stackable\\.tech/image}')
 
 # Exclude stale CRDs from Helm chart, and apply the rest

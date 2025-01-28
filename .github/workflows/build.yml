@@ -354,13 +354,18 @@ jobs:
           cargo set-version --offline --workspace "$PR_VERSION"
       - name: Update version if PR against non-main branch
         # For PRs to be merged against a release branch, use the version that has already been set in the calling script.
-        if: ${{ github.event_name == 'pull_request' && startsWith(github.event.pull_request.base.ref, 'release-') }}
+        # We can't rely on cargo set-version here as we will break semver rules when changing the version to make it
+        # specific to this PR e.g. 1.2.0 --> 1.2.0-pr678, so set it manually.
+        if: ${{ github.event_name == 'pull_request' && github.ref != 'refs/heads/main' }}
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
         run: |
+          set -euo pipefail
+
           MANIFEST_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
           PR_VERSION="${MANIFEST_VERSION}-pr${PR_NUMBER}"
-          cargo set-version --offline --workspace "$PR_VERSION"
+          sed -i "s/version = \"${MANIFEST_VERSION}\"/version = \"${PR_VERSION}\"/" Cargo.toml
 
       # Recreate charts and publish charts and docker image. The "-e" is needed as we want to override the
       # default value in the makefile if called from this action, but not otherwise (i.e. when called locally).
@@ -433,13 +438,18 @@ jobs:
           cargo set-version --offline --workspace "$PR_VERSION"
       - name: Update version if PR against non-main branch
         # For PRs to be merged against a release branch, use the version that has already been set in the calling script.
-        if: ${{ github.event_name == 'pull_request' && startsWith(github.event.pull_request.base.ref, 'release-') }}
+        # We can't rely on cargo set-version here as we will break semver rules when changing the version to make it
+        # specific to this PR e.g. 1.2.0 --> 1.2.0-pr678, so set it manually.
+        if: ${{ github.event_name == 'pull_request' && github.ref != 'refs/heads/main' }}
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
         run: |
+          set -euo pipefail
+
           MANIFEST_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
           PR_VERSION="${MANIFEST_VERSION}-pr${PR_NUMBER}"
-          cargo set-version --offline --workspace "$PR_VERSION"
+          sed -i "s/version = \"${MANIFEST_VERSION}\"/version = \"${PR_VERSION}\"/" Cargo.toml
       - name: Build manifest list
         run: |
           # Creating manifest list

@@ -356,7 +356,7 @@ jobs:
         # For PRs to be merged against a release branch, use the version that has already been set in the calling script.
         # We can't rely on cargo set-version here as we will break semver rules when changing the version to make it
         # specific to this PR e.g. 1.2.0 --> 1.2.0-pr678, so set it manually.
-        if: ${{ github.event_name == 'pull_request' && github.ref != 'refs/heads/main' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref != 'main' }}
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         shell: bash
@@ -440,7 +440,7 @@ jobs:
         # For PRs to be merged against a release branch, use the version that has already been set in the calling script.
         # We can't rely on cargo set-version here as we will break semver rules when changing the version to make it
         # specific to this PR e.g. 1.2.0 --> 1.2.0-pr678, so set it manually.
-        if: ${{ github.event_name == 'pull_request' && github.ref != 'refs/heads/main' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref != 'main' }}
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         shell: bash

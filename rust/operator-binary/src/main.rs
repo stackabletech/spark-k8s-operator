@@ -6,22 +6,35 @@ mod spark_k8s_controller;
 use std::sync::Arc;
 
 use clap::{crate_description, crate_version, Parser};
-use futures::StreamExt;
+use futures::{pin_mut, StreamExt};
 use history::history_controller;
 use product_config::ProductConfigManager;
-use stackable_operator::cli::{Command, ProductOperatorRun};
-use stackable_operator::k8s_openapi::api::apps::v1::StatefulSet;
-use stackable_operator::k8s_openapi::api::core::v1::Pod;
-use stackable_operator::k8s_openapi::api::core::v1::{ConfigMap, Service};
-use stackable_operator::kube::core::DeserializeGuard;
-use stackable_operator::kube::runtime::{controller::Controller, watcher};
-use stackable_operator::logging::controller::report_controller_reconciled;
-use stackable_operator::CustomResourceExt;
-use stackable_spark_k8s_crd::constants::{
-    CONTROLLER_NAME, HISTORY_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_CONTROLLER_NAME,
+
+use stackable_operator::{
+    cli::{Command, ProductOperatorRun},
+    k8s_openapi::api::{
+        apps::v1::StatefulSet,
+        core::v1::{ConfigMap, Pod, Service},
+    },
+    kube::{
+        core::DeserializeGuard,
+        runtime::{
+            events::{Recorder, Reporter},
+            watcher, Controller,
+        },
+    },
+    logging::controller::report_controller_reconciled,
+    CustomResourceExt,
 };
-use stackable_spark_k8s_crd::history::SparkHistoryServer;
-use stackable_spark_k8s_crd::SparkApplication;
+
+use stackable_spark_k8s_crd::{
+    constants::{
+        HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
+        SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
+    },
+    history::SparkHistoryServer,
+    SparkApplication,
+};
 use tracing::info_span;
 use tracing_futures::Instrument;
 
@@ -83,6 +96,13 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
+            let spark_event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: SPARK_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
             let app_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<SparkApplication>>(&client),
                 watcher::Config::default(),
@@ -97,19 +117,36 @@ async fn main() -> anyhow::Result<()> {
                 spark_k8s_controller::error_policy,
                 Arc::new(ctx),
             )
-            .map(|res| {
-                report_controller_reconciled(
-                    &client,
-                    &format!("{CONTROLLER_NAME}.{OPERATOR_NAME}"),
-                    &res,
-                )
-            })
-            .instrument(info_span!("app_controller"));
+            .instrument(info_span!("app_controller"))
+            // We can let the reporting happen in the background
+            .for_each_concurrent(
+                16, // concurrency limit
+                |result| {
+                    // The event_recorder needs to be shared across all invocations, so that
+                    // events are correctly aggregated
+                    let spark_event_recorder = spark_event_recorder.clone();
+                    async move {
+                        report_controller_reconciled(
+                            &spark_event_recorder,
+                            SPARK_FULL_CONTROLLER_NAME,
+                            &result,
+                        )
+                        .await;
+                    }
+                },
+            );
 
+            let pod_driver_event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: POD_DRIVER_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default()
-                    .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{CONTROLLER_NAME},spark-role=driver")),
+                 .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{SPARK_CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
@@ -121,14 +158,37 @@ async fn main() -> anyhow::Result<()> {
                 pod_driver_controller::error_policy,
                 Arc::new(client.clone()),
             )
-            .map(|res| report_controller_reconciled(&client, &format!("{OPERATOR_NAME}.{POD_DRIVER_CONTROLLER_NAME}"), &res))
-            .instrument(info_span!("pod_driver_controller"));
+            .instrument(info_span!("pod_driver_controller"))
+            // We can let the reporting happen in the background
+            .for_each_concurrent(
+                16, // concurrency limit
+                |result| {
+                    // The event_recorder needs to be shared across all invocations, so that
+                    // events are correctly aggregated
+                    let pod_driver_event_recorder = pod_driver_event_recorder.clone();
+                    async move {
+                        report_controller_reconciled(
+                            &pod_driver_event_recorder,
+                            POD_DRIVER_FULL_CONTROLLER_NAME,
+                            &result,
+                        )
+                        .await;
+                    }
+                },
+            );
 
             // Create new object because Ctx cannot be cloned
             let ctx = Ctx {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
+            let history_event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: HISTORY_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
             let history_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<SparkHistoryServer>>(&client),
                 watcher::Config::default(),
@@ -155,20 +215,31 @@ async fn main() -> anyhow::Result<()> {
                 history_controller::error_policy,
                 Arc::new(ctx),
             )
-            .map(|res| {
-                report_controller_reconciled(
-                    &client,
-                    &format!("{OPERATOR_NAME}.{HISTORY_CONTROLLER_NAME}"),
-                    &res,
-                )
-            })
-            .instrument(info_span!("history_controller"));
+            .instrument(info_span!("history_controller"))
+            // We can let the reporting happen in the background
+            .for_each_concurrent(
+                16, // concurrency limit
+                |result| {
+                    // The event_recorder needs to be shared across all invocations, so that
+                    // events are correctly aggregated
+                    let history_event_recorder = history_event_recorder.clone();
+                    async move {
+                        report_controller_reconciled(
+                            &history_event_recorder,
+                            HISTORY_FULL_CONTROLLER_NAME,
+                            &result,
+                        )
+                        .await;
+                    }
+                },
+            );
 
-            futures::stream::select(
-                futures::stream::select(app_controller, pod_driver_controller),
+            pin_mut!(app_controller, pod_driver_controller, history_controller);
+            // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
+            futures::future::select(
+                futures::future::select(app_controller, pod_driver_controller),
                 history_controller,
             )
-            .collect::<()>()
             .await;
         }
     }

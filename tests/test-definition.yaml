@@ -9,11 +9,11 @@ dimensions:
       - 3.5.2
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
-      # - 3.5.1,docker.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev
+      # - 3.5.1,oci.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev
   - name: spark-delta-lake
     values:
       - 3.5.2
-      # - 3.5.1,docker.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev
+      # - 3.5.1,oci.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev
   - name: hbase
     values:
       - 2.6.0

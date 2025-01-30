@@ -11,8 +11,13 @@ All notable changes to this project will be documented in this file.
 - Run a `containerdebug` process in the background of each Spark container to collect debugging information ([#508]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#515]).
 
+### Changed
+
+- Default to OCI for image metadata and product image selection ([#514]).
+
 [#501]: https://github.com/stackabletech/spark-k8s-operator/pull/501
 [#508]: https://github.com/stackabletech/spark-k8s-operator/pull/508
+[#514]: https://github.com/stackabletech/spark-k8s-operator/pull/514
 [#515]: https://github.com/stackabletech/spark-k8s-operator/pull/515
 
 ## [24.11.1] - 2025-01-10

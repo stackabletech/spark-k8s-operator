@@ -917,7 +917,7 @@ spec:
                     Consult the [Product image selection documentation](https://docs.stackable.tech/home/nightly/concepts/product_image_selection) for details.
                   properties:
                     custom:
-                      description: Overwrite the docker image. Specify the full docker image name, e.g. `docker.stackable.tech/stackable/superset:1.4.1-stackable2.1.0`
+                      description: Overwrite the docker image. Specify the full docker image name, e.g. `oci.stackable.tech/sdp/superset:1.4.1-stackable2.1.0`
                       type: string
                     productVersion:
                       description: Version of the product, e.g. `1.4.1`.
@@ -944,7 +944,7 @@ spec:
                       nullable: true
                       type: array
                     repo:
-                      description: Name of the docker repo, e.g. `docker.stackable.tech/stackable`
+                      description: Name of the docker repo, e.g. `oci.stackable.tech/sdp`
                       nullable: true
                       type: string
                     stackableVersion:
@@ -1047,7 +1047,7 @@ spec:
                     Consult the [Product image selection documentation](https://docs.stackable.tech/home/nightly/concepts/product_image_selection) for details.
                   properties:
                     custom:
-                      description: Overwrite the docker image. Specify the full docker image name, e.g. `docker.stackable.tech/stackable/superset:1.4.1-stackable2.1.0`
+                      description: Overwrite the docker image. Specify the full docker image name, e.g. `oci.stackable.tech/sdp/superset:1.4.1-stackable2.1.0`
                       type: string
                     productVersion:
                       description: Version of the product, e.g. `1.4.1`.
@@ -1074,7 +1074,7 @@ spec:
                       nullable: true
                       type: array
                     repo:
-                      description: Name of the docker repo, e.g. `docker.stackable.tech/stackable`
+                      description: Name of the docker repo, e.g. `oci.stackable.tech/sdp`
                       nullable: true
                       type: string
                     stackableVersion:

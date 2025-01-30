@@ -6,8 +6,8 @@ metadata:
   namespace: default
 spec:
   # everything under /jobs will be copied to /stackable/spark/jobs
-  image: docker.stackable.tech/stackable/ny-tlc-report:0.2.0
-  sparkImage: docker.stackable.tech/stackable/spark-k8s:3.5.2-stackable0.0.0-dev
+  image: oci.stackable.tech/stackable/ny-tlc-report:0.2.0
+  sparkImage: oci.stackable.tech/sdp/spark-k8s:3.5.2-stackable0.0.0-dev
   sparkImagePullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/ny_tlc_report.py

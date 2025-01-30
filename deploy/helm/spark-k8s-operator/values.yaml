@@ -1,7 +1,7 @@
 # Default values for spark-k8s-operator.
 ---
 image:
-  repository: docker.stackable.tech/stackable/spark-k8s-operator
+  repository: oci.stackable.tech/sdp/spark-k8s-operator
   pullPolicy: IfNotPresent
   pullSecrets: []
 

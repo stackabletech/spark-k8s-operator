@@ -5,7 +5,7 @@ metadata:
   name: pyspark-ny-public-s3-image
 spec:
   # everything under /jobs will be copied to /stackable/spark/jobs
-  image: "oci.stackable.tech/sdp/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}"
+  image: "oci.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}"
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}

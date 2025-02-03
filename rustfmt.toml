@@ -1,0 +1,5 @@
+# This file includes unstable features, so you need to run "cargo +nightly fmt" to format your code.
+# It's also ok to use the stable toolchain by simple running "cargo fmt", but using the nigthly formatter is prefered.
+
+imports_granularity = "Crate"
+group_imports =  "StdExternalCrate"

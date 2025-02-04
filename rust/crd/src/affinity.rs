@@ -26,8 +26,6 @@ pub fn history_affinity(cluster_name: &str) -> StackableAffinityFragment {
 mod test {
     use std::collections::BTreeMap;
 
-    use crate::{constants::HISTORY_ROLE_NAME, history::SparkHistoryServer};
-
     use stackable_operator::{
         commons::affinity::StackableAffinity,
         k8s_openapi::{
@@ -37,6 +35,8 @@ mod test {
         kube::runtime::reflector::ObjectRef,
         role_utils::RoleGroupRef,
     };
+
+    use crate::{constants::HISTORY_ROLE_NAME, history::SparkHistoryServer};
 
     #[test]
     pub fn test_history_affinity_defaults() {

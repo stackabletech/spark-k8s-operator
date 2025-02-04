@@ -1,5 +1,4 @@
 use const_format::concatcp;
-
 use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
 
 pub const APP_NAME: &str = "spark-k8s";

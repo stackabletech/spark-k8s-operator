@@ -1,11 +1,6 @@
-use crate::{
-    constants::*,
-    history::{
-        LogFileDirectorySpec::{self, S3},
-        S3LogFileDirectorySpec,
-    },
-    tlscerts,
-};
+use std::collections::BTreeMap;
+
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
@@ -18,10 +13,16 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
     time::Duration,
 };
-use std::collections::BTreeMap;
-
-use snafu::{ResultExt, Snafu};
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+use crate::{
+    constants::*,
+    history::{
+        LogFileDirectorySpec::{self, S3},
+        S3LogFileDirectorySpec,
+    },
+    tlscerts,
+};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]

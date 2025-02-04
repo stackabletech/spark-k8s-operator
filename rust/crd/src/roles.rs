@@ -13,12 +13,9 @@
 //! each role is named "default". These roles are transparent to the user.
 //!
 //! The history server has its own role completely unrelated to this module.
-use crate::ResolvedLogDir;
 use std::{collections::BTreeMap, slice};
 
 use serde::{Deserialize, Serialize};
-
-use crate::SparkApplication;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -40,6 +37,8 @@ use stackable_operator::{
     utils::crds::raw_object_list_schema,
 };
 use strum::{Display, EnumIter};
+
+use crate::{ResolvedLogDir, SparkApplication};
 
 #[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
 #[strum(serialize_all = "kebab-case")]

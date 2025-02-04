@@ -1,17 +1,19 @@
+use std::sync::Arc;
+
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     client::Client,
     k8s_openapi::api::core::v1::Pod,
-    kube::core::{error_boundary, DeserializeGuard},
-    kube::runtime::controller::Action,
+    kube::{
+        core::{error_boundary, DeserializeGuard},
+        runtime::controller::Action,
+    },
+    logging::controller::ReconcilerError,
     time::Duration,
 };
 use stackable_spark_k8s_crd::{
     constants::POD_DRIVER_CONTROLLER_NAME, SparkApplication, SparkApplicationStatus,
 };
-use std::sync::Arc;
-
-use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";

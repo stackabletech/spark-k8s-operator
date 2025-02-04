@@ -17,10 +17,6 @@ repos:
   - repo: https://github.com/doublify/pre-commit-rust
     rev: eeee35a89e69d5772bdee97db1a6a898467b686e # 1.0
     hooks:
-      - id: fmt
-        # Pinning to a specific rustc version, so that we get consistent formatting
-        entry: RUSTUP_TOOLCHAIN=nightly-2025-01-15 cargo fmt
-        args: ["--all", "--", "--check"]
       - id: clippy
         args: ["--all-targets", "--", "-D", "warnings"]
 
@@ -77,4 +73,11 @@ repos:
         language: system
         entry: cargo test
         stages: [pre-commit, pre-merge-commit, manual]
+        pass_filenames: false
+
+      - id: cargo-rustfmt
+        name: cargo-rustfmt
+        language: system
+        entry: cargo +nightly-2025-01-15 fmt --all -- --check
+        stages: [pre-commit]
         pass_filenames: false

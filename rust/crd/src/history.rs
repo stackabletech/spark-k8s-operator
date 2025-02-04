@@ -1,5 +1,4 @@
-use crate::logdir::ResolvedLogDir;
-use crate::{affinity::history_affinity, constants::*};
+use std::collections::{BTreeMap, HashMap};
 
 use product_config::{types::PropertyNameKind, ProductConfigManager};
 use serde::{Deserialize, Serialize};
@@ -29,8 +28,9 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     time::Duration,
 };
-use std::collections::{BTreeMap, HashMap};
 use strum::{Display, EnumIter};
+
+use crate::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -477,14 +477,14 @@ impl Configuration for HistoryConfigFragment {
 
 #[cfg(test)]
 mod test {
-    use crate::logdir::S3LogDir;
-
-    use super::*;
     use indoc::indoc;
     use stackable_operator::commons::{
         s3::{ResolvedS3Bucket, ResolvedS3Connection},
         tls_verification::TlsClientDetails,
     };
+
+    use super::*;
+    use crate::logdir::S3LogDir;
 
     #[test]
     pub fn test_env_overrides() {

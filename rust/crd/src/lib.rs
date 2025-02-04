@@ -7,15 +7,17 @@ pub mod logdir;
 pub mod roles;
 pub mod tlscerts;
 
-pub use crate::roles::*;
+use std::{
+    cmp::max,
+    collections::{BTreeMap, HashMap},
+};
+
 use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
 use product_config::{types::PropertyNameKind, ProductConfigManager};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::role_utils::{GenericProductSpecificCommonConfig, GenericRoleConfig};
-use stackable_operator::time::Duration;
 use stackable_operator::{
     builder::pod::volume::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
@@ -42,14 +44,15 @@ use stackable_operator::{
         ValidatedRoleConfigByPropertyKind,
     },
     product_logging,
-    role_utils::{CommonConfiguration, Role, RoleGroup},
+    role_utils::{
+        CommonConfiguration, GenericProductSpecificCommonConfig, GenericRoleConfig, Role, RoleGroup,
+    },
     schemars::{self, JsonSchema},
+    time::Duration,
     utils::crds::raw_object_list_schema,
 };
-use std::{
-    cmp::max,
-    collections::{BTreeMap, HashMap},
-};
+
+pub use crate::roles::*;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -1082,23 +1085,26 @@ where
 #[cfg(test)]
 mod tests {
 
-    use super::*;
-
-    use crate::{cores_from_quantity, resources_to_executor_props, RoleConfig};
-    use crate::{resources_to_driver_props, SparkApplication};
-    use crate::{Quantity, SparkStorageConfig};
-    use product_config::{types::PropertyNameKind, ProductConfigManager};
-    use stackable_operator::commons::affinity::StackableAffinity;
-    use stackable_operator::commons::resources::{
-        CpuLimits, MemoryLimits, NoRuntimeLimits, Resources,
-    };
-    use stackable_operator::product_config_utils::ValidatedRoleConfigByPropertyKind;
-    use stackable_operator::product_logging::spec::Logging;
+    use std::collections::{BTreeMap, HashMap};
 
     use indoc::indoc;
+    use product_config::{types::PropertyNameKind, ProductConfigManager};
     use rstest::rstest;
-    use stackable_operator::time::Duration;
-    use std::collections::{BTreeMap, HashMap};
+    use stackable_operator::{
+        commons::{
+            affinity::StackableAffinity,
+            resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, Resources},
+        },
+        product_config_utils::ValidatedRoleConfigByPropertyKind,
+        product_logging::spec::Logging,
+        time::Duration,
+    };
+
+    use super::*;
+    use crate::{
+        cores_from_quantity, resources_to_driver_props, resources_to_executor_props, Quantity,
+        RoleConfig, SparkApplication, SparkStorageConfig,
+    };
 
     #[test]
     fn test_default_resource_limits() {

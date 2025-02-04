@@ -1,14 +1,19 @@
-use crate::history::operations::pdb::add_pdbs;
-use crate::product_logging::{self, resolve_vector_aggregator_address};
-use crate::Ctx;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
+
 use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
-use stackable_operator::kube::core::{error_boundary, DeserializeGuard};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
-        pod::{container::ContainerBuilder, volume::VolumeBuilder, PodBuilder},
+        pod::{
+            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            volume::VolumeBuilder, PodBuilder,
+        },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::product_image_selection::ResolvedProductImage,
@@ -21,12 +26,15 @@ use stackable_operator::{
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
+        DeepMerge,
     },
     kube::{
+        core::{error_boundary, DeserializeGuard},
         runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
     },
     kvp::{Label, Labels, ObjectLabels},
+    logging::controller::ReconcilerError,
     product_logging::{
         framework::{calculate_log_volume_size_limit, vector_container, LoggingError},
         spec::{
@@ -37,29 +45,27 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
     time::Duration,
 };
-use stackable_spark_k8s_crd::constants::{METRICS_PORT, SPARK_ENV_SH_FILE_NAME};
-use stackable_spark_k8s_crd::logdir::ResolvedLogDir;
 use stackable_spark_k8s_crd::{
     constants::{
         ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
-        JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, OPERATOR_NAME, SECRET_ACCESS_KEY,
-        SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
-        STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
-        VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
-        VOLUME_MOUNT_PATH_LOG_CONFIG,
+        JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
+        SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
+        SPARK_IMAGE_BASE_NAME, SPARK_UID, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
+        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     history,
     history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
+    logdir::ResolvedLogDir,
     tlscerts, to_spark_env_sh_string,
 };
-use std::collections::HashMap;
-use std::{collections::BTreeMap, sync::Arc};
-
-use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::builder::pod::resources::ResourceRequirementsBuilder;
-use stackable_operator::k8s_openapi::DeepMerge;
-use stackable_operator::logging::controller::ReconcilerError;
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+use crate::{
+    history::operations::pdb::add_pdbs,
+    product_logging::{self, resolve_vector_aggregator_address},
+    Ctx,
+};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]

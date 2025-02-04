@@ -1,36 +1,26 @@
-use crate::Ctx;
-
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
     vec,
 };
 
-use product_config::writer::to_java_properties_string;
+use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder,
+    builder::{
+        configmap::ConfigMapBuilder,
+        meta::ObjectMetaBuilder,
+        pod::{
+            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            volume::VolumeBuilder, PodBuilder,
+        },
+    },
     commons::{
-        s3::S3Error,
+        product_image_selection::ResolvedProductImage,
+        s3::{S3ConnectionSpec, S3Error},
         tls_verification::{CaCert, TlsVerification},
     },
-    product_logging::framework::LoggingError,
-    time::Duration,
-};
-use stackable_spark_k8s_crd::{
-    constants::*, logdir::ResolvedLogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
-    SparkApplication, SparkApplicationRole, SparkApplicationStatus, SparkContainer, SubmitConfig,
-};
-
-use crate::product_logging::{self, resolve_vector_aggregator_address};
-use product_config::types::PropertyNameKind;
-use snafu::{OptionExt, ResultExt, Snafu};
-use stackable_operator::k8s_openapi::DeepMerge;
-use stackable_operator::{
-    builder::{
-        configmap::ConfigMapBuilder, meta::ObjectMetaBuilder, pod::container::ContainerBuilder,
-        pod::resources::ResourceRequirementsBuilder, pod::volume::VolumeBuilder, pod::PodBuilder,
-    },
-    commons::{product_image_selection::ResolvedProductImage, s3::S3ConnectionSpec},
     k8s_openapi::{
         api::{
             batch::v1::{Job, JobSpec},
@@ -40,7 +30,7 @@ use stackable_operator::{
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
-        Resource,
+        DeepMerge, Resource,
     },
     kube::{
         core::{error_boundary, DeserializeGuard},
@@ -50,16 +40,28 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     product_config_utils::ValidatedRoleConfigByPropertyKind,
     product_logging::{
-        framework::{capture_shell_output, create_vector_shutdown_file_command, vector_container},
+        framework::{
+            capture_shell_output, create_vector_shutdown_file_command, vector_container,
+            LoggingError,
+        },
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig, Logging,
         },
     },
     role_utils::RoleGroupRef,
+    time::Duration,
 };
-
+use stackable_spark_k8s_crd::{
+    constants::*, logdir::ResolvedLogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
+    SparkApplication, SparkApplicationRole, SparkApplicationStatus, SparkContainer, SubmitConfig,
+};
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+use crate::{
+    product_logging::{self, resolve_vector_aggregator_address},
+    Ctx,
+};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]

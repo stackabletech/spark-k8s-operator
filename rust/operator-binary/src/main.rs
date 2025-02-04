@@ -9,7 +9,6 @@ use clap::{crate_description, crate_version, Parser};
 use futures::{pin_mut, StreamExt};
 use history::history_controller;
 use product_config::ProductConfigManager;
-
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
@@ -26,7 +25,6 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
-
 use stackable_spark_k8s_crd::{
     constants::{
         HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,

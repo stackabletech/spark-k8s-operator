@@ -49,12 +49,12 @@ pub enum Error {
     CannotRetrieveRoleGroup { role_group: String },
 }
 
-/// A Spark cluster history server component. This resource is managed by the Stackable operator
-/// for Apache Spark. Find more information on how to use it in the
-/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
-#[versioned(
-    version(name = "v1alpha1"),
-    k8s(
+#[versioned(version(name = "v1alpha1"))]
+pub mod versioned {
+    /// A Spark cluster history server component. This resource is managed by the Stackable operator
+    /// for Apache Spark. Find more information on how to use it in the
+    /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
+    #[versioned(k8s(
         group = "spark.stackable.tech",
         kind = "SparkHistoryServer",
         shortname = "sparkhist",
@@ -64,49 +64,49 @@ pub enum Error {
             k8s_openapi = "stackable_operator::k8s_openapi",
             schemars = "stackable_operator::schemars"
         )
-    )
-)]
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SparkHistoryServerSpec {
-    pub image: ProductImage,
+    ))]
+    #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct SparkHistoryServerSpec {
+        pub image: ProductImage,
 
-    /// Global Spark history server configuration that applies to all roles and role groups.
-    #[serde(default)]
-    pub cluster_config: SparkHistoryServerClusterConfig,
+        /// Global Spark history server configuration that applies to all roles and role groups.
+        #[serde(default)]
+        pub cluster_config: v1alpha1::SparkHistoryServerClusterConfig,
 
-    /// Name of the Vector aggregator discovery ConfigMap.
-    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vector_aggregator_config_map_name: Option<String>,
+        /// Name of the Vector aggregator discovery ConfigMap.
+        /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub vector_aggregator_config_map_name: Option<String>,
 
-    /// The log file directory definition used by the Spark history server.
-    pub log_file_directory: LogFileDirectorySpec,
+        /// The log file directory definition used by the Spark history server.
+        pub log_file_directory: LogFileDirectorySpec,
 
-    /// A map of key/value strings that will be passed directly to Spark when deploying the history server.
-    #[serde(default)]
-    pub spark_conf: BTreeMap<String, String>,
+        /// A map of key/value strings that will be passed directly to Spark when deploying the history server.
+        #[serde(default)]
+        pub spark_conf: BTreeMap<String, String>,
 
-    /// A history server node role definition.
-    pub nodes: Role<HistoryConfigFragment>,
-}
+        /// A history server node role definition.
+        pub nodes: Role<HistoryConfigFragment>,
+    }
 
-#[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SparkHistoryServerClusterConfig {
-    /// This field controls which type of Service the Operator creates for this HistoryServer:
-    ///
-    /// * cluster-internal: Use a ClusterIP service
-    ///
-    /// * external-unstable: Use a NodePort service
-    ///
-    /// * external-stable: Use a LoadBalancer service
-    ///
-    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
-    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-    #[serde(default)]
-    pub listener_class: CurrentlySupportedListenerClasses,
+    #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct SparkHistoryServerClusterConfig {
+        /// This field controls which type of Service the Operator creates for this HistoryServer:
+        ///
+        /// * cluster-internal: Use a ClusterIP service
+        ///
+        /// * external-unstable: Use a NodePort service
+        ///
+        /// * external-stable: Use a LoadBalancer service
+        ///
+        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
+        /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+        #[serde(default)]
+        pub listener_class: CurrentlySupportedListenerClasses,
+    }
 }
 
 // TODO: Temporary solution until listener-operator is finished

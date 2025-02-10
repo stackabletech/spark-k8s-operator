@@ -1,5 +1,5 @@
 [workspace]
-members = ["rust/crd", "rust/operator-binary"]
+members = ["rust/operator-binary"]
 resolver = "2"
 
 [workspace.package]

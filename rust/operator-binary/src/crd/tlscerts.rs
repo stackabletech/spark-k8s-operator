@@ -3,7 +3,7 @@ use stackable_operator::commons::{
     tls_verification::{CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification},
 };
 
-use crate::{
+use crate::crd::{
     constants::{
         STACKABLE_MOUNT_PATH_TLS, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE,
         SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,

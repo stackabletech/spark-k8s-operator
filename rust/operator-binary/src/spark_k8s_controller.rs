@@ -7,8 +7,8 @@ use std::{
 use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder,
     builder::{
+        self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
@@ -52,13 +52,15 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
     time::Duration,
 };
-use stackable_spark_k8s_crd::{
-    constants::*, logdir::ResolvedLogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
-    SparkApplication, SparkApplicationRole, SparkApplicationStatus, SparkContainer, SubmitConfig,
-};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
+    crd::{
+        constants::*,
+        logdir::ResolvedLogDir,
+        roles::{RoleConfig, SparkApplicationRole, SparkContainer, SubmitConfig},
+        tlscerts, to_spark_env_sh_string, SparkApplication, SparkApplicationStatus,
+    },
     product_logging::{self, resolve_vector_aggregator_address},
     Ctx,
 };
@@ -94,9 +96,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build stark-submit command"))]
-    BuildCommand {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    BuildCommand { source: crate::crd::Error },
 
     #[snafu(display("failed to build the pod template config map"))]
     PodTemplateConfigMap {
@@ -116,9 +116,7 @@ pub enum Error {
     S3TlsCaVerificationNotSupported,
 
     #[snafu(display("failed to resolve and merge config"))]
-    FailedToResolveConfig {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    FailedToResolveConfig { source: crate::crd::Error },
 
     #[snafu(display("failed to recognise the container name"))]
     UnrecognisedContainerName,
@@ -129,9 +127,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to resolve the log dir configuration"))]
-    LogDir {
-        source: stackable_spark_k8s_crd::logdir::Error,
-    },
+    LogDir { source: crate::crd::logdir::Error },
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress { source: product_logging::Error },
@@ -157,14 +153,10 @@ pub enum Error {
     },
 
     #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    InvalidProductConfig { source: crate::crd::Error },
 
     #[snafu(display("invalid submit config"))]
-    SubmitConfig {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    SubmitConfig { source: crate::crd::Error },
 
     #[snafu(display("failed to build Labels"))]
     LabelBuild {
@@ -183,9 +175,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to create Volumes for SparkApplication"))]
-    CreateVolumes {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    CreateVolumes { source: crate::crd::Error },
 
     #[snafu(display("Failed to update status for application {name:?}"))]
     ApplySparkApplicationStatus {

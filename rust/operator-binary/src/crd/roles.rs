@@ -38,7 +38,7 @@ use stackable_operator::{
 };
 use strum::{Display, EnumIter};
 
-use crate::{ResolvedLogDir, SparkApplication};
+use crate::crd::{ResolvedLogDir, SparkApplication};
 
 #[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
 #[strum(serialize_all = "kebab-case")]

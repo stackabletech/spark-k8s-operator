@@ -2391,10 +2391,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "stackable-spark-k8s-crd"
+name = "stackable-spark-k8s-operator"
 version = "0.0.0-dev"
 dependencies = [
+ "anyhow",
+ "built",
+ "clap",
  "const_format",
+ "futures 0.3.31",
  "indoc",
  "product-config",
  "rstest",
@@ -2404,26 +2408,6 @@ dependencies = [
  "serde_yaml",
  "snafu 0.8.5",
  "stackable-operator",
- "strum",
- "tracing",
-]
-
-[[package]]
-name = "stackable-spark-k8s-operator"
-version = "0.0.0-dev"
-dependencies = [
- "anyhow",
- "built",
- "clap",
- "futures 0.3.31",
- "product-config",
- "semver",
- "serde",
- "serde_json",
- "serde_yaml",
- "snafu 0.8.5",
- "stackable-operator",
- "stackable-spark-k8s-crd",
  "strum",
  "tokio",
  "tracing",
@@ -2688,9 +2672,9 @@ checksum = "0dd7358ecb8fc2f8d014bf86f6f638ce72ba252a2c3a2572f2a795f1d23efb41"
 
 [[package]]
 name = "toml_edit"
-version = "0.22.22"
+version = "0.22.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ae48d6208a266e853d946088ed816055e556cc6028c5e8e2b84d9fa5dd7c7f5"
+checksum = "02a8b472d1a3d7c18e2d61a489aee3453fd9031c33e4f55bd533f4a7adca1bee"
 dependencies = [
  "indexmap",
  "toml_datetime",
@@ -3159,9 +3143,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "0.6.24"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8d71a593cc5c42ad7876e2c1fda56f314f3754c084128833e64f1345ff8a03a"
+checksum = "86e376c75f4f43f44db463cf729e0d3acbf954d13e22c51e26e4c264b4ab545f"
 dependencies = [
  "memchr",
 ]

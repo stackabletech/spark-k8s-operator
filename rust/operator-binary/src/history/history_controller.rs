@@ -45,23 +45,23 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
     time::Duration,
 };
-use stackable_spark_k8s_crd::{
-    constants::{
-        ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
-        JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
-        SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-        SPARK_IMAGE_BASE_NAME, SPARK_UID, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
-        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
-    },
-    history,
-    history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
-    logdir::ResolvedLogDir,
-    tlscerts, to_spark_env_sh_string,
-};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
+    crd::{
+        constants::{
+            ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
+            JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
+            SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME,
+            SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID, STACKABLE_TRUST_STORE,
+            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        },
+        history,
+        history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
+        logdir::ResolvedLogDir,
+        tlscerts, to_spark_env_sh_string,
+    },
     history::operations::pdb::add_pdbs,
     product_logging::{self, resolve_vector_aggregator_address},
     Ctx,
@@ -119,14 +119,10 @@ pub enum Error {
     },
 
     #[snafu(display("product config validation failed"))]
-    ProductConfigValidation {
-        source: stackable_spark_k8s_crd::history::Error,
-    },
+    ProductConfigValidation { source: crate::crd::history::Error },
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
-    FailedToResolveConfig {
-        source: stackable_spark_k8s_crd::history::Error,
-    },
+    FailedToResolveConfig { source: crate::crd::history::Error },
 
     #[snafu(display("number of cleaner rolegroups exceeds 1"))]
     TooManyCleanerRoleGroups,
@@ -135,9 +131,7 @@ pub enum Error {
     TooManyCleanerReplicas,
 
     #[snafu(display("failed to resolve the log dir configuration"))]
-    LogDir {
-        source: stackable_spark_k8s_crd::logdir::Error,
-    },
+    LogDir { source: crate::crd::logdir::Error },
 
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
@@ -195,9 +189,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to create the log dir volumes specification"))]
-    CreateLogDirVolumesSpec {
-        source: stackable_spark_k8s_crd::logdir::Error,
-    },
+    CreateLogDirVolumesSpec { source: crate::crd::logdir::Error },
 
     #[snafu(display("failed to add needed volume"))]
     AddVolume { source: builder::pod::Error },

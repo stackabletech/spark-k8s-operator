@@ -13,9 +13,8 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
 };
-use stackable_spark_k8s_crd::constants::{
-    LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, VOLUME_MOUNT_PATH_LOG,
-};
+
+use crate::crd::constants::{LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, VOLUME_MOUNT_PATH_LOG};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -24,11 +23,13 @@ pub enum Error {
         source: stackable_operator::client::Error,
         cm_name: String,
     },
+
     #[snafu(display("failed to retrieve the entry {entry} for ConfigMap {cm_name}"))]
     MissingConfigMapEntry {
         entry: &'static str,
         cm_name: String,
     },
+
     #[snafu(display("vectorAggregatorConfigMapName must be set"))]
     MissingVectorAggregatorAddress,
 }

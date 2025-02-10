@@ -1,12 +1,5 @@
 //! This module provides all required CRD definitions and additional helper methods.
 
-pub mod affinity;
-pub mod constants;
-pub mod history;
-pub mod logdir;
-pub mod roles;
-pub mod tlscerts;
-
 use std::{
     cmp::max,
     collections::{BTreeMap, HashMap},
@@ -52,7 +45,17 @@ use stackable_operator::{
     utils::crds::raw_object_list_schema,
 };
 
-pub use crate::roles::*;
+use crate::crd::roles::{
+    RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode, SubmitConfig,
+    SubmitConfigFragment, VolumeMounts,
+};
+
+pub mod affinity;
+pub mod constants;
+pub mod history;
+pub mod logdir;
+pub mod roles;
+pub mod tlscerts;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -1101,10 +1104,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
-        cores_from_quantity, resources_to_driver_props, resources_to_executor_props, Quantity,
-        RoleConfig, SparkApplication, SparkStorageConfig,
-    };
+    use crate::crd::roles::SparkStorageConfig;
 
     #[test]
     fn test_default_resource_limits() {

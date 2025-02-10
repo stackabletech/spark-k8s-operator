@@ -15,7 +15,7 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::{
+use crate::crd::{
     constants::*,
     history::{
         LogFileDirectorySpec::{self, S3},

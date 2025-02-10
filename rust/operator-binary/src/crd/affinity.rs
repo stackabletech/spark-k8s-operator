@@ -3,7 +3,7 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::PodAntiAffinity,
 };
 
-use crate::constants::{APP_NAME, HISTORY_ROLE_NAME};
+use crate::crd::constants::{APP_NAME, HISTORY_ROLE_NAME};
 
 pub fn history_affinity(cluster_name: &str) -> StackableAffinityFragment {
     let affinity_between_role_pods =
@@ -36,7 +36,7 @@ mod test {
         role_utils::RoleGroupRef,
     };
 
-    use crate::{constants::HISTORY_ROLE_NAME, history::SparkHistoryServer};
+    use crate::crd::{constants::HISTORY_ROLE_NAME, history::SparkHistoryServer};
 
     #[test]
     pub fn test_history_affinity_defaults() {

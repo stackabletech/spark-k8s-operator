@@ -1,8 +1,3 @@
-mod history;
-mod pod_driver_controller;
-mod product_logging;
-mod spark_k8s_controller;
-
 use std::sync::Arc;
 
 use clap::{crate_description, crate_version, Parser};
@@ -25,7 +20,10 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     CustomResourceExt,
 };
-use stackable_spark_k8s_crd::{
+use tracing::info_span;
+use tracing_futures::Instrument;
+
+use crate::crd::{
     constants::{
         HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
         SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
@@ -33,8 +31,12 @@ use stackable_spark_k8s_crd::{
     history::SparkHistoryServer,
     SparkApplication,
 };
-use tracing::info_span;
-use tracing_futures::Instrument;
+
+mod crd;
+mod history;
+mod pod_driver_controller;
+mod product_logging;
+mod spark_k8s_controller;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));

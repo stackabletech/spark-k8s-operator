@@ -30,7 +30,7 @@ use stackable_operator::{
 };
 use strum::{Display, EnumIter};
 
-use crate::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir};
+use crate::crd::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -484,7 +484,7 @@ mod test {
     };
 
     use super::*;
-    use crate::logdir::S3LogDir;
+    use crate::crd::logdir::S3LogDir;
 
     #[test]
     pub fn test_env_overrides() {

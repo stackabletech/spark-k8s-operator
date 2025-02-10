@@ -7,7 +7,7 @@
 //! this responsibility to the Submit job.
 //!
 //! The submit job only supports one group per role. For this reason, the
-//! [`SparkApplication`] spec doesn't declare Role objects directly. Instead it
+//! [`v1alpha1::SparkApplication`] spec doesn't declare Role objects directly. Instead it
 //! only declares [`stackable_operator::role_utils::CommonConfiguration`] objects for job,
 //!  driver and executor and constructs the Roles dynamically when needed. The only group under
 //! each role is named "default". These roles are transparent to the user.

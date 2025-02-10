@@ -56,7 +56,6 @@ pub mod versioned {
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
     #[versioned(k8s(
         group = "spark.stackable.tech",
-        kind = "SparkHistoryServer",
         shortname = "sparkhist",
         namespaced,
         crates(

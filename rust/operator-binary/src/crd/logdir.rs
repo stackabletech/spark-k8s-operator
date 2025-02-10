@@ -133,13 +133,6 @@ impl ResolvedLogDir {
         }
     }
 
-    pub fn credentials(&self) -> Option<SecretClassVolume> {
-        match self {
-            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.credentials(),
-            ResolvedLogDir::Custom(_) => None,
-        }
-    }
-
     pub fn credentials_mount_path(&self) -> Option<String> {
         match self {
             ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.credentials_mount_path(),

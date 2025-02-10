@@ -265,10 +265,6 @@ impl SparkApplication {
         format!("{app_name}-{role}-pod-template", app_name = self.name_any())
     }
 
-    pub fn image(&self) -> Option<&str> {
-        self.spec.image.as_deref()
-    }
-
     pub fn application_artifact(&self) -> &str {
         self.spec.main_application_file.as_ref()
     }

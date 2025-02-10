@@ -43,7 +43,6 @@ pub const STACKABLE_TRUST_STORE_NAME: &str = "stackable-truststore";
 pub const STACKABLE_TLS_STORE_PASSWORD: &str = "changeit";
 pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_MOUNT_PATH_TLS: &str = "/stackable/mount_server_tls";
-pub const STACKABLE_MOUNT_NAME_TLS: &str = "servertls";
 
 pub const MIN_MEMORY_OVERHEAD: u32 = 384;
 pub const JVM_OVERHEAD_FACTOR: f32 = 0.1;

@@ -59,7 +59,7 @@ use crate::{
         constants::*,
         logdir::ResolvedLogDir,
         roles::{RoleConfig, SparkApplicationRole, SparkContainer, SubmitConfig},
-        tlscerts, to_spark_env_sh_string, SparkApplication, SparkApplicationStatus,
+        tlscerts, to_spark_env_sh_string, v1alpha1, SparkApplicationStatus,
     },
     product_logging::{self, resolve_vector_aggregator_address},
     Ctx,
@@ -206,7 +206,7 @@ impl ReconcilerError for Error {
 }
 
 pub async fn reconcile(
-    spark_application: Arc<DeserializeGuard<SparkApplication>>,
+    spark_application: Arc<DeserializeGuard<v1alpha1::SparkApplication>>,
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
@@ -430,7 +430,7 @@ pub async fn reconcile(
 }
 
 fn init_containers(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     logging: &Logging<SparkContainer>,
     s3conn: &Option<S3ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
@@ -585,7 +585,7 @@ fn init_containers(
 
 #[allow(clippy::too_many_arguments)]
 fn pod_template(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     role: SparkApplicationRole,
     config: &RoleConfig,
     volumes: &[Volume],
@@ -678,7 +678,7 @@ fn pod_template(
 
 #[allow(clippy::too_many_arguments)]
 fn pod_template_config_map(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     role: SparkApplicationRole,
     merged_config: &RoleConfig,
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
@@ -797,7 +797,7 @@ fn pod_template_config_map(
 }
 
 fn submit_job_config_map(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
     spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
@@ -856,7 +856,7 @@ fn submit_job_config_map(
 
 #[allow(clippy::too_many_arguments)]
 fn spark_job(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     spark_image: &ResolvedProductImage,
     serviceaccount: &ServiceAccount,
     env: &[EnvVar],
@@ -974,7 +974,7 @@ fn spark_job(
 /// Both objects have an owner reference to the SparkApplication, as well as the same name as the app.
 /// They are deleted when the job is deleted.
 fn build_spark_role_serviceaccount(
-    spark_app: &SparkApplication,
+    spark_app: &v1alpha1::SparkApplication,
     spark_image: &ResolvedProductImage,
 ) -> Result<(ServiceAccount, RoleBinding)> {
     let sa_name = spark_app.metadata.name.as_ref().unwrap().to_string();
@@ -1029,7 +1029,7 @@ fn security_context() -> PodSecurityContext {
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<SparkApplication>>,
+    _obj: Arc<DeserializeGuard<v1alpha1::SparkApplication>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {

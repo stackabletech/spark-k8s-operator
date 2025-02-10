@@ -12,7 +12,7 @@ spec:
     kind: SparkApplication
     plural: sparkapplications
     shortNames:
-      - sc
+      - sparkapp
     singular: sparkapplication
   scope: Namespaced
   versions:

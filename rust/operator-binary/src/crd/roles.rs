@@ -38,7 +38,7 @@ use stackable_operator::{
 };
 use strum::{Display, EnumIter};
 
-use crate::crd::{ResolvedLogDir, SparkApplication};
+use crate::crd::{v1alpha1, ResolvedLogDir};
 
 #[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
 #[strum(serialize_all = "kebab-case")]
@@ -155,7 +155,7 @@ impl RoleConfig {
     }
     pub fn volume_mounts(
         &self,
-        spark_application: &SparkApplication,
+        spark_application: &v1alpha1::SparkApplication,
         s3conn: &Option<S3ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
     ) -> Vec<VolumeMount> {
@@ -165,7 +165,7 @@ impl RoleConfig {
 }
 
 impl Configuration for RoleConfigFragment {
-    type Configurable = SparkApplication;
+    type Configurable = v1alpha1::SparkApplication;
 
     fn compute_env(
         &self,
@@ -246,7 +246,7 @@ impl SubmitConfig {
 }
 
 impl Configuration for SubmitConfigFragment {
-    type Configurable = SparkApplication;
+    type Configurable = v1alpha1::SparkApplication;
 
     fn compute_env(
         &self,

@@ -18,7 +18,8 @@ use stackable_operator::{
         },
     },
     logging::controller::report_controller_reconciled,
-    CustomResourceExt,
+    shared::yaml::SerializeOptions,
+    YamlSchema,
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -29,7 +30,7 @@ use crate::crd::{
         SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
     },
     history::SparkHistoryServer,
-    SparkApplication,
+    v1alpha1, SparkApplication,
 };
 
 mod crd;
@@ -63,8 +64,9 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => {
-            SparkApplication::print_yaml_schema(built_info::PKG_VERSION)?;
-            SparkHistoryServer::print_yaml_schema(built_info::PKG_VERSION)?;
+            SparkApplication::merged_crd(SparkApplication::V1Alpha1)?
+                .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
+            // SparkHistoryServer::print_yaml_schema(built_info::PKG_VERSION)?;
         }
         Command::Run(ProductOperatorRun {
             product_config,
@@ -104,7 +106,7 @@ async fn main() -> anyhow::Result<()> {
                 },
             ));
             let app_controller = Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<SparkApplication>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<v1alpha1::SparkApplication>>(&client),
                 watcher::Config::default(),
             )
             .owns(

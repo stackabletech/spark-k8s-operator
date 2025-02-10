@@ -44,6 +44,7 @@ use stackable_operator::{
     time::Duration,
     utils::crds::raw_object_list_schema,
 };
+use stackable_versioned::versioned;
 
 use crate::crd::roles::{
     RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode, SubmitConfig,
@@ -126,20 +127,21 @@ pub struct SparkApplicationStatus {
 ///
 /// The SparkApplication CRD looks a little different than the CRDs of the other products on the
 /// Stackable Data Platform.
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
-#[kube(
-    group = "spark.stackable.tech",
-    version = "v1alpha1",
-    kind = "SparkApplication",
-    shortname = "sc",
-    status = "SparkApplicationStatus",
-    namespaced,
-    crates(
-        kube_core = "stackable_operator::kube::core",
-        k8s_openapi = "stackable_operator::k8s_openapi",
-        schemars = "stackable_operator::schemars"
+#[versioned(
+    version(name = "v1alpha1"),
+    k8s(
+        group = "spark.stackable.tech",
+        shortname = "sparkapp",
+        status = "SparkApplicationStatus",
+        namespaced,
+        crates(
+            kube_core = "stackable_operator::kube::core",
+            k8s_openapi = "stackable_operator::k8s_openapi",
+            schemars = "stackable_operator::schemars"
+        )
     )
 )]
+#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SparkApplicationSpec {
     /// Mode: cluster or client. Currently only cluster is supported.
@@ -241,7 +243,7 @@ pub struct JobDependencies {
     pub exclude_packages: Vec<String>,
 }
 
-impl SparkApplication {
+impl v1alpha1::SparkApplication {
     /// Returns if this [`SparkApplication`] has already created a Kubernetes Job doing the actual `spark-submit`.
     ///
     /// This is needed because Kubernetes will remove the succeeded Job after some time. When the spark-k8s-operator is
@@ -509,7 +511,7 @@ impl SparkApplication {
         &'a self,
         app_version: &'a str,
         role: &'a str,
-    ) -> ObjectLabels<SparkApplication> {
+    ) -> ObjectLabels<v1alpha1::SparkApplication> {
         ObjectLabels {
             owner: self,
             app_name: APP_NAME,
@@ -1104,7 +1106,7 @@ mod tests {
 
     #[test]
     fn test_default_resource_limits() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(indoc! {"
+        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1133,7 +1135,7 @@ mod tests {
 
     #[test]
     fn test_merged_resource_limits() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(indoc! {r#"
+        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1310,7 +1312,7 @@ mod tests {
 
     #[test]
     fn test_validated_config() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(indoc! {r#"
+        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1375,7 +1377,7 @@ mod tests {
 
     #[test]
     fn test_job_volume_mounts() {
-        let spark_application = serde_yaml::from_str::<SparkApplication>(indoc! {r#"
+        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication

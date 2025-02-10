@@ -13,7 +13,7 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::crd::{constants::POD_DRIVER_CONTROLLER_NAME, SparkApplication, SparkApplicationStatus};
+use crate::crd::{constants::POD_DRIVER_CONTROLLER_NAME, v1alpha1, SparkApplicationStatus};
 
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
@@ -84,7 +84,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
     )?;
 
     let app = client
-        .get::<SparkApplication>(
+        .get::<v1alpha1::SparkApplication>(
             app_name.as_ref(),
             pod.metadata
                 .namespace

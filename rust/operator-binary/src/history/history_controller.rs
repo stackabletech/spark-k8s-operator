@@ -57,8 +57,7 @@ use crate::{
             VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
             VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
-        history,
-        history::{HistoryConfig, SparkHistoryServer, SparkHistoryServerContainer},
+        history::{self, v1alpha1, HistoryConfig, SparkHistoryServerContainer},
         logdir::ResolvedLogDir,
         tlscerts, to_spark_env_sh_string,
     },
@@ -214,7 +213,7 @@ impl ReconcilerError for Error {
 }
 /// Updates the status of the SparkApplication that started the pod.
 pub async fn reconcile(
-    shs: Arc<DeserializeGuard<SparkHistoryServer>>,
+    shs: Arc<DeserializeGuard<v1alpha1::SparkHistoryServer>>,
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile history server");
@@ -357,7 +356,7 @@ pub async fn reconcile(
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<SparkHistoryServer>>,
+    _obj: Arc<DeserializeGuard<v1alpha1::SparkHistoryServer>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {
@@ -369,11 +368,11 @@ pub fn error_policy(
 
 #[allow(clippy::result_large_err)]
 fn build_config_map(
-    shs: &SparkHistoryServer,
+    shs: &v1alpha1::SparkHistoryServer,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &HistoryConfig,
     app_version_label: &str,
-    rolegroupref: &RoleGroupRef<SparkHistoryServer>,
+    rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
     log_dir: &ResolvedLogDir,
     vector_aggregator_address: Option<&str>,
 ) -> Result<ConfigMap, Error> {
@@ -441,9 +440,9 @@ fn build_config_map(
 
 #[allow(clippy::result_large_err)]
 fn build_stateful_set(
-    shs: &SparkHistoryServer,
+    shs: &v1alpha1::SparkHistoryServer,
     resolved_product_image: &ResolvedProductImage,
-    rolegroupref: &RoleGroupRef<SparkHistoryServer>,
+    rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
     log_dir: &ResolvedLogDir,
     merged_config: &HistoryConfig,
     serviceaccount: &ServiceAccount,
@@ -609,10 +608,10 @@ fn build_stateful_set(
 
 #[allow(clippy::result_large_err)]
 fn build_service(
-    shs: &SparkHistoryServer,
+    shs: &v1alpha1::SparkHistoryServer,
     app_version_label: &str,
     role: &str,
-    group: Option<&RoleGroupRef<SparkHistoryServer>>,
+    group: Option<&RoleGroupRef<v1alpha1::SparkHistoryServer>>,
 ) -> Result<Service, Error> {
     let group_name = match group {
         Some(rgr) => rgr.role_group.clone(),
@@ -677,7 +676,7 @@ fn build_service(
 // See: https://github.com/stackabletech/spark-k8s-operator/issues/499
 #[allow(clippy::result_large_err)]
 fn build_history_role_serviceaccount(
-    shs: &SparkHistoryServer,
+    shs: &v1alpha1::SparkHistoryServer,
     app_version_label: &str,
 ) -> Result<(ServiceAccount, RoleBinding)> {
     let sa = ServiceAccount {
@@ -718,9 +717,9 @@ fn build_history_role_serviceaccount(
 
 #[allow(clippy::result_large_err)]
 fn spark_defaults(
-    shs: &SparkHistoryServer,
+    shs: &v1alpha1::SparkHistoryServer,
     log_dir: &ResolvedLogDir,
-    rolegroupref: &RoleGroupRef<SparkHistoryServer>,
+    rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
 ) -> Result<String, Error> {
     let mut log_dir_settings = log_dir.history_server_spark_config().context(LogDirSnafu)?;
 
@@ -782,8 +781,8 @@ fn labels<'a, T>(
 /// group should have a replica count of 0 or 1.
 #[allow(clippy::result_large_err)]
 fn cleaner_config(
-    shs: &SparkHistoryServer,
-    rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
+    shs: &v1alpha1::SparkHistoryServer,
+    rolegroup_ref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
 ) -> Result<BTreeMap<String, String>, Error> {
     let mut result = BTreeMap::new();
 

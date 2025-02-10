@@ -998,7 +998,7 @@ spec:
     kind: SparkHistoryServer
     plural: sparkhistoryservers
     shortNames:
-      - shs
+      - sparkhist
     singular: sparkhistoryserver
   scope: Namespaced
   versions:

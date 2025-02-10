@@ -30,7 +30,7 @@ use crate::crd::{
         SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
     },
     history::SparkHistoryServer,
-    v1alpha1, SparkApplication,
+    SparkApplication,
 };
 
 mod crd;
@@ -66,7 +66,8 @@ async fn main() -> anyhow::Result<()> {
         Command::Crd => {
             SparkApplication::merged_crd(SparkApplication::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
-            // SparkHistoryServer::print_yaml_schema(built_info::PKG_VERSION)?;
+            SparkHistoryServer::merged_crd(SparkHistoryServer::V1Alpha1)?
+                .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
         }
         Command::Run(ProductOperatorRun {
             product_config,
@@ -106,7 +107,8 @@ async fn main() -> anyhow::Result<()> {
                 },
             ));
             let app_controller = Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<v1alpha1::SparkApplication>>(&client),
+                watch_namespace
+                    .get_api::<DeserializeGuard<crd::v1alpha1::SparkApplication>>(&client),
                 watcher::Config::default(),
             )
             .owns(
@@ -192,11 +194,17 @@ async fn main() -> anyhow::Result<()> {
                 },
             ));
             let history_controller = Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<SparkHistoryServer>>(&client),
+                watch_namespace
+                    .get_api::<DeserializeGuard<crd::history::v1alpha1::SparkHistoryServer>>(
+                        &client,
+                    ),
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<SparkHistoryServer>>(&client),
+                watch_namespace
+                    .get_api::<DeserializeGuard<crd::history::v1alpha1::SparkHistoryServer>>(
+                        &client,
+                    ),
                 watcher::Config::default(),
             )
             .owns(

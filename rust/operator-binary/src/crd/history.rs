@@ -28,6 +28,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     time::Duration,
 };
+use stackable_versioned::versioned;
 use strum::{Display, EnumIter};
 
 use crate::crd::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir};
@@ -51,19 +52,21 @@ pub enum Error {
 /// A Spark cluster history server component. This resource is managed by the Stackable operator
 /// for Apache Spark. Find more information on how to use it in the
 /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
-#[kube(
-    group = "spark.stackable.tech",
-    version = "v1alpha1",
-    kind = "SparkHistoryServer",
-    shortname = "shs",
-    namespaced,
-    crates(
-        kube_core = "stackable_operator::kube::core",
-        k8s_openapi = "stackable_operator::k8s_openapi",
-        schemars = "stackable_operator::schemars"
+#[versioned(
+    version(name = "v1alpha1"),
+    k8s(
+        group = "spark.stackable.tech",
+        kind = "SparkHistoryServer",
+        shortname = "sparkhist",
+        namespaced,
+        crates(
+            kube_core = "stackable_operator::kube::core",
+            k8s_openapi = "stackable_operator::k8s_openapi",
+            schemars = "stackable_operator::schemars"
+        )
     )
 )]
+#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SparkHistoryServerSpec {
     pub image: ProductImage,
@@ -129,7 +132,7 @@ impl CurrentlySupportedListenerClasses {
     }
 }
 
-impl SparkHistoryServer {
+impl v1alpha1::SparkHistoryServer {
     /// Returns a reference to the role. Raises an error if the role is not defined.
     pub fn role(&self) -> &Role<HistoryConfigFragment> {
         &self.spec.nodes
@@ -138,7 +141,7 @@ impl SparkHistoryServer {
     /// Returns a reference to the role group. Raises an error if the role or role group are not defined.
     pub fn rolegroup(
         &self,
-        rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
+        rolegroup_ref: &RoleGroupRef<Self>,
     ) -> Result<RoleGroup<HistoryConfigFragment, GenericProductSpecificCommonConfig>, Error> {
         self.spec
             .nodes
@@ -152,7 +155,7 @@ impl SparkHistoryServer {
 
     pub fn merged_config(
         &self,
-        rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
+        rolegroup_ref: &RoleGroupRef<Self>,
     ) -> Result<HistoryConfig, Error> {
         // Initialize the result with all default values as baseline
         let conf_defaults = HistoryConfig::default_config(&self.name_any());
@@ -184,7 +187,7 @@ impl SparkHistoryServer {
             .map(i32::from)
     }
 
-    pub fn cleaner_rolegroups(&self) -> Vec<RoleGroupRef<SparkHistoryServer>> {
+    pub fn cleaner_rolegroups(&self) -> Vec<RoleGroupRef<Self>> {
         let mut rgs = vec![];
         for (rg_name, rg_config) in &self.spec.nodes.role_groups {
             if let Some(true) = rg_config.config.config.cleaner {
@@ -444,7 +447,7 @@ impl HistoryConfig {
 }
 
 impl Configuration for HistoryConfigFragment {
-    type Configurable = SparkHistoryServer;
+    type Configurable = v1alpha1::SparkHistoryServer;
 
     fn compute_env(
         &self,
@@ -515,7 +518,7 @@ mod test {
         "#};
 
         let deserializer = serde_yaml::Deserializer::from_str(input);
-        let history: SparkHistoryServer =
+        let history: v1alpha1::SparkHistoryServer =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
         let log_dir = ResolvedLogDir::S3(S3LogDir {

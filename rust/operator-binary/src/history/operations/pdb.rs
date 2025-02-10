@@ -6,7 +6,7 @@ use stackable_operator::{
 
 use crate::crd::{
     constants::{APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME, OPERATOR_NAME},
-    history::SparkHistoryServer,
+    history::v1alpha1,
 };
 
 #[derive(Snafu, Debug)]
@@ -25,7 +25,7 @@ pub enum Error {
 
 pub async fn add_pdbs(
     pdb: &PdbConfig,
-    history: &SparkHistoryServer,
+    history: &v1alpha1::SparkHistoryServer,
     client: &Client,
     cluster_resources: &mut ClusterResources,
 ) -> Result<(), Error> {

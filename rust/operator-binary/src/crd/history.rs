@@ -28,9 +28,10 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     time::Duration,
 };
+use stackable_versioned::versioned;
 use strum::{Display, EnumIter};
 
-use crate::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir};
+use crate::crd::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -48,62 +49,63 @@ pub enum Error {
     CannotRetrieveRoleGroup { role_group: String },
 }
 
-/// A Spark cluster history server component. This resource is managed by the Stackable operator
-/// for Apache Spark. Find more information on how to use it in the
-/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
-#[kube(
-    group = "spark.stackable.tech",
-    version = "v1alpha1",
-    kind = "SparkHistoryServer",
-    shortname = "shs",
-    namespaced,
-    crates(
-        kube_core = "stackable_operator::kube::core",
-        k8s_openapi = "stackable_operator::k8s_openapi",
-        schemars = "stackable_operator::schemars"
-    )
-)]
-#[serde(rename_all = "camelCase")]
-pub struct SparkHistoryServerSpec {
-    pub image: ProductImage,
+#[versioned(version(name = "v1alpha1"))]
+pub mod versioned {
+    /// A Spark cluster history server component. This resource is managed by the Stackable operator
+    /// for Apache Spark. Find more information on how to use it in the
+    /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
+    #[versioned(k8s(
+        group = "spark.stackable.tech",
+        shortname = "sparkhist",
+        namespaced,
+        crates(
+            kube_core = "stackable_operator::kube::core",
+            k8s_openapi = "stackable_operator::k8s_openapi",
+            schemars = "stackable_operator::schemars"
+        )
+    ))]
+    #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct SparkHistoryServerSpec {
+        pub image: ProductImage,
 
-    /// Global Spark history server configuration that applies to all roles and role groups.
-    #[serde(default)]
-    pub cluster_config: SparkHistoryServerClusterConfig,
+        /// Global Spark history server configuration that applies to all roles and role groups.
+        #[serde(default)]
+        pub cluster_config: v1alpha1::SparkHistoryServerClusterConfig,
 
-    /// Name of the Vector aggregator discovery ConfigMap.
-    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vector_aggregator_config_map_name: Option<String>,
+        /// Name of the Vector aggregator discovery ConfigMap.
+        /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub vector_aggregator_config_map_name: Option<String>,
 
-    /// The log file directory definition used by the Spark history server.
-    pub log_file_directory: LogFileDirectorySpec,
+        /// The log file directory definition used by the Spark history server.
+        pub log_file_directory: LogFileDirectorySpec,
 
-    /// A map of key/value strings that will be passed directly to Spark when deploying the history server.
-    #[serde(default)]
-    pub spark_conf: BTreeMap<String, String>,
+        /// A map of key/value strings that will be passed directly to Spark when deploying the history server.
+        #[serde(default)]
+        pub spark_conf: BTreeMap<String, String>,
 
-    /// A history server node role definition.
-    pub nodes: Role<HistoryConfigFragment>,
-}
+        /// A history server node role definition.
+        pub nodes: Role<HistoryConfigFragment>,
+    }
 
-#[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SparkHistoryServerClusterConfig {
-    /// This field controls which type of Service the Operator creates for this HistoryServer:
-    ///
-    /// * cluster-internal: Use a ClusterIP service
-    ///
-    /// * external-unstable: Use a NodePort service
-    ///
-    /// * external-stable: Use a LoadBalancer service
-    ///
-    /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-    /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
-    /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-    #[serde(default)]
-    pub listener_class: CurrentlySupportedListenerClasses,
+    #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct SparkHistoryServerClusterConfig {
+        /// This field controls which type of Service the Operator creates for this HistoryServer:
+        ///
+        /// * cluster-internal: Use a ClusterIP service
+        ///
+        /// * external-unstable: Use a NodePort service
+        ///
+        /// * external-stable: Use a LoadBalancer service
+        ///
+        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
+        /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
+        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+        #[serde(default)]
+        pub listener_class: CurrentlySupportedListenerClasses,
+    }
 }
 
 // TODO: Temporary solution until listener-operator is finished
@@ -129,7 +131,7 @@ impl CurrentlySupportedListenerClasses {
     }
 }
 
-impl SparkHistoryServer {
+impl v1alpha1::SparkHistoryServer {
     /// Returns a reference to the role. Raises an error if the role is not defined.
     pub fn role(&self) -> &Role<HistoryConfigFragment> {
         &self.spec.nodes
@@ -138,7 +140,7 @@ impl SparkHistoryServer {
     /// Returns a reference to the role group. Raises an error if the role or role group are not defined.
     pub fn rolegroup(
         &self,
-        rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
+        rolegroup_ref: &RoleGroupRef<Self>,
     ) -> Result<RoleGroup<HistoryConfigFragment, GenericProductSpecificCommonConfig>, Error> {
         self.spec
             .nodes
@@ -152,7 +154,7 @@ impl SparkHistoryServer {
 
     pub fn merged_config(
         &self,
-        rolegroup_ref: &RoleGroupRef<SparkHistoryServer>,
+        rolegroup_ref: &RoleGroupRef<Self>,
     ) -> Result<HistoryConfig, Error> {
         // Initialize the result with all default values as baseline
         let conf_defaults = HistoryConfig::default_config(&self.name_any());
@@ -184,7 +186,7 @@ impl SparkHistoryServer {
             .map(i32::from)
     }
 
-    pub fn cleaner_rolegroups(&self) -> Vec<RoleGroupRef<SparkHistoryServer>> {
+    pub fn cleaner_rolegroups(&self) -> Vec<RoleGroupRef<Self>> {
         let mut rgs = vec![];
         for (rg_name, rg_config) in &self.spec.nodes.role_groups {
             if let Some(true) = rg_config.config.config.cleaner {
@@ -444,7 +446,7 @@ impl HistoryConfig {
 }
 
 impl Configuration for HistoryConfigFragment {
-    type Configurable = SparkHistoryServer;
+    type Configurable = v1alpha1::SparkHistoryServer;
 
     fn compute_env(
         &self,
@@ -484,7 +486,7 @@ mod test {
     };
 
     use super::*;
-    use crate::logdir::S3LogDir;
+    use crate::crd::logdir::S3LogDir;
 
     #[test]
     pub fn test_env_overrides() {
@@ -515,7 +517,7 @@ mod test {
         "#};
 
         let deserializer = serde_yaml::Deserializer::from_str(input);
-        let history: SparkHistoryServer =
+        let history: v1alpha1::SparkHistoryServer =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
         let log_dir = ResolvedLogDir::S3(S3LogDir {

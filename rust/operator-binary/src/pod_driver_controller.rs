@@ -11,10 +11,9 @@ use stackable_operator::{
     logging::controller::ReconcilerError,
     time::Duration,
 };
-use stackable_spark_k8s_crd::{
-    constants::POD_DRIVER_CONTROLLER_NAME, SparkApplication, SparkApplicationStatus,
-};
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+use crate::crd::{constants::POD_DRIVER_CONTROLLER_NAME, v1alpha1, SparkApplicationStatus};
 
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
@@ -24,22 +23,28 @@ const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 pub enum Error {
     #[snafu(display("Label [{LABEL_NAME_INSTANCE}] not found for pod name [{pod_name}]"))]
     LabelInstanceNotFound { pod_name: String },
+
     #[snafu(display("Failed to update status for application [{name}]"))]
     ApplySparkApplicationStatus {
         source: stackable_operator::client::Error,
         name: String,
     },
+
     #[snafu(display("Pod name not found"))]
     PodNameNotFound,
+
     #[snafu(display("Namespace not found"))]
     NamespaceNotFound,
+
     #[snafu(display("Status phase not found for pod [{pod_name}]"))]
     PodStatusPhaseNotFound { pod_name: String },
+
     #[snafu(display("Spark application [{name}] not found"))]
     SparkApplicationNotFound {
         source: stackable_operator::client::Error,
         name: String,
     },
+
     #[snafu(display("Pod object is invalid"))]
     InvalidPod {
         source: error_boundary::InvalidObject,
@@ -79,7 +84,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
     )?;
 
     let app = client
-        .get::<SparkApplication>(
+        .get::<v1alpha1::SparkApplication>(
             app_name.as_ref(),
             pod.metadata
                 .namespace

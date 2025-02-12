@@ -1,8 +1,3 @@
-mod history;
-mod pod_driver_controller;
-mod product_logging;
-mod spark_k8s_controller;
-
 use std::sync::Arc;
 
 use clap::{crate_description, crate_version, Parser};
@@ -23,9 +18,13 @@ use stackable_operator::{
         },
     },
     logging::controller::report_controller_reconciled,
-    CustomResourceExt,
+    shared::yaml::SerializeOptions,
+    YamlSchema,
 };
-use stackable_spark_k8s_crd::{
+use tracing::info_span;
+use tracing_futures::Instrument;
+
+use crate::crd::{
     constants::{
         HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
         SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
@@ -33,8 +32,12 @@ use stackable_spark_k8s_crd::{
     history::SparkHistoryServer,
     SparkApplication,
 };
-use tracing::info_span;
-use tracing_futures::Instrument;
+
+mod crd;
+mod history;
+mod pod_driver_controller;
+mod product_logging;
+mod spark_k8s_controller;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -61,8 +64,10 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => {
-            SparkApplication::print_yaml_schema(built_info::PKG_VERSION)?;
-            SparkHistoryServer::print_yaml_schema(built_info::PKG_VERSION)?;
+            SparkApplication::merged_crd(SparkApplication::V1Alpha1)?
+                .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
+            SparkHistoryServer::merged_crd(SparkHistoryServer::V1Alpha1)?
+                .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
         }
         Command::Run(ProductOperatorRun {
             product_config,
@@ -102,7 +107,8 @@ async fn main() -> anyhow::Result<()> {
                 },
             ));
             let app_controller = Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<SparkApplication>>(&client),
+                watch_namespace
+                    .get_api::<DeserializeGuard<crd::v1alpha1::SparkApplication>>(&client),
                 watcher::Config::default(),
             )
             .owns(
@@ -188,11 +194,17 @@ async fn main() -> anyhow::Result<()> {
                 },
             ));
             let history_controller = Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<SparkHistoryServer>>(&client),
+                watch_namespace
+                    .get_api::<DeserializeGuard<crd::history::v1alpha1::SparkHistoryServer>>(
+                        &client,
+                    ),
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<SparkHistoryServer>>(&client),
+                watch_namespace
+                    .get_api::<DeserializeGuard<crd::history::v1alpha1::SparkHistoryServer>>(
+                        &client,
+                    ),
                 watcher::Config::default(),
             )
             .owns(

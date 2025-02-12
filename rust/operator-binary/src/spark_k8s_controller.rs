@@ -7,8 +7,8 @@ use std::{
 use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder,
     builder::{
+        self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
@@ -52,13 +52,15 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
     time::Duration,
 };
-use stackable_spark_k8s_crd::{
-    constants::*, logdir::ResolvedLogDir, tlscerts, to_spark_env_sh_string, RoleConfig,
-    SparkApplication, SparkApplicationRole, SparkApplicationStatus, SparkContainer, SubmitConfig,
-};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
+    crd::{
+        constants::*,
+        logdir::ResolvedLogDir,
+        roles::{RoleConfig, SparkApplicationRole, SparkContainer, SubmitConfig},
+        tlscerts, to_spark_env_sh_string, v1alpha1, SparkApplicationStatus,
+    },
     product_logging::{self, resolve_vector_aggregator_address},
     Ctx,
 };
@@ -94,9 +96,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build stark-submit command"))]
-    BuildCommand {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    BuildCommand { source: crate::crd::Error },
 
     #[snafu(display("failed to build the pod template config map"))]
     PodTemplateConfigMap {
@@ -116,9 +116,7 @@ pub enum Error {
     S3TlsCaVerificationNotSupported,
 
     #[snafu(display("failed to resolve and merge config"))]
-    FailedToResolveConfig {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    FailedToResolveConfig { source: crate::crd::Error },
 
     #[snafu(display("failed to recognise the container name"))]
     UnrecognisedContainerName,
@@ -129,9 +127,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to resolve the log dir configuration"))]
-    LogDir {
-        source: stackable_spark_k8s_crd::logdir::Error,
-    },
+    LogDir { source: crate::crd::logdir::Error },
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress { source: product_logging::Error },
@@ -157,14 +153,10 @@ pub enum Error {
     },
 
     #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    InvalidProductConfig { source: crate::crd::Error },
 
     #[snafu(display("invalid submit config"))]
-    SubmitConfig {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    SubmitConfig { source: crate::crd::Error },
 
     #[snafu(display("failed to build Labels"))]
     LabelBuild {
@@ -183,9 +175,7 @@ pub enum Error {
     },
 
     #[snafu(display("failed to create Volumes for SparkApplication"))]
-    CreateVolumes {
-        source: stackable_spark_k8s_crd::Error,
-    },
+    CreateVolumes { source: crate::crd::Error },
 
     #[snafu(display("Failed to update status for application {name:?}"))]
     ApplySparkApplicationStatus {
@@ -216,7 +206,7 @@ impl ReconcilerError for Error {
 }
 
 pub async fn reconcile(
-    spark_application: Arc<DeserializeGuard<SparkApplication>>,
+    spark_application: Arc<DeserializeGuard<v1alpha1::SparkApplication>>,
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
@@ -440,7 +430,7 @@ pub async fn reconcile(
 }
 
 fn init_containers(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     logging: &Logging<SparkContainer>,
     s3conn: &Option<S3ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
@@ -595,7 +585,7 @@ fn init_containers(
 
 #[allow(clippy::too_many_arguments)]
 fn pod_template(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     role: SparkApplicationRole,
     config: &RoleConfig,
     volumes: &[Volume],
@@ -688,7 +678,7 @@ fn pod_template(
 
 #[allow(clippy::too_many_arguments)]
 fn pod_template_config_map(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     role: SparkApplicationRole,
     merged_config: &RoleConfig,
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
@@ -807,7 +797,7 @@ fn pod_template_config_map(
 }
 
 fn submit_job_config_map(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
     spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
@@ -866,7 +856,7 @@ fn submit_job_config_map(
 
 #[allow(clippy::too_many_arguments)]
 fn spark_job(
-    spark_application: &SparkApplication,
+    spark_application: &v1alpha1::SparkApplication,
     spark_image: &ResolvedProductImage,
     serviceaccount: &ServiceAccount,
     env: &[EnvVar],
@@ -984,7 +974,7 @@ fn spark_job(
 /// Both objects have an owner reference to the SparkApplication, as well as the same name as the app.
 /// They are deleted when the job is deleted.
 fn build_spark_role_serviceaccount(
-    spark_app: &SparkApplication,
+    spark_app: &v1alpha1::SparkApplication,
     spark_image: &ResolvedProductImage,
 ) -> Result<(ServiceAccount, RoleBinding)> {
     let sa_name = spark_app.metadata.name.as_ref().unwrap().to_string();
@@ -1039,7 +1029,7 @@ fn security_context() -> PodSecurityContext {
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<SparkApplication>>,
+    _obj: Arc<DeserializeGuard<v1alpha1::SparkApplication>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {

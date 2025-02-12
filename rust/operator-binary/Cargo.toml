@@ -9,22 +9,27 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-stackable-spark-k8s-crd = { path = "../crd" }
+stackable-versioned.workspace = true
+stackable-operator.workspace = true
+product-config.workspace = true
 
 anyhow.workspace = true
-product-config.workspace = true
+const_format.workspace = true
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 snafu.workspace = true
-stackable-operator.workspace = true
 strum.workspace = true
 tracing.workspace = true
 tracing-futures.workspace = true
 clap.workspace = true
 futures.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+indoc.workspace = true
+rstest.workspace = true
 
 [build-dependencies]
 built.workspace = true

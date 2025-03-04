@@ -50,3 +50,103 @@ pub fn construct_history_jvm_args(
         .context(MergeJvmArgumentOverridesSnafu)?;
     Ok(merged.effective_jvm_config_after_merging().join("\n"))
 }
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+
+    use crate::crd::history::v1alpha1::SparkHistoryServer;
+
+    use super::*;
+
+    #[test]
+    fn test_construct_jvm_arguments_defaults() {
+        let input = r#"
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkHistoryServer
+        metadata:
+          name: spark-history
+        spec:
+          image:
+            productVersion: 3.5.2
+          logFileDirectory:
+            s3:
+              prefix: eventlogs/
+              bucket:
+                reference: spark-history-s3-bucket
+          nodes:
+            roleGroups:
+              default:
+                replicas: 1
+                config:
+                  cleaner: true
+        "#;
+
+        let jvm_config = construct_jvm_config_for_test(input);
+
+        assert_eq!(
+            jvm_config,
+            indoc! {"
+                -Dlog4j.configurationFile=/stackable/log_config/log4j2.properties
+                -Djava.security.properties=/stackable/spark/conf/security.properties
+                -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=18081:/stackable/jmx/config.yaml"}
+        );
+    }
+
+    #[test]
+    fn test_construct_jvm_argument_overrides() {
+        let input = r#"
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkHistoryServer
+        metadata:
+          name: spark-history
+        spec:
+          image:
+            productVersion: 3.5.2
+          logFileDirectory:
+            s3:
+              prefix: eventlogs/
+              bucket:
+                reference: spark-history-s3-bucket
+          nodes:
+            jvmArgumentOverrides:
+              add:
+                - -Dhttps.proxyHost=proxy.my.corp
+                - -Dhttps.proxyPort=8080
+                - -Djava.net.preferIPv4Stack=true
+            roleGroups:
+              default:
+                replicas: 1
+                jvmArgumentOverrides:
+                  removeRegex:
+                    - -Dhttps.proxyPort=.*
+                  add:
+                    - -Dhttps.proxyPort=1234
+                config:
+                  cleaner: true
+        "#;
+
+        let jvm_config = construct_jvm_config_for_test(input);
+
+        assert_eq!(
+            jvm_config,
+            indoc! {"
+                -Dlog4j.configurationFile=/stackable/log_config/log4j2.properties
+                -Djava.security.properties=/stackable/spark/conf/security.properties
+                -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=18081:/stackable/jmx/config.yaml
+                -Dhttps.proxyHost=proxy.my.corp
+                -Djava.net.preferIPv4Stack=true
+                -Dhttps.proxyPort=1234"}
+        );
+    }
+
+    fn construct_jvm_config_for_test(history_server: &str) -> String {
+        let deserializer = serde_yaml::Deserializer::from_str(history_server);
+        let history_server: SparkHistoryServer =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+
+        let role = history_server.role();
+        let resolved_log_dir = ResolvedLogDir::Custom("local:/tmp/foo".to_owned());
+
+        construct_history_jvm_args(role, "default", &resolved_log_dir).unwrap()
+    }
+}

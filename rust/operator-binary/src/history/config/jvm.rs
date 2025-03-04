@@ -48,7 +48,7 @@ pub fn construct_history_jvm_args(
     let merged = role
         .get_merged_jvm_argument_overrides(role_group, &operator_generated)
         .context(MergeJvmArgumentOverridesSnafu)?;
-    Ok(merged.effective_jvm_config_after_merging().join("\n"))
+    Ok(merged.effective_jvm_config_after_merging().join(" "))
 }
 
 #[cfg(test)]

@@ -72,9 +72,7 @@ pub fn construct_extra_java_options(
 
     Ok((
         from_driver.effective_jvm_config_after_merging().join("\n"),
-        from_executor
-            .effective_jvm_config_after_merging()
-            .join("\n"),
+        from_executor.effective_jvm_config_after_merging().join(" "),
     ))
 }
 

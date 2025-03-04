@@ -260,7 +260,7 @@ impl v1alpha1::SparkHistoryServer {
         let role = self.role();
         let history_jvm_args = construct_history_jvm_args(role, role_group, logdir)
             .context(ConstructJvmArgumentsSnafu)?;
-        let mut envs = HashMap::from([
+        let mut envs = BTreeMap::from([
             // Needed by the `containerdebug` running in the background of the history container
             // to log it's tracing information to.
             (

@@ -14,19 +14,13 @@ repos:
         args: ["--allow-missing-credentials"]
       - id: detect-private-key
 
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: eeee35a89e69d5772bdee97db1a6a898467b686e # 1.0
-    hooks:
-      - id: clippy
-        args: ["--all-targets", "--", "-D", "warnings"]
-
   - repo: https://github.com/adrienverge/yamllint
     rev: 81e9f98ffd059efe8aa9c1b1a42e5cce61b640c6 # 1.35.1
     hooks:
       - id: yamllint
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: aa975a18c9a869648007d33864034dbc7481fe5e # 0.42.0
+    rev: 586c3ea3f51230da42bab657c6a32e9e66c364f0 # 0.44.0
     hooks:
       - id: markdownlint
         types: [text]
@@ -42,7 +36,7 @@ repos:
   # If you do not, you will need to delete the cached ruff binary shown in the
   # error message
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 8983acb92ee4b01924893632cf90af926fa608f0 # 0.7.0
+    rev: 2c8dce6094fa2b4b668e74f694ca63ceffd38614 # 0.9.9
     hooks:
       # Run the linter.
       - id: ruff
@@ -50,7 +44,7 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/rhysd/actionlint
-    rev: 4e683ab8014a63fafa117492a0c6053758e6d593 # 1.7.3
+    rev: 03d0035246f3e81f36aed592ffb4bebf33a03106 # 1.7.7
     hooks:
       - id: actionlint
 
@@ -74,6 +68,7 @@ repos:
         entry: cargo test
         stages: [pre-commit, pre-merge-commit, manual]
         pass_filenames: false
+        files: \.rs$|Cargo\.(toml|lock)
 
       - id: cargo-rustfmt
         name: cargo-rustfmt
@@ -81,3 +76,12 @@ repos:
         entry: cargo +nightly-2025-01-15 fmt --all -- --check
         stages: [pre-commit]
         pass_filenames: false
+        files: \.rs$
+
+      - id: cargo-clippy
+        name: cargo-clippy
+        language: system
+        entry: cargo clippy --all-targets -- -D warnings
+        stages: [pre-commit]
+        pass_filenames: false
+        files: \.rs$

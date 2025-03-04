@@ -518,7 +518,7 @@ impl v1alpha1::SparkApplication {
         &'a self,
         app_version: &'a str,
         role: &'a str,
-    ) -> ObjectLabels<v1alpha1::SparkApplication> {
+    ) -> ObjectLabels<'a, v1alpha1::SparkApplication> {
         ObjectLabels {
             owner: self,
             app_name: APP_NAME,
@@ -590,7 +590,7 @@ impl v1alpha1::SparkApplication {
         }
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&self, s3conn, log_dir)
+            construct_extra_java_options(self, s3conn, log_dir)
                 .context(ConstructJvmArgumentsSnafu)?;
         submit_cmd.extend(vec![
             format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),

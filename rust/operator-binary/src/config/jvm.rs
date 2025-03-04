@@ -23,7 +23,6 @@ pub enum Error {
 /// JVM arguments that go into
 /// 1.`spark.driver.extraJavaOptions`
 /// 2. `spark.executor.extraJavaOptions`
-
 pub fn construct_extra_java_options(
     spark_application: &SparkApplication,
     s3_conn: &Option<S3ConnectionSpec>,
@@ -40,7 +39,7 @@ pub fn construct_extra_java_options(
         jvm_args.extend([
             format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
             format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
-            format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
+            "-Djavax.net.ssl.trustStoreType=pkcs12".to_string(),
         ]);
     }
 
@@ -71,15 +70,13 @@ pub fn construct_extra_java_options(
         .context(MergeJvmArgumentOverridesSnafu)?;
 
     Ok((
-        from_driver.effective_jvm_config_after_merging().join("\n"),
+        from_driver.effective_jvm_config_after_merging().join(" "),
         from_executor.effective_jvm_config_after_merging().join(" "),
     ))
 }
 
 #[cfg(test)]
 mod tests {
-    use indoc::indoc;
-
     use super::*;
 
     #[test]
@@ -144,9 +141,7 @@ mod tests {
 
         assert_eq!(
             driver_extra_java_options,
-            indoc! {"
-                  -Djava.security.properties=/stackable/log_config/security.properties
-                  -Dhttps.proxyHost=from-driver"}
+            "-Djava.security.properties=/stackable/log_config/security.properties -Dhttps.proxyHost=from-driver"
         );
         assert_eq!(
             executor_extra_java_options,

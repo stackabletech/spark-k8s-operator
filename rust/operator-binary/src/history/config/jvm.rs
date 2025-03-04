@@ -53,8 +53,6 @@ pub fn construct_history_jvm_args(
 
 #[cfg(test)]
 mod tests {
-    use indoc::indoc;
-
     use super::*;
     use crate::crd::history::v1alpha1::SparkHistoryServer;
 
@@ -85,10 +83,9 @@ mod tests {
 
         assert_eq!(
             jvm_config,
-            indoc! {"
-                -Dlog4j.configurationFile=/stackable/log_config/log4j2.properties
-                -Djava.security.properties=/stackable/spark/conf/security.properties
-                -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=18081:/stackable/jmx/config.yaml"}
+            "-Dlog4j.configurationFile=/stackable/log_config/log4j2.properties \
+            -Djava.security.properties=/stackable/spark/conf/security.properties \
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=18081:/stackable/jmx/config.yaml"
         );
     }
 
@@ -129,13 +126,12 @@ mod tests {
 
         assert_eq!(
             jvm_config,
-            indoc! {"
-                -Dlog4j.configurationFile=/stackable/log_config/log4j2.properties
-                -Djava.security.properties=/stackable/spark/conf/security.properties
-                -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=18081:/stackable/jmx/config.yaml
-                -Dhttps.proxyHost=proxy.my.corp
-                -Djava.net.preferIPv4Stack=true
-                -Dhttps.proxyPort=1234"}
+            "-Dlog4j.configurationFile=/stackable/log_config/log4j2.properties \
+            -Djava.security.properties=/stackable/spark/conf/security.properties \
+            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=18081:/stackable/jmx/config.yaml \
+            -Dhttps.proxyHost=proxy.my.corp \
+            -Djava.net.preferIPv4Stack=true \
+            -Dhttps.proxyPort=1234"
         );
     }
 

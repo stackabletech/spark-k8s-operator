@@ -50,6 +50,7 @@ pub fn construct_history_jvm_args(
         .context(MergeJvmArgumentOverridesSnafu)?;
     Ok(merged.effective_jvm_config_after_merging().join("\n"))
 }
+
 #[cfg(test)]
 mod tests {
     use indoc::indoc;

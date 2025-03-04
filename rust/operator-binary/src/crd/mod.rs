@@ -44,9 +44,12 @@ use stackable_operator::{
 };
 use stackable_versioned::versioned;
 
-use crate::crd::roles::{
-    RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode, SubmitConfig,
-    SubmitConfigFragment, VolumeMounts,
+use crate::{
+    config::jvm::construct_extra_java_options,
+    crd::roles::{
+        RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
+        SubmitConfig, SubmitConfigFragment, VolumeMounts,
+    },
 };
 
 pub mod affinity;
@@ -110,6 +113,9 @@ pub enum Error {
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
+
+    #[snafu(display("failed to construct JVM arguments"))]
+    ConstructJvmArguments { source: crate::config::jvm::Error },
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
@@ -171,6 +177,9 @@ pub struct SparkApplicationSpec {
     /// such as templates, and passes it on to Spark.
     /// The reason this property uses its own type (SubmitConfigFragment) is because logging is not
     /// supported for spark-submit processes.
+    //
+    // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
+    // However, due to product-config things I wasn't able to remove them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job: Option<CommonConfiguration<SubmitConfigFragment, JavaCommonConfig>>,
 
@@ -580,23 +589,12 @@ impl v1alpha1::SparkApplication {
             }
         }
 
-        // Extra JVM opts:
-        // - java security properties
-        // - s3 with TLS
-        let mut extra_java_opts = vec![format!(
-            "-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
-        )];
-        if tlscerts::tls_secret_names(s3conn, log_dir).is_some() {
-            extra_java_opts.extend(vec![
-                format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
-                format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
-                format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
-            ]);
-        }
-        let str_extra_java_opts = extra_java_opts.join(" ");
+        let (driver_extra_java_options, executor_extra_java_options) =
+            construct_extra_java_options(&self, s3conn, log_dir)
+                .context(ConstructJvmArgumentsSnafu)?;
         submit_cmd.extend(vec![
-            format!("--conf spark.driver.extraJavaOptions=\"{str_extra_java_opts}\""),
-            format!("--conf spark.executor.extraJavaOptions=\"{str_extra_java_opts}\""),
+            format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),
+            format!("--conf spark.executor.extraJavaOptions=\"{executor_extra_java_options}\""),
         ]);
 
         // repositories and packages arguments

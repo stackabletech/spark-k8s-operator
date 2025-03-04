@@ -54,9 +54,8 @@ pub fn construct_history_jvm_args(
 mod tests {
     use indoc::indoc;
 
-    use crate::crd::history::v1alpha1::SparkHistoryServer;
-
     use super::*;
+    use crate::crd::history::v1alpha1::SparkHistoryServer;
 
     #[test]
     fn test_construct_jvm_arguments_defaults() {

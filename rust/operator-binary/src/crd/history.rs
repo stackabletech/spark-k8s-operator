@@ -31,7 +31,10 @@ use stackable_operator::{
 use stackable_versioned::versioned;
 use strum::{Display, EnumIter};
 
-use crate::crd::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir};
+use crate::{
+    crd::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir},
+    history::config::jvm::construct_history_jvm_args,
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -39,14 +42,22 @@ pub enum Error {
     ProductConfigTransform {
         source: stackable_operator::product_config_utils::Error,
     },
+
     #[snafu(display("invalid product config"))]
     InvalidProductConfig {
         source: stackable_operator::product_config_utils::Error,
     },
+
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+
     #[snafu(display("the role group {role_group} is not defined"))]
     CannotRetrieveRoleGroup { role_group: String },
+
+    #[snafu(display("failed to construct JVM arguments"))]
+    ConstructJvmArguments {
+        source: crate::history::config::jvm::Error,
+    },
 }
 
 #[versioned(version(name = "v1alpha1"))]
@@ -207,6 +218,7 @@ impl v1alpha1::SparkHistoryServer {
         resolved_product_image: &ResolvedProductImage,
         product_config: &ProductConfigManager,
     ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
+        #[allow(clippy::type_complexity)]
         let roles_to_validate: HashMap<
             String,
             (
@@ -241,102 +253,42 @@ impl v1alpha1::SparkHistoryServer {
 
     pub fn merged_env(
         &self,
+        role_group: &str,
         logdir: &ResolvedLogDir,
         role_group_env_overrides: HashMap<String, String>,
-    ) -> Vec<EnvVar> {
-        // Maps env var name to env var object. This allows env_overrides to work
-        // as expected (i.e. users can override the env var value).
-        let mut vars: BTreeMap<String, EnvVar> = BTreeMap::new();
-        let role_env_overrides = &self.role().config.env_overrides;
-
-        // Needed by the `containerdebug` running in the background of the history container
-        // to log it's tracing information to.
-        vars.insert(
-            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-            EnvVar {
-                name: "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-                value: Some(format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug")),
-                value_from: None,
-            },
-        );
-        // This env var prevents the history server from detaching itself from the
-        // start script because this leads to the Pod terminating immediately.
-        vars.insert(
-            "SPARK_NO_DAEMONIZE".to_string(),
-            EnvVar {
-                name: "SPARK_NO_DAEMONIZE".to_string(),
-                value: Some("true".into()),
-                value_from: None,
-            },
-        );
-        vars.insert(
-            "SPARK_DAEMON_CLASSPATH".to_string(),
-            EnvVar {
-                name: "SPARK_DAEMON_CLASSPATH".to_string(),
-                value: Some("/stackable/spark/extra-jars/*".into()),
-                value_from: None,
-            },
-        );
-
-        let mut history_opts = vec![
-        format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
-        format!(
-            "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
-        ),
-        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/config.yaml")
-    ];
-
-        // if TLS is enabled build truststore
-        if logdir.tls_enabled() {
-            history_opts.extend(vec![
-                format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
-                format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
-                format!("-Djavax.net.ssl.trustStoreType=pkcs12"),
-            ]);
-        }
-
-        vars.insert(
-            "SPARK_HISTORY_OPTS".to_string(),
-            EnvVar {
-                name: "SPARK_HISTORY_OPTS".to_string(),
-                value: Some(history_opts.join(" ")),
-                value_from: None,
-            },
-        );
-
-        // apply the role overrides
-        let mut role_envs = role_env_overrides.iter().map(|(env_name, env_value)| {
+    ) -> Result<Vec<EnvVar>, Error> {
+        let role = self.role();
+        let history_jvm_args = construct_history_jvm_args(role, role_group, logdir)
+            .context(ConstructJvmArgumentsSnafu)?;
+        let mut envs = HashMap::from([
+            // Needed by the `containerdebug` running in the background of the history container
+            // to log it's tracing information to.
             (
-                env_name.clone(),
-                EnvVar {
-                    name: env_name.clone(),
-                    value: Some(env_value.to_owned()),
-                    value_from: None,
-                },
-            )
-        });
+                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+                format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+            ),
+            // This env var prevents the history server from detaching itself from the
+            // start script because this leads to the Pod terminating immediately.
+            ("SPARK_NO_DAEMONIZE".to_string(), "true".to_string()),
+            (
+                "SPARK_DAEMON_CLASSPATH".to_string(),
+                "/stackable/spark/extra-jars/*".to_string(),
+            ),
+            // JVM arguments for the history server
+            ("SPARK_HISTORY_OPTS".to_string(), history_jvm_args),
+        ]);
 
-        vars.extend(&mut role_envs);
+        envs.extend(role.config.env_overrides.clone());
+        envs.extend(role_group_env_overrides);
 
-        // apply the role-group overrides
-        let mut role_group_envs =
-            role_group_env_overrides
-                .into_iter()
-                .map(|(env_name, env_value)| {
-                    (
-                        env_name.clone(),
-                        EnvVar {
-                            name: env_name.clone(),
-                            value: Some(env_value),
-                            value_from: None,
-                        },
-                    )
-                });
-
-        vars.extend(&mut role_group_envs);
-
-        // convert to Vec
-        vars.into_values().collect()
+        Ok(envs
+            .into_iter()
+            .map(|(name, value)| EnvVar {
+                name: name.to_owned(),
+                value: Some(value.to_owned()),
+                value_from: None,
+            })
+            .collect())
     }
 }
 
@@ -539,18 +491,21 @@ mod test {
             prefix: "prefix".to_string(),
         });
 
-        let merged_env = history.merged_env(
-            &log_dir,
-            history
-                .spec
-                .nodes
-                .role_groups
-                .get("default")
-                .unwrap()
-                .config
-                .env_overrides
-                .clone(),
-        );
+        let merged_env = history
+            .merged_env(
+                "default",
+                &log_dir,
+                history
+                    .spec
+                    .nodes
+                    .role_groups
+                    .get("default")
+                    .unwrap()
+                    .config
+                    .env_overrides
+                    .clone(),
+            )
+            .unwrap();
 
         let env_map: BTreeMap<&str, Option<String>> = merged_env
             .iter()

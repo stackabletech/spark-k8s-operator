@@ -24,7 +24,7 @@ use stackable_operator::{
         ValidatedRoleConfigByPropertyKind,
     },
     product_logging::{self, spec::Logging},
-    role_utils::{GenericProductSpecificCommonConfig, Role, RoleGroup, RoleGroupRef},
+    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     time::Duration,
 };
@@ -51,6 +51,8 @@ pub enum Error {
 
 #[versioned(version(name = "v1alpha1"))]
 pub mod versioned {
+    use stackable_operator::role_utils::{GenericRoleConfig, JavaCommonConfig};
+
     /// A Spark cluster history server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
@@ -86,7 +88,7 @@ pub mod versioned {
         pub spark_conf: BTreeMap<String, String>,
 
         /// A history server node role definition.
-        pub nodes: Role<HistoryConfigFragment>,
+        pub nodes: Role<HistoryConfigFragment, GenericRoleConfig, JavaCommonConfig>,
     }
 
     #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
@@ -133,7 +135,7 @@ impl CurrentlySupportedListenerClasses {
 
 impl v1alpha1::SparkHistoryServer {
     /// Returns a reference to the role. Raises an error if the role is not defined.
-    pub fn role(&self) -> &Role<HistoryConfigFragment> {
+    pub fn role(&self) -> &Role<HistoryConfigFragment, GenericRoleConfig, JavaCommonConfig> {
         &self.spec.nodes
     }
 
@@ -141,7 +143,7 @@ impl v1alpha1::SparkHistoryServer {
     pub fn rolegroup(
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<RoleGroup<HistoryConfigFragment, GenericProductSpecificCommonConfig>, Error> {
+    ) -> Result<RoleGroup<HistoryConfigFragment, JavaCommonConfig>, Error> {
         self.spec
             .nodes
             .role_groups
@@ -207,7 +209,10 @@ impl v1alpha1::SparkHistoryServer {
     ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
         let roles_to_validate: HashMap<
             String,
-            (Vec<PropertyNameKind>, Role<HistoryConfigFragment>),
+            (
+                Vec<PropertyNameKind>,
+                Role<HistoryConfigFragment, GenericRoleConfig, JavaCommonConfig>,
+            ),
         > = vec![(
             HISTORY_ROLE_NAME.to_string(),
             (

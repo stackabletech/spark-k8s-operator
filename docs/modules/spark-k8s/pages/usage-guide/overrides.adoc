@@ -148,3 +148,10 @@ spec:
 
 The Spark operator also supports Pod overrides, allowing you to override any property that you can set on a Kubernetes Pod.
 Read the xref:concepts:overrides.adoc#pod-overrides[Pod overrides documentation] to learn more about this feature.
+
+== JVM argument overrides
+
+Stackable operators automatically determine the set of needed JVM arguments, such as memory settings or trust- and keystores.
+Using JVM argument overrides you can configure the JVM arguments xref:concepts:overrides.adoc#jvm-argument-overrides[according to the concepts page].
+
+TODO more docs

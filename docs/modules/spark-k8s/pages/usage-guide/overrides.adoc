@@ -154,4 +154,12 @@ Read the xref:concepts:overrides.adoc#pod-overrides[Pod overrides documentation]
 Stackable operators automatically determine the set of needed JVM arguments, such as memory settings or trust- and keystores.
 Using JVM argument overrides you can configure the JVM arguments xref:concepts:overrides.adoc#jvm-argument-overrides[according to the concepts page].
 
-TODO more docs
+=== Spark application
+
+WARNING: Please note that you can currently not configure the JVM arguments of the spark-submit call, only on the drivers and executors.
+
+The JVM arguments will be passed via `spark.driver.extraJavaOptions` and `spark.executor.extraJavaOptions`.
+
+=== History server
+
+JVM arguments can be configured normally and will be passed via the env variable `SPARK_HISTORY_OPTS`.

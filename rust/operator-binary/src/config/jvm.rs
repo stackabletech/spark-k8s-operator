@@ -21,7 +21,7 @@ pub enum Error {
 }
 
 /// JVM arguments that go into
-/// 1.`spark.driver.extraJavaOptions`
+/// 1. `spark.driver.extraJavaOptions`
 /// 2. `spark.executor.extraJavaOptions`
 pub fn construct_extra_java_options(
     spark_application: &SparkApplication,

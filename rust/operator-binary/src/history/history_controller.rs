@@ -203,7 +203,7 @@ pub enum Error {
         source: error_boundary::InvalidObject,
     },
 
-    #[snafu(display("failed to merge env"))]
+    #[snafu(display("failed to merge environment config and/or overrides"))]
     MergeEnv { source: crate::crd::history::Error },
 }
 

@@ -33,6 +33,7 @@ use crate::crd::{
     SparkApplication,
 };
 
+mod config;
 mod crd;
 mod history;
 mod pod_driver_controller;

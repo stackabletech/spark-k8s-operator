@@ -720,26 +720,14 @@ spec:
                                           default:
                                             name: us-east-1
                                           description: |-
-                                            AWS service API region used by the AWS SDK when using AWS S3 buckets.
+                                            Bucket region used for signing headers (sigv4).
 
-                                            This defaults to `us-east-1` and can be ignored if not using AWS S3 buckets.
+                                            This defaults to `us-east-1` which is compatible with other implementations such as Minio.
 
-                                            NOTE: This is not the bucket region, and is used by the AWS SDK to construct endpoints for various AWS service APIs. It is only useful when using AWS S3 buckets.
-
-                                            When using AWS S3 buckets, you can configure optimal AWS service API connections in the following ways: - From **inside** AWS: Use an auto-discovery source (eg: AWS IMDS). - From **outside** AWS, or when IMDS is disabled, explicity set the region name nearest to where the client application is running from.
-                                          oneOf:
-                                            - required:
-                                                - source
-                                            - required:
-                                                - name
+                                            WARNING: Some products use the Hadoop S3 implementation which falls back to us-east-2.
                                           properties:
                                             name:
-                                              description: 'An explicit region, eg: eu-central-1'
-                                              type: string
-                                            source:
-                                              description: Defer region detection to an auto-discovery mechanism.
-                                              enum:
-                                                - AwsImds
+                                              default: us-east-1
                                               type: string
                                           type: object
                                         tls:
@@ -882,26 +870,14 @@ spec:
                           default:
                             name: us-east-1
                           description: |-
-                            AWS service API region used by the AWS SDK when using AWS S3 buckets.
+                            Bucket region used for signing headers (sigv4).
 
-                            This defaults to `us-east-1` and can be ignored if not using AWS S3 buckets.
+                            This defaults to `us-east-1` which is compatible with other implementations such as Minio.
 
-                            NOTE: This is not the bucket region, and is used by the AWS SDK to construct endpoints for various AWS service APIs. It is only useful when using AWS S3 buckets.
-
-                            When using AWS S3 buckets, you can configure optimal AWS service API connections in the following ways: - From **inside** AWS: Use an auto-discovery source (eg: AWS IMDS). - From **outside** AWS, or when IMDS is disabled, explicity set the region name nearest to where the client application is running from.
-                          oneOf:
-                            - required:
-                                - source
-                            - required:
-                                - name
+                            WARNING: Some products use the Hadoop S3 implementation which falls back to us-east-2.
                           properties:
                             name:
-                              description: 'An explicit region, eg: eu-central-1'
-                              type: string
-                            source:
-                              description: Defer region detection to an auto-discovery mechanism.
-                              enum:
-                                - AwsImds
+                              default: us-east-1
                               type: string
                           type: object
                         tls:
@@ -1227,26 +1203,14 @@ spec:
                                           default:
                                             name: us-east-1
                                           description: |-
-                                            AWS service API region used by the AWS SDK when using AWS S3 buckets.
+                                            Bucket region used for signing headers (sigv4).
 
-                                            This defaults to `us-east-1` and can be ignored if not using AWS S3 buckets.
+                                            This defaults to `us-east-1` which is compatible with other implementations such as Minio.
 
-                                            NOTE: This is not the bucket region, and is used by the AWS SDK to construct endpoints for various AWS service APIs. It is only useful when using AWS S3 buckets.
-
-                                            When using AWS S3 buckets, you can configure optimal AWS service API connections in the following ways: - From **inside** AWS: Use an auto-discovery source (eg: AWS IMDS). - From **outside** AWS, or when IMDS is disabled, explicity set the region name nearest to where the client application is running from.
-                                          oneOf:
-                                            - required:
-                                                - source
-                                            - required:
-                                                - name
+                                            WARNING: Some products use the Hadoop S3 implementation which falls back to us-east-2.
                                           properties:
                                             name:
-                                              description: 'An explicit region, eg: eu-central-1'
-                                              type: string
-                                            source:
-                                              description: Defer region detection to an auto-discovery mechanism.
-                                              enum:
-                                                - AwsImds
+                                              default: us-east-1
                                               type: string
                                           type: object
                                         tls:

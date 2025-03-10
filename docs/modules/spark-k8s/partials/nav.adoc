@@ -10,7 +10,7 @@
 ** xref:spark-k8s:usage-guide/logging.adoc[]
 ** xref:spark-k8s:usage-guide/history-server.adoc[]
 ** xref:spark-k8s:usage-guide/examples.adoc[]
-** xref:spark-k8s:usage-guide/configuration-environment-overrides.adoc[]
+** xref:spark-k8s:usage-guide/overrides.adoc[]
 ** xref:spark-k8s:usage-guide/operations/index.adoc[]
 *** xref:spark-k8s:usage-guide/operations/applications.adoc[]
 *** xref:spark-k8s:usage-guide/operations/pod-placement.adoc[]

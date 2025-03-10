@@ -202,6 +202,9 @@ pub enum Error {
     InvalidSparkHistoryServer {
         source: error_boundary::InvalidObject,
     },
+
+    #[snafu(display("failed to merge environment config and/or overrides"))]
+    MergeEnv { source: crate::crd::history::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -517,7 +520,13 @@ fn build_stateful_set(
         .rolegroup(rolegroupref)
         .with_context(|_| CannotRetrieveRoleGroupSnafu)?;
 
-    let merged_env = shs.merged_env(log_dir, role_group.config.env_overrides);
+    let merged_env = shs
+        .merged_env(
+            &rolegroupref.role_group,
+            log_dir,
+            role_group.config.env_overrides,
+        )
+        .context(MergeEnvSnafu)?;
 
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)

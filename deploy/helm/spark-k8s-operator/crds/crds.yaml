@@ -794,6 +794,20 @@ spec:
                                           minimum: 0.0
                                           nullable: true
                                           type: integer
+                                        region:
+                                          default:
+                                            name: us-east-1
+                                          description: |-
+                                            Bucket region used for signing headers (sigv4).
+
+                                            This defaults to `us-east-1` which is compatible with other implementations such as Minio.
+
+                                            WARNING: Some products use the Hadoop S3 implementation which falls back to us-east-2.
+                                          properties:
+                                            name:
+                                              default: us-east-1
+                                              type: string
+                                          type: object
                                         tls:
                                           description: Use a TLS connection. If not specified no TLS will be used.
                                           nullable: true
@@ -930,6 +944,20 @@ spec:
                           minimum: 0.0
                           nullable: true
                           type: integer
+                        region:
+                          default:
+                            name: us-east-1
+                          description: |-
+                            Bucket region used for signing headers (sigv4).
+
+                            This defaults to `us-east-1` which is compatible with other implementations such as Minio.
+
+                            WARNING: Some products use the Hadoop S3 implementation which falls back to us-east-2.
+                          properties:
+                            name:
+                              default: us-east-1
+                              type: string
+                          type: object
                         tls:
                           description: Use a TLS connection. If not specified no TLS will be used.
                           nullable: true
@@ -1249,6 +1277,20 @@ spec:
                                           minimum: 0.0
                                           nullable: true
                                           type: integer
+                                        region:
+                                          default:
+                                            name: us-east-1
+                                          description: |-
+                                            Bucket region used for signing headers (sigv4).
+
+                                            This defaults to `us-east-1` which is compatible with other implementations such as Minio.
+
+                                            WARNING: Some products use the Hadoop S3 implementation which falls back to us-east-2.
+                                          properties:
+                                            name:
+                                              default: us-east-1
+                                              type: string
+                                          type: object
                                         tls:
                                           description: Use a TLS connection. If not specified no TLS will be used.
                                           nullable: true

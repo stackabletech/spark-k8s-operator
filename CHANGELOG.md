@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Run a `containerdebug` process in the background of each Spark container to collect debugging information ([#508]).
 - Aggregate emitted Kubernetes events on the CustomResources ([#515]).
 - Support configuring JVM arguments ([#532]).
+- Support for S3 region ([#528]).
 
 ### Changed
 
@@ -20,6 +21,7 @@ All notable changes to this project will be documented in this file.
 [#508]: https://github.com/stackabletech/spark-k8s-operator/pull/508
 [#514]: https://github.com/stackabletech/spark-k8s-operator/pull/514
 [#515]: https://github.com/stackabletech/spark-k8s-operator/pull/515
+[#528]: https://github.com/stackabletech/spark-k8s-operator/pull/528
 [#532]: https://github.com/stackabletech/spark-k8s-operator/pull/532
 
 ## [24.11.1] - 2025-01-10

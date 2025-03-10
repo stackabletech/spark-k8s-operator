@@ -572,6 +572,10 @@ impl v1alpha1::SparkApplication {
                 "--conf spark.hadoop.fs.s3a.path.style.access={}",
                 s3conn.access_style == S3AccessStyle::Path
             ));
+            submit_cmd.push(format!(
+                "--conf spark.hadoop.fs.s3a.endpoint.region=\"{region_name}\"",
+                region_name = s3conn.region.name
+            ));
             if let Some(credentials) = &s3conn.credentials {
                 let secret_class_name = credentials.secret_class.clone();
                 let secret_dir = format!("{S3_SECRET_DIR_NAME}/{secret_class_name}");

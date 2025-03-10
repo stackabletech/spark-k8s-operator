@@ -182,7 +182,7 @@ impl S3LogDir {
     pub fn history_server_spark_config(&self) -> Result<BTreeMap<String, String>, Error> {
         let connection = &self.bucket.connection;
 
-        Ok(BTreeMap::from([
+        let config = BTreeMap::from([
             ("spark.history.fs.logDirectory".to_string(), self.url()),
             (
                 "spark.hadoop.fs.s3a.endpoint".to_string(),
@@ -192,7 +192,13 @@ impl S3LogDir {
                 "spark.hadoop.fs.s3a.path.style.access".to_string(),
                 (connection.access_style == S3AccessStyle::Path).to_string(),
             ),
-        ]))
+            (
+                "spark.hadoop.fs.s3a.endpoint.region".to_string(),
+                connection.region.name.clone(),
+            ),
+        ]);
+
+        Ok(config)
     }
 
     pub fn application_spark_config(&self) -> Result<BTreeMap<String, String>, Error> {
@@ -210,6 +216,10 @@ impl S3LogDir {
         result.insert(
             format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.path.style.access"),
             (connection.access_style == S3AccessStyle::Path).to_string(),
+        );
+        result.insert(
+            format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.region"),
+            connection.region.name.clone(),
         );
         if let Some(secret_dir) = self.credentials_mount_path() {
             // We don't use the credentials at all here but assume they are available

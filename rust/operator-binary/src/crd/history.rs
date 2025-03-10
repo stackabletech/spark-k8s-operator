@@ -484,6 +484,7 @@ mod test {
                     access_style: Default::default(),
                     credentials: None,
                     tls: TlsClientDetails { tls: None },
+                    region: Default::default(),
                 },
             },
             prefix: "prefix".to_string(),

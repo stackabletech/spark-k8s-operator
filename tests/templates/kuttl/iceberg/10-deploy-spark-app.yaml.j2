@@ -48,7 +48,7 @@ spec:
       #
       # We extract the spark parts from the test scenario value.
       #
-      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark'].split('.')[:2]) }}_2.12:1.5.2
+      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark'].split('.')[:2]) }}_2.12:1.8.1
   volumes:
     - name: script
       configMap:

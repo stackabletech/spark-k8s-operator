@@ -6,7 +6,7 @@ metadata:
   namespace: default
 spec:
   sparkImage:
-    productVersion: 3.5.2
+    productVersion: 3.5.5
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.1.0.jar # <3>
   mainClass: tech.stackable.demo.spark.NYTLCReport

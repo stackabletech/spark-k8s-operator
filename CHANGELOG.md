@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Default to OCI for image metadata and product image selection ([#514]).
+- Update tests and docs to Spark version 3.5.5 ([#534])
 
 [#501]: https://github.com/stackabletech/spark-k8s-operator/pull/501
 [#508]: https://github.com/stackabletech/spark-k8s-operator/pull/508
@@ -23,6 +24,7 @@ All notable changes to this project will be documented in this file.
 [#515]: https://github.com/stackabletech/spark-k8s-operator/pull/515
 [#528]: https://github.com/stackabletech/spark-k8s-operator/pull/528
 [#532]: https://github.com/stackabletech/spark-k8s-operator/pull/532
+[#534]: https://github.com/stackabletech/spark-k8s-operator/pull/534
 
 ## [24.11.1] - 2025-01-10
 

@@ -13,7 +13,7 @@ dimensions:
   - name: spark-delta-lake
     values:
       - 3.5.5
-      # - 3.5.1,oci.stackable.tech/sandbox/spark-k8s:3.5.1-stackable0.0.0-dev
+      # - 3.5.5,oci.stackable.tech/sandbox/spark-k8s:3.5.5-stackable0.0.0-dev
   - name: hbase
     values:
       - 2.6.0

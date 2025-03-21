@@ -263,8 +263,13 @@ impl v1alpha1::SparkConnectServer {
                 "SPARK_DAEMON_CLASSPATH".to_string(),
                 "/stackable/spark/extra-jars/*".to_string(),
             ),
-            // TODO: There is no SPARK_CONNECT_OPTS env var.
+            // There is no SPARK_CONNECT_OPTS env var.
             ("SPARK_DAEMON_JAVA_OPTS".to_string(), connect_jvm_args),
+            // TODO: remove when this is done in the image
+            (
+                "JAVA_HOME".to_string(),
+                "/usr/lib/jvm/java-17-openjdk".to_string(),
+            ),
         ]);
 
         envs.extend(role.config.env_overrides.clone());
@@ -362,7 +367,7 @@ impl ConnectConfig {
                     max: Some(Quantity("1".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("512Mi".to_owned())),
+                    limit: Some(Quantity("1024Mi".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: ConnectStorageConfigFragment {},

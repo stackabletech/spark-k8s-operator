@@ -72,10 +72,7 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("missing secret lifetime"))]
-    MissingSecretLifetime,
-
-    #[snafu(display("object has no namespace"))]
+    #[snafu(display("spark connect object has no namespace"))]
     ObjectHasNoNamespace,
 
     #[snafu(display("invalid config map {name}"))]
@@ -271,17 +268,6 @@ pub async fn reconcile(
         .context(ProductConfigValidationSnafu)?
         .iter()
     {
-        let service = build_service(
-            scs,
-            &resolved_product_image.app_version_label,
-            role_name,
-            None,
-        )?;
-        cluster_resources
-            .add(client, service)
-            .await
-            .context(ApplyServiceSnafu)?;
-
         for (rolegroup_name, rolegroup_config) in role_config.iter() {
             let rgr = RoleGroupRef {
                 cluster: ObjectRef::from_obj(scs),
@@ -515,7 +501,12 @@ fn build_stateful_set(
             "pipefail".to_string(),
             "-c".to_string(),
         ])
-        .args(command_args(resolved_product_image))
+        .args(command_args(
+            rolegroupref.object_name().as_ref(),
+            scs.namespace().context(ObjectHasNoNamespaceSnafu)?.as_ref(),
+            resolved_product_image,
+            serviceaccount,
+        ))
         .add_container_port("grpc", CONNECT_GRPC_PORT)
         .add_container_port("http", CONNECT_UI_PORT)
         .add_container_port("metrics", METRICS_PORT.into())
@@ -669,15 +660,41 @@ fn spark_defaults(
     Ok("".to_string())
 }
 
-fn command_args(pi: &ResolvedProductImage) -> Vec<String> {
-    let mut command = vec![];
-
+fn command_args(
+    rgr_name: &str,
+    namespace: &str,
+    pi: &ResolvedProductImage,
+    service_account: &ServiceAccount,
+) -> Vec<String> {
     let spark_version = pi.product_version.clone();
-    command.extend(vec![
-        format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
-        format!("/stackable/spark/sbin/start-connect-server.sh --packages org.apache.spark:spark-connect_2.12:{spark_version} --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
-    ]);
-    vec![command.join("\n")]
+    let spark_image = pi.image.clone();
+    let service_account_name = service_account.name_unchecked();
+
+    let command = [
+        // ---------- start containerdebug
+        format!(
+            "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+        ),
+        // ---------- start spark connect server
+        "/stackable/spark/sbin/start-connect-server.sh".to_string(),
+        "--deploy-mode client".to_string(), // 'cluster' mode not supported
+        format!("--name {rgr_name}"),
+        "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
+            .to_string(),
+        // This needs to match the name of the headless service for the executors to be able
+        // to connect back to the driver.
+        format!("--conf spark.driver.host={rgr_name}"),
+        "--conf spark.kubernetes.driver.pod.name=${HOSTNAME}".to_string(),
+        format!("--conf spark.kubernetes.container.image={spark_image}"),
+        format!("--conf spark.kubernetes.namespace={namespace}"),
+        format!(
+            "--conf spark.kubernetes.authenticate.driver.serviceAccountName={service_account_name}"
+        ),
+        format!("--packages org.apache.spark:spark-connect_2.12:{spark_version}"),
+        format!("--properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
+    ];
+
+    vec![command.join(" ")]
 }
 
 fn labels<'a, T>(

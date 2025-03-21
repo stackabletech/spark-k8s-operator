@@ -3,13 +3,6 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   - script: >-
-      helm install eventlog-minio
-      --namespace $NAMESPACE
-      --version 14.6.16
-      -f helm-bitnami-eventlog-minio-values.yaml
-      --repo https://charts.bitnami.com/bitnami minio
-    timeout: 240
-  - script: >-
       helm install test-minio
       --namespace $NAMESPACE
       --version 14.6.16

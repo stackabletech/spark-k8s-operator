@@ -34,6 +34,7 @@ use crate::crd::{
 };
 
 mod config;
+mod connect;
 mod crd;
 mod history;
 mod pod_driver_controller;

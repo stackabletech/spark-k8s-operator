@@ -16,14 +16,13 @@ use stackable_operator::{
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, PodSecurityContext, Service, ServiceAccount, ServicePort, ServiceSpec,
             },
-            rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
         DeepMerge,
@@ -47,28 +46,27 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::{
-    connect::crd::{
+use super::{
+    crd::{
         v1alpha1, ConnectConfig, SparkConnectServerContainer, CONNECT_CONTAINER_NAME,
-        CONNECT_CONTROLLER_NAME, CONNECT_ROLE_NAME,
+        CONNECT_CONTROLLER_NAME, CONNECT_GRPC_PORT, CONNECT_ROLE_NAME, CONNECT_UI_PORT,
     },
-    connect::pdb::add_pdbs,
+    pdb::add_pdbs,
+};
+use crate::{
     crd::{
         constants::{
-            ACCESS_KEY_ID, APP_NAME, JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE,
-            METRICS_PORT, OPERATOR_NAME, SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE,
-            SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
-            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+            APP_NAME, JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
+            OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME,
+            SPARK_UID, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
             VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
             VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
-        tlscerts, to_spark_env_sh_string,
+        to_spark_env_sh_string,
     },
     product_logging::{self, resolve_vector_aggregator_address},
     Ctx,
 };
-
-use super::crd::{CONNECT_GRPC_PORT, CONNECT_UI_PORT};
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -127,12 +125,6 @@ pub enum Error {
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::connect::crd::Error },
 
-    #[snafu(display("number of cleaner rolegroups exceeds 1"))]
-    TooManyCleanerRoleGroups,
-
-    #[snafu(display("number of cleaner replicas exceeds 1"))]
-    TooManyCleanerReplicas,
-
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
         source: stackable_operator::cluster_resources::Error,
@@ -156,7 +148,7 @@ pub enum Error {
     ConfigureLogging { source: LoggingError },
 
     #[snafu(display("cannot retrieve role group"))]
-    CannotRetrieveRoleGroup { source: crate::connect::crd::Error },
+    CannotRetrieveRoleGroup { source: super::crd::Error },
 
     #[snafu(display(
         "Connect server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
@@ -200,7 +192,12 @@ pub enum Error {
     },
 
     #[snafu(display("failed to merge environment config and/or overrides"))]
-    MergeEnv { source: crate::connect::crd::Error },
+    MergeEnv { source: super::crd::Error },
+
+    #[snafu(display("failed to build RBAC resources"))]
+    BuildRbacResources {
+        source: stackable_operator::commons::rbac::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -250,8 +247,15 @@ pub async fn reconcile(
     .context(ResolveVectorAggregatorAddressSnafu)?;
 
     // Use a dedicated service account for connect server pods.
-    let (serviceaccount, rolebinding) =
-        build_connect_role_serviceaccount(scs, &resolved_product_image.app_version_label)?;
+    let (serviceaccount, rolebinding) = build_rbac_resources(
+        scs,
+        APP_NAME,
+        cluster_resources
+            .get_required_labels()
+            .context(GetRequiredLabelsSnafu)?,
+    )
+    .context(BuildRbacResourcesSnafu)?;
+
     let serviceaccount = cluster_resources
         .add(client, serviceaccount)
         .await
@@ -587,7 +591,7 @@ fn build_stateful_set(
 
 #[allow(clippy::result_large_err)]
 fn build_service(
-    shs: &v1alpha1::SparkConnectServer,
+    scs: &v1alpha1::SparkConnectServer,
     app_version_label: &str,
     role: &str,
     group: Option<&RoleGroupRef<v1alpha1::SparkConnectServer>>,
@@ -604,28 +608,28 @@ fn build_service(
             Some("None".to_string()),
         ),
         None => (
-            format!("{}-{}", shs.metadata.name.as_ref().unwrap(), role),
-            shs.spec.cluster_config.listener_class.k8s_service_type(),
+            format!("{}-{}", scs.metadata.name.as_ref().unwrap(), role),
+            scs.spec.cluster_config.listener_class.k8s_service_type(),
             None,
         ),
     };
 
     let selector = match group {
-        Some(rgr) => Labels::role_group_selector(shs, APP_NAME, &rgr.role, &rgr.role_group)
+        Some(rgr) => Labels::role_group_selector(scs, APP_NAME, &rgr.role, &rgr.role_group)
             .context(LabelBuildSnafu)?
             .into(),
-        None => Labels::role_selector(shs, APP_NAME, role)
+        None => Labels::role_selector(scs, APP_NAME, role)
             .context(LabelBuildSnafu)?
             .into(),
     };
 
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
+            .name_and_namespace(scs)
             .name(service_name)
-            .ownerreference_from_resource(shs, None, Some(true))
+            .ownerreference_from_resource(scs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(shs, app_version_label, &group_name))
+            .with_recommended_labels(labels(scs, app_version_label, &group_name))
             .context(MetadataBuildSnafu)?
             .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
             .build(),
@@ -634,8 +638,13 @@ fn build_service(
             cluster_ip: service_cluster_ip,
             ports: Some(vec![
                 ServicePort {
+                    name: Some(String::from("grpc")),
+                    port: CONNECT_GRPC_PORT,
+                    ..ServicePort::default()
+                },
+                ServicePort {
                     name: Some(String::from("http")),
-                    port: 18080,
+                    port: CONNECT_UI_PORT,
                     ..ServicePort::default()
                 },
                 ServicePort {
@@ -651,50 +660,8 @@ fn build_service(
     })
 }
 
-// TODO: This function should be replaced with operator-rs build_rbac_resources.
-// See: https://github.com/stackabletech/spark-k8s-operator/issues/499
-#[allow(clippy::result_large_err)]
-fn build_connect_role_serviceaccount(
-    shs: &v1alpha1::SparkConnectServer,
-    app_version_label: &str,
-) -> Result<(ServiceAccount, RoleBinding)> {
-    let sa = ServiceAccount {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(shs, app_version_label, connect_CONTROLLER_NAME))
-            .context(MetadataBuildSnafu)?
-            .build(),
-        ..ServiceAccount::default()
-    };
-    let binding = RoleBinding {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(shs, app_version_label, connect_CONTROLLER_NAME))
-            .context(MetadataBuildSnafu)?
-            .build(),
-        role_ref: RoleRef {
-            api_group: <ClusterRole as stackable_operator::k8s_openapi::Resource>::GROUP // need to fully qualify because of "Resource" name clash
-                .to_string(),
-            kind: <ClusterRole as stackable_operator::k8s_openapi::Resource>::KIND.to_string(),
-            name: SPARK_CLUSTER_ROLE.to_string(),
-        },
-        subjects: Some(vec![Subject {
-            api_group: Some(
-                <ServiceAccount as stackable_operator::k8s_openapi::Resource>::GROUP.to_string(),
-            ),
-            kind: <ServiceAccount as stackable_operator::k8s_openapi::Resource>::KIND.to_string(),
-            name: sa.name_any(),
-            namespace: sa.namespace(),
-        }]),
-    };
-    Ok((sa, binding))
-}
-
 // TODO: revisit this
+#[allow(clippy::result_large_err)]
 fn spark_defaults(
     _cs: &v1alpha1::SparkConnectServer,
     _rolegroupref: &RoleGroupRef<v1alpha1::SparkConnectServer>,

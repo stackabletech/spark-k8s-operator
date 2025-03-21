@@ -4,8 +4,10 @@ use stackable_operator::{
     commons::pdb::PdbConfig, kube::ResourceExt,
 };
 
-use crate::connect::crd::{v1alpha1, CONNECT_CONTROLLER_NAME, CONNECT_ROLE_NAME};
-use crate::crd::constants::{APP_NAME, OPERATOR_NAME};
+use crate::{
+    connect::crd::{v1alpha1, CONNECT_CONTROLLER_NAME, CONNECT_ROLE_NAME},
+    crd::constants::{APP_NAME, OPERATOR_NAME},
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {

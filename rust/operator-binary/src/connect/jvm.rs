@@ -3,10 +3,12 @@ use stackable_operator::role_utils::{
     self, GenericRoleConfig, JavaCommonConfig, JvmArgumentOverrides, Role,
 };
 
-use crate::connect::crd::ConnectConfigFragment;
-use crate::crd::constants::{
-    JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, METRICS_PORT, VOLUME_MOUNT_PATH_CONFIG,
-    VOLUME_MOUNT_PATH_LOG_CONFIG,
+use crate::{
+    connect::crd::ConnectConfigFragment,
+    crd::constants::{
+        JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, METRICS_PORT, VOLUME_MOUNT_PATH_CONFIG,
+        VOLUME_MOUNT_PATH_LOG_CONFIG,
+    },
 };
 
 #[derive(Snafu, Debug)]

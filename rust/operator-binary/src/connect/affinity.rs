@@ -3,8 +3,7 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::PodAntiAffinity,
 };
 
-use crate::connect::crd::CONNECT_ROLE_NAME;
-use crate::crd::constants::APP_NAME;
+use crate::{connect::crd::CONNECT_ROLE_NAME, crd::constants::APP_NAME};
 
 pub fn affinity(cluster_name: &str) -> StackableAffinityFragment {
     let affinity_between_role_pods =

@@ -31,11 +31,13 @@ use stackable_operator::{
 use stackable_versioned::versioned;
 use strum::{Display, EnumIter};
 
-use crate::crd::constants::{
-    JVM_SECURITY_PROPERTIES_FILE, OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-    VOLUME_MOUNT_PATH_LOG,
+use crate::{
+    connect::{affinity::affinity, jvm::construct_jvm_args},
+    crd::constants::{
+        JVM_SECURITY_PROPERTIES_FILE, OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME,
+        SPARK_ENV_SH_FILE_NAME, VOLUME_MOUNT_PATH_LOG,
+    },
 };
-use crate::{connect::affinity::affinity, connect::jvm::construct_jvm_args};
 
 pub const CONNECT_CONTROLLER_NAME: &str = "connect";
 pub const CONNECT_FULL_CONTROLLER_NAME: &str =

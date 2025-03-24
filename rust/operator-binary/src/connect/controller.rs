@@ -651,13 +651,20 @@ fn build_service(
     })
 }
 
-// TODO: revisit this
 #[allow(clippy::result_large_err)]
 fn spark_defaults(
-    _cs: &v1alpha1::SparkConnectServer,
+    scs: &v1alpha1::SparkConnectServer,
     _rolegroupref: &RoleGroupRef<v1alpha1::SparkConnectServer>,
 ) -> Result<String, Error> {
-    Ok("".to_string())
+    // add user provided configuration. These can overwrite everything.
+    let props = scs.spec.spark_conf.clone();
+
+    // stringify the spark configuration for the ConfigMap
+    Ok(props
+        .iter()
+        .map(|(k, v)| format!("{k} {v}"))
+        .collect::<Vec<String>>()
+        .join("\n"))
 }
 
 fn command_args(
@@ -690,7 +697,7 @@ fn command_args(
         format!(
             "--conf spark.kubernetes.authenticate.driver.serviceAccountName={service_account_name}"
         ),
-        format!("--packages org.apache.spark:spark-connect_2.12:{spark_version}"),
+        format!("--jars /stackable/spark/connect/spark-connect_2.12-{spark_version}.jar"),
         format!("--properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ];
 

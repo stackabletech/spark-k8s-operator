@@ -265,11 +265,6 @@ impl v1alpha1::SparkConnectServer {
             ),
             // There is no SPARK_CONNECT_OPTS env var.
             ("SPARK_DAEMON_JAVA_OPTS".to_string(), connect_jvm_args),
-            // TODO: remove when this is done in the image
-            (
-                "JAVA_HOME".to_string(),
-                "/usr/lib/jvm/java-17-openjdk".to_string(),
-            ),
         ]);
 
         envs.extend(role.config.env_overrides.clone());

@@ -10,11 +10,14 @@ metadata:
 status:
   readyReplicas: 1
 ---
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: spark-connect-node
-status:
-  expectedPods: 1
-  currentHealthy: 1
-  disruptionsAllowed: 1
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+commands:
+  # Test that two spark-connect executors are running.
+  # Sleep 5 to prevent the following spark connect app from failing
+  # while the spark-connect server is busy setting up the executors.
+  - script: |
+      sleep 5
+      EXECUTOR_COUNT=$(kubectl get pods -n $NAMESPACE --selector 'spark-app-name=spark-connect-node-default' --field-selector='status.phase=Running' -o NAME|wc -l)
+      test 2 -eq "$EXECUTOR_COUNT"

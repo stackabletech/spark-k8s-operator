@@ -18,6 +18,10 @@ dimensions:
     values:
       - 3.5.5
       # - 3.5.5,oci.stackable.tech/sandbox/spark-k8s:3.5.5-stackable0.0.0-dev
+  - name: spark-connect-client
+    values:
+      - 3.5.5
+      # - 3.5.5,oci.stackable.tech/sandbox/spark-k8s:3.5.5-stackable0.0.0-dev
   - name: hbase
     values:
       - 2.6.0
@@ -113,6 +117,7 @@ tests:
   - name: spark-connect
     dimensions:
       - spark-connect
+      - spark-connect-client
       - s3-use-tls
       - openshift
 

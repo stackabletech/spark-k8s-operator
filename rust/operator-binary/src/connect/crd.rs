@@ -1,13 +1,9 @@
-use std::collections::{BTreeMap, HashMap};
-
 use const_format::concatcp;
-use product_config::{types::PropertyNameKind, ProductConfigManager};
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::{
-        affinity::StackableAffinity,
-        product_image_selection::{ProductImage, ResolvedProductImage},
+        product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             Resources, ResourcesFragment,
@@ -17,32 +13,23 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
-    kube::{CustomResource, ResourceExt},
-    product_config_utils::{
-        transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
-        ValidatedRoleConfigByPropertyKind,
-    },
+    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
+    kube::CustomResource,
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
+    role_utils::{CommonConfiguration, JavaCommonConfig},
     schemars::{self, JsonSchema},
     time::Duration,
 };
 use stackable_versioned::versioned;
 use strum::{Display, EnumIter};
 
-use crate::{
-    connect::{affinity::affinity, jvm::construct_jvm_args},
-    crd::constants::{
-        JVM_SECURITY_PROPERTIES_FILE, OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME,
-        SPARK_ENV_SH_FILE_NAME, VOLUME_MOUNT_PATH_LOG,
-    },
-};
-
 pub const CONNECT_CONTROLLER_NAME: &str = "connect";
-pub const CONNECT_FULL_CONTROLLER_NAME: &str =
-    concatcp!(CONNECT_CONTROLLER_NAME, '.', OPERATOR_NAME);
-pub const CONNECT_ROLE_NAME: &str = "node";
+pub const CONNECT_FULL_CONTROLLER_NAME: &str = concatcp!(
+    CONNECT_CONTROLLER_NAME,
+    '.',
+    crate::crd::constants::OPERATOR_NAME
+);
+pub const CONNECT_SERVER_ROLE_NAME: &str = "server";
 pub const CONNECT_CONTAINER_NAME: &str = "spark-connect";
 pub const CONNECT_GRPC_PORT: i32 = 15002;
 pub const CONNECT_UI_PORT: i32 = 4040;
@@ -66,7 +53,7 @@ pub enum Error {
     CannotRetrieveRoleGroup { role_group: String },
 
     #[snafu(display("failed to construct JVM arguments"))]
-    ConstructJvmArguments { source: crate::connect::jvm::Error },
+    ConstructJvmArguments,
 }
 
 #[versioned(version(name = "v1alpha1"))]
@@ -76,7 +63,9 @@ pub mod versioned {
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/connect-server).
     #[versioned(k8s(
         group = "spark.stackable.tech",
-        shortname = "sparkconn",
+        kind = "SparkConnectServer",
+        plural = "sparkconnectservers",
+        shortname = "sparkconnect",
         namespaced,
         crates(
             kube_core = "stackable_operator::kube::core",
@@ -98,12 +87,9 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
-        /// A map of key/value strings that will be passed directly to Spark when deploying the connect server.
-        #[serde(default)]
-        pub spark_conf: BTreeMap<String, String>,
-
-        /// A connect server node role definition.
-        pub nodes: Role<ConnectConfigFragment, GenericRoleConfig, JavaCommonConfig>,
+        /// A connect server definition.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub server: Option<CommonConfiguration<ConnectConfigFragment, JavaCommonConfig>>,
     }
 
     #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
@@ -145,139 +131,6 @@ impl CurrentlySupportedListenerClasses {
             CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
             CurrentlySupportedListenerClasses::ExternalStable => "LoadBalancer".to_string(),
         }
-    }
-}
-
-impl v1alpha1::SparkConnectServer {
-    /// Returns a reference to the role. Raises an error if the role is not defined.
-    pub fn role(&self) -> &Role<ConnectConfigFragment, GenericRoleConfig, JavaCommonConfig> {
-        &self.spec.nodes
-    }
-
-    /// Returns a reference to the role group. Raises an error if the role or role group are not defined.
-    pub fn rolegroup(
-        &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<RoleGroup<ConnectConfigFragment, JavaCommonConfig>, Error> {
-        self.spec
-            .nodes
-            .role_groups
-            .get(&rolegroup_ref.role_group)
-            .with_context(|| CannotRetrieveRoleGroupSnafu {
-                role_group: rolegroup_ref.role_group.to_owned(),
-            })
-            .cloned()
-    }
-
-    pub fn merged_config(
-        &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<ConnectConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = ConnectConfig::default_config(&self.name_any());
-
-        let role = &self.spec.nodes;
-
-        // Retrieve role resource config
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup = role
-            .role_groups
-            .get(&rolegroup_ref.role_group)
-            .map(|rg| rg.config.config.clone())
-            .unwrap_or_default();
-
-        conf_role.merge(&conf_defaults);
-        conf_rolegroup.merge(&conf_role);
-
-        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
-    }
-
-    pub fn replicas(&self, rolegroup_ref: &RoleGroupRef<Self>) -> Option<i32> {
-        self.spec
-            .nodes
-            .role_groups
-            .get(&rolegroup_ref.role_group)
-            .and_then(|rg| rg.replicas)
-            .map(i32::from)
-    }
-
-    pub fn validated_role_config(
-        &self,
-        resolved_product_image: &ResolvedProductImage,
-        product_config: &ProductConfigManager,
-    ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        #[allow(clippy::type_complexity)]
-        let roles_to_validate: HashMap<
-            String,
-            (
-                Vec<PropertyNameKind>,
-                Role<ConnectConfigFragment, GenericRoleConfig, JavaCommonConfig>,
-            ),
-        > = vec![(
-            CONNECT_ROLE_NAME.to_string(),
-            (
-                vec![
-                    PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                self.spec.nodes.clone(),
-            ),
-        )]
-        .into_iter()
-        .collect();
-
-        let role_config = transform_all_roles_to_config(self, roles_to_validate);
-
-        validate_all_roles_and_groups_config(
-            &resolved_product_image.product_version,
-            &role_config.context(ProductConfigTransformSnafu)?,
-            product_config,
-            false,
-            false,
-        )
-        .context(InvalidProductConfigSnafu)
-    }
-
-    pub fn merged_env(
-        &self,
-        role_group: &str,
-        role_group_env_overrides: HashMap<String, String>,
-    ) -> Result<Vec<EnvVar>, Error> {
-        let role = self.role();
-        let connect_jvm_args =
-            construct_jvm_args(role, role_group).context(ConstructJvmArgumentsSnafu)?;
-        let mut envs = BTreeMap::from([
-            // Needed by the `containerdebug` running in the background of the connect container
-            // to log it's tracing information to.
-            (
-                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-                format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
-            ),
-            // This env var prevents the connect server from detaching itself from the
-            // start script because this leads to the Pod terminating immediately.
-            ("SPARK_NO_DAEMONIZE".to_string(), "true".to_string()),
-            (
-                "SPARK_DAEMON_CLASSPATH".to_string(),
-                "/stackable/spark/extra-jars/*".to_string(),
-            ),
-            // There is no SPARK_CONNECT_OPTS env var.
-            ("SPARK_DAEMON_JAVA_OPTS".to_string(), connect_jvm_args),
-        ]);
-
-        envs.extend(role.config.env_overrides.clone());
-        envs.extend(role_group_env_overrides);
-
-        Ok(envs
-            .into_iter()
-            .map(|(name, value)| EnvVar {
-                name: name.to_owned(),
-                value: Some(value.to_owned()),
-                value_from: None,
-            })
-            .collect())
     }
 }
 
@@ -334,14 +187,10 @@ pub enum SparkConnectServerContainer {
     serde(rename_all = "camelCase")
 )]
 pub struct ConnectConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cleaner: Option<bool>,
     #[fragment_attrs(serde(default))]
     pub resources: Resources<ConnectStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
     pub logging: Logging<SparkConnectServerContainer>,
-    #[fragment_attrs(serde(default))]
-    pub affinity: StackableAffinity,
 
     /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
     /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
@@ -353,9 +202,8 @@ impl ConnectConfig {
     // Auto TLS certificate lifetime
     const DEFAULT_CONNECT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
-    fn default_config(cluster_name: &str) -> ConnectConfigFragment {
+    fn default_config() -> ConnectConfigFragment {
         ConnectConfigFragment {
-            cleaner: None,
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("250m".to_owned())),
@@ -368,40 +216,21 @@ impl ConnectConfig {
                 storage: ConnectStorageConfigFragment {},
             },
             logging: product_logging::spec::default_logging(),
-            affinity: affinity(cluster_name),
             requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
         }
     }
 }
 
-impl Configuration for ConnectConfigFragment {
-    type Configurable = v1alpha1::SparkConnectServer;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
+impl v1alpha1::SparkConnectServer {
+    // This is the equivalent og merged_config() in other ops
+    // only here we have nothing to merge.
+    pub fn conect_config(&self) -> Result<ConnectConfig, Error> {
+        fragment::validate(
+            match self.spec.server.as_ref().map(|cc| cc.config.clone()) {
+                Some(fragment) => fragment.clone(),
+                _ => ConnectConfig::default_config(),
+            },
+        )
+        .context(FragmentValidationFailureSnafu)
     }
 }

@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
+use product_config::writer::to_java_properties_string;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -17,19 +17,20 @@ use stackable_operator::{
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    config::fragment::ValidationError,
     k8s_openapi::{
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
-                ConfigMap, PodSecurityContext, Service, ServiceAccount, ServicePort, ServiceSpec,
+                ConfigMap, EnvVar, PodSecurityContext, Service, ServiceAccount, ServicePort,
+                ServiceSpec,
             },
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
-        DeepMerge,
     },
     kube::{
         core::{error_boundary, DeserializeGuard},
-        runtime::{controller::Action, reflector::ObjectRef},
+        runtime::controller::Action,
         Resource, ResourceExt,
     },
     kvp::{Label, Labels, ObjectLabels},
@@ -41,37 +42,34 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::RoleGroupRef,
     time::Duration,
 };
-use strum::{EnumDiscriminants, IntoStaticStr};
+use strum::{Display, EnumDiscriminants, IntoStaticStr};
 
-use super::{
-    crd::{
-        v1alpha1, ConnectConfig, SparkConnectServerContainer, CONNECT_CONTAINER_NAME,
-        CONNECT_CONTROLLER_NAME, CONNECT_GRPC_PORT, CONNECT_ROLE_NAME, CONNECT_UI_PORT,
-    },
-    pdb::add_pdbs,
+use super::crd::{
+    v1alpha1, ConnectConfig, SparkConnectServerContainer, CONNECT_CONTAINER_NAME,
+    CONNECT_CONTROLLER_NAME, CONNECT_GRPC_PORT, CONNECT_SERVER_ROLE_NAME, CONNECT_UI_PORT,
 };
 use crate::{
-    crd::{
-        constants::{
-            APP_NAME, JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
-            OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME,
-            SPARK_UID, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
-            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
-            VOLUME_MOUNT_PATH_LOG_CONFIG,
-        },
-        to_spark_env_sh_string,
+    crd::constants::{
+        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
+        OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
+        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     product_logging::{self, resolve_vector_aggregator_address},
     Ctx,
 };
 
+const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
+
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("fragment validation failure"))]
+    FragmentValidationFailure { source: ValidationError },
+
     #[snafu(display("spark connect object has no namespace"))]
     ObjectHasNoNamespace,
 
@@ -148,16 +146,16 @@ pub enum Error {
     CannotRetrieveRoleGroup { source: super::crd::Error },
 
     #[snafu(display(
-        "Connect server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
-        rolegroup
+        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for the connect server",
     ))]
     JvmSecurityProperties {
         source: product_config::writer::PropertiesWriterError,
-        rolegroup: String,
     },
 
-    #[snafu(display("failed to create PodDisruptionBudget"))]
-    FailedToCreatePdb { source: crate::connect::pdb::Error },
+    #[snafu(display("failed to serialize [{SPARK_DEFAULTS_FILE_NAME}] for the connect server",))]
+    SparkDefaultsProperties {
+        source: product_config::writer::PropertiesWriterError,
+    },
 
     #[snafu(display("failed to build Labels"))]
     LabelBuild {
@@ -195,6 +193,8 @@ pub enum Error {
     BuildRbacResources {
         source: stackable_operator::commons::rbac::Error,
     },
+    #[snafu(display("failed extract connect config object"))]
+    ConnectConfig { source: crate::connect::crd::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -216,6 +216,8 @@ pub async fn reconcile(
         .as_ref()
         .map_err(error_boundary::InvalidObject::clone)
         .context(InvalidSparkConnectServerSnafu)?;
+
+    let connect_config = scs.conect_config().context(ConnectConfigSnafu)?;
 
     let client = &ctx.client;
 
@@ -262,70 +264,55 @@ pub async fn reconcile(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    // The role_name is always connect_ROLE_NAME
-    for (role_name, role_config) in scs
-        .validated_role_config(&resolved_product_image, &ctx.product_config)
-        .context(ProductConfigValidationSnafu)?
-        .iter()
-    {
-        for (rolegroup_name, rolegroup_config) in role_config.iter() {
-            let rgr = RoleGroupRef {
-                cluster: ObjectRef::from_obj(scs),
-                role: role_name.into(),
-                role_group: rolegroup_name.into(),
-            };
+    // Expose connect server to the outside world
+    // let service = build_service(scs, &resolved_product_image.app_version_label, None)?;
+    // cluster_resources
+    //     .add(client, service.clone())
+    //     .await
+    //     .context(ApplyServiceSnafu)?;
 
-            let merged_config = scs
-                .merged_config(&rgr)
-                .context(FailedToResolveConfigSnafu)?;
-
-            let service = build_service(
-                scs,
-                &resolved_product_image.app_version_label,
-                role_name,
-                Some(&rgr),
-            )?;
-            cluster_resources
-                .add(client, service)
-                .await
-                .context(ApplyServiceSnafu)?;
-
-            let config_map = build_config_map(
-                scs,
-                rolegroup_config,
-                &merged_config,
-                &resolved_product_image.app_version_label,
-                &rgr,
-                vector_aggregator_address.as_deref(),
-            )?;
-            cluster_resources
-                .add(client, config_map)
-                .await
-                .context(ApplyConfigMapSnafu)?;
-
-            let sts = build_stateful_set(
-                scs,
-                &resolved_product_image,
-                &rgr,
-                &merged_config,
-                &serviceaccount,
-            )?;
-            cluster_resources
-                .add(client, sts)
-                .await
-                .context(ApplyDeploymentSnafu)?;
-        }
-
-        let role_config = &scs.spec.nodes.role_config;
-        add_pdbs(
-            &role_config.pod_disruption_budget,
-            scs,
-            client,
-            &mut cluster_resources,
-        )
+    // Headless service used by executors connect back to the driver
+    let service = build_service(
+        scs,
+        &resolved_product_image.app_version_label,
+        Some("None".to_string()),
+    )?;
+    cluster_resources
+        .add(client, service.clone())
         .await
-        .context(FailedToCreatePdbSnafu)?;
-    }
+        .context(ApplyServiceSnafu)?;
+
+    let config_map = build_config_map(
+        scs,
+        &connect_config,
+        &service,
+        &serviceaccount,
+        &resolved_product_image,
+        vector_aggregator_address.as_deref(),
+    )?;
+    cluster_resources
+        .add(client, config_map.clone())
+        .await
+        .context(ApplyConfigMapSnafu)?;
+
+    let args = command_args(
+        &scs.name_any(),
+        &resolved_product_image,
+        &service,
+        &serviceaccount,
+    )?;
+    let sts = build_stateful_set(
+        scs,
+        &connect_config,
+        &resolved_product_image,
+        &serviceaccount,
+        &config_map,
+        args,
+    )?;
+    cluster_resources
+        .add(client, sts)
+        .await
+        .context(ApplyDeploymentSnafu)?;
 
     cluster_resources
         .delete_orphaned_resources(client)
@@ -346,28 +333,43 @@ pub fn error_policy(
     }
 }
 
+//
+// Assemble the configuration of the spark-connect server.
+// This config map contains the following entries:
+// - security.properties   : with jvm dns cache ttls
+// - spark-defaults.conf   : with spark configuration properties
+// - log4j2.properties     : todo: see code comment below
+//
+// The spark-env.sh is omitted because the envitonment variables are
+// added directly to the container environment.
+//
 #[allow(clippy::result_large_err)]
 fn build_config_map(
     scs: &v1alpha1::SparkConnectServer,
-    config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
-    merged_config: &ConnectConfig,
-    app_version_label: &str,
-    rolegroupref: &RoleGroupRef<v1alpha1::SparkConnectServer>,
-    vector_aggregator_address: Option<&str>,
+    _connect_config: &ConnectConfig,
+    driver_service: &Service,
+    service_account: &ServiceAccount,
+    resolved_product_image: &ResolvedProductImage,
+    _vector_aggregator_address: Option<&str>,
 ) -> Result<ConfigMap, Error> {
-    let cm_name = rolegroupref.object_name();
+    let cm_name = object_name(&scs.name_any(), SparkConnectRole::Server);
 
-    let spark_defaults = spark_defaults(scs, rolegroupref)?;
+    let spark_props = spark_properties(
+        driver_service,
+        service_account,
+        resolved_product_image,
+        scs.spec
+            .server
+            .as_ref()
+            .and_then(|s| s.config_overrides.get(SPARK_DEFAULTS_FILE_NAME)),
+    )?;
 
-    let jvm_sec_props: BTreeMap<String, Option<String>> = config
-        .get(&PropertyNameKind::File(
-            JVM_SECURITY_PROPERTIES_FILE.to_string(),
-        ))
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(k, v)| (k, Some(v)))
-        .collect();
+    let jvm_sec_props = jvm_security_properties(
+        scs.spec
+            .server
+            .as_ref()
+            .and_then(|s| s.config_overrides.get(JVM_SECURITY_PROPERTIES_FILE)),
+    )?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -378,39 +380,27 @@ fn build_config_map(
                 .name(&cm_name)
                 .ownerreference_from_resource(scs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(labels(scs, app_version_label, &rolegroupref.role_group))
+                .with_recommended_labels(labels(
+                    scs,
+                    &resolved_product_image.app_version_label,
+                    &SparkConnectRole::Server.to_string(),
+                ))
                 .context(MetadataBuildSnafu)?
                 .build(),
         )
-        .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
-        .add_data(
-            SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(
-                config
-                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
-                    .cloned()
-                    .unwrap_or_default()
-                    .iter(),
-            ),
-        )
-        .add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
-            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
-                JvmSecurityPropertiesSnafu {
-                    rolegroup: rolegroupref.role_group.clone(),
-                }
-            })?,
-        );
+        .add_data(SPARK_DEFAULTS_FILE_NAME, spark_props)
+        .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props);
 
-    product_logging::extend_config_map(
-        rolegroupref,
-        vector_aggregator_address,
-        &merged_config.logging,
-        SparkConnectServerContainer::SparkConnect,
-        SparkConnectServerContainer::Vector,
-        &mut cm_builder,
-    )
-    .context(InvalidLoggingConfigSnafu { cm_name: &cm_name })?;
+    // TODO: figure out how to do this without "rolegroupref"
+    // product_logging::extend_config_map(
+    //     rolegroupref,
+    //     vector_aggregator_address,
+    //     &connect_config.logging,
+    //     SparkConnectServerContainer::SparkConnect,
+    //     SparkConnectServerContainer::Vector,
+    //     &mut cm_builder,
+    // )
+    // .context(InvalidLoggingConfigSnafu { cm_name: &cm_name })?;
 
     cm_builder
         .build()
@@ -420,43 +410,31 @@ fn build_config_map(
 #[allow(clippy::result_large_err)]
 fn build_stateful_set(
     scs: &v1alpha1::SparkConnectServer,
+    connect_config: &ConnectConfig,
     resolved_product_image: &ResolvedProductImage,
-    rolegroupref: &RoleGroupRef<v1alpha1::SparkConnectServer>,
-    merged_config: &ConnectConfig,
-    serviceaccount: &ServiceAccount,
+    service_account: &ServiceAccount,
+    config_map: &ConfigMap,
+    args: Vec<String>,
 ) -> Result<StatefulSet, Error> {
-    let log_config_map = if let Some(ContainerLogConfig {
-        choice:
-            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
-                custom: ConfigMapLogConfig { config_map },
-            })),
-    }) = merged_config
-        .logging
-        .containers
-        .get(&SparkConnectServerContainer::SparkConnect)
-    {
-        config_map.into()
-    } else {
-        rolegroupref.object_name()
-    };
+    let log_config_map = log_config_map_name(connect_config, config_map);
 
     let metadata = ObjectMetaBuilder::new()
         .with_recommended_labels(labels(
             scs,
             &resolved_product_image.app_version_label,
-            &rolegroupref.role_group,
+            &SparkConnectRole::Server.to_string(),
         ))
         .context(MetadataBuildSnafu)?
         .build();
 
     let mut pb = PodBuilder::new();
 
-    pb.service_account_name(serviceaccount.name_unchecked())
+    pb.service_account_name(service_account.name_unchecked())
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
-                .with_config_map(rolegroupref.object_name())
+                .with_config_map(config_map.name_any())
                 .build(),
         )
         .context(AddVolumeSnafu)?
@@ -482,18 +460,19 @@ fn build_stateful_set(
             ..PodSecurityContext::default()
         });
 
-    let role_group = scs
-        .rolegroup(rolegroupref)
-        .with_context(|_| CannotRetrieveRoleGroupSnafu)?;
-
-    let merged_env = scs
-        .merged_env(&rolegroupref.role_group, role_group.config.env_overrides)
-        .context(MergeEnvSnafu)?;
+    let container_env = env(
+        &jvm_args()?,
+        scs.spec
+            .server
+            .as_ref()
+            .map(|s| s.env_overrides.clone())
+            .as_ref(),
+    )?;
 
     let container = ContainerBuilder::new(CONNECT_CONTAINER_NAME)
         .context(InvalidContainerNameSnafu)?
         .image_from_product_image(resolved_product_image)
-        .resources(merged_config.resources.clone().into())
+        .resources(connect_config.resources.clone().into())
         .command(vec![
             "/bin/bash".to_string(),
             "-x".to_string(),
@@ -501,16 +480,11 @@ fn build_stateful_set(
             "pipefail".to_string(),
             "-c".to_string(),
         ])
-        .args(command_args(
-            rolegroupref.object_name().as_ref(),
-            scs.namespace().context(ObjectHasNoNamespaceSnafu)?.as_ref(),
-            resolved_product_image,
-            serviceaccount,
-        ))
+        .args(args)
         .add_container_port("grpc", CONNECT_GRPC_PORT)
         .add_container_port("http", CONNECT_UI_PORT)
         .add_container_port("metrics", METRICS_PORT.into())
-        .add_env_vars(merged_env)
+        .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
@@ -520,13 +494,13 @@ fn build_stateful_set(
         .build();
     pb.add_container(container);
 
-    if merged_config.logging.enable_vector_agent {
+    if connect_config.logging.enable_vector_agent {
         pb.add_container(
             vector_container(
                 resolved_product_image,
                 VOLUME_MOUNT_NAME_CONFIG,
                 VOLUME_MOUNT_NAME_LOG,
-                merged_config
+                connect_config
                     .logging
                     .containers
                     .get(&SparkConnectServerContainer::Vector),
@@ -541,33 +515,31 @@ fn build_stateful_set(
         );
     }
 
-    let mut pod_template = pb.build_template();
-    pod_template.merge_from(scs.role().config.pod_overrides.clone());
-    pod_template.merge_from(role_group.config.pod_overrides);
+    let pod_template = pb.build_template();
 
     Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(scs)
-            .name(rolegroupref.object_name())
+            .name(object_name(&scs.name_any(), SparkConnectRole::Server))
             .ownerreference_from_resource(scs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(labels(
                 scs,
                 &resolved_product_image.app_version_label,
-                rolegroupref.role_group.as_ref(),
+                &SparkConnectRole::Server.to_string(),
             ))
             .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(StatefulSetSpec {
             template: pod_template,
-            replicas: scs.replicas(rolegroupref),
+            replicas: Some(1),
             selector: LabelSelector {
                 match_labels: Some(
                     Labels::role_group_selector(
                         scs,
                         APP_NAME,
-                        &rolegroupref.role,
-                        &rolegroupref.role_group,
+                        &SparkConnectRole::Server.to_string(),
+                        DUMMY_SPARK_CONNECT_GROUP_NAME,
                     )
                     .context(LabelBuildSnafu)?
                     .into(),
@@ -584,35 +556,26 @@ fn build_stateful_set(
 fn build_service(
     scs: &v1alpha1::SparkConnectServer,
     app_version_label: &str,
-    role: &str,
-    group: Option<&RoleGroupRef<v1alpha1::SparkConnectServer>>,
+    service_cluster_ip: Option<String>,
 ) -> Result<Service, Error> {
-    let group_name = match group {
-        Some(rgr) => rgr.role_group.clone(),
-        None => "global".to_owned(),
-    };
-
-    let (service_name, service_type, service_cluster_ip) = match group {
-        Some(rgr) => (
-            rgr.object_name(),
+    let (service_name, service_type) = match service_cluster_ip.clone() {
+        Some(_) => (
+            object_name(&scs.name_any(), SparkConnectRole::Server),
             "ClusterIP".to_string(),
-            Some("None".to_string()),
         ),
         None => (
-            format!("{}-{}", scs.metadata.name.as_ref().unwrap(), role),
+            format!(
+                "{}-{}",
+                object_name(&scs.name_any(), SparkConnectRole::Server),
+                SparkConnectRole::Server
+            ),
             scs.spec.cluster_config.listener_class.k8s_service_type(),
-            None,
         ),
     };
 
-    let selector = match group {
-        Some(rgr) => Labels::role_group_selector(scs, APP_NAME, &rgr.role, &rgr.role_group)
-            .context(LabelBuildSnafu)?
-            .into(),
-        None => Labels::role_selector(scs, APP_NAME, role)
-            .context(LabelBuildSnafu)?
-            .into(),
-    };
+    let selector = Labels::role_selector(scs, APP_NAME, &SparkConnectRole::Server.to_string())
+        .context(LabelBuildSnafu)?
+        .into();
 
     Ok(Service {
         metadata: ObjectMetaBuilder::new()
@@ -620,7 +583,11 @@ fn build_service(
             .name(service_name)
             .ownerreference_from_resource(scs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(scs, app_version_label, &group_name))
+            .with_recommended_labels(labels(
+                scs,
+                app_version_label,
+                &SparkConnectRole::Server.to_string(),
+            ))
             .context(MetadataBuildSnafu)?
             .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
             .build(),
@@ -652,46 +619,37 @@ fn build_service(
 }
 
 #[allow(clippy::result_large_err)]
-fn spark_defaults(
-    scs: &v1alpha1::SparkConnectServer,
-    _rolegroupref: &RoleGroupRef<v1alpha1::SparkConnectServer>,
-) -> Result<String, Error> {
-    // add user provided configuration. These can overwrite everything.
-    let props = scs.spec.spark_conf.clone();
-
-    // stringify the spark configuration for the ConfigMap
-    Ok(props
-        .iter()
-        .map(|(k, v)| format!("{k} {v}"))
-        .collect::<Vec<String>>()
-        .join("\n"))
-}
-
 fn command_args(
-    rgr_name: &str,
-    namespace: &str,
+    app_name: &str,
     pi: &ResolvedProductImage,
+    driver_service: &Service,
     service_account: &ServiceAccount,
-) -> Vec<String> {
+) -> Result<Vec<String>, Error> {
     let spark_version = pi.product_version.clone();
     let spark_image = pi.image.clone();
-    let service_account_name = service_account.name_unchecked();
+    let driver_host = driver_service.name_any();
+    let namespace = driver_service
+        .namespace()
+        .context(ObjectHasNoNamespaceSnafu)?;
+    let service_account_name = service_account.name_any();
 
     let command = [
         // ---------- start containerdebug
-        format!(
-            "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-        ),
+        // TODO: enable this before making a PR
+        // format!(
+        //     "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+        // ),
         // ---------- start spark connect server
         "/stackable/spark/sbin/start-connect-server.sh".to_string(),
         "--deploy-mode client".to_string(), // 'cluster' mode not supported
-        format!("--name {rgr_name}"),
+        format!("--name {app_name}"),
         "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
             .to_string(),
+        // TODO: this cannot be set in the spark properties file for now.
+        "--conf spark.kubernetes.driver.pod.name=${HOSTNAME}".to_string(),
         // This needs to match the name of the headless service for the executors to be able
         // to connect back to the driver.
-        format!("--conf spark.driver.host={rgr_name}"),
-        "--conf spark.kubernetes.driver.pod.name=${HOSTNAME}".to_string(),
+        format!("--conf spark.driver.host={driver_host}"),
         format!("--conf spark.kubernetes.container.image={spark_image}"),
         format!("--conf spark.kubernetes.namespace={namespace}"),
         format!(
@@ -701,21 +659,183 @@ fn command_args(
         format!("--properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ];
 
-    vec![command.join(" ")]
+    Ok(vec![command.join(" ")])
 }
 
-fn labels<'a, T>(
-    shs: &'a T,
-    app_version_label: &'a str,
-    role_group: &'a str,
-) -> ObjectLabels<'a, T> {
+fn labels<'a, T>(scs: &'a T, app_version_label: &'a str, role: &'a str) -> ObjectLabels<'a, T> {
     ObjectLabels {
-        owner: shs,
+        owner: scs,
         app_name: APP_NAME,
         app_version: app_version_label,
         operator_name: OPERATOR_NAME,
         controller_name: CONNECT_CONTROLLER_NAME,
-        role: CONNECT_ROLE_NAME,
-        role_group,
+        role,
+        role_group: DUMMY_SPARK_CONNECT_GROUP_NAME,
+    }
+}
+
+// The dead code annotation is to shut up complains about missing Executor instantiations
+// These will come in the future.
+#[allow(dead_code)]
+#[derive(Clone, Debug, Display)]
+#[strum(serialize_all = "lowercase")]
+pub enum SparkConnectRole {
+    Server,
+    Executor,
+}
+
+fn object_name(stacklet_name: &str, role: SparkConnectRole) -> String {
+    match role {
+        SparkConnectRole::Server => format!("{}-{}", stacklet_name, CONNECT_SERVER_ROLE_NAME),
+        SparkConnectRole::Executor => todo!(),
+    }
+}
+
+#[allow(clippy::result_large_err)]
+fn jvm_args() -> Result<String, Error> {
+    let jvm_args = [
+        // TODO: fix this when the logging container is fixed
+        // format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+        format!(
+            "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
+        ),
+        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/config.yaml")
+    ];
+    Ok(jvm_args.join(" "))
+}
+
+#[allow(clippy::result_large_err)]
+fn env(
+    jvm_args: &str,
+    env_overrides: Option<&HashMap<String, String>>,
+) -> Result<Vec<EnvVar>, Error> {
+    let mut envs = BTreeMap::from([
+        // Needed by the `containerdebug` running in the background of the connect container
+        // to log it's tracing information to.
+        (
+            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+            format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+        ),
+        // This env var prevents the connect server from detaching itself from the
+        // start script because this leads to the Pod terminating immediately.
+        ("SPARK_NO_DAEMONIZE".to_string(), "true".to_string()),
+        // Needed for logging jars
+        (
+            "SPARK_DAEMON_CLASSPATH".to_string(),
+            "/stackable/spark/extra-jars/*".to_string(),
+        ),
+        // There is no SPARK_CONNECT_OPTS env var.
+        ("SPARK_DAEMON_JAVA_OPTS".to_string(), jvm_args.to_string()),
+    ]);
+
+    // Add env overrides
+    if let Some(user_env) = env_overrides {
+        envs.extend(user_env.clone());
+    }
+
+    Ok(envs
+        .into_iter()
+        .map(|(name, value)| EnvVar {
+            name: name.to_owned(),
+            value: Some(value.to_owned()),
+            value_from: None,
+        })
+        .collect())
+}
+
+#[allow(clippy::result_large_err)]
+fn jvm_security_properties(
+    config_overrides: Option<&HashMap<String, String>>,
+) -> Result<String, Error> {
+    let mut result: HashMap<String, Option<String>> = [
+        (
+            "networkaddress.cache.ttl".to_string(),
+            Some("30".to_string()),
+        ),
+        (
+            "networkaddress.cache.negative.ttl".to_string(),
+            Some("0".to_string()),
+        ),
+    ]
+    .into();
+
+    if let Some(user_config) = config_overrides {
+        result.extend(
+            user_config
+                .iter()
+                .map(|(k, v)| (k.clone(), Some(v.clone()))),
+        );
+    }
+
+    to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
+}
+
+// TODO: is this file really used ?
+#[allow(clippy::result_large_err)]
+fn spark_properties(
+    _driver_service: &Service,
+    _service_account: &ServiceAccount,
+    _pi: &ResolvedProductImage,
+    config_overrides: Option<&HashMap<String, String>>,
+) -> Result<String, Error> {
+    // let spark_image = pi.image.clone();
+    // let service_account_name = service_account.name_unchecked();
+    // let namespace = driver_service
+    //     .namespace()
+    //     .context(ObjectHasNoNamespaceSnafu)?;
+
+    // let mut result: HashMap<String, Option<String>> = [
+    //     // This needs to match the name of the headless service for the executors to be able
+    //     // to connect back to the driver.
+    //     (
+    //         "spark.driver.host".to_string(),
+    //         Some(driver_service.name_any()),
+    //     ),
+    //     (
+    //         "spark.kubernetes.container.image".to_string(),
+    //         Some(spark_image),
+    //     ),
+    //     ("spark.kubernetes.namespace".to_string(), Some(namespace)),
+    //     (
+    //         "spark.kubernetes.authenticate.driver.serviceAccountName".to_string(),
+    //         Some(service_account_name),
+    //     ),
+    //     // TODO: This cannot be set here because it's an env var. Moved to command args.
+    //     // (
+    //     //     "spark.kubernetes.driver.pod.name".to_string(),
+    //     //     Some("${HOSTNAME}".to_string()),
+    //     // ),
+    // ]
+    // .into();
+    let mut result = HashMap::new();
+
+    if let Some(user_config) = config_overrides {
+        result.extend(
+            user_config
+                .iter()
+                .map(|(k, v)| (k.clone(), Some(v.clone()))),
+        );
+    }
+
+    to_java_properties_string(result.iter()).context(SparkDefaultsPropertiesSnafu)
+}
+
+// Returns the name of the logging config map, which is either a custom one
+// or the default server CM.
+fn log_config_map_name(connect_config: &ConnectConfig, default_cm: &ConfigMap) -> String {
+    let cc = connect_config
+        .logging
+        .containers
+        .get(&SparkConnectServerContainer::SparkConnect)
+        .cloned();
+
+    match cc {
+        Some(ContainerLogConfig {
+            choice:
+                Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                    custom: ConfigMapLogConfig { config_map },
+                })),
+        }) => config_map,
+        _ => default_cm.name_any(),
     }
 }

@@ -6,7 +6,7 @@ timeout: 900
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: spark-connect-node-default
+  name: spark-connect-server
 status:
   readyReplicas: 1
 ---
@@ -19,5 +19,5 @@ commands:
   # while the spark-connect server is busy setting up the executors.
   - script: |
       sleep 5
-      EXECUTOR_COUNT=$(kubectl get pods -n $NAMESPACE --selector 'spark-app-name=spark-connect-node-default' --field-selector='status.phase=Running' -o NAME|wc -l)
+      EXECUTOR_COUNT=$(kubectl get pods -n $NAMESPACE --selector 'spark-app-name=spark-connect-server' --field-selector='status.phase=Running' -o NAME|wc -l)
       test 2 -eq "$EXECUTOR_COUNT"

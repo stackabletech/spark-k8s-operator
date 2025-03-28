@@ -642,7 +642,6 @@ fn command_args(
         // ---------- start spark connect server
         "/stackable/spark/sbin/start-connect-server.sh".to_string(),
         "--deploy-mode client".to_string(), // 'cluster' mode not supported
-        format!("--name {app_name}"),
         "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
             .to_string(),
         // TODO: this cannot be set in the spark properties file for now.

@@ -30,7 +30,7 @@ use stackable_operator::{
     },
     kube::{
         core::{error_boundary, DeserializeGuard},
-        runtime::controller::Action,
+        runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
     },
     kvp::{Label, Labels, ObjectLabels},
@@ -42,7 +42,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{JavaCommonConfig, JvmArgumentOverrides},
+    role_utils::{JavaCommonConfig, JvmArgumentOverrides, RoleGroupRef},
     time::Duration,
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
@@ -53,8 +53,8 @@ use super::crd::{
 };
 use crate::{
     crd::constants::{
-        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
-        OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
+        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
+        METRICS_PORT, OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
         VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
         VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
@@ -347,11 +347,11 @@ pub fn error_policy(
 #[allow(clippy::result_large_err)]
 fn build_config_map(
     scs: &v1alpha1::SparkConnectServer,
-    _connect_config: &ConnectConfig,
+    connect_config: &ConnectConfig,
     driver_service: &Service,
     service_account: &ServiceAccount,
     resolved_product_image: &ResolvedProductImage,
-    _vector_aggregator_address: Option<&str>,
+    vector_aggregator_address: Option<&str>,
 ) -> Result<ConfigMap, Error> {
     let cm_name = object_name(&scs.name_any(), SparkConnectRole::Server);
 
@@ -392,16 +392,20 @@ fn build_config_map(
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_props)
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props);
 
-    // TODO: figure out how to do this without "rolegroupref"
-    // product_logging::extend_config_map(
-    //     rolegroupref,
-    //     vector_aggregator_address,
-    //     &connect_config.logging,
-    //     SparkConnectServerContainer::SparkConnect,
-    //     SparkConnectServerContainer::Vector,
-    //     &mut cm_builder,
-    // )
-    // .context(InvalidLoggingConfigSnafu { cm_name: &cm_name })?;
+    let role_group_ref = RoleGroupRef {
+        cluster: ObjectRef::from_obj(scs),
+        role: SparkConnectRole::Server.to_string(),
+        role_group: DUMMY_SPARK_CONNECT_GROUP_NAME.to_string(),
+    };
+    product_logging::extend_config_map(
+        &role_group_ref,
+        vector_aggregator_address,
+        &connect_config.logging,
+        SparkConnectServerContainer::SparkConnect,
+        SparkConnectServerContainer::Vector,
+        &mut cm_builder,
+    )
+    .context(InvalidLoggingConfigSnafu { cm_name: &cm_name })?;
 
     cm_builder
         .build()
@@ -628,10 +632,9 @@ fn build_service(
 fn command_args(spark_version: &str) -> Vec<String> {
     let command = [
         // ---------- start containerdebug
-        // TODO: enable this before making a PR
-        // format!(
-        //     "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-        // ),
+        format!(
+            "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+        ),
         // ---------- start spark connect server
         "/stackable/spark/sbin/start-connect-server.sh".to_string(),
         "--deploy-mode client".to_string(), // 'cluster' mode not supported
@@ -678,8 +681,7 @@ fn object_name(stacklet_name: &str, role: SparkConnectRole) -> String {
 #[allow(clippy::result_large_err)]
 fn jvm_args(user_java_config: Option<&JavaCommonConfig>) -> Result<String, Error> {
     let jvm_args = vec![
-        // TODO: fix this when the logging container is fixed
-        // format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+        format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
         format!(
             "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
         ),

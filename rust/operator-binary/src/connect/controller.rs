@@ -20,7 +20,7 @@ use stackable_operator::{
     config::fragment::ValidationError,
     k8s_openapi::{
         api::{
-            apps::v1::{StatefulSet, StatefulSetSpec},
+            apps::v1::{Deployment, DeploymentSpec},
             core::v1::{
                 ConfigMap, EnvVar, PodSecurityContext, Service, ServiceAccount, ServicePort,
                 ServiceSpec,
@@ -265,11 +265,11 @@ pub async fn reconcile(
         .context(ApplyRoleBindingSnafu)?;
 
     // Expose connect server to the outside world
-    // let service = build_service(scs, &resolved_product_image.app_version_label, None)?;
-    // cluster_resources
-    //     .add(client, service.clone())
-    //     .await
-    //     .context(ApplyServiceSnafu)?;
+    let service = build_service(scs, &resolved_product_image.app_version_label, None)?;
+    cluster_resources
+        .add(client, service.clone())
+        .await
+        .context(ApplyServiceSnafu)?;
 
     // Headless service used by executors connect back to the driver
     let service = build_service(
@@ -295,8 +295,8 @@ pub async fn reconcile(
         .await
         .context(ApplyConfigMapSnafu)?;
 
-    let args = command_args(&resolved_product_image.image);
-    let sts = build_stateful_set(
+    let args = command_args(&resolved_product_image.product_version);
+    let sts = build_deployment(
         scs,
         &connect_config,
         &resolved_product_image,
@@ -403,14 +403,14 @@ fn build_config_map(
 }
 
 #[allow(clippy::result_large_err)]
-fn build_stateful_set(
+fn build_deployment(
     scs: &v1alpha1::SparkConnectServer,
     connect_config: &ConnectConfig,
     resolved_product_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
     config_map: &ConfigMap,
     args: Vec<String>,
-) -> Result<StatefulSet, Error> {
+) -> Result<Deployment, Error> {
     let log_config_map = log_config_map_name(connect_config, config_map);
 
     let metadata = ObjectMetaBuilder::new()
@@ -512,7 +512,7 @@ fn build_stateful_set(
 
     let pod_template = pb.build_template();
 
-    Ok(StatefulSet {
+    Ok(Deployment {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(scs)
             .name(object_name(&scs.name_any(), SparkConnectRole::Server))
@@ -525,7 +525,7 @@ fn build_stateful_set(
             ))
             .context(MetadataBuildSnafu)?
             .build(),
-        spec: Some(StatefulSetSpec {
+        spec: Some(DeploymentSpec {
             template: pod_template,
             replicas: Some(1),
             selector: LabelSelector {
@@ -541,9 +541,9 @@ fn build_stateful_set(
                 ),
                 ..LabelSelector::default()
             },
-            ..StatefulSetSpec::default()
+            ..DeploymentSpec::default()
         }),
-        ..StatefulSet::default()
+        ..Deployment::default()
     })
 }
 
@@ -741,7 +741,6 @@ fn jvm_security_properties(
     to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
 }
 
-// TODO: is this file really used ?
 #[allow(clippy::result_large_err)]
 fn spark_properties(
     driver_service: &Service,
@@ -771,14 +770,12 @@ fn spark_properties(
             "spark.kubernetes.authenticate.driver.serviceAccountName".to_string(),
             Some(service_account_name),
         ),
-        // TODO: This cannot be set here because it's an env var. Moved to command args.
         (
             "spark.kubernetes.driver.pod.name".to_string(),
             Some("${env:HOSTNAME}".to_string()),
         ),
     ]
     .into();
-    // let mut result = HashMap::new();
 
     if let Some(user_config) = config_overrides {
         result.extend(

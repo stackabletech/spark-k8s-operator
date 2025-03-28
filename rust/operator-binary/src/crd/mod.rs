@@ -190,7 +190,7 @@ pub struct SparkApplicationSpec {
 
     /// The executor role specifies the configuration that, together with the driver pod template, is used by
     /// Spark to create the executor pods.
-    /// This is RoleGroup instead of plain CommonConfiguration because it needs to allows for the number of replicas.
+    /// This is RoleGroup instead of plain CommonConfiguration because it needs to allow for the number of replicas.
     /// to be specified.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executor: Option<RoleGroup<RoleConfigFragment, JavaCommonConfig>>,

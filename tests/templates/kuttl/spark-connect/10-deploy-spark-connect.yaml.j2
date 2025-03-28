@@ -36,6 +36,13 @@ spec:
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   server:
+    podOverrides:
+      spec:
+        containers:
+          - name: spark-connect
+            env:
+              - name: DEMO_GREETING
+                value: "Hello from the overlords"
     jvmArgumentOverrides:
       add:
         - -Xmx800m

@@ -27,6 +27,7 @@ use stackable_operator::{
             },
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
+        DeepMerge,
     },
     kube::{
         core::{error_boundary, DeserializeGuard},
@@ -525,7 +526,11 @@ fn build_deployment(
         );
     }
 
-    let pod_template = pb.build_template();
+    // Merge user defined pod template if available
+    let mut pod_template = pb.build_template();
+    if let Some(pod_overrides_spec) = scs.spec.server.as_ref().map(|s| s.pod_overrides.clone()) {
+        pod_template.merge_from(pod_overrides_spec);
+    }
 
     Ok(Deployment {
         metadata: ObjectMetaBuilder::new()
@@ -768,6 +773,8 @@ fn jvm_security_properties(
     to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
 }
 
+// Returns the contents of the spark properties file.
+// It merges operator properties with user properties.
 #[allow(clippy::result_large_err)]
 fn spark_properties(
     driver_service: &Service,
@@ -789,7 +796,11 @@ fn spark_properties(
             Some(driver_service.name_any()),
         ),
         (
-            "spark.kubernetes.container.image".to_string(),
+            "spark.kubernetes.driver.container.image".to_string(),
+            Some(spark_image.clone()),
+        ),
+        (
+            "spark.kubernetes.executor.container.image".to_string(),
             Some(spark_image),
         ),
         ("spark.kubernetes.namespace".to_string(), Some(namespace)),

@@ -221,14 +221,20 @@ impl ConnectConfig {
     }
 }
 
+// This is the equivalent to merged_config() in other ops
+// only here we only need to merge operator defaults with
+// user configuration.
 impl v1alpha1::SparkConnectServer {
-    // This is the equivalent og merged_config() in other ops
-    // only here we have nothing to merge.
     pub fn conect_config(&self) -> Result<ConnectConfig, Error> {
+        let defaults = ConnectConfig::default_config();
         fragment::validate(
             match self.spec.server.as_ref().map(|cc| cc.config.clone()) {
-                Some(fragment) => fragment.clone(),
-                _ => ConnectConfig::default_config(),
+                Some(fragment) => {
+                    let mut fc = fragment.clone();
+                    fc.merge(&defaults);
+                    fc
+                }
+                _ => defaults,
             },
         )
         .context(FragmentValidationFailureSnafu)

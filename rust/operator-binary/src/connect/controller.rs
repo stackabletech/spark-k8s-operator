@@ -295,12 +295,7 @@ pub async fn reconcile(
         .await
         .context(ApplyConfigMapSnafu)?;
 
-    let args = command_args(
-        &scs.name_any(),
-        &resolved_product_image,
-        &service,
-        &serviceaccount,
-    )?;
+    let args = command_args(&resolved_product_image.image);
     let sts = build_stateful_set(
         scs,
         &connect_config,
@@ -619,20 +614,7 @@ fn build_service(
 }
 
 #[allow(clippy::result_large_err)]
-fn command_args(
-    app_name: &str,
-    pi: &ResolvedProductImage,
-    driver_service: &Service,
-    service_account: &ServiceAccount,
-) -> Result<Vec<String>, Error> {
-    let spark_version = pi.product_version.clone();
-    let spark_image = pi.image.clone();
-    let driver_host = driver_service.name_any();
-    let namespace = driver_service
-        .namespace()
-        .context(ObjectHasNoNamespaceSnafu)?;
-    let service_account_name = service_account.name_any();
-
+fn command_args(spark_version: &str) -> Vec<String> {
     let command = [
         // ---------- start containerdebug
         // TODO: enable this before making a PR
@@ -644,21 +626,11 @@ fn command_args(
         "--deploy-mode client".to_string(), // 'cluster' mode not supported
         "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
             .to_string(),
-        // TODO: this cannot be set in the spark properties file for now.
-        "--conf spark.kubernetes.driver.pod.name=${HOSTNAME}".to_string(),
-        // This needs to match the name of the headless service for the executors to be able
-        // to connect back to the driver.
-        format!("--conf spark.driver.host={driver_host}"),
-        format!("--conf spark.kubernetes.container.image={spark_image}"),
-        format!("--conf spark.kubernetes.namespace={namespace}"),
-        format!(
-            "--conf spark.kubernetes.authenticate.driver.serviceAccountName={service_account_name}"
-        ),
         format!("--jars /stackable/spark/connect/spark-connect_2.12-{spark_version}.jar"),
         format!("--properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ];
 
-    Ok(vec![command.join(" ")])
+    vec![command.join(" ")]
 }
 
 fn labels<'a, T>(scs: &'a T, app_version_label: &'a str, role: &'a str) -> ObjectLabels<'a, T> {
@@ -772,41 +744,41 @@ fn jvm_security_properties(
 // TODO: is this file really used ?
 #[allow(clippy::result_large_err)]
 fn spark_properties(
-    _driver_service: &Service,
-    _service_account: &ServiceAccount,
-    _pi: &ResolvedProductImage,
+    driver_service: &Service,
+    service_account: &ServiceAccount,
+    pi: &ResolvedProductImage,
     config_overrides: Option<&HashMap<String, String>>,
 ) -> Result<String, Error> {
-    // let spark_image = pi.image.clone();
-    // let service_account_name = service_account.name_unchecked();
-    // let namespace = driver_service
-    //     .namespace()
-    //     .context(ObjectHasNoNamespaceSnafu)?;
+    let spark_image = pi.image.clone();
+    let service_account_name = service_account.name_unchecked();
+    let namespace = driver_service
+        .namespace()
+        .context(ObjectHasNoNamespaceSnafu)?;
 
-    // let mut result: HashMap<String, Option<String>> = [
-    //     // This needs to match the name of the headless service for the executors to be able
-    //     // to connect back to the driver.
-    //     (
-    //         "spark.driver.host".to_string(),
-    //         Some(driver_service.name_any()),
-    //     ),
-    //     (
-    //         "spark.kubernetes.container.image".to_string(),
-    //         Some(spark_image),
-    //     ),
-    //     ("spark.kubernetes.namespace".to_string(), Some(namespace)),
-    //     (
-    //         "spark.kubernetes.authenticate.driver.serviceAccountName".to_string(),
-    //         Some(service_account_name),
-    //     ),
-    //     // TODO: This cannot be set here because it's an env var. Moved to command args.
-    //     // (
-    //     //     "spark.kubernetes.driver.pod.name".to_string(),
-    //     //     Some("${HOSTNAME}".to_string()),
-    //     // ),
-    // ]
-    // .into();
-    let mut result = HashMap::new();
+    let mut result: HashMap<String, Option<String>> = [
+        // This needs to match the name of the headless service for the executors to be able
+        // to connect back to the driver.
+        (
+            "spark.driver.host".to_string(),
+            Some(driver_service.name_any()),
+        ),
+        (
+            "spark.kubernetes.container.image".to_string(),
+            Some(spark_image),
+        ),
+        ("spark.kubernetes.namespace".to_string(), Some(namespace)),
+        (
+            "spark.kubernetes.authenticate.driver.serviceAccountName".to_string(),
+            Some(service_account_name),
+        ),
+        // TODO: This cannot be set here because it's an env var. Moved to command args.
+        (
+            "spark.kubernetes.driver.pod.name".to_string(),
+            Some("${env:HOSTNAME}".to_string()),
+        ),
+    ]
+    .into();
+    // let mut result = HashMap::new();
 
     if let Some(user_config) = config_overrides {
         result.extend(

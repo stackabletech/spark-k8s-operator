@@ -42,6 +42,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
+    role_utils::{JavaCommonConfig, JvmArgumentOverrides},
     time::Duration,
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
@@ -67,6 +68,11 @@ const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to merge jvm argument overrides"))]
+    MergeJvmArgumentOverrides {
+        source: stackable_operator::role_utils::Error,
+    },
+
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 
@@ -296,7 +302,7 @@ pub async fn reconcile(
         .context(ApplyConfigMapSnafu)?;
 
     let args = command_args(&resolved_product_image.product_version);
-    let sts = build_deployment(
+    let deployment = build_deployment(
         scs,
         &connect_config,
         &resolved_product_image,
@@ -305,7 +311,7 @@ pub async fn reconcile(
         args,
     )?;
     cluster_resources
-        .add(client, sts)
+        .add(client, deployment)
         .await
         .context(ApplyDeploymentSnafu)?;
 
@@ -456,7 +462,12 @@ fn build_deployment(
         });
 
     let container_env = env(
-        &jvm_args()?,
+        &jvm_args(
+            scs.spec
+                .server
+                .as_ref()
+                .map(|s| &s.product_specific_common_config),
+        )?,
         scs.spec
             .server
             .as_ref()
@@ -662,9 +673,11 @@ fn object_name(stacklet_name: &str, role: SparkConnectRole) -> String {
     }
 }
 
+// Returns the jvm arguments a user has provided merged with the operator props.
+// The JVM args are passed to spark-connect as SPARK_DAEMON_JAVA_OPTS env var
 #[allow(clippy::result_large_err)]
-fn jvm_args() -> Result<String, Error> {
-    let jvm_args = [
+fn jvm_args(user_java_config: Option<&JavaCommonConfig>) -> Result<String, Error> {
+    let jvm_args = vec![
         // TODO: fix this when the logging container is fixed
         // format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
         format!(
@@ -672,7 +685,19 @@ fn jvm_args() -> Result<String, Error> {
         ),
         format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/config.yaml")
     ];
-    Ok(jvm_args.join(" "))
+
+    if let Some(user_jvm_props) = user_java_config {
+        let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args.clone());
+        let mut user_jvm_props_copy = user_jvm_props.jvm_argument_overrides.clone();
+        user_jvm_props_copy
+            .try_merge(&operator_generated)
+            .context(MergeJvmArgumentOverridesSnafu)?;
+        Ok(user_jvm_props_copy
+            .effective_jvm_config_after_merging()
+            .join(" "))
+    } else {
+        Ok(jvm_args.join(" "))
+    }
 }
 
 #[allow(clippy::result_large_err)]

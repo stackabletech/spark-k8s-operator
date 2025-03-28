@@ -35,8 +35,10 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
-  #sparkConf:
-  nodes:
+  server:
+    jvmArgumentOverrides:
+      add:
+        - -Xmx800m
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
@@ -44,6 +46,3 @@ spec:
           spark-connect:
             custom:
               configMap: spark-connect-log-config
-    roleGroups:
-      default:
-        replicas: 1

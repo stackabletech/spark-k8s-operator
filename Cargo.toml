@@ -35,5 +35,5 @@ indoc = "2"
 
 # TODO: revert before merging
 [patch."https://github.com/stackabletech/operator-rs.git"]
-stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "feat/support-deployment" }
+stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "main" }
 # stackable-operator = { path = "../operator-rs/crates/stackable-operator" }

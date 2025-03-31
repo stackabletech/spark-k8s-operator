@@ -96,7 +96,7 @@ pub mod versioned {
 
         /// A connect server definition.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub server: Option<CommonConfiguration<ConnectConfigFragment, JavaCommonConfig>>,
+        pub server: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
     }
 
     #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
@@ -193,7 +193,7 @@ pub enum SparkConnectServerContainer {
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct ConnectConfig {
+pub struct ServerConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<ConnectStorageConfig, NoRuntimeLimits>,
     #[fragment_attrs(serde(default))]
@@ -205,12 +205,12 @@ pub struct ConnectConfig {
     pub requested_secret_lifetime: Option<Duration>,
 }
 
-impl ConnectConfig {
+impl ServerConfig {
     // Auto TLS certificate lifetime
     const DEFAULT_CONNECT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
-    fn default_config() -> ConnectConfigFragment {
-        ConnectConfigFragment {
+    fn default_config() -> ServerConfigFragment {
+        ServerConfigFragment {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("250m".to_owned())),
@@ -232,8 +232,8 @@ impl ConnectConfig {
 // only here we only need to merge operator defaults with
 // user configuration.
 impl v1alpha1::SparkConnectServer {
-    pub fn conect_config(&self) -> Result<ConnectConfig, Error> {
-        let defaults = ConnectConfig::default_config();
+    pub fn server_config(&self) -> Result<ServerConfig, Error> {
+        let defaults = ServerConfig::default_config();
         fragment::validate(
             match self.spec.server.as_ref().map(|cc| cc.config.clone()) {
                 Some(fragment) => {

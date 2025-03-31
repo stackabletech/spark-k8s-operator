@@ -113,6 +113,7 @@ rules:
       - spark.stackable.tech
     resources:
       - sparkapplications/status
+      - sparkconnectservers/status
     verbs:
       - patch
   - apiGroups:

@@ -19,6 +19,7 @@ use stackable_operator::{
     product_logging::{self, spec::Logging},
     role_utils::{CommonConfiguration, JavaCommonConfig},
     schemars::{self, JsonSchema},
+    status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
 };
 use stackable_versioned::versioned;
@@ -67,6 +68,7 @@ pub mod versioned {
         kind = "SparkConnectServer",
         plural = "sparkconnectservers",
         shortname = "sparkconnect",
+        status = "SparkConnectServerStatus",
         namespaced,
         crates(
             kube_core = "stackable_operator::kube::core",
@@ -243,5 +245,21 @@ impl v1alpha1::SparkConnectServer {
             },
         )
         .context(FragmentValidationFailureSnafu)
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SparkConnectServerStatus {
+    #[serde(default)]
+    pub conditions: Vec<ClusterCondition>,
+}
+
+impl HasStatusCondition for v1alpha1::SparkConnectServer {
+    fn conditions(&self) -> Vec<ClusterCondition> {
+        match &self.status {
+            Some(status) => status.conditions.clone(),
+            None => vec![],
+        }
     }
 }

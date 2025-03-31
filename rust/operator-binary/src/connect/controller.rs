@@ -44,6 +44,10 @@ use stackable_operator::{
         },
     },
     role_utils::{JavaCommonConfig, JvmArgumentOverrides, RoleGroupRef},
+    status::condition::{
+        compute_conditions, deployment::DeploymentConditionBuilder,
+        operations::ClusterOperationsConditionBuilder,
+    },
     time::Duration,
 };
 use strum::{Display, EnumDiscriminants, IntoStaticStr};
@@ -53,6 +57,7 @@ use super::crd::{
     CONNECT_CONTROLLER_NAME, CONNECT_GRPC_PORT, CONNECT_SERVER_ROLE_NAME, CONNECT_UI_PORT,
 };
 use crate::{
+    connect::crd::SparkConnectServerStatus,
     crd::constants::{
         APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
         METRICS_PORT, OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
@@ -69,6 +74,12 @@ const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to update status of spark connect server {name}"))]
+    ApplyStatus {
+        source: stackable_operator::client::Error,
+        name: String,
+    },
+
     #[snafu(display("failed to merge jvm argument overrides"))]
     MergeJvmArgumentOverrides {
         source: stackable_operator::role_utils::Error,
@@ -311,15 +322,34 @@ pub async fn reconcile(
         &config_map,
         args,
     )?;
-    cluster_resources
-        .add(client, deployment)
-        .await
-        .context(ApplyDeploymentSnafu)?;
+
+    let mut ss_cond_builder = DeploymentConditionBuilder::default();
+
+    ss_cond_builder.add(
+        cluster_resources
+            .add(client, deployment)
+            .await
+            .context(ApplyDeploymentSnafu)?,
+    );
 
     cluster_resources
         .delete_orphaned_resources(client)
         .await
         .context(DeleteOrphanedResourcesSnafu)?;
+
+    let cluster_operation_cond_builder =
+        ClusterOperationsConditionBuilder::new(&scs.spec.cluster_operation);
+
+    let status = SparkConnectServerStatus {
+        conditions: compute_conditions(scs, &[&ss_cond_builder, &cluster_operation_cond_builder]),
+    };
+
+    client
+        .apply_patch_status(OPERATOR_NAME, scs, &status)
+        .await
+        .context(ApplyStatusSnafu {
+            name: scs.name_any(),
+        })?;
 
     Ok(Action::await_change())
 }

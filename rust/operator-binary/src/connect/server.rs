@@ -120,16 +120,13 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-//
 // Assemble the configuration of the spark-connect server.
 // This config map contains the following entries:
 // - security.properties   : with jvm dns cache ttls
 // - spark-defaults.conf   : with spark configuration properties
-// - log4j2.properties     : todo: see code comment below
-//
-// The spark-env.sh is omitted because the envitonment variables are
-// added directly to the container environment.
-//
+// - log4j2.properties     : with logging configuration
+// - spark-env.sh          : OMITTED because the environment variables are added directly
+//                           to the container environment.
 #[allow(clippy::result_large_err)]
 pub fn build_config_map(
     scs: &v1alpha1::SparkConnectServer,

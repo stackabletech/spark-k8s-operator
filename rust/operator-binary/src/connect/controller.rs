@@ -233,7 +233,7 @@ pub async fn reconcile(
         OPERATOR_NAME,
         CONNECT_CONTROLLER_NAME,
         &scs.object_ref(&()),
-        ClusterResourceApplyStrategy::Default,
+        ClusterResourceApplyStrategy::from(&scs.spec.cluster_operation),
     )
     .context(CreateClusterResourcesSnafu)?;
 

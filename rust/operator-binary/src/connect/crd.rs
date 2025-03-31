@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::{
+        cluster_operation::ClusterOperation,
         product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
@@ -81,6 +82,10 @@ pub mod versioned {
         /// Global Spark connect server configuration that applies to all roles and role groups.
         #[serde(default)]
         pub cluster_config: v1alpha1::SparkConnectServerClusterConfig,
+
+        // no doc string - See ClusterOperation struct
+        #[serde(default)]
+        pub cluster_operation: ClusterOperation,
 
         /// Name of the Vector aggregator discovery ConfigMap.
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.

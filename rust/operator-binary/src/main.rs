@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use clap::{crate_description, crate_version, Parser};
+use clap::Parser;
 use futures::{pin_mut, StreamExt};
 use history::history_controller;
 use product_config::ProductConfigManager;
@@ -81,13 +81,14 @@ async fn main() -> anyhow::Result<()> {
                 "spark-k8s",
                 tracing_target,
             );
-            stackable_operator::utils::print_startup_string(
-                crate_description!(),
-                crate_version!(),
-                built_info::GIT_VERSION,
-                built_info::TARGET,
-                built_info::BUILT_TIME_UTC,
-                built_info::RUSTC_VERSION,
+            tracing::info!(
+                built_info.pkg_version = built_info::PKG_VERSION,
+                built_info.git_version = built_info::GIT_VERSION,
+                built_info.target = built_info::TARGET,
+                built_info.built_time_utc = built_info::BUILT_TIME_UTC,
+                built_info.rustc_version = built_info::RUSTC_VERSION,
+                "Starting {description}",
+                description = built_info::PKG_DESCRIPTION
             );
 
             let client = stackable_operator::client::initialize_operator(

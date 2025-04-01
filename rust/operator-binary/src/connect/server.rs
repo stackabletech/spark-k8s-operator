@@ -33,20 +33,20 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::{JavaCommonConfig, JvmArgumentOverrides, RoleGroupRef},
+    role_utils::RoleGroupRef,
 };
 
 use crate::{
     connect::{
         common::{labels, object_name, SparkConnectRole},
         crd::{
-            v1alpha1, ServerConfig, SparkConnectServerContainer, CONNECT_CONTAINER_NAME,
-            CONNECT_GRPC_PORT, CONNECT_UI_PORT,
+            v1alpha1, SparkConnectServerContainer, CONNECT_CONTAINER_NAME, CONNECT_GRPC_PORT,
+            CONNECT_UI_PORT,
         },
     },
     crd::constants::{
-        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-        METRICS_PORT, SPARK_DEFAULTS_FILE_NAME, SPARK_UID, VOLUME_MOUNT_NAME_CONFIG,
+        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
+        POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID, VOLUME_MOUNT_NAME_CONFIG,
         VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
         VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
@@ -125,28 +125,19 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 // - security.properties   : with jvm dns cache ttls
 // - spark-defaults.conf   : with spark configuration properties
 // - log4j2.properties     : with logging configuration
+// - template.yaml         : executor pod template
 // - spark-env.sh          : OMITTED because the environment variables are added directly
 //                           to the container environment.
 #[allow(clippy::result_large_err)]
 pub fn build_config_map(
     scs: &v1alpha1::SparkConnectServer,
-    config: &ServerConfig,
-    driver_service: &Service,
-    service_account: &ServiceAccount,
+    config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
     vector_aggregator_address: Option<&str>,
+    spark_properties: &str,
+    executor_pod_template_spec: &str,
 ) -> Result<ConfigMap, Error> {
     let cm_name = object_name(&scs.name_any(), SparkConnectRole::Server);
-
-    let spark_props = spark_properties(
-        driver_service,
-        service_account,
-        resolved_product_image,
-        scs.spec
-            .server
-            .as_ref()
-            .and_then(|s| s.config_overrides.get(SPARK_DEFAULTS_FILE_NAME)),
-    )?;
 
     let jvm_sec_props = jvm_security_properties(
         scs.spec
@@ -172,7 +163,8 @@ pub fn build_config_map(
                 .context(MetadataBuildSnafu)?
                 .build(),
         )
-        .add_data(SPARK_DEFAULTS_FILE_NAME, spark_props)
+        .add_data(SPARK_DEFAULTS_FILE_NAME, spark_properties)
+        .add_data(POD_TEMPLATE_FILE, executor_pod_template_spec)
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props);
 
     let role_group_ref = RoleGroupRef {
@@ -198,7 +190,7 @@ pub fn build_config_map(
 #[allow(clippy::result_large_err)]
 pub fn build_deployment(
     scs: &v1alpha1::SparkConnectServer,
-    config: &ServerConfig,
+    config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
     config_map: &ConfigMap,
@@ -248,19 +240,12 @@ pub fn build_deployment(
             ..PodSecurityContext::default()
         });
 
-    let container_env = env(
-        &jvm_args(
-            scs.spec
-                .server
-                .as_ref()
-                .map(|s| &s.product_specific_common_config),
-        )?,
-        scs.spec
-            .server
-            .as_ref()
-            .map(|s| s.env_overrides.clone())
-            .as_ref(),
-    )?;
+    let container_env = env(scs
+        .spec
+        .server
+        .as_ref()
+        .map(|s| s.env_overrides.clone())
+        .as_ref())?;
 
     let container = ContainerBuilder::new(CONNECT_CONTAINER_NAME)
         .context(InvalidContainerNameSnafu)?
@@ -434,37 +419,8 @@ pub fn command_args(spark_version: &str) -> Vec<String> {
     vec![command.join(" ")]
 }
 
-// Returns the jvm arguments a user has provided merged with the operator props.
-// The JVM args are passed to spark-connect as SPARK_DAEMON_JAVA_OPTS env var
 #[allow(clippy::result_large_err)]
-fn jvm_args(user_java_config: Option<&JavaCommonConfig>) -> Result<String, Error> {
-    let jvm_args = vec![
-        format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
-        format!(
-            "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
-        ),
-        format!("-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/config.yaml")
-    ];
-
-    if let Some(user_jvm_props) = user_java_config {
-        let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args.clone());
-        let mut user_jvm_props_copy = user_jvm_props.jvm_argument_overrides.clone();
-        user_jvm_props_copy
-            .try_merge(&operator_generated)
-            .context(MergeJvmArgumentOverridesSnafu)?;
-        Ok(user_jvm_props_copy
-            .effective_jvm_config_after_merging()
-            .join(" "))
-    } else {
-        Ok(jvm_args.join(" "))
-    }
-}
-
-#[allow(clippy::result_large_err)]
-fn env(
-    jvm_args: &str,
-    env_overrides: Option<&HashMap<String, String>>,
-) -> Result<Vec<EnvVar>, Error> {
+fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, Error> {
     let mut envs = BTreeMap::from([
         // Needed by the `containerdebug` running in the background of the connect container
         // to log its tracing information to.
@@ -475,13 +431,6 @@ fn env(
         // This env var prevents the connect server from detaching itself from the
         // start script because this leads to the Pod terminating immediately.
         ("SPARK_NO_DAEMONIZE".to_string(), "true".to_string()),
-        // Needed for logging jars
-        (
-            "SPARK_DAEMON_CLASSPATH".to_string(),
-            "/stackable/spark/extra-jars/*".to_string(),
-        ),
-        // There is no SPARK_CONNECT_OPTS env var.
-        ("SPARK_DAEMON_JAVA_OPTS".to_string(), jvm_args.to_string()),
     ]);
 
     // Add env overrides
@@ -503,7 +452,7 @@ fn env(
 fn jvm_security_properties(
     config_overrides: Option<&HashMap<String, String>>,
 ) -> Result<String, Error> {
-    let mut result: HashMap<String, Option<String>> = [
+    let mut result: BTreeMap<String, Option<String>> = [
         (
             "networkaddress.cache.ttl".to_string(),
             Some("30".to_string()),
@@ -529,10 +478,12 @@ fn jvm_security_properties(
 // Returns the contents of the spark properties file.
 // It merges operator properties with user properties.
 #[allow(clippy::result_large_err)]
-fn spark_properties(
+pub fn spark_properties(
     driver_service: &Service,
     service_account: &ServiceAccount,
     pi: &ResolvedProductImage,
+    server_jvm_args: &str,
+    executor_jvm_args: &str,
     config_overrides: Option<&HashMap<String, String>>,
 ) -> Result<String, Error> {
     let spark_image = pi.image.clone();
@@ -541,7 +492,7 @@ fn spark_properties(
         .namespace()
         .context(ObjectHasNoNamespaceSnafu)?;
 
-    let mut result: HashMap<String, Option<String>> = [
+    let mut result: BTreeMap<String, Option<String>> = [
         // This needs to match the name of the headless service for the executors to be able
         // to connect back to the driver.
         (
@@ -565,6 +516,26 @@ fn spark_properties(
             "spark.kubernetes.driver.pod.name".to_string(),
             Some("${env:HOSTNAME}".to_string()),
         ),
+        (
+            "spark.driver.defaultJavaOptions".to_string(),
+            Some(server_jvm_args.to_string()),
+        ),
+        (
+            "spark.driver.extraClassPath".to_string(),
+            Some("/stackable/spark/extra-jars/*".to_string()),
+        ),
+        (
+            "spark.executor.defaultJavaOptions".to_string(),
+            Some(executor_jvm_args.to_string()),
+        ),
+        (
+            "spark.executor.extraClassPath".to_string(),
+            Some("/stackable/spark/extra-jars/*".to_string()),
+        ),
+        (
+            "spark.kubernetes.executor.podTemplateFile".to_string(),
+            Some(format!("{VOLUME_MOUNT_PATH_CONFIG}/{POD_TEMPLATE_FILE}")),
+        ),
     ]
     .into();
 
@@ -581,7 +552,7 @@ fn spark_properties(
 
 // Returns the name of the logging config map, which is either a custom one
 // or the default server CM.
-fn log_config_map_name(connect_config: &ServerConfig, default_cm: &ConfigMap) -> String {
+fn log_config_map_name(connect_config: &v1alpha1::ServerConfig, default_cm: &ConfigMap) -> String {
     let cc = connect_config
         .logging
         .containers

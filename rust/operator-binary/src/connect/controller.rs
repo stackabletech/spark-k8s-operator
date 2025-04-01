@@ -20,8 +20,8 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 
 use super::crd::{v1alpha1, CONNECT_CONTROLLER_NAME};
 use crate::{
-    connect::{crd::SparkConnectServerStatus, server},
-    crd::constants::{APP_NAME, OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
+    connect::{common, crd::SparkConnectServerStatus, executor, server},
+    crd::constants::{APP_NAME, OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME},
     product_logging::{self, resolve_vector_aggregator_address},
     Ctx,
 };
@@ -30,6 +30,12 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build spark properties"))]
+    SparkProperties { source: server::Error },
+
+    #[snafu(display("failed to build server jvm arguments"))]
+    ServerJvmArgs { source: common::Error },
+
     #[snafu(display("failed to build spark connect service"))]
     BuildService { source: server::Error },
 
@@ -43,6 +49,11 @@ pub enum Error {
     ApplyStatus {
         source: stackable_operator::client::Error,
         name: String,
+    },
+
+    #[snafu(display("failed to update executor pod template"))]
+    ApplyExecutorPodTemplate {
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("spark connect object has no namespace"))]
@@ -112,8 +123,19 @@ pub enum Error {
     BuildRbacResources {
         source: stackable_operator::commons::rbac::Error,
     },
-    #[snafu(display("failed extract connect config object"))]
-    ConnectServerConfig { source: crate::connect::crd::Error },
+    #[snafu(display("failed to build connect server configuration"))]
+    ServerConfig { source: crate::connect::crd::Error },
+
+    #[snafu(display("failed to build connect executor configuration"))]
+    ExecutorConfig { source: crate::connect::crd::Error },
+
+    #[snafu(display("failed to build connect executor pod template"))]
+    ExecutorPodTemplate {
+        source: crate::connect::executor::Error,
+    },
+
+    #[snafu(display("failed to serialize executor pod template"))]
+    ExecutorPodTemplateSerde { source: serde_yaml::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -136,7 +158,8 @@ pub async fn reconcile(
         .map_err(error_boundary::InvalidObject::clone)
         .context(InvalidSparkConnectServerSnafu)?;
 
-    let server_config = scs.server_config().context(ConnectServerConfigSnafu)?;
+    let server_config = scs.server_config().context(ServerConfigSnafu)?;
+    let executor_config = scs.executor_config().context(ExecutorConfigSnafu)?;
 
     let client = &ctx.client;
 
@@ -204,13 +227,52 @@ pub async fn reconcile(
         .await
         .context(ApplyServiceSnafu)?;
 
-    let config_map = server::build_config_map(
-        scs,
-        &server_config,
+    // ========================================
+    // Server config map
+    let server_jvm_args = common::jvm_args(
+        scs.spec
+            .server
+            .as_ref()
+            .map(|s| &s.product_specific_common_config),
+    )
+    .context(ServerJvmArgsSnafu)?;
+
+    let executor_jvm_args = common::jvm_args(
+        scs.spec
+            .executor
+            .as_ref()
+            .map(|s| &s.product_specific_common_config),
+    )
+    .context(ServerJvmArgsSnafu)?;
+
+    let spark_props = server::spark_properties(
         &service,
         &service_account,
         &resolved_product_image,
+        &server_jvm_args,
+        &executor_jvm_args,
+        scs.spec
+            .server
+            .as_ref()
+            .and_then(|s| s.config_overrides.get(SPARK_DEFAULTS_FILE_NAME)),
+    )
+    .context(SparkPropertiesSnafu)?;
+
+    // ========================================
+    // Executor pod template
+    let executor_pod_template = serde_yaml::to_string(
+        &executor::build_executor_pod_template(scs, &executor_config)
+            .context(ExecutorPodTemplateSnafu)?,
+    )
+    .context(ExecutorPodTemplateSerdeSnafu)?;
+
+    let config_map = server::build_config_map(
+        scs,
+        &server_config,
+        &resolved_product_image,
         vector_aggregator_address.as_deref(),
+        &spark_props,
+        &executor_pod_template,
     )
     .context(BuildServerConfigMapSnafu)?;
     cluster_resources
@@ -243,13 +305,14 @@ pub async fn reconcile(
         .await
         .context(DeleteOrphanedResourcesSnafu)?;
 
+    // ========================================
+    // Spark connect server status
     let cluster_operation_cond_builder =
         ClusterOperationsConditionBuilder::new(&scs.spec.cluster_operation);
 
     let status = SparkConnectServerStatus {
         conditions: compute_conditions(scs, &[&ss_cond_builder, &cluster_operation_cond_builder]),
     };
-
     client
         .apply_patch_status(OPERATOR_NAME, scs, &status)
         .await

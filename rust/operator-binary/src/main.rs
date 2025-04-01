@@ -80,6 +80,7 @@ async fn main() -> anyhow::Result<()> {
             tracing_target,
             cluster_info_opts,
         }) => {
+            #[allow(deprecated)]
             stackable_operator::logging::initialize_logging(
                 "SPARK_K8S_OPERATOR_LOG",
                 "spark-k8s",

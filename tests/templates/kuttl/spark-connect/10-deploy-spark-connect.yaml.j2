@@ -45,7 +45,7 @@ spec:
                 value: "Hello from the overlords"
     jvmArgumentOverrides:
       add:
-        - -Xmx800m
+        - -Dmy.custom.jvm.arg=customValue
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}

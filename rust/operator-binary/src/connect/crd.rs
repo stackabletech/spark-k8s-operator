@@ -94,9 +94,13 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
-        /// A connect server definition.
+        /// A spark connect server definition.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub server: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
+
+        /// Spark connect executor properties.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub executor: Option<CommonConfiguration<ExecutorConfigFragment, JavaCommonConfig>>,
     }
 
     #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
@@ -115,6 +119,58 @@ pub mod versioned {
         /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
         #[serde(default)]
         pub listener_class: CurrentlySupportedListenerClasses,
+    }
+
+    #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
+    #[fragment_attrs(
+        derive(
+            Clone,
+            Debug,
+            Default,
+            Deserialize,
+            Merge,
+            JsonSchema,
+            PartialEq,
+            Serialize
+        ),
+        serde(rename_all = "camelCase")
+    )]
+    pub struct ServerConfig {
+        #[fragment_attrs(serde(default))]
+        pub resources: Resources<crate::connect::crd::ConnectStorageConfig, NoRuntimeLimits>,
+        #[fragment_attrs(serde(default))]
+        pub logging: Logging<crate::connect::crd::SparkConnectServerContainer>,
+
+        /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
+        /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
+        #[fragment_attrs(serde(default))]
+        pub requested_secret_lifetime: Option<Duration>,
+    }
+
+    #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
+    #[fragment_attrs(
+        derive(
+            Clone,
+            Debug,
+            Default,
+            Deserialize,
+            Merge,
+            JsonSchema,
+            PartialEq,
+            Serialize
+        ),
+        serde(rename_all = "camelCase")
+    )]
+    pub struct ExecutorConfig {
+        #[fragment_attrs(serde(default))]
+        pub resources: Resources<crate::connect::crd::ConnectStorageConfig, NoRuntimeLimits>,
+        #[fragment_attrs(serde(default))]
+        pub logging: Logging<crate::connect::crd::SparkConnectServerContainer>,
+
+        /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
+        /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
+        #[fragment_attrs(serde(default))]
+        pub requested_secret_lifetime: Option<Duration>,
     }
 }
 
@@ -179,38 +235,12 @@ pub enum SparkConnectServerContainer {
     Vector,
 }
 
-#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
-#[fragment_attrs(
-    derive(
-        Clone,
-        Debug,
-        Default,
-        Deserialize,
-        Merge,
-        JsonSchema,
-        PartialEq,
-        Serialize
-    ),
-    serde(rename_all = "camelCase")
-)]
-pub struct ServerConfig {
-    #[fragment_attrs(serde(default))]
-    pub resources: Resources<ConnectStorageConfig, NoRuntimeLimits>,
-    #[fragment_attrs(serde(default))]
-    pub logging: Logging<SparkConnectServerContainer>,
-
-    /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
-    /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
-    #[fragment_attrs(serde(default))]
-    pub requested_secret_lifetime: Option<Duration>,
-}
-
-impl ServerConfig {
+impl v1alpha1::ServerConfig {
     // Auto TLS certificate lifetime
     const DEFAULT_CONNECT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
-    fn default_config() -> ServerConfigFragment {
-        ServerConfigFragment {
+    fn default_config() -> v1alpha1::ServerConfigFragment {
+        v1alpha1::ServerConfigFragment {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
                     min: Some(Quantity("250m".to_owned())),
@@ -232,10 +262,25 @@ impl ServerConfig {
 // only here we only need to merge operator defaults with
 // user configuration.
 impl v1alpha1::SparkConnectServer {
-    pub fn server_config(&self) -> Result<ServerConfig, Error> {
-        let defaults = ServerConfig::default_config();
+    pub fn server_config(&self) -> Result<v1alpha1::ServerConfig, Error> {
+        let defaults = v1alpha1::ServerConfig::default_config();
         fragment::validate(
             match self.spec.server.as_ref().map(|cc| cc.config.clone()) {
+                Some(fragment) => {
+                    let mut fc = fragment.clone();
+                    fc.merge(&defaults);
+                    fc
+                }
+                _ => defaults,
+            },
+        )
+        .context(FragmentValidationFailureSnafu)
+    }
+
+    pub fn executor_config(&self) -> Result<v1alpha1::ExecutorConfig, Error> {
+        let defaults = v1alpha1::ExecutorConfig::default_config();
+        fragment::validate(
+            match self.spec.executor.as_ref().map(|cc| cc.config.clone()) {
                 Some(fragment) => {
                     let mut fc = fragment.clone();
                     fc.merge(&defaults);
@@ -260,6 +305,29 @@ impl HasStatusCondition for v1alpha1::SparkConnectServer {
         match &self.status {
             Some(status) => status.conditions.clone(),
             None => vec![],
+        }
+    }
+}
+
+impl v1alpha1::ExecutorConfig {
+    // Auto TLS certificate lifetime
+    const DEFAULT_CONNECT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
+
+    fn default_config() -> v1alpha1::ExecutorConfigFragment {
+        v1alpha1::ExecutorConfigFragment {
+            resources: ResourcesFragment {
+                cpu: CpuLimitsFragment {
+                    min: Some(Quantity("250m".to_owned())),
+                    max: Some(Quantity("1".to_owned())),
+                },
+                memory: MemoryLimitsFragment {
+                    limit: Some(Quantity("1024Mi".to_owned())),
+                    runtime_limits: NoRuntimeLimitsFragment {},
+                },
+                storage: ConnectStorageConfigFragment {},
+            },
+            logging: product_logging::spec::default_logging(),
+            requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
         }
     }
 }

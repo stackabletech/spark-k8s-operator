@@ -9,7 +9,10 @@ use stackable_operator::{
         pod::{container::ContainerBuilder, volume::VolumeBuilder, PodBuilder},
     },
     commons::product_image_selection::ResolvedProductImage,
-    k8s_openapi::api::core::v1::{ConfigMap, EnvVar, PodTemplateSpec},
+    k8s_openapi::{
+        api::core::v1::{ConfigMap, EnvVar, PodTemplateSpec},
+        DeepMerge,
+    },
     kube::{runtime::reflector::ObjectRef, ResourceExt},
     product_logging::framework::calculate_log_volume_size_limit,
     role_utils::RoleGroupRef,
@@ -97,7 +100,7 @@ pub enum Error {
 // because spark overrides them.
 //
 // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#pod-template-properties
-// for a list of properties that are overriden/changed by Spark.
+// for a list of properties that are overridden/changed by Spark.
 //
 // Most notable properties that cannot be set here are:
 // - container resources
@@ -157,7 +160,14 @@ pub fn executor_pod_template(
             .context(AddVolumeSnafu)?;
     }
 
-    Ok(template.add_container(container.build()).build_template())
+    let mut result = template.add_container(container.build()).build_template();
+
+    // Merge user provided pod spec if any
+    if let Some(pod_overrides_spec) = scs.spec.executor.as_ref().map(|s| s.pod_overrides.clone()) {
+        result.merge_from(pod_overrides_spec);
+    }
+
+    Ok(result)
 }
 
 fn executor_env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, Error> {

@@ -5,7 +5,7 @@ use stackable_operator::{
     client::Client,
     k8s_openapi::api::core::v1::Pod,
     kube::{
-        core::{error_boundary, DeserializeGuard},
+        core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
     logging::controller::ReconcilerError,
@@ -13,7 +13,7 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::crd::{constants::POD_DRIVER_CONTROLLER_NAME, v1alpha1, SparkApplicationStatus};
+use crate::crd::{SparkApplicationStatus, constants::POD_DRIVER_CONTROLLER_NAME, v1alpha1};
 
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
@@ -99,13 +99,9 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
     tracing::info!("Update spark application [{app_name}] status to [{phase}]");
 
     client
-        .apply_patch_status(
-            POD_DRIVER_CONTROLLER_NAME,
-            &app,
-            &SparkApplicationStatus {
-                phase: phase.clone(),
-            },
-        )
+        .apply_patch_status(POD_DRIVER_CONTROLLER_NAME, &app, &SparkApplicationStatus {
+            phase: phase.clone(),
+        })
         .await
         .with_context(|_| ApplySparkApplicationStatusSnafu {
             name: app_name.clone(),

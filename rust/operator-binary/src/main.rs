@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
-use clap::{crate_description, crate_version, Parser};
-use futures::{pin_mut, StreamExt};
+use clap::{Parser, crate_description, crate_version};
+use futures::{StreamExt, pin_mut};
 use history::history_controller;
 use product_config::ProductConfigManager;
 use stackable_operator::{
+    YamlSchema,
     cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -13,24 +14,24 @@ use stackable_operator::{
     kube::{
         core::DeserializeGuard,
         runtime::{
+            Controller,
             events::{Recorder, Reporter},
-            watcher, Controller,
+            watcher,
         },
     },
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
-    YamlSchema,
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
 
 use crate::crd::{
+    SparkApplication,
     constants::{
         HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
         SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
     },
     history::SparkHistoryServer,
-    SparkApplication,
 };
 
 mod config;
@@ -100,13 +101,10 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
-            let spark_event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
-                    controller: SPARK_FULL_CONTROLLER_NAME.to_string(),
-                    instance: None,
-                },
-            ));
+            let spark_event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+                controller: SPARK_FULL_CONTROLLER_NAME.to_string(),
+                instance: None,
+            }));
             let app_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<crd::v1alpha1::SparkApplication>>(&client),
@@ -141,13 +139,11 @@ async fn main() -> anyhow::Result<()> {
                 },
             );
 
-            let pod_driver_event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
+            let pod_driver_event_recorder =
+                Arc::new(Recorder::new(client.as_kube_client(), Reporter {
                     controller: POD_DRIVER_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
-                },
-            ));
+                }));
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default()
@@ -187,13 +183,11 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
-            let history_event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
+            let history_event_recorder =
+                Arc::new(Recorder::new(client.as_kube_client(), Reporter {
                     controller: HISTORY_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
-                },
-            ));
+                }));
             let history_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<crd::history::v1alpha1::SparkHistoryServer>>(

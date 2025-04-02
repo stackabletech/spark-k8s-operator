@@ -12,8 +12,8 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            volume::VolumeBuilder, PodBuilder,
+            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            volume::VolumeBuilder,
         },
     },
     commons::{
@@ -22,6 +22,7 @@ use stackable_operator::{
         tls_verification::{CaCert, TlsVerification},
     },
     k8s_openapi::{
+        DeepMerge, Resource,
         api::{
             batch::v1::{Job, JobSpec},
             core::v1::{
@@ -30,19 +31,18 @@ use stackable_operator::{
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
-        DeepMerge, Resource,
     },
     kube::{
-        core::{error_boundary, DeserializeGuard},
-        runtime::{controller::Action, reflector::ObjectRef},
         ResourceExt,
+        core::{DeserializeGuard, error_boundary},
+        runtime::{controller::Action, reflector::ObjectRef},
     },
     logging::controller::ReconcilerError,
     product_config_utils::ValidatedRoleConfigByPropertyKind,
     product_logging::{
         framework::{
-            capture_shell_output, create_vector_shutdown_file_command, vector_container,
-            LoggingError,
+            LoggingError, capture_shell_output, create_vector_shutdown_file_command,
+            vector_container,
         },
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
@@ -55,14 +55,15 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
+    Ctx,
     crd::{
+        SparkApplicationStatus,
         constants::*,
         logdir::ResolvedLogDir,
         roles::{RoleConfig, SparkApplicationRole, SparkContainer, SubmitConfig},
-        tlscerts, to_spark_env_sh_string, v1alpha1, SparkApplicationStatus,
+        tlscerts, to_spark_env_sh_string, v1alpha1,
     },
     product_logging::{self, resolve_vector_aggregator_address},
-    Ctx,
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]

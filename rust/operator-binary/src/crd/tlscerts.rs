@@ -47,17 +47,13 @@ pub fn tls_secret_names<'a>(
             names.push(secret_name);
         }
     }
-    if names.is_empty() {
-        None
-    } else {
-        Some(names)
-    }
+    if names.is_empty() { None } else { Some(names) }
 }
 
 pub fn convert_system_trust_store_to_pkcs12() -> Vec<String> {
-    vec![
-        format!("keytool -importkeystore -srckeystore {SYSTEM_TRUST_STORE} -srcstoretype jks -srcstorepass {SYSTEM_TRUST_STORE_PASSWORD} -destkeystore {STACKABLE_TRUST_STORE}/truststore.p12 -deststoretype pkcs12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
-    ]
+    vec![format!(
+        "keytool -importkeystore -srckeystore {SYSTEM_TRUST_STORE} -srcstoretype jks -srcstorepass {SYSTEM_TRUST_STORE_PASSWORD} -destkeystore {STACKABLE_TRUST_STORE}/truststore.p12 -deststoretype pkcs12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"
+    )]
 }
 
 pub fn import_truststore(secret_name: &str) -> Vec<String> {
@@ -66,6 +62,8 @@ pub fn import_truststore(secret_name: &str) -> Vec<String> {
 
     vec![
         format!("echo Importing [{mount_trust_store_path}] to [{trust_store_path}] ..."),
-        format!("keytool -importkeystore -srckeystore {mount_trust_store_path} -srcalias 1 -srcstorepass \"\" -destkeystore {trust_store_path} -destalias stackable-{secret_name} -storepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"),
+        format!(
+            "keytool -importkeystore -srckeystore {mount_trust_store_path} -srcalias 1 -srcstorepass \"\" -destkeystore {trust_store_path} -destalias stackable-{secret_name} -storepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"
+        ),
     ]
 }

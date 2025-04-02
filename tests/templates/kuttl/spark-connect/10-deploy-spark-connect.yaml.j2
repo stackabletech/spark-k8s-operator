@@ -39,7 +39,7 @@ spec:
     podOverrides:
       spec:
         containers:
-          - name: spark-connect
+          - name: spark
             env:
               - name: DEMO_GREETING
                 value: "Hello from the overlords"
@@ -50,6 +50,6 @@ spec:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
         containers:
-          spark-connect:
+          spark:
             custom:
               configMap: spark-connect-log-config

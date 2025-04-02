@@ -16,7 +16,13 @@ use stackable_operator::{
     },
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
-    product_logging::{self, spec::Logging},
+    product_logging::{
+        self,
+        spec::{
+            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
+            CustomContainerLogConfig, Logging,
+        },
+    },
     role_utils::{CommonConfiguration, JavaCommonConfig},
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
@@ -32,9 +38,11 @@ pub const CONNECT_FULL_CONTROLLER_NAME: &str = concatcp!(
     crate::crd::constants::OPERATOR_NAME
 );
 pub const CONNECT_SERVER_ROLE_NAME: &str = "server";
-pub const CONNECT_CONTAINER_NAME: &str = "spark-connect";
+pub const CONNECT_EXECUTOR_ROLE_NAME: &str = "executor";
 pub const CONNECT_GRPC_PORT: i32 = 15002;
 pub const CONNECT_UI_PORT: i32 = 4040;
+
+pub const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -139,7 +147,7 @@ pub mod versioned {
         #[fragment_attrs(serde(default))]
         pub resources: Resources<crate::connect::crd::ConnectStorageConfig, NoRuntimeLimits>,
         #[fragment_attrs(serde(default))]
-        pub logging: Logging<crate::connect::crd::SparkConnectServerContainer>,
+        pub logging: Logging<SparkConnectContainer>,
 
         /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
@@ -165,7 +173,7 @@ pub mod versioned {
         #[fragment_attrs(serde(default))]
         pub resources: Resources<crate::connect::crd::ConnectStorageConfig, NoRuntimeLimits>,
         #[fragment_attrs(serde(default))]
-        pub logging: Logging<crate::connect::crd::SparkConnectServerContainer>,
+        pub logging: Logging<crate::connect::crd::SparkConnectContainer>,
 
         /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
@@ -220,18 +228,18 @@ pub struct ConnectStorageConfig {}
     Debug,
     Deserialize,
     Display,
-    Eq,
     EnumIter,
+    Eq,
     JsonSchema,
     Ord,
     PartialEq,
     PartialOrd,
     Serialize,
 )]
-#[serde(rename_all = "kebab-case")]
-#[strum(serialize_all = "kebab-case")]
-pub enum SparkConnectServerContainer {
-    SparkConnect,
+#[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
+pub enum SparkConnectContainer {
+    Spark,
     Vector,
 }
 
@@ -254,6 +262,24 @@ impl v1alpha1::ServerConfig {
             },
             logging: product_logging::spec::default_logging(),
             requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
+        }
+    }
+
+    pub fn log_config_map(&self) -> Option<String> {
+        let container_log_config = self
+            .logging
+            .containers
+            .get(&SparkConnectContainer::Spark)
+            .cloned();
+
+        match container_log_config {
+            Some(ContainerLogConfig {
+                choice:
+                    Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                        custom: ConfigMapLogConfig { config_map },
+                    })),
+            }) => Some(config_map.clone()),
+            _ => None,
         }
     }
 }
@@ -328,6 +354,24 @@ impl v1alpha1::ExecutorConfig {
             },
             logging: product_logging::spec::default_logging(),
             requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
+        }
+    }
+
+    pub fn log_config_map(&self) -> Option<String> {
+        let container_log_config = self
+            .logging
+            .containers
+            .get(&SparkConnectContainer::Spark)
+            .cloned();
+
+        match container_log_config {
+            Some(ContainerLogConfig {
+                choice:
+                    Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                        custom: ConfigMapLogConfig { config_map },
+                    })),
+            }) => Some(config_map.clone()),
+            _ => None,
         }
     }
 }

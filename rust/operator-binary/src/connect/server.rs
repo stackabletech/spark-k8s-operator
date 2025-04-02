@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
 
-use product_config::writer::to_java_properties_string;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder,
@@ -26,34 +25,26 @@ use stackable_operator::{
     },
     kube::{runtime::reflector::ObjectRef, ResourceExt},
     kvp::{Label, Labels},
-    product_logging::{
-        framework::{calculate_log_volume_size_limit, vector_container, LoggingError},
-        spec::{
-            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
-            CustomContainerLogConfig,
-        },
-    },
+    product_logging::framework::{calculate_log_volume_size_limit, vector_container, LoggingError},
     role_utils::RoleGroupRef,
 };
 
 use crate::{
     connect::{
-        common::{labels, object_name, SparkConnectRole},
+        common::{self, object_name, SparkConnectRole},
         crd::{
-            v1alpha1, SparkConnectServerContainer, CONNECT_CONTAINER_NAME, CONNECT_GRPC_PORT,
-            CONNECT_UI_PORT,
+            v1alpha1, SparkConnectContainer, CONNECT_GRPC_PORT, CONNECT_UI_PORT,
+            DUMMY_SPARK_CONNECT_GROUP_NAME,
         },
     },
     crd::constants::{
-        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
-        POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID, VOLUME_MOUNT_NAME_CONFIG,
-        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
+        METRICS_PORT, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID,
+        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     product_logging,
 };
-
-const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -89,12 +80,8 @@ pub enum Error {
     #[snafu(display("failed to configure logging"))]
     ConfigureLogging { source: LoggingError },
 
-    #[snafu(display(
-        "failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for the connect server",
-    ))]
-    JvmSecurityProperties {
-        source: product_config::writer::PropertiesWriterError,
-    },
+    #[snafu(display("server jvm security properties for spark connect {name}",))]
+    ServerJvmSecurityProperties { source: common::Error, name: String },
 
     #[snafu(display("failed to serialize [{SPARK_DEFAULTS_FILE_NAME}] for the connect server",))]
     SparkDefaultsProperties {
@@ -116,6 +103,9 @@ pub enum Error {
     AddVolumeMount {
         source: builder::pod::container::Error,
     },
+
+    #[snafu(display("failed build connect server jvm args for {name}"))]
+    ServerJvmArgs { source: common::Error, name: String },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -124,12 +114,12 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 // This config map contains the following entries:
 // - security.properties   : with jvm dns cache ttls
 // - spark-defaults.conf   : with spark configuration properties
-// - log4j2.properties     : with logging configuration
+// - log4j2.properties     : with logging configuration (if configured)
 // - template.yaml         : executor pod template
 // - spark-env.sh          : OMITTED because the environment variables are added directly
 //                           to the container environment.
 #[allow(clippy::result_large_err)]
-pub fn build_config_map(
+pub fn server_config_map(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
@@ -138,13 +128,15 @@ pub fn build_config_map(
     executor_pod_template_spec: &str,
 ) -> Result<ConfigMap, Error> {
     let cm_name = object_name(&scs.name_any(), SparkConnectRole::Server);
-
-    let jvm_sec_props = jvm_security_properties(
+    let jvm_sec_props = common::security_properties(
         scs.spec
             .server
             .as_ref()
             .and_then(|s| s.config_overrides.get(JVM_SECURITY_PROPERTIES_FILE)),
-    )?;
+    )
+    .context(ServerJvmSecurityPropertiesSnafu {
+        name: scs.name_unchecked(),
+    })?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -155,7 +147,7 @@ pub fn build_config_map(
                 .name(&cm_name)
                 .ownerreference_from_resource(scs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(labels(
+                .with_recommended_labels(common::labels(
                     scs,
                     &resolved_product_image.app_version_label,
                     &SparkConnectRole::Server.to_string(),
@@ -176,11 +168,13 @@ pub fn build_config_map(
         &role_group_ref,
         vector_aggregator_address,
         &config.logging,
-        SparkConnectServerContainer::SparkConnect,
-        SparkConnectServerContainer::Vector,
+        SparkConnectContainer::Spark,
+        SparkConnectContainer::Vector,
         &mut cm_builder,
     )
-    .context(InvalidLoggingConfigSnafu { cm_name: &cm_name })?;
+    .context(InvalidLoggingConfigSnafu {
+        cm_name: cm_name.clone(),
+    })?;
 
     cm_builder
         .build()
@@ -196,10 +190,8 @@ pub fn build_deployment(
     config_map: &ConfigMap,
     args: Vec<String>,
 ) -> Result<Deployment, Error> {
-    let log_config_map = log_config_map_name(config, config_map);
-
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(labels(
+        .with_recommended_labels(common::labels(
             scs,
             &resolved_product_image.app_version_label,
             &SparkConnectRole::Server.to_string(),
@@ -215,12 +207,6 @@ pub fn build_deployment(
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
                 .with_config_map(config_map.name_any())
-                .build(),
-        )
-        .context(AddVolumeSnafu)?
-        .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
-                .with_config_map(log_config_map)
                 .build(),
         )
         .context(AddVolumeSnafu)?
@@ -247,8 +233,9 @@ pub fn build_deployment(
         .map(|s| s.env_overrides.clone())
         .as_ref())?;
 
-    let container = ContainerBuilder::new(CONNECT_CONTAINER_NAME)
-        .context(InvalidContainerNameSnafu)?
+    let mut container = ContainerBuilder::new(&SparkConnectContainer::Spark.to_string())
+        .context(InvalidContainerNameSnafu)?;
+    container
         .image_from_product_image(resolved_product_image)
         .resources(config.resources.clone().into())
         .command(vec![
@@ -265,12 +252,24 @@ pub fn build_deployment(
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
-        .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
-        .context(AddVolumeMountSnafu)?
-        .build();
-    pb.add_container(container);
+        .context(AddVolumeMountSnafu)?;
+
+    // Add custom log4j config map volumes if configured
+    if let Some(cm_name) = config.log_config_map() {
+        pb.add_volume(
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                .with_config_map(cm_name)
+                .build(),
+        )
+        .context(AddVolumeSnafu)?;
+
+        container
+            .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
+            .context(AddVolumeMountSnafu)?;
+    }
+
+    pb.add_container(container.build());
 
     if config.logging.enable_vector_agent {
         pb.add_container(
@@ -281,7 +280,7 @@ pub fn build_deployment(
                 config
                     .logging
                     .containers
-                    .get(&SparkConnectServerContainer::Vector),
+                    .get(&SparkConnectContainer::Vector),
                 ResourceRequirementsBuilder::new()
                     .with_cpu_request("250m")
                     .with_cpu_limit("500m")
@@ -305,7 +304,7 @@ pub fn build_deployment(
             .name(object_name(&scs.name_any(), SparkConnectRole::Server))
             .ownerreference_from_resource(scs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(
+            .with_recommended_labels(common::labels(
                 scs,
                 &resolved_product_image.app_version_label,
                 &SparkConnectRole::Server.to_string(),
@@ -365,7 +364,7 @@ pub fn build_service(
             .name(service_name)
             .ownerreference_from_resource(scs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(
+            .with_recommended_labels(common::labels(
                 scs,
                 app_version_label,
                 &SparkConnectRole::Server.to_string(),
@@ -448,49 +447,27 @@ fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, E
         .collect())
 }
 
-#[allow(clippy::result_large_err)]
-fn jvm_security_properties(
-    config_overrides: Option<&HashMap<String, String>>,
-) -> Result<String, Error> {
-    let mut result: BTreeMap<String, Option<String>> = [
-        (
-            "networkaddress.cache.ttl".to_string(),
-            Some("30".to_string()),
-        ),
-        (
-            "networkaddress.cache.negative.ttl".to_string(),
-            Some("0".to_string()),
-        ),
-    ]
-    .into();
-
-    if let Some(user_config) = config_overrides {
-        result.extend(
-            user_config
-                .iter()
-                .map(|(k, v)| (k.clone(), Some(v.clone()))),
-        );
-    }
-
-    to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
-}
-
 // Returns the contents of the spark properties file.
 // It merges operator properties with user properties.
 #[allow(clippy::result_large_err)]
-pub fn spark_properties(
+pub fn server_properties(
+    scs: &v1alpha1::SparkConnectServer,
+    config: &v1alpha1::ServerConfig,
     driver_service: &Service,
     service_account: &ServiceAccount,
     pi: &ResolvedProductImage,
-    server_jvm_args: &str,
-    executor_jvm_args: &str,
-    config_overrides: Option<&HashMap<String, String>>,
-) -> Result<String, Error> {
+) -> Result<BTreeMap<String, Option<String>>, Error> {
     let spark_image = pi.image.clone();
     let service_account_name = service_account.name_unchecked();
     let namespace = driver_service
         .namespace()
         .context(ObjectHasNoNamespaceSnafu)?;
+
+    let config_overrides = scs
+        .spec
+        .server
+        .as_ref()
+        .and_then(|s| s.config_overrides.get(SPARK_DEFAULTS_FILE_NAME));
 
     let mut result: BTreeMap<String, Option<String>> = [
         // This needs to match the name of the headless service for the executors to be able
@@ -503,10 +480,6 @@ pub fn spark_properties(
             "spark.kubernetes.driver.container.image".to_string(),
             Some(spark_image.clone()),
         ),
-        (
-            "spark.kubernetes.executor.container.image".to_string(),
-            Some(spark_image),
-        ),
         ("spark.kubernetes.namespace".to_string(), Some(namespace)),
         (
             "spark.kubernetes.authenticate.driver.serviceAccountName".to_string(),
@@ -518,23 +491,11 @@ pub fn spark_properties(
         ),
         (
             "spark.driver.defaultJavaOptions".to_string(),
-            Some(server_jvm_args.to_string()),
+            Some(server_jvm_args(scs, config)?),
         ),
         (
             "spark.driver.extraClassPath".to_string(),
             Some("/stackable/spark/extra-jars/*".to_string()),
-        ),
-        (
-            "spark.executor.defaultJavaOptions".to_string(),
-            Some(executor_jvm_args.to_string()),
-        ),
-        (
-            "spark.executor.extraClassPath".to_string(),
-            Some("/stackable/spark/extra-jars/*".to_string()),
-        ),
-        (
-            "spark.kubernetes.executor.podTemplateFile".to_string(),
-            Some(format!("{VOLUME_MOUNT_PATH_CONFIG}/{POD_TEMPLATE_FILE}")),
         ),
     ]
     .into();
@@ -546,26 +507,31 @@ pub fn spark_properties(
                 .map(|(k, v)| (k.clone(), Some(v.clone()))),
         );
     }
-
-    to_java_properties_string(result.iter()).context(SparkDefaultsPropertiesSnafu)
+    Ok(result)
 }
 
-// Returns the name of the logging config map, which is either a custom one
-// or the default server CM.
-fn log_config_map_name(connect_config: &v1alpha1::ServerConfig, default_cm: &ConfigMap) -> String {
-    let cc = connect_config
-        .logging
-        .containers
-        .get(&SparkConnectServerContainer::SparkConnect)
-        .cloned();
+fn server_jvm_args(
+    scs: &v1alpha1::SparkConnectServer,
+    config: &v1alpha1::ServerConfig,
+) -> Result<String, Error> {
+    let mut jvm_args = vec![format!(
+        "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
+    )];
 
-    match cc {
-        Some(ContainerLogConfig {
-            choice:
-                Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
-                    custom: ConfigMapLogConfig { config_map },
-                })),
-        }) => config_map,
-        _ => default_cm.name_any(),
+    if config.log_config_map().is_some() {
+        jvm_args.push(format!(
+            "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
+        ));
     }
+
+    common::jvm_args(
+        &jvm_args,
+        scs.spec
+            .server
+            .as_ref()
+            .map(|s| &s.product_specific_common_config),
+    )
+    .context(ServerJvmArgsSnafu {
+        name: scs.name_any(),
+    })
 }

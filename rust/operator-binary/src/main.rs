@@ -8,7 +8,7 @@ use product_config::ProductConfigManager;
 use stackable_operator::{
     cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
-        apps::v1::StatefulSet,
+        apps::v1::{Deployment, StatefulSet},
         core::v1::{ConfigMap, Pod, Service},
     },
     kube::{
@@ -278,7 +278,7 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<Deployment>>(&client),
                 watcher::Config::default(),
             )
             .owns(

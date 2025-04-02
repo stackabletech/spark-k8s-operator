@@ -1,3 +1,6 @@
+use std::collections::{BTreeMap, HashMap};
+
+use product_config::writer::to_java_properties_string;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     kvp::ObjectLabels,
@@ -5,12 +8,10 @@ use stackable_operator::{
 };
 use strum::Display;
 
+use super::crd::CONNECT_EXECUTOR_ROLE_NAME;
 use crate::{
     connect::crd::{CONNECT_CONTROLLER_NAME, CONNECT_SERVER_ROLE_NAME},
-    crd::constants::{
-        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, OPERATOR_NAME,
-        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG,
-    },
+    crd::constants::{APP_NAME, OPERATOR_NAME},
 };
 
 const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
@@ -21,6 +22,16 @@ pub enum Error {
     #[snafu(display("failed to merge jvm argument overrides"))]
     MergeJvmArgumentOverrides {
         source: stackable_operator::role_utils::Error,
+    },
+
+    #[snafu(display("failed to serialize spark properties"))]
+    SparkProperties {
+        source: product_config::writer::PropertiesWriterError,
+    },
+
+    #[snafu(display("failed to serialize jvm security properties",))]
+    JvmSecurityProperties {
+        source: product_config::writer::PropertiesWriterError,
     },
 }
 
@@ -49,21 +60,17 @@ pub enum SparkConnectRole {
 pub fn object_name(stacklet_name: &str, role: SparkConnectRole) -> String {
     match role {
         SparkConnectRole::Server => format!("{}-{}", stacklet_name, CONNECT_SERVER_ROLE_NAME),
-        SparkConnectRole::Executor => todo!(),
+        SparkConnectRole::Executor => format!("{}-{}", stacklet_name, CONNECT_EXECUTOR_ROLE_NAME),
     }
 }
 
 // Returns the jvm arguments a user has provided merged with the operator props.
-pub fn jvm_args(user_java_config: Option<&JavaCommonConfig>) -> Result<String, Error> {
-    let jvm_args = vec![
-        format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
-        format!(
-            "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
-        ),
-    ];
-
+pub fn jvm_args(
+    jvm_args: &[String],
+    user_java_config: Option<&JavaCommonConfig>,
+) -> Result<String, Error> {
     if let Some(user_jvm_props) = user_java_config {
-        let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args.clone());
+        let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args.to_vec());
         let mut user_jvm_props_copy = user_jvm_props.jvm_argument_overrides.clone();
         user_jvm_props_copy
             .try_merge(&operator_generated)
@@ -74,4 +81,40 @@ pub fn jvm_args(user_java_config: Option<&JavaCommonConfig>) -> Result<String, E
     } else {
         Ok(jvm_args.join(" "))
     }
+}
+
+// Merges spark properties from the server and the executor
+// and generates the contents of the.
+pub fn spark_properties(props: &[BTreeMap<String, Option<String>>; 2]) -> Result<String, Error> {
+    let mut result = BTreeMap::new();
+    for p in props {
+        result.extend(p);
+    }
+    to_java_properties_string(result.into_iter()).context(SparkPropertiesSnafu)
+}
+
+pub fn security_properties(
+    config_overrides: Option<&HashMap<String, String>>,
+) -> Result<String, Error> {
+    let mut result: BTreeMap<String, Option<String>> = [
+        (
+            "networkaddress.cache.ttl".to_string(),
+            Some("30".to_string()),
+        ),
+        (
+            "networkaddress.cache.negative.ttl".to_string(),
+            Some("0".to_string()),
+        ),
+    ]
+    .into();
+
+    if let Some(user_config) = config_overrides {
+        result.extend(
+            user_config
+                .iter()
+                .map(|(k, v)| (k.clone(), Some(v.clone()))),
+        );
+    }
+
+    to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
 }

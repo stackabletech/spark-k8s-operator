@@ -21,7 +21,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use super::crd::{v1alpha1, CONNECT_CONTROLLER_NAME};
 use crate::{
     connect::{common, crd::SparkConnectServerStatus, executor, server},
-    crd::constants::{APP_NAME, OPERATOR_NAME, SPARK_DEFAULTS_FILE_NAME, SPARK_IMAGE_BASE_NAME},
+    crd::constants::{APP_NAME, OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
     product_logging::{self, resolve_vector_aggregator_address},
     Ctx,
 };
@@ -30,8 +30,14 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to build spark properties"))]
-    SparkProperties { source: server::Error },
+    #[snafu(display("failed to serialize connect properties"))]
+    SerializeProperties { source: common::Error },
+
+    #[snafu(display("failed to build connect executor properties"))]
+    ExecutorProperties { source: executor::Error },
+
+    #[snafu(display("failed to build connect server properties"))]
+    ServerProperties { source: server::Error },
 
     #[snafu(display("failed to build server jvm arguments"))]
     ServerJvmArgs { source: common::Error },
@@ -39,8 +45,14 @@ pub enum Error {
     #[snafu(display("failed to build spark connect service"))]
     BuildService { source: server::Error },
 
-    #[snafu(display("failed to build spark connect config map"))]
-    BuildServerConfigMap { source: server::Error },
+    #[snafu(display("failed to build spark connect executor config map for {name}"))]
+    BuildExecutorConfigMap {
+        source: executor::Error,
+        name: String,
+    },
+
+    #[snafu(display("failed to build spark connect server config map for {name}"))]
+    BuildServerConfigMap { source: server::Error, name: String },
 
     #[snafu(display("failed to build spark connect deployment"))]
     BuildServerDeployment { source: server::Error },
@@ -69,9 +81,16 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to update connect server config map"))]
-    ApplyConfigMap {
+    #[snafu(display("failed to update connect executor config map for {name}"))]
+    ApplyExecutorConfigMap {
         source: stackable_operator::cluster_resources::Error,
+        name: String,
+    },
+
+    #[snafu(display("failed to update connect server config map for {name}"))]
+    ApplyServerConfigMap {
+        source: stackable_operator::cluster_resources::Error,
+        name: String,
     },
 
     #[snafu(display("failed to update connect server service"))]
@@ -229,44 +248,48 @@ pub async fn reconcile(
 
     // ========================================
     // Server config map
-    let server_jvm_args = common::jvm_args(
-        scs.spec
-            .server
-            .as_ref()
-            .map(|s| &s.product_specific_common_config),
-    )
-    .context(ServerJvmArgsSnafu)?;
 
-    let executor_jvm_args = common::jvm_args(
-        scs.spec
-            .executor
-            .as_ref()
-            .map(|s| &s.product_specific_common_config),
-    )
-    .context(ServerJvmArgsSnafu)?;
-
-    let spark_props = server::spark_properties(
-        &service,
-        &service_account,
-        &resolved_product_image,
-        &server_jvm_args,
-        &executor_jvm_args,
-        scs.spec
-            .server
-            .as_ref()
-            .and_then(|s| s.config_overrides.get(SPARK_DEFAULTS_FILE_NAME)),
-    )
-    .context(SparkPropertiesSnafu)?;
+    let spark_props = common::spark_properties(&[
+        server::server_properties(
+            scs,
+            &server_config,
+            &service,
+            &service_account,
+            &resolved_product_image,
+        )
+        .context(ServerPropertiesSnafu)?,
+        executor::executor_properties(scs, &executor_config, &resolved_product_image)
+            .context(ExecutorPropertiesSnafu)?,
+    ])
+    .context(SerializePropertiesSnafu)?;
 
     // ========================================
-    // Executor pod template
+    // Executor config map and pod template
+    let executor_config_map = executor::executor_config_map(
+        scs,
+        &executor_config,
+        &resolved_product_image,
+        vector_aggregator_address.as_deref(),
+    )
+    .context(BuildExecutorConfigMapSnafu {
+        name: scs.name_unchecked(),
+    })?;
+    cluster_resources
+        .add(client, executor_config_map.clone())
+        .await
+        .context(ApplyExecutorConfigMapSnafu {
+            name: scs.name_unchecked(),
+        })?;
+
     let executor_pod_template = serde_yaml::to_string(
-        &executor::build_executor_pod_template(scs, &executor_config)
+        &executor::executor_pod_template(scs, &executor_config, &executor_config_map)
             .context(ExecutorPodTemplateSnafu)?,
     )
     .context(ExecutorPodTemplateSerdeSnafu)?;
 
-    let config_map = server::build_config_map(
+    // ========================================
+    // Server config map
+    let server_config_map = server::server_config_map(
         scs,
         &server_config,
         &resolved_product_image,
@@ -274,11 +297,15 @@ pub async fn reconcile(
         &spark_props,
         &executor_pod_template,
     )
-    .context(BuildServerConfigMapSnafu)?;
+    .context(BuildServerConfigMapSnafu {
+        name: scs.name_unchecked(),
+    })?;
     cluster_resources
-        .add(client, config_map.clone())
+        .add(client, server_config_map.clone())
         .await
-        .context(ApplyConfigMapSnafu)?;
+        .context(ApplyServerConfigMapSnafu {
+            name: scs.name_unchecked(),
+        })?;
 
     let args = server::command_args(&resolved_product_image.product_version);
     let deployment = server::build_deployment(
@@ -286,7 +313,7 @@ pub async fn reconcile(
         &server_config,
         &resolved_product_image,
         &service_account,
-        &config_map,
+        &server_config_map,
         args,
     )
     .context(BuildServerDeploymentSnafu)?;

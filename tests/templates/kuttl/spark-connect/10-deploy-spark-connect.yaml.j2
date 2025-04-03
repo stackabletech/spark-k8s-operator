@@ -53,3 +53,14 @@ spec:
           spark:
             custom:
               configMap: spark-connect-log-config
+  executor:
+    configOverrides:
+      spark-defaults.conf:
+        spark.executor.memoryOverhead: 1m
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          spark:
+            custom:
+              configMap: spark-connect-log-config

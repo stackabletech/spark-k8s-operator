@@ -1922,6 +1922,36 @@ spec:
                     config:
                       default: {}
                       properties:
+                        affinity:
+                          default:
+                            nodeAffinity: null
+                            nodeSelector: null
+                            podAffinity: null
+                            podAntiAffinity: null
+                          description: These configuration settings control [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                          properties:
+                            nodeAffinity:
+                              description: Same as the `spec.affinity.nodeAffinity` field on the Pod, see the [Kubernetes docs](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node)
+                              nullable: true
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                            nodeSelector:
+                              additionalProperties:
+                                type: string
+                              description: Simple key-value pairs forming a nodeSelector, see the [Kubernetes docs](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node)
+                              nullable: true
+                              type: object
+                            podAffinity:
+                              description: Same as the `spec.affinity.podAffinity` field on the Pod, see the [Kubernetes docs](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node)
+                              nullable: true
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                            podAntiAffinity:
+                              description: Same as the `spec.affinity.podAntiAffinity` field on the Pod, see the [Kubernetes docs](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node)
+                              nullable: true
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                          type: object
                         logging:
                           default:
                             containers: {}

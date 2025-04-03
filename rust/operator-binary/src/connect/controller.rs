@@ -282,8 +282,13 @@ pub async fn reconcile(
         })?;
 
     let executor_pod_template = serde_yaml::to_string(
-        &executor::executor_pod_template(scs, &executor_config, &executor_config_map)
-            .context(ExecutorPodTemplateSnafu)?,
+        &executor::executor_pod_template(
+            scs,
+            &executor_config,
+            &resolved_product_image,
+            &executor_config_map,
+        )
+        .context(ExecutorPodTemplateSnafu)?,
     )
     .context(ExecutorPodTemplateSerdeSnafu)?;
 

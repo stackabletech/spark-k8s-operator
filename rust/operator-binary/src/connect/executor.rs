@@ -8,7 +8,10 @@ use stackable_operator::{
         meta::ObjectMetaBuilder,
         pod::{container::ContainerBuilder, volume::VolumeBuilder, PodBuilder},
     },
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{
+        product_image_selection::ResolvedProductImage,
+        resources::{CpuLimits, MemoryLimits, Resources},
+    },
     k8s_openapi::{
         api::core::v1::{ConfigMap, EnvVar, PodTemplateSpec},
         DeepMerge,
@@ -53,11 +56,8 @@ pub enum Error {
         source: stackable_operator::builder::meta::Error,
     },
 
-    #[snafu(display("failed to build metadata for spark connect pod template config map {name}"))]
-    MetadataBuild {
-        source: builder::meta::Error,
-        name: String,
-    },
+    #[snafu(display("failed to build metadata for spark connect executor pod template"))]
+    PodTemplateMetadataBuild { source: builder::meta::Error },
 
     #[snafu(display("invalid connect container name"))]
     InvalidContainerName {
@@ -109,6 +109,7 @@ pub enum Error {
 pub fn executor_pod_template(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
+    pi: &ResolvedProductImage,
     config_map: &ConfigMap,
 ) -> Result<PodTemplateSpec, Error> {
     let container_env = executor_env(
@@ -128,8 +129,19 @@ pub fn executor_pod_template(
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
         .context(AddVolumeMountSnafu)?;
 
+    let metadata = ObjectMetaBuilder::new()
+        .with_recommended_labels(common::labels(
+            scs,
+            &pi.app_version_label,
+            &SparkConnectRole::Executor.to_string(),
+        ))
+        .context(PodTemplateMetadataBuildSnafu)?
+        .build();
+
     let mut template = PodBuilder::new();
     template
+        .metadata(metadata)
+        .affinity(&config.affinity)
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
                 .with_empty_dir(
@@ -225,6 +237,37 @@ pub fn executor_properties(
         ),
     ]
     .into();
+
+    // ========================================
+    // Add executor resource properties
+    let Resources {
+        cpu: CpuLimits { min, max },
+        memory: MemoryLimits {
+            limit,
+            runtime_limits: _,
+        },
+        storage: _,
+    } = &config.resources;
+    result.insert(
+        "spark.kubernetes.executor.limit.cores".to_string(),
+        max.clone().map(|v| v.0),
+    );
+    result.insert("spark.executor.cores".to_string(), min.clone().map(|v| v.0));
+    result.insert(
+        "spark.executor.memory".to_string(),
+        limit.clone().map(|v| v.0),
+    );
+    // This ensures that the pod's memory limit is exactly the value
+    // in `config.resources.memory.limit`.
+    // By default, Spark computes an `executor.memoryOverhead` as 6-10% from the
+    // `executor.memory`.
+    result.insert(
+        "spark.executor.memoryOverhead".to_string(),
+        Some("0".to_string()),
+    );
+
+    // ========================================
+    // Add the user provided executor properties
 
     let config_overrides = scs
         .spec

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::{
+        affinity::{affinity_between_role_pods, StackableAffinity, StackableAffinityFragment},
         cluster_operation::ClusterOperation,
         product_image_selection::ProductImage,
         resources::{
@@ -14,8 +15,8 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
-    kube::CustomResource,
+    k8s_openapi::{api::core::v1::PodAntiAffinity, apimachinery::pkg::api::resource::Quantity},
+    kube::{CustomResource, ResourceExt},
     product_logging::{
         self,
         spec::{
@@ -30,6 +31,9 @@ use stackable_operator::{
 };
 use stackable_versioned::versioned;
 use strum::{Display, EnumIter};
+
+use super::common::SparkConnectRole;
+use crate::crd::constants::APP_NAME;
 
 pub const CONNECT_CONTROLLER_NAME: &str = "connect";
 pub const CONNECT_FULL_CONTROLLER_NAME: &str = concatcp!(
@@ -68,6 +72,7 @@ pub enum Error {
 
 #[versioned(version(name = "v1alpha1"))]
 pub mod versioned {
+
     /// A Spark cluster connect server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/connect-server).
@@ -174,6 +179,8 @@ pub mod versioned {
         pub resources: Resources<crate::connect::crd::ConnectStorageConfig, NoRuntimeLimits>,
         #[fragment_attrs(serde(default))]
         pub logging: Logging<crate::connect::crd::SparkConnectContainer>,
+        #[fragment_attrs(serde(default))]
+        pub affinity: StackableAffinity,
 
         /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
@@ -304,7 +311,7 @@ impl v1alpha1::SparkConnectServer {
     }
 
     pub fn executor_config(&self) -> Result<v1alpha1::ExecutorConfig, Error> {
-        let defaults = v1alpha1::ExecutorConfig::default_config();
+        let defaults = v1alpha1::ExecutorConfig::default_config(&self.name_unchecked());
         fragment::validate(
             match self.spec.executor.as_ref().map(|cc| cc.config.clone()) {
                 Some(fragment) => {
@@ -339,20 +346,22 @@ impl v1alpha1::ExecutorConfig {
     // Auto TLS certificate lifetime
     const DEFAULT_CONNECT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
-    fn default_config() -> v1alpha1::ExecutorConfigFragment {
+    fn default_config(cluster_name: &str) -> v1alpha1::ExecutorConfigFragment {
         v1alpha1::ExecutorConfigFragment {
             resources: ResourcesFragment {
                 cpu: CpuLimitsFragment {
-                    min: Some(Quantity("250m".to_owned())),
+                    min: Some(Quantity("1".to_owned())),
                     max: Some(Quantity("1".to_owned())),
                 },
                 memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("1024Mi".to_owned())),
+                    limit: Some(Quantity("1024M".to_owned())),
                     runtime_limits: NoRuntimeLimitsFragment {},
                 },
                 storage: ConnectStorageConfigFragment {},
             },
             logging: product_logging::spec::default_logging(),
+            affinity: v1alpha1::ExecutorConfig::affinity(cluster_name),
+
             requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
         }
     }
@@ -372,6 +381,27 @@ impl v1alpha1::ExecutorConfig {
                     })),
             }) => Some(config_map.clone()),
             _ => None,
+        }
+    }
+
+    fn affinity(cluster_name: &str) -> StackableAffinityFragment {
+        let affinity_between_role_pods = affinity_between_role_pods(
+            APP_NAME,
+            cluster_name,
+            &SparkConnectRole::Executor.to_string(),
+            70,
+        );
+
+        StackableAffinityFragment {
+            pod_affinity: None,
+            pod_anti_affinity: Some(PodAntiAffinity {
+                preferred_during_scheduling_ignored_during_execution: Some(vec![
+                    affinity_between_role_pods,
+                ]),
+                required_during_scheduling_ignored_during_execution: None,
+            }),
+            node_affinity: None,
+            node_selector: None,
         }
     }
 }

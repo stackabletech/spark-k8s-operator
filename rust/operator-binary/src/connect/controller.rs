@@ -312,7 +312,7 @@ pub async fn reconcile(
             name: scs.name_unchecked(),
         })?;
 
-    let args = server::command_args(&resolved_product_image.product_version);
+    let args = server::command_args(&scs.spec.args, &resolved_product_image.product_version);
     let deployment = server::build_deployment(
         scs,
         &server_config,

@@ -102,6 +102,10 @@ pub mod versioned {
         #[serde(default)]
         pub cluster_operation: ClusterOperation,
 
+        /// User provided command line arguments appended to the server entry point.
+        #[serde(default)]
+        pub args: Vec<String>,
+
         /// Name of the Vector aggregator discovery ConfigMap.
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -151,6 +155,7 @@ pub mod versioned {
     pub struct ServerConfig {
         #[fragment_attrs(serde(default))]
         pub resources: Resources<crate::connect::crd::ConnectStorageConfig, NoRuntimeLimits>,
+
         #[fragment_attrs(serde(default))]
         pub logging: Logging<SparkConnectContainer>,
 

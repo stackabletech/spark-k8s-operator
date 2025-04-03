@@ -252,7 +252,10 @@ pub fn executor_properties(
         "spark.kubernetes.executor.limit.cores".to_string(),
         max.clone().map(|v| v.0),
     );
-    result.insert("spark.executor.cores".to_string(), min.clone().map(|v| v.0));
+    result.insert(
+        "spark.kubernetes.executor.request.cores".to_string(),
+        min.clone().map(|v| v.0),
+    );
     result.insert(
         "spark.executor.memory".to_string(),
         limit.clone().map(|v| v.0),

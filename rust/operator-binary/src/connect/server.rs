@@ -400,8 +400,8 @@ pub fn build_service(
 }
 
 #[allow(clippy::result_large_err)]
-pub fn command_args(spark_version: &str) -> Vec<String> {
-    let command = [
+pub fn command_args(user_args: &[String], spark_version: &str) -> Vec<String> {
+    let mut command = vec![
         // ---------- start containerdebug
         format!(
             "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
@@ -414,6 +414,9 @@ pub fn command_args(spark_version: &str) -> Vec<String> {
         format!("--jars /stackable/spark/connect/spark-connect_2.12-{spark_version}.jar"),
         format!("--properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ];
+
+    // User provided command line arguments
+    command.extend_from_slice(user_args);
 
     vec![command.join(" ")]
 }

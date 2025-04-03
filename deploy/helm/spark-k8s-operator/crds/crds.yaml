@@ -1872,6 +1872,12 @@ spec:
             spec:
               description: A Spark cluster connect server component. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/connect-server).
               properties:
+                args:
+                  default: []
+                  description: User provided command line arguments appended to the server entry point.
+                  items:
+                    type: string
+                  type: array
                 clusterConfig:
                   default:
                     listenerClass: cluster-internal

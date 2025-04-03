@@ -12,12 +12,12 @@ status:
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 30
+timeout: 90
 commands:
   # Test that two spark-connect executors are running.
-  # Sleep 5 to prevent the following spark connect app from failing
+  # Sleep to prevent the following spark connect app from failing
   # while the spark-connect server is busy setting up the executors.
   - script: |
-      sleep 5
+      sleep 10
       EXECUTOR_COUNT=$(kubectl get pods -n $NAMESPACE --selector 'spark-app-name=spark-connect-server' --field-selector='status.phase=Running' -o NAME|wc -l)
-      test 2 -eq "$EXECUTOR_COUNT"
+      test 3 -eq "$EXECUTOR_COUNT"

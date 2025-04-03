@@ -61,7 +61,7 @@ jobs:
           key: udeps
           cache-all-crates: "true"
       - uses: stackabletech/cargo-install-action@cargo-udeps
-      - run: cargo "+$RUST_NIGHTLY_TOOLCHAIN_VERSION" udeps --workspace --all-targets
+      - run: cargo udeps --workspace --all-targets
 
   # This job evaluates the github environment to determine why this action is running and selects the appropriate
   # target repository for published Helm charts based on this.

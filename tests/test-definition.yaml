@@ -24,14 +24,14 @@ dimensions:
       # - 3.5.5,oci.stackable.tech/sandbox/spark-k8s:3.5.5-stackable0.0.0-dev
   - name: hbase
     values:
-      - 2.6.0
+      - 2.6.1
       - 2.4.18
   - name: hdfs-latest
     values:
-      - 3.4.0
+      - 3.4.1
   - name: zookeeper-latest
     values:
-      - 3.9.2
+      - 3.9.3
   - name: ny-tlc-report
     values:
       - 0.2.0

@@ -24,7 +24,7 @@ include::example$example-spark-connect.yaml[]
 <5> Addition argument to be passed to the Spark Connect JVM. Do not use this to tweak heap settings. Use `spec.server.jvmOptions` instead.
 <6> A custom log4j configuration file to be used by the Spark Connect server. The config map must have an entry called `log4j.properties`.
 <7> Customize the driver properties in the `server` role. The number of cores here is not related to Kubernetes cores!
-<8> Customize `spark.executor.*` and `spark.kubernetes.executor.*` in the `executor` role.
+<8> Customize `spark.executor.\*` and `spark.kubernetes.executor.*` in the `executor` role.
 
 == Notable Omissions
 

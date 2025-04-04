@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Experimental support for Spark Connect ([#539]).
+
 ### Changed
 
 - BREAKING: Replace stackable-operator `initialize_logging` with stackable-telemetry `Tracing` ([#547], [#554]).
@@ -19,6 +23,7 @@ All notable changes to this project will be documented in this file.
 
 - Use `json` file extension for log files ([#553]).
 
+[#539]: https://github.com/stackabletech/spark-k8s-operator/pull/539
 [#547]: https://github.com/stackabletech/spark-k8s-operator/pull/547
 [#551]: https://github.com/stackabletech/spark-k8s-operator/pull/551
 [#553]: https://github.com/stackabletech/spark-k8s-operator/pull/553

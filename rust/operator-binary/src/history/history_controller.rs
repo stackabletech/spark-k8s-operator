@@ -11,13 +11,14 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            volume::VolumeBuilder, PodBuilder,
+            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            volume::VolumeBuilder,
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
+        DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
@@ -26,17 +27,16 @@ use stackable_operator::{
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
-        DeepMerge,
     },
     kube::{
-        core::{error_boundary, DeserializeGuard},
-        runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
+        core::{DeserializeGuard, error_boundary},
+        runtime::{controller::Action, reflector::ObjectRef},
     },
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_logging::{
-        framework::{calculate_log_volume_size_limit, vector_container, LoggingError},
+        framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -48,6 +48,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
+    Ctx,
     crd::{
         constants::{
             ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
@@ -57,13 +58,12 @@ use crate::{
             VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
             VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
-        history::{self, v1alpha1, HistoryConfig, SparkHistoryServerContainer},
+        history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         logdir::ResolvedLogDir,
         tlscerts, to_spark_env_sh_string,
     },
     history::operations::pdb::add_pdbs,
     product_logging::{self, resolve_vector_aggregator_address},
-    Ctx,
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]

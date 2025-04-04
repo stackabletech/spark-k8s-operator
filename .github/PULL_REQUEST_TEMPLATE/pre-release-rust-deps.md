@@ -1,4 +1,4 @@
-# Bump Rust Dependencies for Stackable Release XX.(X)X
+# Bump Rust Dependencies for Stackable Release YY.M.X
 
 <!--
     Make sure to update the link in 'issues/.github/ISSUE_TEMPLATE/pre-release-operator-rust-deps.md'
@@ -32,7 +32,7 @@ Part of <https://github.com/stackabletech/issues/issues/TRACKING_ISSUE>
 
 ```[tasklist]
 ### Bump Rust Dependencies
-- [ ] Bump `stackable-operator` and friends.
-- [ ] Bump `product-version`.
-- [ ] Bump all other dependencies.
+- [ ] Bump `stackable-operator` and friends
+- [ ] Bump `product-config`
+- [ ] Bump all other dependencies
 ```

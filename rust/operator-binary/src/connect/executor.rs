@@ -6,24 +6,24 @@ use stackable_operator::{
         self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
-        pod::{container::ContainerBuilder, volume::VolumeBuilder, PodBuilder},
+        pod::{PodBuilder, container::ContainerBuilder, volume::VolumeBuilder},
     },
     commons::{
         product_image_selection::ResolvedProductImage,
         resources::{CpuLimits, MemoryLimits, Resources},
     },
     k8s_openapi::{
-        api::core::v1::{ConfigMap, EnvVar, PodTemplateSpec},
         DeepMerge,
+        api::core::v1::{ConfigMap, EnvVar, PodTemplateSpec},
     },
-    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    kube::{ResourceExt, runtime::reflector::ObjectRef},
     product_logging::framework::calculate_log_volume_size_limit,
     role_utils::RoleGroupRef,
 };
 
 use super::{
-    common::{object_name, SparkConnectRole},
-    crd::{SparkConnectContainer, DUMMY_SPARK_CONNECT_GROUP_NAME},
+    common::{SparkConnectRole, object_name},
+    crd::{DUMMY_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer},
 };
 use crate::{
     connect::{common, crd::v1alpha1},

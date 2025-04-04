@@ -7,12 +7,13 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            volume::VolumeBuilder, PodBuilder,
+            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            volume::VolumeBuilder,
         },
     },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
+        DeepMerge,
         api::{
             apps::v1::{Deployment, DeploymentSpec},
             core::v1::{
@@ -21,20 +22,19 @@ use stackable_operator::{
             },
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
-        DeepMerge,
     },
-    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    kube::{ResourceExt, runtime::reflector::ObjectRef},
     kvp::{Label, Labels},
-    product_logging::framework::{calculate_log_volume_size_limit, vector_container, LoggingError},
+    product_logging::framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
     role_utils::RoleGroupRef,
 };
 
 use crate::{
     connect::{
-        common::{self, object_name, SparkConnectRole},
+        common::{self, SparkConnectRole, object_name},
         crd::{
-            v1alpha1, SparkConnectContainer, CONNECT_GRPC_PORT, CONNECT_UI_PORT,
-            DUMMY_SPARK_CONNECT_GROUP_NAME,
+            CONNECT_GRPC_PORT, CONNECT_UI_PORT, DUMMY_SPARK_CONNECT_GROUP_NAME,
+            SparkConnectContainer, v1alpha1,
         },
     },
     crd::constants::{

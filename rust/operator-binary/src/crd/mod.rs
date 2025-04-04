@@ -8,7 +8,7 @@ use std::{
 use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
-use product_config::{types::PropertyNameKind, ProductConfigManager};
+use product_config::{ProductConfigManager, types::PropertyNameKind};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -33,8 +33,8 @@ use stackable_operator::{
     kvp::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{
-        transform_all_roles_to_config, validate_all_roles_and_groups_config,
-        ValidatedRoleConfigByPropertyKind,
+        ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
+        validate_all_roles_and_groups_config,
     },
     product_logging,
     role_utils::{CommonConfiguration, GenericRoleConfig, JavaCommonConfig, Role, RoleGroup},
@@ -544,20 +544,47 @@ impl v1alpha1::SparkApplication {
         let mut submit_cmd = vec![
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
-            "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}".to_string(),
+            "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
+                .to_string(),
             format!("--deploy-mode {mode}"),
             format!("--name {name}"),
-            format!("--conf spark.kubernetes.driver.podTemplateFile={VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES}/{POD_TEMPLATE_FILE}"),
-            format!("--conf spark.kubernetes.executor.podTemplateFile={VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES}/{POD_TEMPLATE_FILE}"),
-            format!("--conf spark.kubernetes.driver.podTemplateContainerName={container_name}", container_name = SparkContainer::Spark),
-            format!("--conf spark.kubernetes.executor.podTemplateContainerName={container_name}", container_name = SparkContainer::Spark),
-            format!("--conf spark.kubernetes.namespace={}", self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?),
-            format!("--conf spark.kubernetes.driver.container.image={}", spark_image.to_string()),
-            format!("--conf spark.kubernetes.executor.container.image={}", spark_image.to_string()),
-            format!("--conf spark.kubernetes.authenticate.driver.serviceAccountName={}", serviceaccount_name),
-            format!("--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+            format!(
+                "--conf spark.kubernetes.driver.podTemplateFile={VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES}/{POD_TEMPLATE_FILE}"
+            ),
+            format!(
+                "--conf spark.kubernetes.executor.podTemplateFile={VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES}/{POD_TEMPLATE_FILE}"
+            ),
+            format!(
+                "--conf spark.kubernetes.driver.podTemplateContainerName={container_name}",
+                container_name = SparkContainer::Spark
+            ),
+            format!(
+                "--conf spark.kubernetes.executor.podTemplateContainerName={container_name}",
+                container_name = SparkContainer::Spark
+            ),
+            format!(
+                "--conf spark.kubernetes.namespace={}",
+                self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?
+            ),
+            format!(
+                "--conf spark.kubernetes.driver.container.image={}",
+                spark_image.to_string()
+            ),
+            format!(
+                "--conf spark.kubernetes.executor.container.image={}",
+                spark_image.to_string()
+            ),
+            format!(
+                "--conf spark.kubernetes.authenticate.driver.serviceAccountName={}",
+                serviceaccount_name
+            ),
+            format!(
+                "--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
+            ),
             format!("--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*"),
-            format!("--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
+            format!(
+                "--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
+            ),
             format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
         ];
 
@@ -682,7 +709,9 @@ impl v1alpha1::SparkApplication {
         submit_cmd.extend(self.spec.args.clone());
 
         Ok(vec![
-            format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
+            format!(
+                "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+            ),
             submit_cmd.join(" "),
         ])
     }
@@ -792,14 +821,11 @@ impl v1alpha1::SparkApplication {
         };
         if let Some(role_envs) = role_envs {
             env.extend(role_envs.iter().map(|(k, v)| {
-                (
-                    k,
-                    EnvVar {
-                        name: k.clone(),
-                        value: Some(v.clone()),
-                        ..Default::default()
-                    },
-                )
+                (k, EnvVar {
+                    name: k.clone(),
+                    value: Some(v.clone()),
+                    ..Default::default()
+                })
             }))
         }
 
@@ -854,13 +880,10 @@ impl v1alpha1::SparkApplication {
                 Role {
                     config: submit_conf.clone(),
                     role_config: GenericRoleConfig::default(),
-                    role_groups: [(
-                        "default".to_string(),
-                        RoleGroup {
-                            config: submit_conf,
-                            replicas: Some(1),
-                        },
-                    )]
+                    role_groups: [("default".to_string(), RoleGroup {
+                        config: submit_conf,
+                        replicas: Some(1),
+                    })]
                     .into(),
                 }
                 .erase(),
@@ -877,13 +900,10 @@ impl v1alpha1::SparkApplication {
                 Role {
                     config: driver_conf.clone(),
                     role_config: GenericRoleConfig::default(),
-                    role_groups: [(
-                        "default".to_string(),
-                        RoleGroup {
-                            config: driver_conf,
-                            replicas: Some(1),
-                        },
-                    )]
+                    role_groups: [("default".to_string(), RoleGroup {
+                        config: driver_conf,
+                        replicas: Some(1),
+                    })]
                     .into(),
                 }
                 .erase(),
@@ -967,7 +987,9 @@ fn subtract_spark_memory_overhead(for_java: bool, limit: &Quantity) -> Result<St
         .value as u32;
 
     if MIN_MEMORY_OVERHEAD > original_memory {
-        tracing::warn!("Skip memory overhead since not enough memory ({original_memory}m). At least {MIN_MEMORY_OVERHEAD}m required");
+        tracing::warn!(
+            "Skip memory overhead since not enough memory ({original_memory}m). At least {MIN_MEMORY_OVERHEAD}m required"
+        );
         return Ok(format!("{original_memory}m"));
     }
 
@@ -981,7 +1003,9 @@ fn subtract_spark_memory_overhead(for_java: bool, limit: &Quantity) -> Result<St
 
     let deduction = max(MIN_MEMORY_OVERHEAD, original_memory - reduced_memory);
 
-    tracing::debug!("subtract_spark_memory_overhead: original_memory ({original_memory}) - deduction ({deduction})");
+    tracing::debug!(
+        "subtract_spark_memory_overhead: original_memory ({original_memory}) - deduction ({deduction})"
+    );
     Ok(format!("{}m", original_memory - deduction))
 }
 
@@ -1089,7 +1113,7 @@ mod tests {
     use std::collections::{BTreeMap, HashMap};
 
     use indoc::indoc;
-    use product_config::{types::PropertyNameKind, ProductConfigManager};
+    use product_config::{ProductConfigManager, types::PropertyNameKind};
     use rstest::rstest;
     use stackable_operator::{
         commons::{

@@ -1,5 +1,9 @@
 # This file includes unstable features, so you need to run "cargo +nightly fmt" to format your code.
 # It's also ok to use the stable toolchain by simple running "cargo fmt", but using the nigthly formatter is prefered.
 
+# https://doc.rust-lang.org/nightly/edition-guide/rust-2024/rustfmt-style-edition.html
+style_edition = "2024"
 imports_granularity = "Crate"
-group_imports =  "StdExternalCrate"
+group_imports = "StdExternalCrate"
+reorder_impl_items = true
+use_field_init_shorthand = true

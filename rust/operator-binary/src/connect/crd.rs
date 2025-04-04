@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::{
-        affinity::{affinity_between_role_pods, StackableAffinity, StackableAffinityFragment},
+        affinity::{StackableAffinity, StackableAffinityFragment, affinity_between_role_pods},
         cluster_operation::ClusterOperation,
         product_image_selection::ProductImage,
         resources::{

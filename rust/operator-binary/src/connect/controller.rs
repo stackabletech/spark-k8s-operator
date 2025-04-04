@@ -5,9 +5,9 @@ use stackable_operator::{
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::rbac::build_rbac_resources,
     kube::{
-        core::{error_boundary, DeserializeGuard},
-        runtime::controller::Action,
         Resource, ResourceExt,
+        core::{DeserializeGuard, error_boundary},
+        runtime::controller::Action,
     },
     logging::controller::ReconcilerError,
     status::condition::{
@@ -18,12 +18,12 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use super::crd::{v1alpha1, CONNECT_CONTROLLER_NAME};
+use super::crd::{CONNECT_CONTROLLER_NAME, v1alpha1};
 use crate::{
+    Ctx,
     connect::{common, crd::SparkConnectServerStatus, executor, server},
     crd::constants::{APP_NAME, OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
     product_logging::{self, resolve_vector_aggregator_address},
-    Ctx,
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]

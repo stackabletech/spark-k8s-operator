@@ -9,9 +9,10 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-stackable-versioned.workspace = true
-stackable-operator.workspace = true
 product-config.workspace = true
+stackable-operator.workspace = true
+stackable-telemetry.workspace = true
+stackable-versioned.workspace = true
 
 anyhow.workspace = true
 const_format.workspace = true

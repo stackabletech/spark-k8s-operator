@@ -38,7 +38,7 @@ use stackable_operator::{
 };
 use strum::{Display, EnumIter};
 
-use crate::crd::{v1alpha1, ResolvedLogDir};
+use crate::crd::{ResolvedLogDir, v1alpha1};
 
 #[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
 #[strum(serialize_all = "kebab-case")]
@@ -153,6 +153,7 @@ impl RoleConfig {
             requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
         }
     }
+
     pub fn volume_mounts(
         &self,
         spark_application: &v1alpha1::SparkApplication,
@@ -289,8 +290,8 @@ pub struct VolumeMounts {
 impl Atomic for VolumeMounts {}
 
 impl<'a> IntoIterator for &'a VolumeMounts {
-    type Item = &'a VolumeMount;
     type IntoIter = slice::Iter<'a, VolumeMount>;
+    type Item = &'a VolumeMount;
 
     fn into_iter(self) -> Self::IntoIter {
         self.volume_mounts.iter()

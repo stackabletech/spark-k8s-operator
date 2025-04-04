@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use product_config::{types::PropertyNameKind, ProductConfigManager};
+use product_config::{ProductConfigManager, types::PropertyNameKind};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -18,17 +18,17 @@ use stackable_operator::{
         merge::Merge,
     },
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
-    kube::{runtime::reflector::ObjectRef, CustomResource, ResourceExt},
+    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     product_config_utils::{
-        transform_all_roles_to_config, validate_all_roles_and_groups_config, Configuration,
-        ValidatedRoleConfigByPropertyKind,
+        Configuration, ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
+        validate_all_roles_and_groups_config,
     },
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     time::Duration,
+    versioned::versioned,
 };
-use stackable_versioned::versioned;
 use strum::{Display, EnumIter};
 
 use crate::{

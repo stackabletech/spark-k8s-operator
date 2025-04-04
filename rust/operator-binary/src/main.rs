@@ -6,6 +6,7 @@ use futures::{pin_mut, select, StreamExt};
 use history::history_controller;
 use product_config::ProductConfigManager;
 use stackable_operator::{
+    YamlSchema,
     cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
         apps::v1::{Deployment, StatefulSet},
@@ -14,24 +15,25 @@ use stackable_operator::{
     kube::{
         core::DeserializeGuard,
         runtime::{
+            Controller,
             events::{Recorder, Reporter},
-            watcher, Controller,
+            watcher,
         },
     },
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
-    YamlSchema,
+    telemetry::Tracing,
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
 
 use crate::crd::{
+    SparkApplication,
     constants::{
         HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
         SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
     },
     history::SparkHistoryServer,
-    SparkApplication,
 };
 
 mod config;
@@ -77,22 +79,24 @@ async fn main() -> anyhow::Result<()> {
         Command::Run(ProductOperatorRun {
             product_config,
             watch_namespace,
-            tracing_target,
+            telemetry_arguments,
             cluster_info_opts,
         }) => {
-            #[allow(deprecated)]
-            stackable_operator::logging::initialize_logging(
-                "SPARK_K8S_OPERATOR_LOG",
-                "spark-k8s",
-                tracing_target,
-            );
-            stackable_operator::utils::print_startup_string(
-                crate_description!(),
-                crate_version!(),
-                built_info::GIT_VERSION,
-                built_info::TARGET,
-                built_info::BUILT_TIME_UTC,
-                built_info::RUSTC_VERSION,
+            // NOTE (@NickLarsenNZ): Before stackable-telemetry was used:
+            // - The console log level was set by `SPARK_K8S_OPERATOR_LOG`, and is now `CONSOLE_LOG` (when using Tracing::pre_configured).
+            // - The file log level was set by `SPARK_K8S_OPERATOR_LOG`, and is now set via `FILE_LOG` (when using Tracing::pre_configured).
+            // - The file log directory was set by `SPARK_K8S_OPERATOR_LOG_DIRECTORY`, and is now set by `ROLLING_LOGS_DIR` (or via `--rolling-logs <DIRECTORY>`).
+            let _tracing_guard =
+                Tracing::pre_configured(built_info::PKG_NAME, telemetry_arguments).init()?;
+
+            tracing::info!(
+                built_info.pkg_version = built_info::PKG_VERSION,
+                built_info.git_version = built_info::GIT_VERSION,
+                built_info.target = built_info::TARGET,
+                built_info.built_time_utc = built_info::BUILT_TIME_UTC,
+                built_info.rustc_version = built_info::RUSTC_VERSION,
+                "Starting {description}",
+                description = built_info::PKG_DESCRIPTION
             );
 
             let client = stackable_operator::client::initialize_operator(
@@ -105,13 +109,10 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
-            let spark_event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
-                    controller: SPARK_FULL_CONTROLLER_NAME.to_string(),
-                    instance: None,
-                },
-            ));
+            let spark_event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+                controller: SPARK_FULL_CONTROLLER_NAME.to_string(),
+                instance: None,
+            }));
             let app_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<crd::v1alpha1::SparkApplication>>(&client),
@@ -146,13 +147,11 @@ async fn main() -> anyhow::Result<()> {
                 },
             );
 
-            let pod_driver_event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
+            let pod_driver_event_recorder =
+                Arc::new(Recorder::new(client.as_kube_client(), Reporter {
                     controller: POD_DRIVER_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
-                },
-            ));
+                }));
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default()
@@ -192,13 +191,11 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
-            let history_event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
+            let history_event_recorder =
+                Arc::new(Recorder::new(client.as_kube_client(), Reporter {
                     controller: HISTORY_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
-                },
-            ));
+                }));
             let history_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<crd::history::v1alpha1::SparkHistoryServer>>(

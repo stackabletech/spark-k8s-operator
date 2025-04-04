@@ -11,13 +11,14 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            volume::VolumeBuilder, PodBuilder,
+            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            volume::VolumeBuilder,
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
+        DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
@@ -26,17 +27,16 @@ use stackable_operator::{
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
-        DeepMerge,
     },
     kube::{
-        core::{error_boundary, DeserializeGuard},
-        runtime::{controller::Action, reflector::ObjectRef},
         Resource, ResourceExt,
+        core::{DeserializeGuard, error_boundary},
+        runtime::{controller::Action, reflector::ObjectRef},
     },
     kvp::{Label, Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_logging::{
-        framework::{calculate_log_volume_size_limit, vector_container, LoggingError},
+        framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -48,6 +48,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
+    Ctx,
     crd::{
         constants::{
             ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
@@ -57,13 +58,12 @@ use crate::{
             VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
             VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
-        history::{self, v1alpha1, HistoryConfig, SparkHistoryServerContainer},
+        history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         logdir::ResolvedLogDir,
         tlscerts, to_spark_env_sh_string,
     },
     history::operations::pdb::add_pdbs,
-    product_logging::{self, resolve_vector_aggregator_address},
-    Ctx,
+    product_logging::{self},
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -142,8 +142,8 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to resolve the Vector aggregator address"))]
-    ResolveVectorAggregatorAddress { source: product_logging::Error },
+    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
+    VectorAggregatorConfigMapMissing,
 
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
@@ -250,16 +250,6 @@ pub async fn reconcile(
     .await
     .context(LogDirSnafu)?;
 
-    let vector_aggregator_address = resolve_vector_aggregator_address(
-        client,
-        shs.namespace()
-            .as_deref()
-            .context(ObjectHasNoNamespaceSnafu)?,
-        shs.spec.vector_aggregator_config_map_name.as_deref(),
-    )
-    .await
-    .context(ResolveVectorAggregatorAddressSnafu)?;
-
     // Use a dedicated service account for history server pods.
     let (serviceaccount, rolebinding) =
         build_history_role_serviceaccount(shs, &resolved_product_image.app_version_label)?;
@@ -318,7 +308,6 @@ pub async fn reconcile(
                 &resolved_product_image.app_version_label,
                 &rgr,
                 &log_dir,
-                vector_aggregator_address.as_deref(),
             )?;
             cluster_resources
                 .add(client, config_map)
@@ -377,7 +366,6 @@ fn build_config_map(
     app_version_label: &str,
     rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
     log_dir: &ResolvedLogDir,
-    vector_aggregator_address: Option<&str>,
 ) -> Result<ConfigMap, Error> {
     let cm_name = rolegroupref.object_name();
 
@@ -428,7 +416,6 @@ fn build_config_map(
 
     product_logging::extend_config_map(
         rolegroupref,
-        vector_aggregator_address,
         &merged_config.logging,
         SparkHistoryServerContainer::SparkHistory,
         SparkHistoryServerContainer::Vector,
@@ -556,24 +543,32 @@ fn build_stateful_set(
     pb.add_container(container);
 
     if merged_config.logging.enable_vector_agent {
-        pb.add_container(
-            vector_container(
-                resolved_product_image,
-                VOLUME_MOUNT_NAME_CONFIG,
-                VOLUME_MOUNT_NAME_LOG,
-                merged_config
-                    .logging
-                    .containers
-                    .get(&SparkHistoryServerContainer::Vector),
-                ResourceRequirementsBuilder::new()
-                    .with_cpu_request("250m")
-                    .with_cpu_limit("500m")
-                    .with_memory_request("128Mi")
-                    .with_memory_limit("128Mi")
-                    .build(),
-            )
-            .context(ConfigureLoggingSnafu)?,
-        );
+        match &shs.spec.vector_aggregator_config_map_name {
+            Some(vector_aggregator_config_map_name) => {
+                pb.add_container(
+                    vector_container(
+                        resolved_product_image,
+                        VOLUME_MOUNT_NAME_CONFIG,
+                        VOLUME_MOUNT_NAME_LOG,
+                        merged_config
+                            .logging
+                            .containers
+                            .get(&SparkHistoryServerContainer::Vector),
+                        ResourceRequirementsBuilder::new()
+                            .with_cpu_request("250m")
+                            .with_cpu_limit("500m")
+                            .with_memory_request("128Mi")
+                            .with_memory_limit("128Mi")
+                            .build(),
+                        vector_aggregator_config_map_name,
+                    )
+                    .context(ConfigureLoggingSnafu)?,
+                );
+            }
+            None => {
+                VectorAggregatorConfigMapMissingSnafu.fail()?;
+            }
+        }
     }
 
     let mut pod_template = pb.build_template();
@@ -634,6 +629,7 @@ fn build_service(
             Some("None".to_string()),
         ),
         None => (
+            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
             format!("{}-{}", shs.metadata.name.as_ref().unwrap(), role),
             shs.spec.cluster_config.listener_class.k8s_service_type(),
             None,

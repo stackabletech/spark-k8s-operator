@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder,
     builder::{
+        self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
@@ -16,8 +16,8 @@ use stackable_operator::{
         api::{
             apps::v1::{Deployment, DeploymentSpec},
             core::v1::{
-                ConfigMap, EnvVar, PodSecurityContext, Service, ServiceAccount, ServicePort,
-                ServiceSpec,
+                ConfigMap, EnvVar, HTTPGetAction, PodSecurityContext, Probe, Service,
+                ServiceAccount, ServicePort, ServiceSpec,
             },
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
@@ -253,7 +253,9 @@ pub fn build_deployment(
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
-        .context(AddVolumeMountSnafu)?;
+        .context(AddVolumeMountSnafu)?
+        .readiness_probe(probe())
+        .liveness_probe(probe());
 
     // Add custom log4j config map volumes if configured
     if let Some(cm_name) = config.log_config_map() {
@@ -339,10 +341,18 @@ pub fn build_service(
     app_version_label: &str,
     service_cluster_ip: Option<String>,
 ) -> Result<Service, Error> {
-    let (service_name, service_type) = match service_cluster_ip.clone() {
+    let (service_name, service_type, publish_not_ready_addresses) = match service_cluster_ip.clone()
+    {
         Some(_) => (
+            // These are the properties of the headless driver service used for the internal
+            // communication with the executors as recommended by the Spark docs.
+            //
+            // The flag `publish_not_ready_addresses` *must* be `true` to allow for readiness
+            // probes. Without it, the driver runs into a deadlock beacuse the Pod cannot become
+            // "ready" until the Service is "ready" and vice versa.
             object_name(&scs.name_any(), SparkConnectRole::Server),
             "ClusterIP".to_string(),
+            Some(true),
         ),
         None => (
             format!(
@@ -351,6 +361,7 @@ pub fn build_service(
                 SparkConnectRole::Server
             ),
             scs.spec.cluster_config.listener_class.k8s_service_type(),
+            Some(false),
         ),
     };
 
@@ -393,6 +404,7 @@ pub fn build_service(
                 },
             ]),
             selector: Some(selector),
+            publish_not_ready_addresses,
             ..ServiceSpec::default()
         }),
         status: None,
@@ -400,7 +412,7 @@ pub fn build_service(
 }
 
 #[allow(clippy::result_large_err)]
-pub fn command_args(user_args: &[String], spark_version: &str) -> Vec<String> {
+pub fn command_args(user_args: &[String]) -> Vec<String> {
     let mut command = vec![
         // ---------- start containerdebug
         format!(
@@ -411,7 +423,6 @@ pub fn command_args(user_args: &[String], spark_version: &str) -> Vec<String> {
         "--deploy-mode client".to_string(), // 'cluster' mode not supported
         "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
             .to_string(),
-        format!("--jars /stackable/spark/connect/spark-connect_2.12-{spark_version}.jar"),
         format!("--properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ];
 
@@ -461,6 +472,7 @@ pub fn server_properties(
     pi: &ResolvedProductImage,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
     let spark_image = pi.image.clone();
+    let spark_version = pi.product_version.clone();
     let service_account_name = service_account.name_unchecked();
     let namespace = driver_service
         .namespace()
@@ -498,7 +510,7 @@ pub fn server_properties(
         ),
         (
             "spark.driver.extraClassPath".to_string(),
-            Some("/stackable/spark/extra-jars/*".to_string()),
+            Some(format!("/stackable/spark/extra-jars/*:/stackable/spark/connect/spark-connect_2.12-{spark_version}.jar")),
         ),
     ]
     .into();
@@ -537,4 +549,17 @@ fn server_jvm_args(
     .context(ServerJvmArgsSnafu {
         name: scs.name_any(),
     })
+}
+
+fn probe() -> Probe {
+    Probe {
+        http_get: Some(HTTPGetAction {
+            port: IntOrString::Int(CONNECT_UI_PORT),
+            scheme: Some("HTTP".to_string()),
+            path: Some("/metrics".to_string()),
+            ..Default::default()
+        }),
+        failure_threshold: Some(10),
+        ..Probe::default()
+    }
 }

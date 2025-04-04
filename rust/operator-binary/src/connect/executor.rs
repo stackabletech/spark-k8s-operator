@@ -224,10 +224,6 @@ pub fn executor_properties(
             Some(executor_jvm_args(scs, config)?),
         ),
         (
-            "spark.executor.extraClassPath".to_string(),
-            Some("/stackable/spark/extra-jars/*".to_string()),
-        ),
-        (
             "spark.kubernetes.executor.podTemplateFile".to_string(),
             Some(format!("{VOLUME_MOUNT_PATH_CONFIG}/{POD_TEMPLATE_FILE}")),
         ),

@@ -198,9 +198,9 @@ pub mod versioned {
 #[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum CurrentlySupportedListenerClasses {
-    #[default]
     #[serde(rename = "cluster-internal")]
     ClusterInternal,
+    #[default]
     #[serde(rename = "external-unstable")]
     ExternalUnstable,
     #[serde(rename = "external-stable")]

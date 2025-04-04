@@ -1,0 +1,44 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkConnectServer
+metadata:
+  name: spark-connect # <1>
+spec:
+  image:
+    productVersion: "3.5.5" # <2>
+    pullPolicy: IfNotPresent
+  args:
+    - "--package org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.8.1" # <3>
+  server:
+    podOverrides:
+      spec:
+        containers:
+          - name: spark
+            env:
+              - name: DEMO_GREETING # <4>
+                value: "Hello"
+    jvmArgumentOverrides:
+      add:
+        - -Dmy.custom.jvm.arg=customValue # <5>
+    config:
+      logging:
+        enableVectorAgent: False
+        containers:
+          spark:
+            custom:
+              configMap: spark-connect-log-config # <6>
+    configOverrides:
+      spark-defaults.conf:
+        spark.driver.cores: "3" # <7>
+  executor:
+    configOverrides:
+      spark-defaults.conf:
+        spark.executor.memoryOverhead: "1m" # <8>
+        spark.executor.instances: "3"
+    config:
+      logging:
+        enableVectorAgent: False
+        containers:
+          spark:
+            custom:
+              configMap: spark-connect-log-config

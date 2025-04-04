@@ -9,6 +9,7 @@
 ** xref:spark-k8s:usage-guide/security.adoc[]
 ** xref:spark-k8s:usage-guide/logging.adoc[]
 ** xref:spark-k8s:usage-guide/history-server.adoc[]
+** xref:spark-k8s:usage-guide/spark-connect.adoc[]
 ** xref:spark-k8s:usage-guide/examples.adoc[]
 ** xref:spark-k8s:usage-guide/overrides.adoc[]
 ** xref:spark-k8s:usage-guide/operations/index.adoc[]

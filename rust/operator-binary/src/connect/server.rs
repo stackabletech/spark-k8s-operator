@@ -39,7 +39,7 @@ use crate::{
     },
     crd::constants::{
         APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-        METRICS_PORT, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID,
+        METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID,
         VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
         VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
@@ -82,6 +82,9 @@ pub enum Error {
 
     #[snafu(display("server jvm security properties for spark connect {name}",))]
     ServerJvmSecurityProperties { source: common::Error, name: String },
+
+    #[snafu(display("server metrics properties for spark connect {name}",))]
+    MetricsProperties { source: common::Error, name: String },
 
     #[snafu(display("failed to serialize [{SPARK_DEFAULTS_FILE_NAME}] for the connect server",))]
     SparkDefaultsProperties {
@@ -138,6 +141,16 @@ pub fn server_config_map(
         name: scs.name_unchecked(),
     })?;
 
+    let metrics_props = common::metrics_properties(
+        scs.spec
+            .server
+            .as_ref()
+            .and_then(|s| s.config_overrides.get(METRICS_PROPERTIES_FILE)),
+    )
+    .context(MetricsPropertiesSnafu {
+        name: scs.name_unchecked(),
+    })?;
+
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
@@ -157,7 +170,8 @@ pub fn server_config_map(
         )
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_properties)
         .add_data(POD_TEMPLATE_FILE, executor_pod_template_spec)
-        .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props);
+        .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
+        .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
     let role_group_ref = RoleGroupRef {
         cluster: ObjectRef::from_obj(scs),
@@ -197,6 +211,7 @@ pub fn build_deployment(
             &SparkConnectRole::Server.to_string(),
         ))
         .context(MetadataBuildSnafu)?
+        .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
         .build();
 
     let mut pb = PodBuilder::new();
@@ -248,7 +263,6 @@ pub fn build_deployment(
         .args(args)
         .add_container_port("grpc", CONNECT_GRPC_PORT)
         .add_container_port("http", CONNECT_UI_PORT)
-        .add_container_port("metrics", METRICS_PORT.into())
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
@@ -397,11 +411,6 @@ pub fn build_service(
                     port: CONNECT_UI_PORT,
                     ..ServicePort::default()
                 },
-                ServicePort {
-                    name: Some(String::from("metrics")),
-                    port: METRICS_PORT.into(),
-                    ..ServicePort::default()
-                },
             ]),
             selector: Some(selector),
             publish_not_ready_addresses,
@@ -512,6 +521,18 @@ pub fn server_properties(
             "spark.driver.extraClassPath".to_string(),
             Some(format!("/stackable/spark/extra-jars/*:/stackable/spark/connect/spark-connect_2.12-{spark_version}.jar")),
         ),
+        (
+            "spark.metrics.conf".to_string(),
+            Some(format!("{VOLUME_MOUNT_PATH_CONFIG}/{METRICS_PROPERTIES_FILE}")),
+        ),
+        // This enables the "/metrics/executors/prometheus" endpoint on the server pod.
+        // The driver collects metrics from the executors and makes them available here.
+        // The "/metrics/prometheus" endpoint delievers the driver metrics.
+        (
+            "spark.ui.prometheus.enabled".to_string(),
+            Some("true".to_string()),
+        ),
+
     ]
     .into();
 
@@ -556,7 +577,7 @@ fn probe() -> Probe {
         http_get: Some(HTTPGetAction {
             port: IntOrString::Int(CONNECT_UI_PORT),
             scheme: Some("HTTP".to_string()),
-            path: Some("/metrics".to_string()),
+            path: Some("/metrics/prometheus".to_string()),
             ..Default::default()
         }),
         failure_threshold: Some(10),

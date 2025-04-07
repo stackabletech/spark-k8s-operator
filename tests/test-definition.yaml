@@ -118,7 +118,6 @@ tests:
     dimensions:
       - spark-connect
       - spark-connect-client
-      - s3-use-tls
       - openshift
 
 suites:

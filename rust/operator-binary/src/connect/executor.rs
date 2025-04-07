@@ -29,9 +29,9 @@ use crate::{
     connect::{common, crd::v1alpha1},
     crd::constants::{
         JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-        POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, VOLUME_MOUNT_NAME_CONFIG,
-        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME,
+        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     product_logging,
 };
@@ -77,6 +77,9 @@ pub enum Error {
 
     #[snafu(display("failed build connect executor security properties"))]
     ExecutorJvmSecurityProperties { source: common::Error },
+
+    #[snafu(display("executor metrics properties for spark connect {name}",))]
+    MetricsProperties { source: common::Error, name: String },
 
     #[snafu(display("failed build connect executor config map metadata"))]
     ConfigMapMetadataBuild { source: builder::meta::Error },
@@ -331,6 +334,16 @@ pub fn executor_config_map(
     )
     .context(ExecutorJvmSecurityPropertiesSnafu)?;
 
+    let metrics_props = common::metrics_properties(
+        scs.spec
+            .executor
+            .as_ref()
+            .and_then(|s| s.config_overrides.get(METRICS_PROPERTIES_FILE)),
+    )
+    .context(MetricsPropertiesSnafu {
+        name: scs.name_unchecked(),
+    })?;
+
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
@@ -348,7 +361,8 @@ pub fn executor_config_map(
                 .context(ConfigMapMetadataBuildSnafu)?
                 .build(),
         )
-        .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props);
+        .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
+        .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
     let role_group_ref = RoleGroupRef {
         cluster: ObjectRef::from_obj(scs),

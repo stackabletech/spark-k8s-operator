@@ -33,6 +33,7 @@ pub const VOLUME_MOUNT_PATH_LOG: &str = "/stackable/log";
 pub const LOG4J2_CONFIG_FILE: &str = "log4j2.properties";
 
 pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
+pub const METRICS_PROPERTIES_FILE: &str = "metrics.properties";
 
 pub const ACCESS_KEY_ID: &str = "accessKey";
 pub const SECRET_ACCESS_KEY: &str = "secretKey";

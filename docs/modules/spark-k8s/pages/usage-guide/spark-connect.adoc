@@ -26,6 +26,25 @@ include::example$example-spark-connect.yaml[]
 <7> Customize the driver properties in the `server` role. The number of cores here is not related to Kubernetes cores!
 <8> Customize `spark.executor.\*` and `spark.kubernetes.executor.*` in the `executor` role.
 
+== Metrics
+
+The server pod exposes Prometheus metrics at the following endpoints:
+
+* `/metrics/prometheus` for driver instances.
+* `/metrics/executors/prometheus` for executor instances.
+
+To customize the metrics configuration use the `spec.server.configOverrides' like this:
+
+```
+spec:
+  server:
+    configOverrides:
+      metrics.properties:
+        applications.sink.prometheusServlet.path: "/metrics/applications/prometheus"
+```
+
+The example above adds a new endpoint for application metrics.
+
 == Notable Omissions
 
 The following features are not supported by the Stackable Spark operator yet

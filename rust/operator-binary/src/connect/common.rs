@@ -118,3 +118,29 @@ pub fn security_properties(
 
     to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
 }
+
+pub fn metrics_properties(
+    config_overrides: Option<&HashMap<String, String>>,
+) -> Result<String, Error> {
+    let mut result: BTreeMap<String, Option<String>> = [
+        (
+            "*.sink.prometheusServlet.class".to_string(),
+            Some("org.apache.spark.metrics.sink.PrometheusServlet".to_string()),
+        ),
+        (
+            "*.sink.prometheusServlet.path".to_string(),
+            Some("/metrics/prometheus".to_string()),
+        ),
+    ]
+    .into();
+
+    if let Some(user_config) = config_overrides {
+        result.extend(
+            user_config
+                .iter()
+                .map(|(k, v)| (k.clone(), Some(v.clone()))),
+        );
+    }
+
+    to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
+}

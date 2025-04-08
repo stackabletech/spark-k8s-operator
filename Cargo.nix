@@ -943,40 +943,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "tracing" ];
       };
-      "backoff" = rec {
-        crateName = "backoff";
-        version = "0.4.0";
-        edition = "2018";
-        sha256 = "1h80d9xn5wngxdgza2m8w4x1kyhk0x6k9ydvsj50j2pcn6fdnbdn";
-        authors = [
-          "Tibor Benke <ihrwein@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "getrandom";
-            packageId = "getrandom";
-          }
-          {
-            name = "instant";
-            packageId = "instant";
-          }
-          {
-            name = "rand";
-            packageId = "rand";
-          }
-        ];
-        features = {
-          "async-std" = [ "futures" "async_std_1" ];
-          "async_std_1" = [ "dep:async_std_1" ];
-          "futures" = [ "futures-core" "pin-project-lite" ];
-          "futures-core" = [ "dep:futures-core" ];
-          "pin-project-lite" = [ "dep:pin-project-lite" ];
-          "tokio" = [ "futures" "tokio_1" ];
-          "tokio_1" = [ "dep:tokio_1" ];
-          "wasm-bindgen" = [ "instant/wasm-bindgen" "getrandom/js" ];
-        };
-        resolvedDefaultFeatures = [ "default" ];
-      };
       "backon" = rec {
         crateName = "backon";
         version = "1.4.1";
@@ -1154,22 +1120,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "std" ];
       };
-      "bitflags 1.3.2" = rec {
-        crateName = "bitflags";
-        version = "1.3.2";
-        edition = "2018";
-        sha256 = "12ki6w8gn1ldq7yz9y680llwk5gmrhrzszaa17g1sbrw2r2qvwxy";
-        authors = [
-          "The Rust Project Developers"
-        ];
-        features = {
-          "compiler_builtins" = [ "dep:compiler_builtins" ];
-          "core" = [ "dep:core" ];
-          "rustc-dep-of-std" = [ "core" "compiler_builtins" ];
-        };
-        resolvedDefaultFeatures = [ "default" ];
-      };
-      "bitflags 2.9.0" = rec {
+      "bitflags" = rec {
         crateName = "bitflags";
         version = "2.9.0";
         edition = "2021";
@@ -1592,11 +1543,11 @@ rec {
       };
       "convert_case" = rec {
         crateName = "convert_case";
-        version = "0.6.0";
-        edition = "2018";
-        sha256 = "1jn1pq6fp3rri88zyw6jlhwwgf6qiyc08d6gjv0qypgkl862n67c";
+        version = "0.8.0";
+        edition = "2021";
+        sha256 = "17zqy79xlr1n7nc0n1mlnw5qpp8l2nbxrk13jixrhlavrbna1ams";
         authors = [
-          "Rutrum <dave@rutrum.net>"
+          "rutrum <dave@rutrum.net>"
         ];
         dependencies = [
           {
@@ -2379,26 +2330,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "any_impl" "default" "miniz_oxide" "rust_backend" ];
       };
-      "fluent-uri" = rec {
-        crateName = "fluent-uri";
-        version = "0.1.4";
-        edition = "2021";
-        sha256 = "03ah2qajw5l1zbc81kh1n8g7n24mfxbg6vqyv9ixipg1vglh9iqp";
-        libName = "fluent_uri";
-        authors = [
-          "Scallop Ye <yescallop@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "bitflags";
-            packageId = "bitflags 1.3.2";
-          }
-        ];
-        features = {
-          "default" = [ "std" ];
-        };
-        resolvedDefaultFeatures = [ "std" ];
-      };
       "fnv" = rec {
         crateName = "fnv";
         version = "1.0.7";
@@ -2852,7 +2783,7 @@ rec {
         dependencies = [
           {
             name = "bitflags";
-            packageId = "bitflags 2.9.0";
+            packageId = "bitflags";
           }
           {
             name = "libc";
@@ -3021,45 +2952,6 @@ rec {
           "serde" = [ "dep:serde" ];
         };
         resolvedDefaultFeatures = [ "raw" ];
-      };
-      "hashbrown 0.14.5" = rec {
-        crateName = "hashbrown";
-        version = "0.14.5";
-        edition = "2021";
-        sha256 = "1wa1vy1xs3mp11bn3z9dv0jricgr6a2j0zkf1g19yz3vw4il89z5";
-        authors = [
-          "Amanieu d'Antras <amanieu@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "ahash";
-            packageId = "ahash";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "allocator-api2";
-            packageId = "allocator-api2";
-            optional = true;
-            usesDefaultFeatures = false;
-            features = [ "alloc" ];
-          }
-        ];
-        features = {
-          "ahash" = [ "dep:ahash" ];
-          "alloc" = [ "dep:alloc" ];
-          "allocator-api2" = [ "dep:allocator-api2" ];
-          "compiler_builtins" = [ "dep:compiler_builtins" ];
-          "core" = [ "dep:core" ];
-          "default" = [ "ahash" "inline-more" "allocator-api2" ];
-          "equivalent" = [ "dep:equivalent" ];
-          "nightly" = [ "allocator-api2?/nightly" "bumpalo/allocator_api" ];
-          "rayon" = [ "dep:rayon" ];
-          "rkyv" = [ "dep:rkyv" ];
-          "rustc-dep-of-std" = [ "nightly" "core" "compiler_builtins" "alloc" "rustc-internal-api" ];
-          "serde" = [ "dep:serde" ];
-        };
-        resolvedDefaultFeatures = [ "ahash" "allocator-api2" "default" "inline-more" ];
       };
       "hashbrown 0.15.2" = rec {
         crateName = "hashbrown";
@@ -4381,28 +4273,6 @@ rec {
         ];
 
       };
-      "instant" = rec {
-        crateName = "instant";
-        version = "0.1.13";
-        edition = "2018";
-        sha256 = "08h27kzvb5jw74mh0ajv0nv9ggwvgqm8ynjsn2sa9jsks4cjh970";
-        authors = [
-          "sebcrozet <developer@crozet.re>"
-        ];
-        dependencies = [
-          {
-            name = "cfg-if";
-            packageId = "cfg-if";
-          }
-        ];
-        features = {
-          "js-sys" = [ "dep:js-sys" ];
-          "stdweb" = [ "dep:stdweb" ];
-          "wasm-bindgen" = [ "js-sys" "wasm-bindgen_rs" "web-sys" ];
-          "wasm-bindgen_rs" = [ "dep:wasm-bindgen_rs" ];
-          "web-sys" = [ "dep:web-sys" ];
-        };
-      };
       "ipnet" = rec {
         crateName = "ipnet";
         version = "2.11.0";
@@ -4430,11 +4300,32 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" ];
       };
-      "itertools" = rec {
+      "itertools 0.13.0" = rec {
         crateName = "itertools";
         version = "0.13.0";
         edition = "2018";
         sha256 = "11hiy3qzl643zcigknclh446qb9zlg4dpdzfkjaa9q9fqpgyfgj1";
+        authors = [
+          "bluss"
+        ];
+        dependencies = [
+          {
+            name = "either";
+            packageId = "either";
+            usesDefaultFeatures = false;
+          }
+        ];
+        features = {
+          "default" = [ "use_std" ];
+          "use_std" = [ "use_alloc" "either/use_std" ];
+        };
+        resolvedDefaultFeatures = [ "default" "use_alloc" "use_std" ];
+      };
+      "itertools 0.14.0" = rec {
+        crateName = "itertools";
+        version = "0.14.0";
+        edition = "2018";
+        sha256 = "118j6l1vs2mx65dqhwyssbrxpawa90886m3mzafdvyip41w2q69b";
         authors = [
           "bluss"
         ];
@@ -4532,48 +4423,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
-      "json-patch 2.0.0" = rec {
-        crateName = "json-patch";
-        version = "2.0.0";
-        edition = "2021";
-        sha256 = "1z1h6dyy4lx4z74yby2hvgl4jbm8mh5ymjp6fwcdkyi3923bh7sv";
-        libName = "json_patch";
-        authors = [
-          "Ivan Dubrov <dubrov.ivan@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "jsonptr";
-            packageId = "jsonptr 0.4.7";
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" ];
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror 1.0.69";
-          }
-        ];
-        devDependencies = [
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-            features = [ "preserve_order" ];
-          }
-        ];
-        features = {
-          "default" = [ "diff" ];
-          "utoipa" = [ "dep:utoipa" ];
-        };
-        resolvedDefaultFeatures = [ "default" "diff" ];
-      };
-      "json-patch 4.0.0" = rec {
+      "json-patch" = rec {
         crateName = "json-patch";
         version = "4.0.0";
         edition = "2021";
@@ -4585,7 +4435,7 @@ rec {
         dependencies = [
           {
             name = "jsonptr";
-            packageId = "jsonptr 0.7.1";
+            packageId = "jsonptr";
           }
           {
             name = "serde";
@@ -4614,48 +4464,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "diff" ];
       };
-      "jsonpath-rust 0.5.1" = rec {
-        crateName = "jsonpath-rust";
-        version = "0.5.1";
-        edition = "2018";
-        sha256 = "0032bp43w6k1bl8h55m126cdf8xljj8p736f65gp3zvhpn2zxn0r";
-        libName = "jsonpath_rust";
-        authors = [
-          "BorisZhguchev <zhguchev@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "lazy_static";
-            packageId = "lazy_static";
-          }
-          {
-            name = "once_cell";
-            packageId = "once_cell";
-          }
-          {
-            name = "pest";
-            packageId = "pest";
-          }
-          {
-            name = "pest_derive";
-            packageId = "pest_derive";
-          }
-          {
-            name = "regex";
-            packageId = "regex";
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror 1.0.69";
-          }
-        ];
-
-      };
-      "jsonpath-rust 0.7.5" = rec {
+      "jsonpath-rust" = rec {
         crateName = "jsonpath-rust";
         version = "0.7.5";
         edition = "2021";
@@ -4688,44 +4497,7 @@ rec {
         ];
 
       };
-      "jsonptr 0.4.7" = rec {
-        crateName = "jsonptr";
-        version = "0.4.7";
-        edition = "2021";
-        sha256 = "09s6bqjlkd1m5z9hi9iwjimiri7wx3fd6d88hara0p27968m4vhw";
-        authors = [
-          "chance dinkins"
-        ];
-        dependencies = [
-          {
-            name = "fluent-uri";
-            packageId = "fluent-uri";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            usesDefaultFeatures = false;
-            features = [ "alloc" ];
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-            usesDefaultFeatures = false;
-            features = [ "alloc" ];
-          }
-        ];
-        features = {
-          "default" = [ "std" ];
-          "fluent-uri" = [ "dep:fluent-uri" ];
-          "std" = [ "serde/std" "serde_json/std" "fluent-uri?/std" ];
-          "uniresid" = [ "dep:uniresid" ];
-          "url" = [ "dep:url" ];
-        };
-        resolvedDefaultFeatures = [ "default" "std" ];
-      };
-      "jsonptr 0.7.1" = rec {
+      "jsonptr" = rec {
         crateName = "jsonptr";
         version = "0.7.1";
         edition = "2021";
@@ -4761,60 +4533,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "assign" "default" "delete" "json" "resolve" "serde" "std" ];
       };
-      "k8s-openapi 0.23.0" = rec {
-        crateName = "k8s-openapi";
-        version = "0.23.0";
-        edition = "2021";
-        links = "k8s-openapi-0.23.0";
-        sha256 = "04qv2iqwm3mgjvyp2m6n3vf6nnpjh5a60kf9ah9k1n184d04g24w";
-        libName = "k8s_openapi";
-        authors = [
-          "Arnav Singh <me@arnavion.dev>"
-        ];
-        dependencies = [
-          {
-            name = "base64";
-            packageId = "base64 0.22.1";
-            usesDefaultFeatures = false;
-            features = [ "alloc" ];
-          }
-          {
-            name = "chrono";
-            packageId = "chrono";
-            usesDefaultFeatures = false;
-            features = [ "alloc" "serde" ];
-          }
-          {
-            name = "schemars";
-            packageId = "schemars";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "serde-value";
-            packageId = "serde-value";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-            usesDefaultFeatures = false;
-            features = [ "alloc" ];
-          }
-        ];
-        features = {
-          "earliest" = [ "v1_26" ];
-          "latest" = [ "v1_31" ];
-          "schemars" = [ "dep:schemars" ];
-        };
-        resolvedDefaultFeatures = [ "schemars" "v1_31" ];
-      };
-      "k8s-openapi 0.24.0" = rec {
+      "k8s-openapi" = rec {
         crateName = "k8s-openapi";
         version = "0.24.0";
         edition = "2021";
@@ -4874,8 +4593,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "048c7d8befddc2f2c6414444006871c95412d67c";
-          sha256 = "1x2pfibrsysmkkmajyj30qkwsjf3rzmc3dxsd09jb9r4x7va6mr6";
+          rev = "6c4b022dcdaec09a0c0ecb420a41bb180d4edbf8";
+          sha256 = "16klfwx3kz3ys7afwjicfj8msws9a718izx09jspwwpff3rl6wsi";
         };
         libName = "k8s_version";
         authors = [
@@ -4901,79 +4620,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "darling" ];
       };
-      "kube 0.96.0" = rec {
-        crateName = "kube";
-        version = "0.96.0";
-        edition = "2021";
-        sha256 = "07ws50li6nxja26b0w40k2dqir60k4s5fi2hsvjz6kmxy0yypzzg";
-        authors = [
-          "clux <sszynrae@gmail.com>"
-          "Natalie Klestrup Röijezon <nat@nullable.se>"
-          "kazk <kazk.dev@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "kube-client";
-            packageId = "kube-client 0.96.0";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "kube-core";
-            packageId = "kube-core 0.96.0";
-          }
-          {
-            name = "kube-derive";
-            packageId = "kube-derive 0.96.0";
-            optional = true;
-          }
-          {
-            name = "kube-runtime";
-            packageId = "kube-runtime 0.96.0";
-            optional = true;
-          }
-        ];
-        devDependencies = [
-          {
-            name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
-            usesDefaultFeatures = false;
-            features = [ "latest" ];
-          }
-        ];
-        features = {
-          "admission" = [ "kube-core/admission" ];
-          "aws-lc-rs" = [ "kube-client?/aws-lc-rs" ];
-          "client" = [ "kube-client/client" "config" ];
-          "config" = [ "kube-client/config" ];
-          "default" = [ "client" "rustls-tls" ];
-          "derive" = [ "kube-derive" "kube-core/schema" ];
-          "gzip" = [ "kube-client/gzip" "client" ];
-          "http-proxy" = [ "kube-client/http-proxy" "client" ];
-          "jsonpatch" = [ "kube-core/jsonpatch" ];
-          "kube-client" = [ "dep:kube-client" ];
-          "kube-derive" = [ "dep:kube-derive" ];
-          "kube-runtime" = [ "dep:kube-runtime" ];
-          "kubelet-debug" = [ "kube-client/kubelet-debug" "kube-core/kubelet-debug" ];
-          "oauth" = [ "kube-client/oauth" "client" ];
-          "oidc" = [ "kube-client/oidc" "client" ];
-          "openssl-tls" = [ "kube-client/openssl-tls" "client" ];
-          "runtime" = [ "kube-runtime" ];
-          "rustls-tls" = [ "kube-client/rustls-tls" "client" ];
-          "socks5" = [ "kube-client/socks5" "client" ];
-          "unstable-client" = [ "kube-client/unstable-client" "client" ];
-          "unstable-runtime" = [ "kube-runtime/unstable-runtime" "runtime" ];
-          "webpki-roots" = [ "kube-client/webpki-roots" "client" ];
-          "ws" = [ "kube-client/ws" "kube-core/ws" ];
-        };
-        resolvedDefaultFeatures = [ "client" "config" "derive" "jsonpatch" "kube-client" "kube-derive" "kube-runtime" "runtime" "rustls-tls" ];
-      };
-      "kube 0.99.0" = rec {
+      "kube" = rec {
         crateName = "kube";
         version = "0.99.0";
         edition = "2021";
@@ -4986,34 +4633,34 @@ rec {
         dependencies = [
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.24.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
           }
           {
             name = "kube-client";
-            packageId = "kube-client 0.99.0";
+            packageId = "kube-client";
             optional = true;
             usesDefaultFeatures = false;
           }
           {
             name = "kube-core";
-            packageId = "kube-core 0.99.0";
+            packageId = "kube-core";
           }
           {
             name = "kube-derive";
-            packageId = "kube-derive 0.99.0";
+            packageId = "kube-derive";
             optional = true;
           }
           {
             name = "kube-runtime";
-            packageId = "kube-runtime 0.99.0";
+            packageId = "kube-runtime";
             optional = true;
           }
         ];
         devDependencies = [
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.24.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
             features = [ "latest" ];
           }
@@ -5046,249 +4693,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "client" "config" "derive" "jsonpatch" "kube-client" "kube-derive" "kube-runtime" "ring" "runtime" "rustls-tls" ];
       };
-      "kube-client 0.96.0" = rec {
-        crateName = "kube-client";
-        version = "0.96.0";
-        edition = "2021";
-        sha256 = "1wg0blziqkfyfmmyn6l1fj6wp7qy156sr3g7birj93gzx3n73x4b";
-        libName = "kube_client";
-        authors = [
-          "clux <sszynrae@gmail.com>"
-          "Natalie Klestrup Röijezon <nat@nullable.se>"
-          "kazk <kazk.dev@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "base64";
-            packageId = "base64 0.22.1";
-            optional = true;
-          }
-          {
-            name = "bytes";
-            packageId = "bytes";
-            optional = true;
-          }
-          {
-            name = "chrono";
-            packageId = "chrono";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "either";
-            packageId = "either";
-            optional = true;
-          }
-          {
-            name = "futures";
-            packageId = "futures 0.3.31";
-            optional = true;
-            usesDefaultFeatures = false;
-            features = [ "std" ];
-          }
-          {
-            name = "home";
-            packageId = "home";
-            optional = true;
-          }
-          {
-            name = "http";
-            packageId = "http";
-          }
-          {
-            name = "http-body";
-            packageId = "http-body";
-            optional = true;
-          }
-          {
-            name = "http-body-util";
-            packageId = "http-body-util";
-            optional = true;
-          }
-          {
-            name = "hyper";
-            packageId = "hyper";
-            optional = true;
-            features = [ "client" "http1" ];
-          }
-          {
-            name = "hyper-http-proxy";
-            packageId = "hyper-http-proxy";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "hyper-rustls";
-            packageId = "hyper-rustls";
-            optional = true;
-            usesDefaultFeatures = false;
-            features = [ "http1" "logging" "native-tokio" "ring" "tls12" ];
-          }
-          {
-            name = "hyper-timeout";
-            packageId = "hyper-timeout";
-            optional = true;
-          }
-          {
-            name = "hyper-util";
-            packageId = "hyper-util";
-            optional = true;
-            features = [ "client" "client-legacy" "http1" "tokio" ];
-          }
-          {
-            name = "jsonpath-rust";
-            packageId = "jsonpath-rust 0.5.1";
-            optional = true;
-          }
-          {
-            name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "kube-core";
-            packageId = "kube-core 0.96.0";
-          }
-          {
-            name = "pem";
-            packageId = "pem";
-            optional = true;
-          }
-          {
-            name = "rustls";
-            packageId = "rustls";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "rustls-pemfile";
-            packageId = "rustls-pemfile";
-            optional = true;
-          }
-          {
-            name = "secrecy";
-            packageId = "secrecy";
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" ];
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-          }
-          {
-            name = "serde_yaml";
-            packageId = "serde_yaml";
-            optional = true;
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror 1.0.69";
-          }
-          {
-            name = "tokio";
-            packageId = "tokio";
-            optional = true;
-            features = [ "time" "signal" "sync" ];
-          }
-          {
-            name = "tokio-util";
-            packageId = "tokio-util";
-            optional = true;
-            features = [ "io" "codec" ];
-          }
-          {
-            name = "tower";
-            packageId = "tower 0.5.2";
-            optional = true;
-            features = [ "buffer" "filter" "util" ];
-          }
-          {
-            name = "tower-http";
-            packageId = "tower-http";
-            optional = true;
-            features = [ "auth" "map-response-body" "trace" ];
-          }
-          {
-            name = "tracing";
-            packageId = "tracing";
-            optional = true;
-            features = [ "log" ];
-          }
-        ];
-        devDependencies = [
-          {
-            name = "futures";
-            packageId = "futures 0.3.31";
-            usesDefaultFeatures = false;
-            features = [ "async-await" ];
-          }
-          {
-            name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
-            usesDefaultFeatures = false;
-            features = [ "latest" ];
-          }
-          {
-            name = "tokio";
-            packageId = "tokio";
-            features = [ "full" ];
-          }
-        ];
-        features = {
-          "__non_core" = [ "tracing" "serde_yaml" "base64" ];
-          "admission" = [ "kube-core/admission" ];
-          "aws-lc-rs" = [ "rustls?/aws-lc-rs" ];
-          "base64" = [ "dep:base64" ];
-          "bytes" = [ "dep:bytes" ];
-          "chrono" = [ "dep:chrono" ];
-          "client" = [ "config" "__non_core" "hyper" "hyper-util" "http-body" "http-body-util" "tower" "tower-http" "hyper-timeout" "chrono" "jsonpath-rust" "bytes" "futures" "tokio" "tokio-util" "either" ];
-          "config" = [ "__non_core" "pem" "home" ];
-          "default" = [ "client" ];
-          "either" = [ "dep:either" ];
-          "form_urlencoded" = [ "dep:form_urlencoded" ];
-          "futures" = [ "dep:futures" ];
-          "gzip" = [ "client" "tower-http/decompression-gzip" ];
-          "home" = [ "dep:home" ];
-          "http-body" = [ "dep:http-body" ];
-          "http-body-util" = [ "dep:http-body-util" ];
-          "http-proxy" = [ "hyper-http-proxy" ];
-          "hyper" = [ "dep:hyper" ];
-          "hyper-http-proxy" = [ "dep:hyper-http-proxy" ];
-          "hyper-openssl" = [ "dep:hyper-openssl" ];
-          "hyper-rustls" = [ "dep:hyper-rustls" ];
-          "hyper-socks2" = [ "dep:hyper-socks2" ];
-          "hyper-timeout" = [ "dep:hyper-timeout" ];
-          "hyper-util" = [ "dep:hyper-util" ];
-          "jsonpatch" = [ "kube-core/jsonpatch" ];
-          "jsonpath-rust" = [ "dep:jsonpath-rust" ];
-          "kubelet-debug" = [ "ws" "kube-core/kubelet-debug" ];
-          "oauth" = [ "client" "tame-oauth" ];
-          "oidc" = [ "client" "form_urlencoded" ];
-          "openssl" = [ "dep:openssl" ];
-          "openssl-tls" = [ "openssl" "hyper-openssl" ];
-          "pem" = [ "dep:pem" ];
-          "rand" = [ "dep:rand" ];
-          "rustls" = [ "dep:rustls" ];
-          "rustls-pemfile" = [ "dep:rustls-pemfile" ];
-          "rustls-tls" = [ "rustls" "rustls-pemfile" "hyper-rustls" "hyper-http-proxy?/rustls-tls-native-roots" ];
-          "serde_yaml" = [ "dep:serde_yaml" ];
-          "socks5" = [ "hyper-socks2" ];
-          "tame-oauth" = [ "dep:tame-oauth" ];
-          "tokio" = [ "dep:tokio" ];
-          "tokio-tungstenite" = [ "dep:tokio-tungstenite" ];
-          "tokio-util" = [ "dep:tokio-util" ];
-          "tower" = [ "dep:tower" ];
-          "tower-http" = [ "dep:tower-http" ];
-          "tracing" = [ "dep:tracing" ];
-          "webpki-roots" = [ "hyper-rustls/webpki-roots" ];
-          "ws" = [ "client" "tokio-tungstenite" "rand" "kube-core/ws" "tokio/macros" ];
-        };
-        resolvedDefaultFeatures = [ "__non_core" "base64" "bytes" "chrono" "client" "config" "either" "futures" "home" "http-body" "http-body-util" "hyper" "hyper-rustls" "hyper-timeout" "hyper-util" "jsonpatch" "jsonpath-rust" "pem" "rustls" "rustls-pemfile" "rustls-tls" "serde_yaml" "tokio" "tokio-util" "tower" "tower-http" "tracing" ];
-      };
-      "kube-client 0.99.0" = rec {
+      "kube-client" = rec {
         crateName = "kube-client";
         version = "0.99.0";
         edition = "2021";
@@ -5379,17 +4784,17 @@ rec {
           }
           {
             name = "jsonpath-rust";
-            packageId = "jsonpath-rust 0.7.5";
+            packageId = "jsonpath-rust";
             optional = true;
           }
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.24.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
           }
           {
             name = "kube-core";
-            packageId = "kube-core 0.99.0";
+            packageId = "kube-core";
           }
           {
             name = "pem";
@@ -5469,7 +4874,7 @@ rec {
           }
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.24.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
             features = [ "latest" ];
           }
@@ -5529,84 +4934,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "__non_core" "base64" "bytes" "chrono" "client" "config" "either" "futures" "home" "http-body" "http-body-util" "hyper" "hyper-rustls" "hyper-timeout" "hyper-util" "jsonpatch" "jsonpath-rust" "pem" "ring" "rustls" "rustls-tls" "serde_yaml" "tokio" "tokio-util" "tower" "tower-http" "tracing" ];
       };
-      "kube-core 0.96.0" = rec {
-        crateName = "kube-core";
-        version = "0.96.0";
-        edition = "2021";
-        sha256 = "0xrxzqk7nbbymf7ycm02wshs6ynf3dlrnm2wvix1skdk1g9lc8zl";
-        libName = "kube_core";
-        authors = [
-          "clux <sszynrae@gmail.com>"
-          "Natalie Klestrup Röijezon <nat@nullable.se>"
-          "kazk <kazk.dev@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "chrono";
-            packageId = "chrono";
-            usesDefaultFeatures = false;
-            features = [ "now" ];
-          }
-          {
-            name = "form_urlencoded";
-            packageId = "form_urlencoded";
-          }
-          {
-            name = "http";
-            packageId = "http";
-          }
-          {
-            name = "json-patch";
-            packageId = "json-patch 2.0.0";
-            optional = true;
-          }
-          {
-            name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "schemars";
-            packageId = "schemars";
-            optional = true;
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" ];
-          }
-          {
-            name = "serde-value";
-            packageId = "serde-value";
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror 1.0.69";
-          }
-        ];
-        devDependencies = [
-          {
-            name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
-            usesDefaultFeatures = false;
-            features = [ "latest" ];
-          }
-        ];
-        features = {
-          "admission" = [ "json-patch" ];
-          "json-patch" = [ "dep:json-patch" ];
-          "jsonpatch" = [ "json-patch" ];
-          "kubelet-debug" = [ "ws" ];
-          "schema" = [ "schemars" ];
-          "schemars" = [ "dep:schemars" ];
-        };
-        resolvedDefaultFeatures = [ "json-patch" "jsonpatch" "schema" "schemars" ];
-      };
-      "kube-core 0.99.0" = rec {
+      "kube-core" = rec {
         crateName = "kube-core";
         version = "0.99.0";
         edition = "2021";
@@ -5634,12 +4962,12 @@ rec {
           }
           {
             name = "json-patch";
-            packageId = "json-patch 4.0.0";
+            packageId = "json-patch";
             optional = true;
           }
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.24.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
           }
           {
@@ -5668,7 +4996,7 @@ rec {
         devDependencies = [
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.24.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
             features = [ "latest" ];
           }
@@ -5683,44 +5011,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "json-patch" "jsonpatch" "schema" "schemars" ];
       };
-      "kube-derive 0.96.0" = rec {
-        crateName = "kube-derive";
-        version = "0.96.0";
-        edition = "2021";
-        sha256 = "1bc23sismxyyncsry902b2i2v0aifpxvgs3fdh9q412yrh24wdpr";
-        procMacro = true;
-        libName = "kube_derive";
-        authors = [
-          "clux <sszynrae@gmail.com>"
-          "Natalie Klestrup Röijezon <nat@nullable.se>"
-          "kazk <kazk.dev@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "darling";
-            packageId = "darling";
-          }
-          {
-            name = "proc-macro2";
-            packageId = "proc-macro2";
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-          }
-          {
-            name = "syn";
-            packageId = "syn 2.0.100";
-            features = [ "extra-traits" ];
-          }
-        ];
-
-      };
-      "kube-derive 0.99.0" = rec {
+      "kube-derive" = rec {
         crateName = "kube-derive";
         version = "0.99.0";
         edition = "2021";
@@ -5769,130 +5060,7 @@ rec {
         ];
 
       };
-      "kube-runtime 0.96.0" = rec {
-        crateName = "kube-runtime";
-        version = "0.96.0";
-        edition = "2021";
-        sha256 = "0i5xr5i9xf44fwih1pvypr35sq30pcw979m9sbqnb3m9zzvg3yyk";
-        libName = "kube_runtime";
-        authors = [
-          "clux <sszynrae@gmail.com>"
-          "Natalie Klestrup Röijezon <nat@nullable.se>"
-          "kazk <kazk.dev@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "ahash";
-            packageId = "ahash";
-          }
-          {
-            name = "async-broadcast";
-            packageId = "async-broadcast";
-          }
-          {
-            name = "async-stream";
-            packageId = "async-stream";
-          }
-          {
-            name = "async-trait";
-            packageId = "async-trait";
-          }
-          {
-            name = "backoff";
-            packageId = "backoff";
-          }
-          {
-            name = "educe";
-            packageId = "educe";
-            usesDefaultFeatures = false;
-            features = [ "Clone" "Debug" "Hash" "PartialEq" ];
-          }
-          {
-            name = "futures";
-            packageId = "futures 0.3.31";
-            usesDefaultFeatures = false;
-            features = [ "async-await" ];
-          }
-          {
-            name = "hashbrown";
-            packageId = "hashbrown 0.14.5";
-          }
-          {
-            name = "json-patch";
-            packageId = "json-patch 2.0.0";
-          }
-          {
-            name = "jsonptr";
-            packageId = "jsonptr 0.4.7";
-          }
-          {
-            name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "kube-client";
-            packageId = "kube-client 0.96.0";
-            usesDefaultFeatures = false;
-            features = [ "jsonpatch" "client" ];
-          }
-          {
-            name = "parking_lot";
-            packageId = "parking_lot";
-          }
-          {
-            name = "pin-project";
-            packageId = "pin-project";
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror 1.0.69";
-          }
-          {
-            name = "tokio";
-            packageId = "tokio";
-            features = [ "time" ];
-          }
-          {
-            name = "tokio-util";
-            packageId = "tokio-util";
-            features = [ "time" ];
-          }
-          {
-            name = "tracing";
-            packageId = "tracing";
-          }
-        ];
-        devDependencies = [
-          {
-            name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
-            usesDefaultFeatures = false;
-            features = [ "latest" ];
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-          }
-          {
-            name = "tokio";
-            packageId = "tokio";
-            features = [ "full" "test-util" ];
-          }
-        ];
-        features = {
-          "unstable-runtime" = [ "unstable-runtime-subscribe" "unstable-runtime-stream-control" "unstable-runtime-reconcile-on" ];
-        };
-      };
-      "kube-runtime 0.99.0" = rec {
+      "kube-runtime" = rec {
         crateName = "kube-runtime";
         version = "0.99.0";
         edition = "2021";
@@ -5946,16 +5114,16 @@ rec {
           }
           {
             name = "json-patch";
-            packageId = "json-patch 4.0.0";
+            packageId = "json-patch";
           }
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.24.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
           }
           {
             name = "kube-client";
-            packageId = "kube-client 0.99.0";
+            packageId = "kube-client";
             usesDefaultFeatures = false;
             features = [ "jsonpatch" "client" ];
           }
@@ -5997,7 +5165,7 @@ rec {
         devDependencies = [
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.24.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
             features = [ "latest" ];
           }
@@ -7442,7 +6610,7 @@ rec {
           }
           {
             name = "itertools";
-            packageId = "itertools";
+            packageId = "itertools 0.13.0";
           }
           {
             name = "proc-macro2";
@@ -7591,7 +6759,7 @@ rec {
         dependencies = [
           {
             name = "bitflags";
-            packageId = "bitflags 2.9.0";
+            packageId = "bitflags";
           }
         ];
         features = {
@@ -8613,7 +7781,7 @@ rec {
         dependencies = [
           {
             name = "bitflags";
-            packageId = "bitflags 2.9.0";
+            packageId = "bitflags";
           }
           {
             name = "core-foundation";
@@ -8660,7 +7828,7 @@ rec {
         dependencies = [
           {
             name = "bitflags";
-            packageId = "bitflags 2.9.0";
+            packageId = "bitflags";
           }
           {
             name = "core-foundation";
@@ -9319,13 +8487,13 @@ rec {
       };
       "stackable-operator" = rec {
         crateName = "stackable-operator";
-        version = "0.89.1";
+        version = "0.90.0";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "cd73728af410c52972b9a9a3ba1302bcdb574d04";
-          sha256 = "1hrxrybc6197ibx0m2wfxlg5pdg4hanf6xvslzrhsp77a04pb0y9";
+          rev = "ea063b4595caa20c82d37c595487c76476c9ab10";
+          sha256 = "0fclvpxhchykqd7bl8hscr4v06mbs2v5vjp0xv27nvqr94j63xs2";
         };
         libName = "stackable_operator";
         authors = [
@@ -9374,17 +8542,17 @@ rec {
           }
           {
             name = "json-patch";
-            packageId = "json-patch 4.0.0";
+            packageId = "json-patch";
           }
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.24.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
             features = [ "schemars" "v1_32" ];
           }
           {
             name = "kube";
-            packageId = "kube 0.99.0";
+            packageId = "kube";
             usesDefaultFeatures = false;
             features = [ "client" "jsonpatch" "runtime" "derive" "rustls-tls" "ring" ];
           }
@@ -9470,8 +8638,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "cd73728af410c52972b9a9a3ba1302bcdb574d04";
-          sha256 = "1hrxrybc6197ibx0m2wfxlg5pdg4hanf6xvslzrhsp77a04pb0y9";
+          rev = "ea063b4595caa20c82d37c595487c76476c9ab10";
+          sha256 = "0fclvpxhchykqd7bl8hscr4v06mbs2v5vjp0xv27nvqr94j63xs2";
         };
         procMacro = true;
         libName = "stackable_operator_derive";
@@ -9505,8 +8673,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "cd73728af410c52972b9a9a3ba1302bcdb574d04";
-          sha256 = "1hrxrybc6197ibx0m2wfxlg5pdg4hanf6xvslzrhsp77a04pb0y9";
+          rev = "ea063b4595caa20c82d37c595487c76476c9ab10";
+          sha256 = "0fclvpxhchykqd7bl8hscr4v06mbs2v5vjp0xv27nvqr94j63xs2";
         };
         libName = "stackable_shared";
         authors = [
@@ -9515,7 +8683,7 @@ rec {
         dependencies = [
           {
             name = "kube";
-            packageId = "kube 0.99.0";
+            packageId = "kube";
             usesDefaultFeatures = false;
             features = [ "client" "jsonpatch" "runtime" "derive" "rustls-tls" "ring" ];
           }
@@ -9742,13 +8910,13 @@ rec {
       };
       "stackable-versioned" = rec {
         crateName = "stackable-versioned";
-        version = "0.5.0";
+        version = "0.7.1";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "048c7d8befddc2f2c6414444006871c95412d67c";
-          sha256 = "1x2pfibrsysmkkmajyj30qkwsjf3rzmc3dxsd09jb9r4x7va6mr6";
+          rev = "6c4b022dcdaec09a0c0ecb420a41bb180d4edbf8";
+          sha256 = "16klfwx3kz3ys7afwjicfj8msws9a718izx09jspwwpff3rl6wsi";
         };
         libName = "stackable_versioned";
         authors = [
@@ -9768,13 +8936,13 @@ rec {
       };
       "stackable-versioned-macros" = rec {
         crateName = "stackable-versioned-macros";
-        version = "0.5.0";
+        version = "0.7.1";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "048c7d8befddc2f2c6414444006871c95412d67c";
-          sha256 = "1x2pfibrsysmkkmajyj30qkwsjf3rzmc3dxsd09jb9r4x7va6mr6";
+          rev = "6c4b022dcdaec09a0c0ecb420a41bb180d4edbf8";
+          sha256 = "16klfwx3kz3ys7afwjicfj8msws9a718izx09jspwwpff3rl6wsi";
         };
         procMacro = true;
         libName = "stackable_versioned_macros";
@@ -9792,14 +8960,14 @@ rec {
           }
           {
             name = "itertools";
-            packageId = "itertools";
+            packageId = "itertools 0.14.0";
           }
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
+            packageId = "k8s-openapi";
             optional = true;
             usesDefaultFeatures = false;
-            features = [ "schemars" "v1_31" ];
+            features = [ "schemars" "v1_32" ];
           }
           {
             name = "k8s-version";
@@ -9808,10 +8976,10 @@ rec {
           }
           {
             name = "kube";
-            packageId = "kube 0.96.0";
+            packageId = "kube";
             optional = true;
             usesDefaultFeatures = false;
-            features = [ "client" "jsonpatch" "runtime" "derive" "rustls-tls" ];
+            features = [ "client" "jsonpatch" "runtime" "derive" "rustls-tls" "ring" ];
           }
           {
             name = "proc-macro2";
@@ -9829,9 +8997,9 @@ rec {
         devDependencies = [
           {
             name = "k8s-openapi";
-            packageId = "k8s-openapi 0.23.0";
+            packageId = "k8s-openapi";
             usesDefaultFeatures = false;
-            features = [ "schemars" "v1_31" ];
+            features = [ "schemars" "v1_32" ];
           }
         ];
         features = {
@@ -11011,7 +10179,7 @@ rec {
           }
           {
             name = "bitflags";
-            packageId = "bitflags 2.9.0";
+            packageId = "bitflags";
           }
           {
             name = "bytes";

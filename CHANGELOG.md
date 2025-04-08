@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Replace stackable-operator `initialize_logging` with stackable-telemetry `Tracing` ([#547]).
-  - BREAKING: The file log directory was set by `SPARK_K8S_OPERATOR_LOG_DIRECTORY`, and is now set by `ROLLING_LOGS_DIR`
+  - BREAKING: The file log directory was set by `SPARK_K8S_OPERATOR_LOG_DIRECTORY`, and is now set by `ROLLING_LOGS`
     (or via `--rolling-logs <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 

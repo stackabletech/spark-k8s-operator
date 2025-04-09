@@ -1,14 +1,14 @@
 {
     "beku.py": {
-        "branch": "main",
+        "branch": "0.0.10",
         "description": "Test suite expander for Stackable Kuttl tests.",
         "homepage": null,
         "owner": "stackabletech",
         "repo": "beku.py",
-        "rev": "1ebc9e7b70fb8ee11dfb569ae45b3bcd63666d0e",
-        "sha256": "1zg24h5wdis7cysa08r8vvbw2rpyx6fgv148i1lg54dwd3sa0h0d",
+        "rev": "fc75202a38529a4ac6776dd8a5dfee278d927f58",
+        "sha256": "152yary0p11h87yabv74jnwkghsal7lx16az0qlzrzdrs6n5v8id",
         "type": "tarball",
-        "url": "https://github.com/stackabletech/beku.py/archive/1ebc9e7b70fb8ee11dfb569ae45b3bcd63666d0e.tar.gz",
+        "url": "https://github.com/stackabletech/beku.py/archive/fc75202a38529a4ac6776dd8a5dfee278d927f58.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "crate2nix": {
@@ -17,10 +17,10 @@
         "homepage": "",
         "owner": "kolloch",
         "repo": "crate2nix",
-        "rev": "236f6addfd452a48be805819e3216af79e988fd5",
-        "sha256": "1cnq84c1bhhbn3blm31scrqsxw2bl1w67v6gpav01m0s2509klf5",
+        "rev": "be31feae9a82c225c0fd1bdf978565dc452a483a",
+        "sha256": "14d0ymlrwk7dynv35qcw4xn0dylfpwjmf6f8znflbk2l6fk23l12",
         "type": "tarball",
-        "url": "https://github.com/kolloch/crate2nix/archive/236f6addfd452a48be805819e3216af79e988fd5.tar.gz",
+        "url": "https://github.com/kolloch/crate2nix/archive/be31feae9a82c225c0fd1bdf978565dc452a483a.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "nixpkgs": {
@@ -29,10 +29,10 @@
         "homepage": "",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "aa6ae0afa6adeb5c202a168e51eda1d3da571117",
-        "sha256": "1kbg6limdl7f21vr36g7qlrimm8lxr97b6kvxkz91yfdffn942p9",
+        "rev": "b0b4b5f8f621bfe213b8b21694bab52ecfcbf30b",
+        "sha256": "1y8kwbb5b0r1m88nk871ai56qi2drygvibjgc2swp48jfyp5ya99",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/aa6ae0afa6adeb5c202a168e51eda1d3da571117.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/b0b4b5f8f621bfe213b8b21694bab52ecfcbf30b.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }

@@ -1476,7 +1476,7 @@ dependencies = [
 [[package]]
 name = "k8s-version"
 version = "0.1.2"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-versioned-0.7.1#6c4b022dcdaec09a0c0ecb420a41bb180d4edbf8"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.91.1#0f9b6f9669051e9c4f29e6e882acf3eff3ac3f14"
 dependencies = [
  "darling",
  "regex",
@@ -2631,8 +2631,8 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
 name = "stackable-operator"
-version = "0.90.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.90.0#ea063b4595caa20c82d37c595487c76476c9ab10"
+version = "0.91.1"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.91.1#0f9b6f9669051e9c4f29e6e882acf3eff3ac3f14"
 dependencies = [
  "chrono",
  "clap",
@@ -2656,6 +2656,8 @@ dependencies = [
  "snafu 0.8.5",
  "stackable-operator-derive",
  "stackable-shared",
+ "stackable-telemetry",
+ "stackable-versioned",
  "strum",
  "tokio",
  "tracing",
@@ -2667,7 +2669,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.3.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.90.0#ea063b4595caa20c82d37c595487c76476c9ab10"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.91.1#0f9b6f9669051e9c4f29e6e882acf3eff3ac3f14"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2678,7 +2680,7 @@ dependencies = [
 [[package]]
 name = "stackable-shared"
 version = "0.0.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.90.0#ea063b4595caa20c82d37c595487c76476c9ab10"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.91.1#0f9b6f9669051e9c4f29e6e882acf3eff3ac3f14"
 dependencies = [
  "kube",
  "semver",
@@ -2705,8 +2707,6 @@ dependencies = [
  "serde_yaml",
  "snafu 0.8.5",
  "stackable-operator",
- "stackable-telemetry",
- "stackable-versioned",
  "strum",
  "tokio",
  "tracing",
@@ -2715,10 +2715,11 @@ dependencies = [
 
 [[package]]
 name = "stackable-telemetry"
-version = "0.4.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-telemetry-0.4.0#52bdee5749e217005025d07f33c7020931c31d91"
+version = "0.5.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.91.1#0f9b6f9669051e9c4f29e6e882acf3eff3ac3f14"
 dependencies = [
  "axum 0.8.3",
+ "clap",
  "futures-util",
  "opentelemetry",
  "opentelemetry-appender-tracing",
@@ -2726,6 +2727,7 @@ dependencies = [
  "opentelemetry_sdk",
  "pin-project",
  "snafu 0.8.5",
+ "strum",
  "tokio",
  "tower 0.5.2",
  "tracing",
@@ -2737,7 +2739,7 @@ dependencies = [
 [[package]]
 name = "stackable-versioned"
 version = "0.7.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-versioned-0.7.1#6c4b022dcdaec09a0c0ecb420a41bb180d4edbf8"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.91.1#0f9b6f9669051e9c4f29e6e882acf3eff3ac3f14"
 dependencies = [
  "stackable-versioned-macros",
 ]
@@ -2745,7 +2747,7 @@ dependencies = [
 [[package]]
 name = "stackable-versioned-macros"
 version = "0.7.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-versioned-0.7.1#6c4b022dcdaec09a0c0ecb420a41bb180d4edbf8"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.91.1#0f9b6f9669051e9c4f29e6e882acf3eff3ac3f14"
 dependencies = [
  "convert_case",
  "darling",

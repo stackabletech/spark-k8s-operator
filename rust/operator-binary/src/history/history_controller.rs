@@ -629,6 +629,7 @@ fn build_service(
             Some("None".to_string()),
         ),
         None => (
+            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
             format!("{}-{}", shs.metadata.name.as_ref().unwrap(), role),
             shs.spec.cluster_config.listener_class.k8s_service_type(),
             None,

@@ -155,6 +155,7 @@ impl S3LogDir {
         let bucket = log_file_dir
             .bucket
             .clone()
+            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
             .resolve(client, namespace.unwrap().as_str())
             .await
             .context(ConfigureS3Snafu)?;

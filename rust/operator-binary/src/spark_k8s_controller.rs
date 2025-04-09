@@ -233,6 +233,7 @@ pub async fn reconcile(
             s3bd.clone()
                 .resolve(
                     client,
+                    // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
                     spark_application.metadata.namespace.as_deref().unwrap(),
                 )
                 .await
@@ -350,6 +351,7 @@ pub async fn reconcile(
 
     let job_commands = spark_application
         .build_command(
+            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
             serviceaccount.metadata.name.as_ref().unwrap(),
             &opt_s3conn,
             &logdir,
@@ -630,6 +632,7 @@ fn pod_template(
         logdir,
         spark_image,
     )
+    // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
     .unwrap();
 
     for init_container in init_containers {
@@ -968,6 +971,7 @@ fn build_spark_role_serviceaccount(
     spark_app: &v1alpha1::SparkApplication,
     spark_image: &ResolvedProductImage,
 ) -> Result<(ServiceAccount, RoleBinding)> {
+    // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
     let sa_name = spark_app.metadata.name.as_ref().unwrap().to_string();
     let sa = ServiceAccount {
         metadata: ObjectMetaBuilder::new()

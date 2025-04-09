@@ -637,11 +637,7 @@ fn pod_template(
     }
 
     if config.logging.enable_vector_agent {
-        match spark_application
-            .spec
-            .vector_aggregator_config_map_name
-            .to_owned()
-        {
+        match &spark_application.spec.vector_aggregator_config_map_name {
             Some(vector_aggregator_config_map_name) => {
                 pb.add_container(
                     vector_container(
@@ -655,7 +651,7 @@ fn pod_template(
                             .with_memory_request("128Mi")
                             .with_memory_limit("128Mi")
                             .build(),
-                        &vector_aggregator_config_map_name,
+                        vector_aggregator_config_map_name,
                     )
                     .context(ConfigureLoggingSnafu)?,
                 );

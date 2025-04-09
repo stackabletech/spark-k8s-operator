@@ -63,7 +63,7 @@ use crate::{
         roles::{RoleConfig, SparkApplicationRole, SparkContainer, SubmitConfig},
         tlscerts, to_spark_env_sh_string, v1alpha1,
     },
-    product_logging::{self, resolve_vector_aggregator_address},
+    product_logging::{self},
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -130,8 +130,8 @@ pub enum Error {
     #[snafu(display("failed to resolve the log dir configuration"))]
     LogDir { source: crate::crd::logdir::Error },
 
-    #[snafu(display("failed to resolve the Vector aggregator address"))]
-    ResolveVectorAggregatorAddress { source: product_logging::Error },
+    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
+    VectorAggregatorConfigMapMissing,
 
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
@@ -233,6 +233,7 @@ pub async fn reconcile(
             s3bd.clone()
                 .resolve(
                     client,
+                    // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
                     spark_application.metadata.namespace.as_deref().unwrap(),
                 )
                 .await
@@ -290,20 +291,6 @@ pub async fn reconcile(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let vector_aggregator_address = resolve_vector_aggregator_address(
-        client,
-        spark_application
-            .namespace()
-            .as_deref()
-            .context(ObjectHasNoNamespaceSnafu)?,
-        spark_application
-            .spec
-            .vector_aggregator_config_map_name
-            .as_deref(),
-    )
-    .await
-    .context(ResolveVectorAggregatorAddressSnafu)?;
-
     let env_vars = spark_application.env(&opt_s3conn, &logdir);
 
     let driver_config = spark_application
@@ -323,7 +310,6 @@ pub async fn reconcile(
         &env_vars,
         &opt_s3conn,
         &logdir,
-        vector_aggregator_address.as_deref(),
         &resolved_product_image,
     )?;
     client
@@ -352,7 +338,6 @@ pub async fn reconcile(
         &env_vars,
         &opt_s3conn,
         &logdir,
-        vector_aggregator_address.as_deref(),
         &resolved_product_image,
     )?;
     client
@@ -366,6 +351,7 @@ pub async fn reconcile(
 
     let job_commands = spark_application
         .build_command(
+            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
             serviceaccount.metadata.name.as_ref().unwrap(),
             &opt_s3conn,
             &logdir,
@@ -646,6 +632,7 @@ fn pod_template(
         logdir,
         spark_image,
     )
+    // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
     .unwrap();
 
     for init_container in init_containers {
@@ -653,21 +640,29 @@ fn pod_template(
     }
 
     if config.logging.enable_vector_agent {
-        pb.add_container(
-            vector_container(
-                spark_image,
-                VOLUME_MOUNT_NAME_CONFIG,
-                VOLUME_MOUNT_NAME_LOG,
-                config.logging.containers.get(&SparkContainer::Vector),
-                ResourceRequirementsBuilder::new()
-                    .with_cpu_request("250m")
-                    .with_cpu_limit("500m")
-                    .with_memory_request("128Mi")
-                    .with_memory_limit("128Mi")
-                    .build(),
-            )
-            .context(ConfigureLoggingSnafu)?,
-        );
+        match &spark_application.spec.vector_aggregator_config_map_name {
+            Some(vector_aggregator_config_map_name) => {
+                pb.add_container(
+                    vector_container(
+                        spark_image,
+                        VOLUME_MOUNT_NAME_CONFIG,
+                        VOLUME_MOUNT_NAME_LOG,
+                        config.logging.containers.get(&SparkContainer::Vector),
+                        ResourceRequirementsBuilder::new()
+                            .with_cpu_request("250m")
+                            .with_cpu_limit("500m")
+                            .with_memory_request("128Mi")
+                            .with_memory_limit("128Mi")
+                            .build(),
+                        vector_aggregator_config_map_name,
+                    )
+                    .context(ConfigureLoggingSnafu)?,
+                );
+            }
+            None => {
+                VectorAggregatorConfigMapMissingSnafu.fail()?;
+            }
+        }
     }
 
     let mut pod_template = pb.build_template();
@@ -686,7 +681,6 @@ fn pod_template_config_map(
     env: &[EnvVar],
     s3conn: &Option<S3ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
-    vector_aggregator_address: Option<&str>,
     spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
     let cm_name = spark_application.pod_template_config_map_name(role.clone());
@@ -758,7 +752,6 @@ fn pod_template_config_map(
             role: String::new(),
             role_group: String::new(),
         },
-        vector_aggregator_address,
         &merged_config.logging,
         SparkContainer::Spark,
         SparkContainer::Vector,
@@ -978,6 +971,7 @@ fn build_spark_role_serviceaccount(
     spark_app: &v1alpha1::SparkApplication,
     spark_image: &ResolvedProductImage,
 ) -> Result<(ServiceAccount, RoleBinding)> {
+    // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
     let sa_name = spark_app.metadata.name.as_ref().unwrap().to_string();
     let sa = ServiceAccount {
         metadata: ObjectMetaBuilder::new()

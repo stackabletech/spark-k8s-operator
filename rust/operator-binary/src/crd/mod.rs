@@ -838,6 +838,7 @@ impl v1alpha1::SparkApplication {
         product_config: &ProductConfigManager,
     ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
         let submit_conf = if self.spec.job.is_some() {
+            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
             self.spec.job.as_ref().unwrap().clone()
         } else {
             CommonConfiguration {
@@ -847,6 +848,7 @@ impl v1alpha1::SparkApplication {
         };
 
         let driver_conf = if self.spec.driver.is_some() {
+            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
             self.spec.driver.as_ref().unwrap().clone()
         } else {
             CommonConfiguration {
@@ -857,6 +859,7 @@ impl v1alpha1::SparkApplication {
 
         let executor_conf: RoleGroup<RoleConfigFragment, JavaCommonConfig> =
             if self.spec.executor.is_some() {
+                // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
                 self.spec.executor.as_ref().unwrap().clone()
             } else {
                 RoleGroup {

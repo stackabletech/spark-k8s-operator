@@ -11,7 +11,12 @@ All notable changes to this project will be documented in this file.
     (or via `--rolling-logs <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 
+### Fixed
+
+- Use `json` file extension for log files ([#553]).
+
 [#547]: https://github.com/stackabletech/spark-k8s-operator/pull/547
+[#553]: https://github.com/stackabletech/spark-k8s-operator/pull/553
 
 ## [25.3.0] - 2025-03-21
 

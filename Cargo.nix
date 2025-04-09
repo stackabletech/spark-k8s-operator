@@ -8920,13 +8920,13 @@ rec {
       };
       "stackable-telemetry" = rec {
         crateName = "stackable-telemetry";
-        version = "0.4.0";
+        version = "0.5.0";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech//operator-rs.git";
-          rev = "861ded97bb2d9f49232a892afba294ae88e606ae";
-          sha256 = "03mldfkggcm27h5w2cdllsdn8jpaxccm2by03y0d6q7zkz986di6";
+          url = "https://github.com/stackabletech/operator-rs.git";
+          rev = "0f9b6f9669051e9c4f29e6e882acf3eff3ac3f14";
+          sha256 = "11zqwlwvfigca7lfsdch1wqd3vl694hff1avf6rhiawpnassj2cw";
         };
         libName = "stackable_telemetry";
         authors = [

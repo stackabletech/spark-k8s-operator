@@ -2727,8 +2727,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-telemetry"
-version = "0.4.0"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fstackable-telemetry-tracing-default#861ded97bb2d9f49232a892afba294ae88e606ae"
+version = "0.5.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.91.1#0f9b6f9669051e9c4f29e6e882acf3eff3ac3f14"
 dependencies = [
  "axum 0.8.3",
  "clap",
@@ -3841,8 +3841,3 @@ dependencies = [
  "quote",
  "syn 2.0.100",
 ]
-
-[[patch.unused]]
-name = "stackable-operator"
-version = "0.89.1"
-source = "git+https://github.com/stackabletech//operator-rs.git?branch=feat%2Fstackable-telemetry-tracing-default#861ded97bb2d9f49232a892afba294ae88e606ae"

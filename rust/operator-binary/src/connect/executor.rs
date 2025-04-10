@@ -39,18 +39,6 @@ use crate::{
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to serialize spark connect executor pod template for {name}"))]
-    PodTemplateSerde {
-        source: serde_yaml::Error,
-        name: String,
-    },
-
-    #[snafu(display("failed to build spark connect pod template config map for {name}"))]
-    PodTemplateConfigMap {
-        source: stackable_operator::builder::configmap::Error,
-        name: String,
-    },
-
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,

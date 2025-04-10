@@ -39,9 +39,6 @@ pub enum Error {
     #[snafu(display("failed to build connect server properties"))]
     ServerProperties { source: server::Error },
 
-    #[snafu(display("failed to build server jvm arguments"))]
-    ServerJvmArgs { source: common::Error },
-
     #[snafu(display("failed to build spark connect service"))]
     BuildService { source: server::Error },
 
@@ -63,18 +60,8 @@ pub enum Error {
         name: String,
     },
 
-    #[snafu(display("failed to update executor pod template"))]
-    ApplyExecutorPodTemplate {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("spark connect object has no namespace"))]
     ObjectHasNoNamespace,
-
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
 
     #[snafu(display("failed to update the connect server deployment"))]
     ApplyDeployment {
@@ -120,12 +107,6 @@ pub enum Error {
 
     #[snafu(display("failed to resolve the Vector aggregator address"))]
     ResolveVectorAggregatorAddress { source: product_logging::Error },
-
-    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
-    InvalidLoggingConfig {
-        source: product_logging::Error,
-        cm_name: String,
-    },
 
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {

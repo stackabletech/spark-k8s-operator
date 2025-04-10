@@ -116,7 +116,7 @@ pub enum Error {
 // - spark-env.sh          : OMITTED because the environment variables are added directly
 //                           to the container environment.
 #[allow(clippy::result_large_err)]
-pub fn server_config_map(
+pub(crate) fn server_config_map(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
@@ -188,7 +188,7 @@ pub fn server_config_map(
 }
 
 #[allow(clippy::result_large_err)]
-pub fn build_deployment(
+pub(crate) fn build_deployment(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
@@ -350,7 +350,7 @@ pub fn build_deployment(
 }
 
 #[allow(clippy::result_large_err)]
-pub fn build_service(
+pub(crate) fn build_service(
     scs: &v1alpha1::SparkConnectServer,
     app_version_label: &str,
     service_cluster_ip: Option<String>,
@@ -421,7 +421,7 @@ pub fn build_service(
 }
 
 #[allow(clippy::result_large_err)]
-pub fn command_args(user_args: &[String]) -> Vec<String> {
+pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
     let mut command = vec![
         // ---------- start containerdebug
         format!(
@@ -473,7 +473,7 @@ fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, E
 // Returns the contents of the spark properties file.
 // It merges operator properties with user properties.
 #[allow(clippy::result_large_err)]
-pub fn server_properties(
+pub(crate) fn server_properties(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
     driver_service: &Service,

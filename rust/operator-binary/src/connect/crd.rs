@@ -181,7 +181,7 @@ pub mod versioned {
 // TODO: Temporary solution until listener-operator is finished
 #[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "PascalCase")]
-pub enum CurrentlySupportedListenerClasses {
+pub(crate) enum CurrentlySupportedListenerClasses {
     #[serde(rename = "cluster-internal")]
     ClusterInternal,
     #[default]
@@ -217,7 +217,7 @@ impl CurrentlySupportedListenerClasses {
     ),
     serde(rename_all = "camelCase")
 )]
-pub struct ConnectStorageConfig {}
+pub(crate) struct ConnectStorageConfig {}
 
 #[derive(
     Clone,
@@ -234,7 +234,7 @@ pub struct ConnectStorageConfig {}
 )]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
-pub enum SparkConnectContainer {
+pub(crate) enum SparkConnectContainer {
     Spark,
     Vector,
 }

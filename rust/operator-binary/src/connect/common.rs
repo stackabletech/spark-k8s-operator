@@ -35,7 +35,11 @@ pub enum Error {
     },
 }
 
-pub fn labels<'a, T>(scs: &'a T, app_version_label: &'a str, role: &'a str) -> ObjectLabels<'a, T> {
+pub(crate) fn labels<'a, T>(
+    scs: &'a T,
+    app_version_label: &'a str,
+    role: &'a str,
+) -> ObjectLabels<'a, T> {
     ObjectLabels {
         owner: scs,
         app_name: APP_NAME,
@@ -52,12 +56,12 @@ pub fn labels<'a, T>(scs: &'a T, app_version_label: &'a str, role: &'a str) -> O
 #[allow(dead_code)]
 #[derive(Clone, Debug, Display)]
 #[strum(serialize_all = "lowercase")]
-pub enum SparkConnectRole {
+pub(crate) enum SparkConnectRole {
     Server,
     Executor,
 }
 
-pub fn object_name(stacklet_name: &str, role: SparkConnectRole) -> String {
+pub(crate) fn object_name(stacklet_name: &str, role: SparkConnectRole) -> String {
     match role {
         SparkConnectRole::Server => format!("{}-{}", stacklet_name, CONNECT_SERVER_ROLE_NAME),
         SparkConnectRole::Executor => format!("{}-{}", stacklet_name, CONNECT_EXECUTOR_ROLE_NAME),
@@ -65,7 +69,7 @@ pub fn object_name(stacklet_name: &str, role: SparkConnectRole) -> String {
 }
 
 // Returns the jvm arguments a user has provided merged with the operator props.
-pub fn jvm_args(
+pub(crate) fn jvm_args(
     jvm_args: &[String],
     user_java_config: Option<&JavaCommonConfig>,
 ) -> Result<String, Error> {
@@ -85,7 +89,9 @@ pub fn jvm_args(
 
 // Merges spark properties from the server and the executor
 // and generates the contents of the.
-pub fn spark_properties(props: &[BTreeMap<String, Option<String>>; 2]) -> Result<String, Error> {
+pub(crate) fn spark_properties(
+    props: &[BTreeMap<String, Option<String>>; 2],
+) -> Result<String, Error> {
     let mut result = BTreeMap::new();
     for p in props {
         result.extend(p);
@@ -93,7 +99,7 @@ pub fn spark_properties(props: &[BTreeMap<String, Option<String>>; 2]) -> Result
     to_java_properties_string(result.into_iter()).context(SparkPropertiesSnafu)
 }
 
-pub fn security_properties(
+pub(crate) fn security_properties(
     config_overrides: Option<&HashMap<String, String>>,
 ) -> Result<String, Error> {
     let mut result: BTreeMap<String, Option<String>> = [
@@ -119,7 +125,7 @@ pub fn security_properties(
     to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
 }
 
-pub fn metrics_properties(
+pub(crate) fn metrics_properties(
     config_overrides: Option<&HashMap<String, String>>,
 ) -> Result<String, Error> {
     let mut result: BTreeMap<String, Option<String>> = [

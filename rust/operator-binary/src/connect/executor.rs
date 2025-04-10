@@ -198,7 +198,7 @@ fn executor_env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<E
         .collect())
 }
 
-pub fn executor_properties(
+pub(crate) fn executor_properties(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
     resolved_product_image: &ResolvedProductImage,
@@ -307,7 +307,7 @@ fn executor_jvm_args(
 // - security.properties   : with jvm dns cache ttls
 // - log4j2.properties     : with logging configuration (if configured)
 //
-pub fn executor_config_map(
+pub(crate) fn executor_config_map(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
     resolved_product_image: &ResolvedProductImage,

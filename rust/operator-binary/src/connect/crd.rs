@@ -50,30 +50,14 @@ pub const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to transform configs"))]
-    ProductConfigTransform {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
-
-    #[snafu(display("the role group {role_group} is not defined"))]
-    CannotRetrieveRoleGroup { role_group: String },
-
-    #[snafu(display("failed to construct JVM arguments"))]
-    ConstructJvmArguments,
 }
 
 #[versioned(version(name = "v1alpha1"))]
 pub mod versioned {
 
-    /// A Spark cluster connect server component. This resource is managed by the Stackable operator
+    /// An Apache Spark Connect server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/connect-server).
     #[versioned(k8s(
@@ -94,7 +78,7 @@ pub mod versioned {
     pub struct SparkConnectServerSpec {
         pub image: ProductImage,
 
-        /// Global Spark connect server configuration that applies to all roles and role groups.
+        /// Global Spark Connect server configuration that applies to all roles.
         #[serde(default)]
         pub cluster_config: v1alpha1::SparkConnectServerClusterConfig,
 
@@ -111,11 +95,11 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
-        /// A spark connect server definition.
+        /// A Spark Connect server definition.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub server: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
 
-        /// Spark connect executor properties.
+        /// Spark Connect executor properties.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub executor: Option<CommonConfiguration<ExecutorConfigFragment, JavaCommonConfig>>,
     }

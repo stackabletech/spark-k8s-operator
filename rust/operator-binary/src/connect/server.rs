@@ -55,11 +55,6 @@ pub enum Error {
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
 
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides {
-        source: stackable_operator::role_utils::Error,
-    },
-
     #[snafu(display("spark connect object has no namespace"))]
     ObjectHasNoNamespace,
 
@@ -91,11 +86,6 @@ pub enum Error {
 
     #[snafu(display("server metrics properties for spark connect {name}",))]
     MetricsProperties { source: common::Error, name: String },
-
-    #[snafu(display("failed to serialize [{SPARK_DEFAULTS_FILE_NAME}] for the connect server",))]
-    SparkDefaultsProperties {
-        source: product_config::writer::PropertiesWriterError,
-    },
 
     #[snafu(display("failed to build Labels"))]
     LabelBuild {

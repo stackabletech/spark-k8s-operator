@@ -1,0 +1,77 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-connect-log-config
+data:
+  log4j2.properties: |-
+    appenders = CONSOLE
+
+    appender.CONSOLE.type = Console
+    appender.CONSOLE.name = CONSOLE
+    appender.CONSOLE.target = SYSTEM_ERR
+    appender.CONSOLE.layout.type = PatternLayout
+    appender.CONSOLE.layout.pattern = %d{ISO8601} %p [%t] %c - %m%n
+    appender.CONSOLE.filter.threshold.type = ThresholdFilter
+    appender.CONSOLE.filter.threshold.level = DEBUG
+
+    rootLogger.level=INFO
+    rootLogger.appenderRefs = CONSOLE
+    rootLogger.appenderRef.CONSOLE.ref = CONSOLE
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkConnectServer
+metadata:
+  name: spark-connect
+spec:
+  image:
+{% if test_scenario['values']['spark-connect'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark-connect'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark-connect'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark-connect'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  args:
+    - --packages org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-connect'].split('.')[:2]) }}_2.12:1.8.1
+  server:
+    podOverrides:
+      spec:
+        containers:
+          - name: spark
+            env:
+              - name: DEMO_GREETING
+                value: "Hello from the overlords"
+    jvmArgumentOverrides:
+      add:
+        - -Dmy.custom.jvm.arg=customValue
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          spark:
+            custom:
+              configMap: spark-connect-log-config
+    configOverrides:
+      spark-defaults.conf:
+        spark.jars.ivy: /tmp/ivy2
+        spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+        spark.sql.catalog.local: org.apache.iceberg.spark.SparkCatalog
+        spark.sql.catalog.local.type: hadoop
+        spark.sql.catalog.local.warehouse: /tmp/warehouse
+        spark.sql.defaultCatalog: local
+  executor:
+    configOverrides:
+      spark-defaults.conf:
+        spark.executor.instances: "1"
+        spark.executor.memoryOverhead: "1m"
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          spark:
+            custom:
+              configMap: spark-connect-log-config

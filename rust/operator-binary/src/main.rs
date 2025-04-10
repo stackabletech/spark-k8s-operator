@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use futures::{StreamExt, pin_mut};
+use connect::crd::{CONNECT_FULL_CONTROLLER_NAME, SparkConnectServer};
+use futures::{StreamExt, pin_mut, select};
 use history::history_controller;
 use product_config::ProductConfigManager;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
-        apps::v1::StatefulSet,
+        apps::v1::{Deployment, StatefulSet},
         core::v1::{ConfigMap, Pod, Service},
     },
     kube::{
@@ -36,6 +37,7 @@ use crate::crd::{
 };
 
 mod config;
+mod connect;
 mod crd;
 mod history;
 mod pod_driver_controller;
@@ -70,6 +72,8 @@ async fn main() -> anyhow::Result<()> {
             SparkApplication::merged_crd(SparkApplication::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
             SparkHistoryServer::merged_crd(SparkHistoryServer::V1Alpha1)?
+                .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
+            SparkConnectServer::merged_crd(SparkConnectServer::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
         }
         Command::Run(ProductOperatorRun {
@@ -243,13 +247,82 @@ async fn main() -> anyhow::Result<()> {
                 },
             );
 
-            pin_mut!(app_controller, pod_driver_controller, history_controller);
-            // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
-            futures::future::select(
-                futures::future::select(app_controller, pod_driver_controller),
-                history_controller,
+            // ==============================
+            // Create new object because Ctx cannot be cloned
+            let ctx = Ctx {
+                client: client.clone(),
+                product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
+            };
+            let connect_event_recorder =
+                Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+                    controller: CONNECT_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                }));
+            let connect_controller = Controller::new(
+                watch_namespace
+                    .get_api::<DeserializeGuard<connect::crd::v1alpha1::SparkConnectServer>>(
+                        &client,
+                    ),
+                watcher::Config::default(),
             )
-            .await;
+            .owns(
+                watch_namespace
+                    .get_api::<DeserializeGuard<connect::crd::v1alpha1::SparkConnectServer>>(
+                        &client,
+                    ),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<Deployment>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<Service>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watcher::Config::default(),
+            )
+            .shutdown_on_signal()
+            .run(
+                connect::controller::reconcile,
+                connect::controller::error_policy,
+                Arc::new(ctx),
+            )
+            .instrument(info_span!("connect_controller"))
+            // We can let the reporting happen in the background
+            .for_each_concurrent(
+                16, // concurrency limit
+                |result| {
+                    // The event_recorder needs to be shared across all invocations, so that
+                    // events are correctly aggregated
+                    let connect_event_recorder = connect_event_recorder.clone();
+                    async move {
+                        report_controller_reconciled(
+                            &connect_event_recorder,
+                            CONNECT_FULL_CONTROLLER_NAME,
+                            &result,
+                        )
+                        .await;
+                    }
+                },
+            );
+
+            //
+            pin_mut!(
+                app_controller,
+                pod_driver_controller,
+                history_controller,
+                connect_controller
+            );
+            // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
+            select! {
+                r1 = app_controller => r1,
+                r2 = pod_driver_controller => r2,
+                r3 = history_controller => r3,
+                r4 = connect_controller => r4,
+            };
         }
     }
     Ok(())

@@ -1,0 +1,59 @@
+= Spark Connect
+:description: Set up a Spark Connect Server with Kubernetes as distributed execution engine with an external service to be used by clients
+:page-aliases: spark_connect.adoc
+
+WARNING: Support for Apache Spark Connect is considered experimental and is subject to change in future releases. Spark Connect is a young technology and there are important questions to be answered yet, mostly related to security and multi-tenancy.
+
+Apache Spark Connect is a remote procedure call (RPC) server that allows clients to run Spark applications on a remote cluster. Clients can connect to the Spark Connect server using a variety of programming languages, editors and IDEs without needing to install Spark locally.
+
+The Stackable Spark operator can set up Spark Connect servers backed by Kubernetes as a distributed execution engine.
+
+== Deployment
+
+The example below demonstrates how to set up a Spark Connect server and apply some customizations.
+
+[source,yaml]
+----
+include::example$example-spark-connect.yaml[]
+----
+
+<1> The name of the Spark Connect server.
+<2> Version of the Spark Connect server.
+<3> Additional package to install when starting the Spark Connect server and executors.
+<4> Environment variable to be created via `podOverrides`. Alternatively, the environment variable can be set in the `spec.server.envOverrides` section.
+<5> Additional argument to be passed to the Spark Connect JVM settings. Do not use this to tweak heap settings. Use `spec.server.jvmOptions` instead.
+<6> A custom log4j configuration file to be used by the Spark Connect server. The config map must have an entry called `log4j.properties`.
+<7> Customize the driver properties in the `server` role. The number of cores here is not related to Kubernetes cores!
+<8> Customize `spark.executor.\*` and `spark.kubernetes.executor.*` in the `executor` role.
+
+== Metrics
+
+The server pod exposes Prometheus metrics at the following endpoints:
+
+* `/metrics/prometheus` for driver instances.
+* `/metrics/executors/prometheus` for executor instances.
+
+To customize the metrics configuration use the `spec.server.configOverrides' like this:
+
+```
+spec:
+  server:
+    configOverrides:
+      metrics.properties:
+        applications.sink.prometheusServlet.path: "/metrics/applications/prometheus"
+```
+
+The example above adds a new endpoint for application metrics.
+
+== Notable Omissions
+
+The following features are not supported by the Stackable Spark operator yet
+
+* Integration with the Spark History Server.
+* Authorization and authentication. Currently, anyone with access to the Spark Connect service can run jobs.
+* Volumes and volume mounts can be added only with pod overrides.
+* Job dependencies must be provisioned as custom images or via `--packages` or `--jars` arguments.
+
+== Known Issues
+
+* Dynamically provisioning the iceberg runtime leads to "iceberg.SparkWrite$WriterFactory" ClassNotfoundException when attempting to use it from clients.

@@ -53,6 +53,7 @@ rules:
       - apps
     resources:
       - statefulsets
+      - deployments
     verbs:
       - create
       - delete
@@ -102,6 +103,7 @@ rules:
     resources:
       - sparkapplications
       - sparkhistoryservers
+      - sparkconnectservers
     verbs:
       - get
       - list
@@ -111,6 +113,7 @@ rules:
       - spark.stackable.tech
     resources:
       - sparkapplications/status
+      - sparkconnectservers/status
     verbs:
       - patch
   - apiGroups:

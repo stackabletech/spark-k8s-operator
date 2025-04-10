@@ -1,0 +1,33 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: simple-connect-app
+  labels:
+    stackable.tech/vendor: Stackable
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      activeDeadlineSeconds: 100
+      containers:
+        - name: simple-connect-app
+{% if test_scenario['values']['spark-connect-client'].find(",") > 0 %}
+          image: "{{ test_scenario['values']['spark-connect-client'].split(',')[1] }}"
+{% else %}
+          image: oci.stackable.tech/sdp/spark-connect-client:{{ test_scenario['values']['spark-connect-client'] }}-stackable0.0.0-dev
+{% endif %}
+          imagePullPolicy: IfNotPresent
+          command:
+            [
+              "/usr/bin/python",
+              "/stackable/spark-connect-examples/python/simple-connect-app.py",
+              "sc://spark-connect-server",
+            ]
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 200m
+              memory: 128Mi

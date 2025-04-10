@@ -87,8 +87,8 @@ pub(crate) fn jvm_args(
     }
 }
 
-// Merges spark properties from the server and the executor
-// and generates the contents of the.
+// Merges server and executor properties and renders the contents
+// of the Spark properties file.
 pub(crate) fn spark_properties(
     props: &[BTreeMap<String, Option<String>>; 2],
 ) -> Result<String, Error> {

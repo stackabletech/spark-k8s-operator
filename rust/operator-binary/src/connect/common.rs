@@ -10,11 +10,11 @@ use strum::Display;
 
 use super::crd::CONNECT_EXECUTOR_ROLE_NAME;
 use crate::{
-    connect::crd::{CONNECT_CONTROLLER_NAME, CONNECT_SERVER_ROLE_NAME},
+    connect::crd::{
+        CONNECT_CONTROLLER_NAME, CONNECT_SERVER_ROLE_NAME, DUMMY_SPARK_CONNECT_GROUP_NAME,
+    },
     crd::constants::{APP_NAME, OPERATOR_NAME},
 };
-
-const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]

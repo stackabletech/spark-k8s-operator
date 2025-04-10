@@ -100,7 +100,7 @@ pub enum Error {
 pub fn executor_pod_template(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
-    pi: &ResolvedProductImage,
+    resolved_product_image: &ResolvedProductImage,
     config_map: &ConfigMap,
 ) -> Result<PodTemplateSpec, Error> {
     let container_env = executor_env(
@@ -123,7 +123,7 @@ pub fn executor_pod_template(
     let metadata = ObjectMetaBuilder::new()
         .with_recommended_labels(common::labels(
             scs,
-            &pi.app_version_label,
+            &resolved_product_image.app_version_label,
             &SparkConnectRole::Executor.to_string(),
         ))
         .context(PodTemplateMetadataBuildSnafu)?
@@ -201,9 +201,9 @@ fn executor_env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<E
 pub fn executor_properties(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
-    pi: &ResolvedProductImage,
+    resolved_product_image: &ResolvedProductImage,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
-    let spark_image = pi.image.clone();
+    let spark_image = resolved_product_image.image.clone();
 
     let mut result: BTreeMap<String, Option<String>> = [
         (

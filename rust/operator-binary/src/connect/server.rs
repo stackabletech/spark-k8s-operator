@@ -478,10 +478,10 @@ pub fn server_properties(
     config: &v1alpha1::ServerConfig,
     driver_service: &Service,
     service_account: &ServiceAccount,
-    pi: &ResolvedProductImage,
+    resolved_product_image: &ResolvedProductImage,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
-    let spark_image = pi.image.clone();
-    let spark_version = pi.product_version.clone();
+    let spark_image = resolved_product_image.image.clone();
+    let spark_version = resolved_product_image.product_version.clone();
     let service_account_name = service_account.name_unchecked();
     let namespace = driver_service
         .namespace()

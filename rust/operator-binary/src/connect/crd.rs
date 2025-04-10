@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::{
-        affinity::{affinity_between_role_pods, StackableAffinity, StackableAffinityFragment},
+        affinity::{StackableAffinity, StackableAffinityFragment, affinity_between_role_pods},
         cluster_operation::ClusterOperation,
         product_image_selection::ProductImage,
         resources::{
@@ -28,8 +28,8 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     status::condition::{ClusterCondition, HasStatusCondition},
     time::Duration,
+    versioned::versioned,
 };
-use stackable_versioned::versioned;
 use strum::{Display, EnumIter};
 
 use super::common::SparkConnectRole;

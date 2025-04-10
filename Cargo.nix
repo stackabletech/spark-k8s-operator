@@ -999,59 +999,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "gloo-timers" "gloo-timers-sleep" "std" "std-blocking-sleep" "tokio" "tokio-sleep" ];
       };
-      "backon" = rec {
-        crateName = "backon";
-        version = "1.4.1";
-        edition = "2021";
-        sha256 = "1drv0gvhjs3g0q88f1mknqjdyhh6qg8pvb9nkfasba011ibr23cp";
-        dependencies = [
-          {
-            name = "fastrand";
-            packageId = "fastrand";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "gloo-timers";
-            packageId = "gloo-timers";
-            optional = true;
-            target = { target, features }: ("wasm32" == target."arch" or null);
-          }
-          {
-            name = "tokio";
-            packageId = "tokio";
-            optional = true;
-            target = { target, features }: (!("wasm32" == target."arch" or null));
-          }
-        ];
-        devDependencies = [
-          {
-            name = "tokio";
-            packageId = "tokio";
-            target = {target, features}: (!("wasm32" == target."arch" or null));
-            features = [ "time" "rt" "macros" "sync" "rt-multi-thread" ];
-          }
-          {
-            name = "tokio";
-            packageId = "tokio";
-            usesDefaultFeatures = false;
-            target = {target, features}: ("wasm32" == target."arch" or null);
-            features = [ "macros" "rt" "sync" ];
-          }
-        ];
-        features = {
-          "default" = [ "std" "std-blocking-sleep" "tokio-sleep" "gloo-timers-sleep" ];
-          "embassy-sleep" = [ "embassy-time" ];
-          "embassy-time" = [ "dep:embassy-time" ];
-          "futures-timer" = [ "dep:futures-timer" ];
-          "futures-timer-sleep" = [ "futures-timer" ];
-          "gloo-timers" = [ "dep:gloo-timers" ];
-          "gloo-timers-sleep" = [ "gloo-timers/futures" ];
-          "std" = [ "fastrand/std" ];
-          "tokio" = [ "dep:tokio" ];
-          "tokio-sleep" = [ "tokio/time" ];
-        };
-        resolvedDefaultFeatures = [ "default" "gloo-timers" "gloo-timers-sleep" "std" "std-blocking-sleep" "tokio" "tokio-sleep" ];
-      };
       "backtrace" = rec {
         crateName = "backtrace";
         version = "0.3.74";
@@ -3859,7 +3806,7 @@ rec {
           }
           {
             name = "windows-core";
-            packageId = "windows-core 0.61.0";
+            packageId = "windows-core";
             target = { target, features }: ("windows" == target."os" or null);
           }
         ];
@@ -12002,108 +11949,6 @@ rec {
           {
             name = "windows-strings";
             packageId = "windows-strings 0.4.0";
-            usesDefaultFeatures = false;
-          }
-        ];
-        features = {
-          "default" = [ "std" ];
-          "std" = [ "windows-result/std" "windows-strings/std" ];
-        };
-        resolvedDefaultFeatures = [ "default" "std" ];
-      };
-      "windows-implement" = rec {
-        crateName = "windows-implement";
-        version = "0.60.0";
-        edition = "2021";
-        sha256 = "0dm88k3hlaax85xkls4gf597ar4z8m5vzjjagzk910ph7b8xszx4";
-        procMacro = true;
-        libName = "windows_implement";
-        authors = [
-          "Microsoft"
-        ];
-        dependencies = [
-          {
-            name = "proc-macro2";
-            packageId = "proc-macro2";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "syn";
-            packageId = "syn 2.0.100";
-            usesDefaultFeatures = false;
-            features = [ "parsing" "proc-macro" "printing" "full" "clone-impls" ];
-          }
-        ];
-
-      };
-      "windows-interface" = rec {
-        crateName = "windows-interface";
-        version = "0.59.1";
-        edition = "2021";
-        sha256 = "1a4zr8740gyzzhq02xgl6vx8l669jwfby57xgf0zmkcdkyv134mx";
-        procMacro = true;
-        libName = "windows_interface";
-        authors = [
-          "Microsoft"
-        ];
-        dependencies = [
-          {
-            name = "proc-macro2";
-            packageId = "proc-macro2";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "syn";
-            packageId = "syn 2.0.100";
-            usesDefaultFeatures = false;
-            features = [ "parsing" "proc-macro" "printing" "full" "clone-impls" ];
-          }
-        ];
-
-      };
-      "windows-core 0.61.0" = rec {
-        crateName = "windows-core";
-        version = "0.61.0";
-        edition = "2021";
-        sha256 = "104915nsby2cgp322pqqkmj2r82v5sg4hil0hxddg1hc67gc2qs7";
-        libName = "windows_core";
-        authors = [
-          "Microsoft"
-        ];
-        dependencies = [
-          {
-            name = "windows-implement";
-            packageId = "windows-implement";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "windows-interface";
-            packageId = "windows-interface";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "windows-link";
-            packageId = "windows-link";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "windows-result";
-            packageId = "windows-result";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "windows-strings";
-            packageId = "windows-strings";
             usesDefaultFeatures = false;
           }
         ];

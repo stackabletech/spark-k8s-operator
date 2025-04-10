@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use clap::{crate_description, crate_version, Parser};
-use connect::crd::{SparkConnectServer, CONNECT_FULL_CONTROLLER_NAME};
-use futures::{pin_mut, select, StreamExt};
+use clap::Parser;
+use connect::crd::{CONNECT_FULL_CONTROLLER_NAME, SparkConnectServer};
+use futures::{StreamExt, pin_mut, select};
 use history::history_controller;
 use product_config::ProductConfigManager;
 use stackable_operator::{
@@ -253,13 +253,11 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
-            let connect_event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
+            let connect_event_recorder =
+                Arc::new(Recorder::new(client.as_kube_client(), Reporter {
                     controller: CONNECT_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
-                },
-            ));
+                }));
             let connect_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<connect::crd::v1alpha1::SparkConnectServer>>(

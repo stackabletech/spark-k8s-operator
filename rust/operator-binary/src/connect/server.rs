@@ -7,12 +7,13 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            volume::VolumeBuilder, PodBuilder,
+            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
+            volume::VolumeBuilder,
         },
     },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
+        DeepMerge,
         api::{
             apps::v1::{Deployment, DeploymentSpec},
             core::v1::{
@@ -20,21 +21,20 @@ use stackable_operator::{
                 ServiceAccount, ServicePort, ServiceSpec,
             },
         },
-        apimachinery::pkg::apis::meta::v1::LabelSelector,
-        DeepMerge,
+        apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
-    kube::{runtime::reflector::ObjectRef, ResourceExt},
+    kube::{ResourceExt, runtime::reflector::ObjectRef},
     kvp::{Label, Labels},
-    product_logging::framework::{calculate_log_volume_size_limit, vector_container, LoggingError},
+    product_logging::framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
     role_utils::RoleGroupRef,
 };
 
 use crate::{
     connect::{
-        common::{self, object_name, SparkConnectRole},
+        common::{self, SparkConnectRole, object_name},
         crd::{
-            v1alpha1, SparkConnectContainer, CONNECT_GRPC_PORT, CONNECT_UI_PORT,
-            DUMMY_SPARK_CONNECT_GROUP_NAME,
+            CONNECT_GRPC_PORT, CONNECT_UI_PORT, DUMMY_SPARK_CONNECT_GROUP_NAME,
+            SparkConnectContainer, v1alpha1,
         },
     },
     crd::constants::{
@@ -52,6 +52,9 @@ const HTTP: &str = "http";
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
+    VectorAggregatorConfigMapMissing,
+
     #[snafu(display("failed to merge jvm argument overrides"))]
     MergeJvmArgumentOverrides {
         source: stackable_operator::role_utils::Error,
@@ -127,7 +130,6 @@ pub fn server_config_map(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
-    vector_aggregator_address: Option<&str>,
     spark_properties: &str,
     executor_pod_template_spec: &str,
 ) -> Result<ConfigMap, Error> {
@@ -181,7 +183,6 @@ pub fn server_config_map(
     };
     product_logging::extend_config_map(
         &role_group_ref,
-        vector_aggregator_address,
         &config.logging,
         SparkConnectContainer::Spark,
         SparkConnectContainer::Vector,
@@ -289,24 +290,32 @@ pub fn build_deployment(
     pb.add_container(container.build());
 
     if config.logging.enable_vector_agent {
-        pb.add_container(
-            vector_container(
-                resolved_product_image,
-                VOLUME_MOUNT_NAME_CONFIG,
-                VOLUME_MOUNT_NAME_LOG,
-                config
-                    .logging
-                    .containers
-                    .get(&SparkConnectContainer::Vector),
-                ResourceRequirementsBuilder::new()
-                    .with_cpu_request("250m")
-                    .with_cpu_limit("500m")
-                    .with_memory_request("128Mi")
-                    .with_memory_limit("128Mi")
-                    .build(),
-            )
-            .context(ConfigureLoggingSnafu)?,
-        );
+        match scs.spec.vector_aggregator_config_map_name.to_owned() {
+            Some(vector_aggregator_config_map_name) => {
+                pb.add_container(
+                    vector_container(
+                        resolved_product_image,
+                        VOLUME_MOUNT_NAME_CONFIG,
+                        VOLUME_MOUNT_NAME_LOG,
+                        config
+                            .logging
+                            .containers
+                            .get(&SparkConnectContainer::Vector),
+                        ResourceRequirementsBuilder::new()
+                            .with_cpu_request("250m")
+                            .with_cpu_limit("500m")
+                            .with_memory_request("128Mi")
+                            .with_memory_limit("128Mi")
+                            .build(),
+                        &vector_aggregator_config_map_name,
+                    )
+                    .context(ConfigureLoggingSnafu)?,
+                );
+            }
+            None => {
+                VectorAggregatorConfigMapMissingSnafu.fail()?;
+            }
+        }
     }
 
     // Merge user defined pod template if available

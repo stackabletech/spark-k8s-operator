@@ -1,4 +1,4 @@
-use std::{ops::Deref as _, sync::Arc};
+use std::sync::Arc;
 
 use clap::Parser;
 use futures::{StreamExt, pin_mut};
@@ -6,7 +6,7 @@ use history::history_controller;
 use product_config::ProductConfigManager;
 use stackable_operator::{
     YamlSchema,
-    cli::{Command, ProductOperatorRun, RollingPeriod},
+    cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Pod, Service},
@@ -21,9 +21,9 @@ use stackable_operator::{
     },
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
+    telemetry::Tracing,
 };
-use stackable_telemetry::{Tracing, tracing::settings::Settings};
-use tracing::{info_span, level_filters::LevelFilter};
+use tracing::info_span;
 use tracing_futures::Instrument;
 
 use crate::crd::{
@@ -45,9 +45,6 @@ mod spark_k8s_controller;
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
-
-// TODO (@NickLarsenNZ): Change the variable to `CONSOLE_LOG`
-pub const ENV_VAR_CONSOLE_LOG: &str = "SPARK_K8S_OPERATOR_LOG";
 
 #[derive(Parser)]
 #[clap(about, author)]
@@ -81,43 +78,12 @@ async fn main() -> anyhow::Result<()> {
             telemetry_arguments,
             cluster_info_opts,
         }) => {
-            let _tracing_guard = Tracing::builder()
-                .service_name("spark-k8s-operator")
-                .with_console_output((
-                    ENV_VAR_CONSOLE_LOG,
-                    LevelFilter::INFO,
-                    !telemetry_arguments.no_console_output,
-                ))
-                // NOTE (@NickLarsenNZ): Before stackable-telemetry was used, the log directory was
-                // set via an env: `SPARK_K8S_OPERATOR_LOG_DIRECTORY`.
-                // See: https://github.com/stackabletech/operator-rs/blob/f035997fca85a54238c8de895389cc50b4d421e2/crates/stackable-operator/src/logging/mod.rs#L40
-                // Now it will be `ROLLING_LOGS` (or via `--rolling-logs <DIRECTORY>`).
-                .with_file_output(telemetry_arguments.rolling_logs.map(|log_directory| {
-                    let rotation_period = telemetry_arguments
-                        .rolling_logs_period
-                        .unwrap_or(RollingPeriod::Never)
-                        .deref()
-                        .clone();
-
-                    Settings::builder()
-                        .with_environment_variable(ENV_VAR_CONSOLE_LOG)
-                        .with_default_level(LevelFilter::INFO)
-                        .file_log_settings_builder(log_directory, "tracing-rs.json")
-                        .with_rotation_period(rotation_period)
-                        .build()
-                }))
-                .with_otlp_log_exporter((
-                    "OTLP_LOG",
-                    LevelFilter::DEBUG,
-                    telemetry_arguments.otlp_logs,
-                ))
-                .with_otlp_trace_exporter((
-                    "OTLP_TRACE",
-                    LevelFilter::DEBUG,
-                    telemetry_arguments.otlp_traces,
-                ))
-                .build()
-                .init()?;
+            // NOTE (@NickLarsenNZ): Before stackable-telemetry was used:
+            // - The console log level was set by `SPARK_K8S_OPERATOR_LOG`, and is now `CONSOLE_LOG` (when using Tracing::pre_configured).
+            // - The file log level was set by `SPARK_K8S_OPERATOR_LOG`, and is now set via `FILE_LOG` (when using Tracing::pre_configured).
+            // - The file log directory was set by `SPARK_K8S_OPERATOR_LOG_DIRECTORY`, and is now set by `ROLLING_LOGS_DIR` (or via `--rolling-logs <DIRECTORY>`).
+            let _tracing_guard =
+                Tracing::pre_configured(built_info::PKG_NAME, telemetry_arguments).init()?;
 
             tracing::info!(
                 built_info.pkg_version = built_info::PKG_VERSION,

@@ -41,8 +41,8 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     time::Duration,
     utils::crds::raw_object_list_schema,
+    versioned::versioned,
 };
-use stackable_versioned::versioned;
 
 use crate::{
     config::jvm::construct_extra_java_options,

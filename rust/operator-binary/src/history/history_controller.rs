@@ -543,7 +543,7 @@ fn build_stateful_set(
     pb.add_container(container);
 
     if merged_config.logging.enable_vector_agent {
-        match shs.spec.vector_aggregator_config_map_name.to_owned() {
+        match &shs.spec.vector_aggregator_config_map_name {
             Some(vector_aggregator_config_map_name) => {
                 pb.add_container(
                     vector_container(
@@ -560,7 +560,7 @@ fn build_stateful_set(
                             .with_memory_request("128Mi")
                             .with_memory_limit("128Mi")
                             .build(),
-                        &vector_aggregator_config_map_name,
+                        vector_aggregator_config_map_name,
                     )
                     .context(ConfigureLoggingSnafu)?,
                 );

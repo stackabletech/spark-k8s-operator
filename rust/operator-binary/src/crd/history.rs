@@ -27,8 +27,8 @@ use stackable_operator::{
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     time::Duration,
+    versioned::versioned,
 };
-use stackable_versioned::versioned;
 use strum::{Display, EnumIter};
 
 use crate::{

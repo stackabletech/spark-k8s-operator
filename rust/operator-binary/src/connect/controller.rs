@@ -23,7 +23,6 @@ use crate::{
     Ctx,
     connect::{common, crd::SparkConnectServerStatus, executor, server},
     crd::constants::{APP_NAME, OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
-    product_logging,
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -104,9 +103,6 @@ pub enum Error {
     DeleteOrphanedResources {
         source: stackable_operator::cluster_resources::Error,
     },
-
-    #[snafu(display("failed to resolve the Vector aggregator address"))]
-    ResolveVectorAggregatorAddress { source: product_logging::Error },
 
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {

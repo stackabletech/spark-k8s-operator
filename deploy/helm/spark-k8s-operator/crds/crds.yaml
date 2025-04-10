@@ -1870,7 +1870,7 @@ spec:
           description: Auto-generated derived type for SparkConnectServerSpec via `CustomResource`
           properties:
             spec:
-              description: A Spark cluster connect server component. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/connect-server).
+              description: An Apache Spark Connect server component. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/connect-server).
               properties:
                 args:
                   default: []
@@ -1881,7 +1881,7 @@ spec:
                 clusterConfig:
                   default:
                     listenerClass: external-unstable
-                  description: Global Spark connect server configuration that applies to all roles and role groups.
+                  description: Global Spark Connect server configuration that applies to all roles.
                   properties:
                     listenerClass:
                       default: external-unstable
@@ -1917,7 +1917,7 @@ spec:
                       type: boolean
                   type: object
                 executor:
-                  description: Spark connect executor properties.
+                  description: Spark Connect executor properties.
                   nullable: true
                   properties:
                     cliOverrides:
@@ -2180,7 +2180,7 @@ spec:
                       type: string
                   type: object
                 server:
-                  description: A spark connect server definition.
+                  description: A Spark Connect server definition.
                   nullable: true
                   properties:
                     cliOverrides:

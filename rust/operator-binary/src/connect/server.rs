@@ -46,6 +46,9 @@ use crate::{
     product_logging,
 };
 
+const GRPC: &str = "grpc";
+const HTTP: &str = "http";
+
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
@@ -110,8 +113,6 @@ pub enum Error {
     #[snafu(display("failed build connect server jvm args for {name}"))]
     ServerJvmArgs { source: common::Error, name: String },
 }
-
-type Result<T, E = Error> = std::result::Result<T, E>;
 
 // Assemble the configuration of the spark-connect server.
 // This config map contains the following entries:
@@ -261,8 +262,8 @@ pub fn build_deployment(
             "-c".to_string(),
         ])
         .args(args)
-        .add_container_port("grpc", CONNECT_GRPC_PORT)
-        .add_container_port("http", CONNECT_UI_PORT)
+        .add_container_port(GRPC, CONNECT_GRPC_PORT)
+        .add_container_port(HTTP, CONNECT_UI_PORT)
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
@@ -402,12 +403,12 @@ pub fn build_service(
             cluster_ip: service_cluster_ip,
             ports: Some(vec![
                 ServicePort {
-                    name: Some(String::from("grpc")),
+                    name: Some(String::from(GRPC)),
                     port: CONNECT_GRPC_PORT,
                     ..ServicePort::default()
                 },
                 ServicePort {
-                    name: Some(String::from("http")),
+                    name: Some(String::from(HTTP)),
                     port: CONNECT_UI_PORT,
                     ..ServicePort::default()
                 },

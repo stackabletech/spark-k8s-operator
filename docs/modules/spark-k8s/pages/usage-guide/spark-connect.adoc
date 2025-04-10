@@ -53,3 +53,7 @@ The following features are not supported by the Stackable Spark operator yet
 * Authorization and authentication. Currently, anyone with access to the Spark Connect service can run jobs.
 * Volumes and volume mounts can be added only with pod overrides.
 * Job dependencies must be provisioned as custom images or via `--packages` or `--jars` arguments.
+
+== Known Issues
+
+* Dynamically provisioning the iceberg runtime leads to "iceberg.SparkWrite$WriterFactory" ClassNotfoundException when attempting to use it from clients.

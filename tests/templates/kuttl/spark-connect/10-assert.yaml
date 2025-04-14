@@ -1,7 +1,7 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 900
+timeout: 300
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -12,7 +12,7 @@ status:
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 90
+timeout: 300
 commands:
   # Test that spark connect executors are running.
   # Sleep to prevent the following spark connect app from failing

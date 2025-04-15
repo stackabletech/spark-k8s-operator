@@ -52,8 +52,9 @@ telemetry:
   consoleLog:
     enabled: true
   fileLog:
-    enabled: true
+    enabled: false
     rotationPeriod: hourly
+    maxFiles: 6
   otelLogExporter:
     enabled: false
   otelTraceExporter:

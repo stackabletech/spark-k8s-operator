@@ -45,3 +45,17 @@ affinity: {}
 # When running on a non-default Kubernetes cluster domain, the cluster domain can be configured here.
 # See the https://docs.stackable.tech/home/stable/guides/kubernetes-cluster-domain guide for details.
 # kubernetesClusterDomain: my-cluster.local
+
+# See all available options and detailed explanations about the concept here:
+# https://docs.stackable.tech/home/stable/concepts/telemetry/
+telemetry:
+  consoleLog:
+    enabled: true
+  fileLog:
+    enabled: false
+    rotationPeriod: hourly
+    maxFiles: 6
+  otelLogExporter:
+    enabled: false
+  otelTraceExporter:
+    enabled: false

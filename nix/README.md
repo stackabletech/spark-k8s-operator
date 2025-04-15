@@ -13,7 +13,7 @@ DO NOT MANUALLY EDIT THIS FILE
 ```shell
 niv update crate2nix
 niv update nixpkgs
-niv update beky.py -b X.Y.Z # Using the release tag
+niv update beku.py -b X.Y.Z # Using the release tag
 ```
 
 ### Test

@@ -51,6 +51,7 @@ spec:
             - name: KUBERNETES_CLUSTER_DOMAIN
               value: {{ .Values.kubernetesClusterDomain | quote }}
             {{- end }}
+            {{- include "telemetry.envVars" . | nindent 12 }}
       volumes:
         - name: config-spec
           configMap:

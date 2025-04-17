@@ -30,12 +30,10 @@ use stackable_operator::{
     time::Duration,
     versioned::versioned,
 };
-use crate::crd::history::LogFileDirectorySpec;
-
 use strum::{Display, EnumIter};
 
 use super::common::SparkConnectRole;
-use crate::crd::constants::APP_NAME;
+use crate::crd::{constants::APP_NAME, history::LogFileDirectorySpec};
 
 pub const CONNECT_CONTROLLER_NAME: &str = "connect";
 pub const CONNECT_FULL_CONTROLLER_NAME: &str = concatcp!(
@@ -99,7 +97,7 @@ pub mod versioned {
         /// Location The log file directory definition used by the Spark history server.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub log_file_directory: Option<LogFileDirectorySpec>,
-        
+
         /// A Spark Connect server definition.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub server: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,

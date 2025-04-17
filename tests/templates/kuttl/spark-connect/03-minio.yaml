@@ -22,4 +22,3 @@ spec:
     - name: minio-client
       image: docker.io/bitnami/minio-client:2023.5.18-debian-11-r2
       command: ["bash", "-c", "sleep infinity"]
-

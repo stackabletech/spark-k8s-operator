@@ -9,6 +9,7 @@ It accepts two command line arguments:
             need to be submitted along with the job.
 --output    Path to write the report as a CSV file.
 """
+
 import argparse
 
 from argparse import Namespace

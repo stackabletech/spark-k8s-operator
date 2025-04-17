@@ -55,14 +55,15 @@ const HTTP: &str = "http";
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display(
-        "failed to build history credentials volume for spark connect server deployment"
-    ))]
+    #[snafu(display("failed to build history credentials volume mount for spark connect server"))]
+    AddHistoryCredentialsVolumeMount {
+        source: builder::pod::container::Error,
+    },
+
+    #[snafu(display("failed to build history credentials volume for spark connect server"))]
     BuildHistoryCredentialsVolume { source: logdir::Error },
 
-    #[snafu(display(
-        "failed to add history credentials volume to spark connect server deployment"
-    ))]
+    #[snafu(display("failed to add history credentials volume to spark connect server"))]
     AddHistoryCredentialsVolume { source: builder::pod::Error },
 
     #[snafu(display("failed to build spark connect server properties for the history location"))]
@@ -131,7 +132,6 @@ pub enum Error {
 // - template.yaml         : executor pod template
 // - spark-env.sh          : OMITTED because the environment variables are added directly
 //                           to the container environment.
-#[allow(clippy::result_large_err)]
 pub(crate) fn server_config_map(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
@@ -203,7 +203,6 @@ pub(crate) fn server_config_map(
         .context(InvalidConfigMapSnafu { name: cm_name })
 }
 
-#[allow(clippy::result_large_err)]
 pub(crate) fn build_deployment(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
@@ -303,7 +302,14 @@ pub(crate) fn build_deployment(
                 .context(AddHistoryCredentialsVolumeSnafu)?;
         }
 
-        //log_dir.credentials_mount_path().;
+        if let Some(history_credentials_mount) = log_dir.credentials_volume_mount() {
+            container
+                .add_volume_mount(
+                    history_credentials_mount.name,
+                    history_credentials_mount.mount_path,
+                )
+                .context(AddHistoryCredentialsVolumeMountSnafu)?;
+        }
     }
 
     pb.add_container(container.build());
@@ -449,20 +455,8 @@ pub(crate) fn build_service(
     })
 }
 
-#[allow(clippy::result_large_err)]
 pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
-    let mut command = vec![
-        // ---------- start containerdebug
-        format!(
-            "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-        ),
-        // ---------- start spark connect server
-        "/stackable/spark/sbin/start-connect-server.sh".to_string(),
-        "--deploy-mode client".to_string(), // 'cluster' mode not supported
-        "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
-            .to_string(),
-        format!("--properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
-    ];
+    let mut command = vec!["/stackable/run-spark-connect.sh".to_string()];
 
     // User provided command line arguments
     command.extend_from_slice(user_args);
@@ -470,7 +464,6 @@ pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
     vec![command.join(" ")]
 }
 
-#[allow(clippy::result_large_err)]
 fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, Error> {
     let mut envs = BTreeMap::from([
         // Needed by the `containerdebug` running in the background of the connect container
@@ -501,7 +494,6 @@ fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, E
 
 // Returns the contents of the spark properties file.
 // It merges operator properties with user properties.
-#[allow(clippy::result_large_err)]
 pub(crate) fn server_properties(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,

@@ -18,4 +18,3 @@ status:
   expectedPods: 1
   currentHealthy: 1
   disruptionsAllowed: 1
-

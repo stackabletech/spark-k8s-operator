@@ -105,6 +105,16 @@ impl ResolvedLogDir {
         }
     }
 
+    pub fn connect_spark_config(&self) -> Result<BTreeMap<String, String>, Error> {
+        match self {
+            ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.connect_spark_config(),
+            ResolvedLogDir::Custom(custom_log_dir) => Ok(BTreeMap::from([
+                ("spark.eventLog.enabled".to_string(), "true".to_string()),
+                ("spark.eventLog.dir".to_string(), custom_log_dir.to_string()),
+            ])),
+        }
+    }
+
     pub fn volumes(&self, requested_secret_lifetime: &Duration) -> Result<Vec<Volume>, Error> {
         match self {
             ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.volumes(requested_secret_lifetime),
@@ -202,6 +212,7 @@ impl S3LogDir {
         Ok(config)
     }
 
+    /// Constructs the properties needed by Spark applications to write event logs to S3.
     pub fn application_spark_config(&self) -> Result<BTreeMap<String, String>, Error> {
         let mut result = BTreeMap::from([
             ("spark.eventLog.enabled".to_string(), "true".to_string()),
@@ -231,6 +242,54 @@ impl S3LogDir {
             result.insert(
                 format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.secret.key"),
                 format!("\"$(cat {secret_dir}/{SECRET_ACCESS_KEY})\""),
+            );
+            result.insert(
+                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),
+                "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider".to_string(),
+            );
+        } else {
+            result.insert(
+                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),
+                "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider".to_string(),
+            );
+        }
+
+        Ok(result)
+    }
+
+    /// Constructs the properties needed by Spark connect servers to write event logs to S3.
+    /// Currently this is identical to the `application_spark_config` method, but it
+    /// uses the built in spark support for reading variables from the environment
+    /// instead of using the `cat` command.
+    pub fn connect_spark_config(&self) -> Result<BTreeMap<String, String>, Error> {
+        let mut result = BTreeMap::from([
+            ("spark.eventLog.enabled".to_string(), "true".to_string()),
+            ("spark.eventLog.dir".to_string(), self.url()),
+        ]);
+
+        let connection = &self.bucket.connection;
+        let bucket_name = &self.bucket.bucket_name;
+        result.insert(
+            format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.endpoint"),
+            connection.endpoint().context(ConfigureS3Snafu)?.to_string(),
+        );
+        result.insert(
+            format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.path.style.access"),
+            (connection.access_style == S3AccessStyle::Path).to_string(),
+        );
+        result.insert(
+            format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.region"),
+            connection.region.name.clone(),
+        );
+        if let Some(secret_dir) = self.credentials_mount_path() {
+            // We don't use the credentials at all here but assume they are available
+            result.insert(
+                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.access.key"),
+                format!("{secret_dir}/${{env:ACCESS_KEY_ID}}"),
+            );
+            result.insert(
+                format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.secret.key"),
+                format!("{secret_dir}/${{env:SECRET_ACCESS_KEY}}"),
             );
             result.insert(
                 format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),

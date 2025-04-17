@@ -35,8 +35,6 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
-  args:
-    - --packages org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-connect'].split('.')[:2]) }}_2.12:1.8.1
   server:
     podOverrides:
       spec:
@@ -55,14 +53,6 @@ spec:
           spark:
             custom:
               configMap: spark-connect-log-config
-    configOverrides:
-      spark-defaults.conf:
-        spark.jars.ivy: /tmp/ivy2
-        spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-        spark.sql.catalog.local: org.apache.iceberg.spark.SparkCatalog
-        spark.sql.catalog.local.type: hadoop
-        spark.sql.catalog.local.warehouse: /tmp/warehouse
-        spark.sql.defaultCatalog: local
   executor:
     configOverrides:
       spark-defaults.conf:

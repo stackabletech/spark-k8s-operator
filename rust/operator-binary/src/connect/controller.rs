@@ -22,13 +22,18 @@ use super::crd::{CONNECT_CONTROLLER_NAME, v1alpha1};
 use crate::{
     Ctx,
     connect::{common, crd::SparkConnectServerStatus, executor, server},
-    crd::constants::{APP_NAME, OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
+    crd::{
+        constants::{APP_NAME, OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
+        logdir::{self, ResolvedLogDir},
+    },
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to resolve spark history location for connect server {name}"))]
+    HistoryServerLocation { source: logdir::Error, name: String },
     #[snafu(display("failed to serialize connect properties"))]
     SerializeProperties { source: common::Error },
 
@@ -168,6 +173,18 @@ pub async fn reconcile(
     )
     .context(CreateClusterResourcesSnafu)?;
 
+    let history_location = if let Some(log_file_dir) = &scs.spec.log_file_directory {
+        Some(
+            ResolvedLogDir::resolve(log_file_dir, scs.metadata.namespace.clone(), client)
+                .await
+                .context(HistoryServerLocationSnafu {
+                    name: scs.name_any(),
+                })?,
+        )
+    } else {
+        None
+    };
+
     let resolved_product_image = scs
         .spec
         .image
@@ -223,6 +240,7 @@ pub async fn reconcile(
             &service,
             &service_account,
             &resolved_product_image,
+            &history_location,
         )
         .context(ServerPropertiesSnafu)?,
         executor::executor_properties(scs, &executor_config, &resolved_product_image)
@@ -283,6 +301,7 @@ pub async fn reconcile(
         &service_account,
         &server_config_map,
         args,
+        &history_location,
     )
     .context(BuildServerDeploymentSnafu)?;
 

@@ -30,6 +30,8 @@ use stackable_operator::{
     time::Duration,
     versioned::versioned,
 };
+use crate::crd::history::LogFileDirectorySpec;
+
 use strum::{Display, EnumIter};
 
 use super::common::SparkConnectRole;
@@ -56,7 +58,6 @@ pub enum Error {
 
 #[versioned(version(name = "v1alpha1"))]
 pub mod versioned {
-
     /// An Apache Spark Connect server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/connect-server).
@@ -95,6 +96,10 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
+        /// Location The log file directory definition used by the Spark history server.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub log_file_directory: Option<LogFileDirectorySpec>,
+        
         /// A Spark Connect server definition.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub server: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,

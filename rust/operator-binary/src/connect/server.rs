@@ -37,11 +37,14 @@ use crate::{
             SparkConnectContainer, v1alpha1,
         },
     },
-    crd::constants::{
-        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-        METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID,
-        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+    crd::{
+        constants::{
+            APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
+            METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID,
+            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        },
+        logdir::{self, ResolvedLogDir},
     },
     product_logging,
 };
@@ -52,6 +55,19 @@ const HTTP: &str = "http";
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display(
+        "failed to build history credentials volume for spark connect server deployment"
+    ))]
+    BuildHistoryCredentialsVolume { source: logdir::Error },
+
+    #[snafu(display(
+        "failed to add history credentials volume to spark connect server deployment"
+    ))]
+    AddHistoryCredentialsVolume { source: builder::pod::Error },
+
+    #[snafu(display("failed to build spark connect server properties for the history location"))]
+    HistoryLocationProperties { source: logdir::Error },
+
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
 
@@ -195,6 +211,7 @@ pub(crate) fn build_deployment(
     service_account: &ServiceAccount,
     config_map: &ConfigMap,
     args: Vec<String>,
+    history_location: &Option<ResolvedLogDir>,
 ) -> Result<Deployment, Error> {
     let metadata = ObjectMetaBuilder::new()
         .with_recommended_labels(common::labels(
@@ -275,6 +292,18 @@ pub(crate) fn build_deployment(
         container
             .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
             .context(AddVolumeMountSnafu)?;
+    }
+
+    if let Some(log_dir) = history_location.as_ref() {
+        if let Some(volume) = log_dir
+            .credentials_volume()
+            .context(BuildHistoryCredentialsVolumeSnafu)?
+        {
+            pb.add_volume(volume)
+                .context(AddHistoryCredentialsVolumeSnafu)?;
+        }
+
+        //log_dir.credentials_mount_path().;
     }
 
     pb.add_container(container.build());
@@ -479,6 +508,7 @@ pub(crate) fn server_properties(
     driver_service: &Service,
     service_account: &ServiceAccount,
     resolved_product_image: &ResolvedProductImage,
+    history_location: &Option<ResolvedLogDir>,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
     let spark_image = resolved_product_image.image.clone();
     let spark_version = resolved_product_image.product_version.clone();
@@ -536,6 +566,19 @@ pub(crate) fn server_properties(
     ]
     .into();
 
+    // If a history location is configured, add the properties for it.
+    if let Some(history_location) = history_location {
+        result.extend(
+            history_location
+                .connect_spark_config()
+                .context(HistoryLocationPropertiesSnafu)?
+                .iter()
+                .map(|(k, v)| (k.clone(), Some(v.clone()))),
+        );
+    }
+
+    // Merge the user provided properties as the last step in this function
+    // to ensure the any overrides are applied.
     if let Some(user_config) = config_overrides {
         result.extend(
             user_config

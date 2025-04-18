@@ -293,7 +293,7 @@ pub async fn reconcile(
             name: scs.name_unchecked(),
         })?;
 
-    let args = server::command_args(&scs.spec.args);
+    let args = server::command_args(&scs.spec.args, &history_location);
     let deployment = server::build_deployment(
         scs,
         &server_config,

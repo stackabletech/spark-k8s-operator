@@ -94,6 +94,25 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
+        // History integration Implementation notes
+        //
+        // Usually the history directory is a location in S3.
+        // To make spark write to that location, the following things need to be in place:
+        // 1. A set of properties to inform spark about the S3 location and credentials ([*]) to access it.
+        //    This is done by the "server::server_properties()" function.
+        // 2. The credentials must exist  in the container's environment.
+        //    Since these credentials are mounted as files by the secret opertor, we cannot use the
+        //    container manifest "env" property, but need to extend the startup script with
+        //    the appropriate "export" shell statements.
+        //    This is done by the server::command_args() function.
+        // 3. For TLS, a trustore with the S3 server's CA needs to be prepated.
+        //    TODO.
+        //
+        // [*] One problem with this approach is that the secrets are copied in plain text by the
+        // Spark Kubernetes scheduler in the "internal" driver and executor config maps.
+        // As long as we use secret classes and not plain secrets, there is no fix for this.
+        // Even with access to plain secrets it's not clear if we can avoid having these credentials
+        // in plain text somewhere.
         /// Location The log file directory definition used by the Spark history server.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub log_file_directory: Option<LogFileDirectorySpec>,

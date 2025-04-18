@@ -39,10 +39,11 @@ use crate::{
     },
     crd::{
         constants::{
-            APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-            METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID,
-            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            ACCESS_KEY_ID, APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE,
+            MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE,
+            SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_UID, VOLUME_MOUNT_NAME_CONFIG,
+            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         logdir::{self, ResolvedLogDir},
     },
@@ -455,8 +456,26 @@ pub(crate) fn build_service(
     })
 }
 
-pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
-    let mut command = vec!["/stackable/run-spark-connect.sh".to_string()];
+pub(crate) fn command_args(
+    user_args: &[String],
+    history_location: &Option<ResolvedLogDir>,
+) -> Vec<String> {
+    let mut command = vec![];
+
+    // Copy any credentials to the history location in the environment.
+    // TODO: maybe move this to the _STACKABLE_PRE_HOOK
+    if let Some(history_location) = history_location {
+        if let Some(secret_dir) = history_location.credentials_mount_path() {
+            command.extend(vec![
+                format!("export AWS_ACCESS_KEY_ID=\"$(cat {secret_dir}/{ACCESS_KEY_ID})\" &&"),
+                format!(
+                    "export AWS_SECRET_ACCESS_KEY=\"$(cat {secret_dir}/{SECRET_ACCESS_KEY})\" &&"
+                ),
+            ]);
+        }
+    }
+
+    command.push("/stackable/run-spark-connect.sh".to_string());
 
     // User provided command line arguments
     command.extend_from_slice(user_args);

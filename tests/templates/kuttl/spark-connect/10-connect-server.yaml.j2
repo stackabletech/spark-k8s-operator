@@ -35,6 +35,11 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
+  logFileDirectory:
+    s3:
+      prefix: logs/
+      bucket:
+        reference: spark-history-s3-bucket
   server:
     podOverrides:
       spec:

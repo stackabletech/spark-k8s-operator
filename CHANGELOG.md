@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
     of having the operator write it to the vector config ([#551]).
+- Document that Spark Connect doesn't integrate with the history server ([#559])
 
 ### Fixed
 
@@ -28,6 +29,7 @@ All notable changes to this project will be documented in this file.
 [#551]: https://github.com/stackabletech/spark-k8s-operator/pull/551
 [#553]: https://github.com/stackabletech/spark-k8s-operator/pull/553
 [#554]: https://github.com/stackabletech/spark-k8s-operator/pull/554
+[#559]: https://github.com/stackabletech/spark-k8s-operator/pull/559
 
 ## [25.3.0] - 2025-03-21
 

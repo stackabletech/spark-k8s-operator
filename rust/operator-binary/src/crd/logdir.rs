@@ -281,15 +281,19 @@ impl S3LogDir {
             format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.region"),
             connection.region.name.clone(),
         );
-        if let Some(secret_dir) = self.credentials_mount_path() {
+        if let Some(_secret_dir) = self.credentials_mount_path() {
             // We don't use the credentials at all here but assume they are available
             result.insert(
                 format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.access.key"),
-                format!("{secret_dir}/${{env:ACCESS_KEY_ID}}"),
+                "spark".to_string(),
+                // TODO: It turns out that Spark doesn't support env: property substitution everywhere.
+                // How to best handle this?
+                // format!("{secret_dir}/${{env:ACCESS_KEY_ID}}"),
             );
             result.insert(
                 format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.secret.key"),
-                format!("{secret_dir}/${{env:SECRET_ACCESS_KEY}}"),
+                "sparkspark".to_string(),
+                //format!("{secret_dir}/${{env:SECRET_ACCESS_KEY}}"),
             );
             result.insert(
                 format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),

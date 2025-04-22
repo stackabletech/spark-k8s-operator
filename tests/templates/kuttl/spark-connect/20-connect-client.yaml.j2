@@ -1,4 +1,48 @@
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: simple-connect-app
+data:
+  simple-connect-app.py: |
+    import sys
+
+    from pyspark.sql import SparkSession
+
+    if __name__ == "__main__":
+        remote: str = sys.argv[1]
+        # Setting the spark.eventLog properties is prohibited by spark connect
+        # so the history integration doesnt work.
+        # Nevertheless this test is successfull.
+        spark = (
+            SparkSession.builder
+            .appName("SimpleSparkConnectApp")
+            .config("spark.eventLog.dir", "s3a://spark-logs/logs/")
+            .config("spark.eventLog.enabled", "true")
+            .config("spark.hadoop.fs.s3a.bucket.spark-logs.access.key", "spark")
+            .config("spark.hadoop.fs.s3a.bucket.spark-logs.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+            .config("spark.hadoop.fs.s3a.bucket.spark-logs.endpoint", "http://eventlog-minio:9000/")
+            .config("spark.hadoop.fs.s3a.bucket.spark-logs.path.style.access", "true")
+            .config("spark.hadoop.fs.s3a.bucket.spark-logs.region", "us-east-1")
+            .config("spark.hadoop.fs.s3a.bucket.spark-logs.secret.key", "sparkspark")
+            .remote(remote)
+            .getOrCreate()
+        )
+
+        # See https://issues.apache.org/jira/browse/SPARK-46032
+        spark.addArtifacts("/stackable/spark/connect/spark-connect_2.12-3.5.5.jar")
+
+        logFile = "/stackable/spark/README.md"
+        logData = spark.read.text(logFile).cache()
+
+        numAs = logData.filter(logData.value.contains("a")).count()
+        numBs = logData.filter(logData.value.contains("b")).count()
+
+        print("Lines with a: %i, lines with b: %i" % (numAs, numBs))
+
+        spark.stop()
+
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -10,6 +54,10 @@ spec:
     spec:
       restartPolicy: OnFailure
       activeDeadlineSeconds: 100
+      volumes:
+        - configMap:
+            name: simple-connect-app
+          name: app
       containers:
         - name: simple-connect-app
 {% if test_scenario['values']['spark-connect-client'].find(",") > 0 %}
@@ -21,7 +69,7 @@ spec:
           command:
             [
               "/usr/bin/python",
-              "/stackable/spark-connect-examples/python/simple-connect-app.py",
+              "/app/simple-connect-app.py",
               "sc://spark-connect-server",
             ]
           resources:
@@ -31,3 +79,6 @@ spec:
             requests:
               cpu: 200m
               memory: 128Mi
+          volumeMounts:
+            - mountPath: /app
+              name: app

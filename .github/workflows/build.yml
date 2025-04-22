@@ -32,9 +32,6 @@ env:
   RUSTFLAGS: "-D warnings"
   RUSTDOCFLAGS: "-D warnings"
   RUST_LOG: "info"
-  DEV_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-dev
-  TEST_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-test
-  STABLE_REPO_HELM_URL: https://repo.stackable.tech/repository/helm-stable
 
 jobs:
   # Identify unused dependencies
@@ -63,47 +60,41 @@ jobs:
       - uses: stackabletech/cargo-install-action@cargo-udeps
       - run: cargo udeps --workspace --all-targets
 
-  # This job evaluates the github environment to determine why this action is running and selects the appropriate
-  # target repository for published Helm charts based on this.
+  # This job evaluates the github environment to determine why this action is running and decides if
+  # Helm charts are published based on this.
   #
   # The following scenarios are identified:
-  #    - all pull requests land in the test repository:
+  #    - all pull requests land are published:
   #        condition: github.event_name == "pull_request"
-  #        repository: test
   #
-  #    - all tagged releases land in stable:
+  #    - all tagged releases are published:
   #         condition: github.event_name == 'push' & github.ref.startswith('refs/tags/')
-  #         repository: stable
   #
-  #    - all pushes to main (i.e. PR-merges) and all scheduled/manual workflow runs on main land in dev:
+  #    - all pushes to main (i.e. PR-merges) and all scheduled/manual workflow runs on main land are published:
   #         condition: ( github.event_name == 'push' | github.event_name == 'schedule' | github.event_name == 'workflow_dispatch' ) & github.ref == 'refs/heads/main'
-  #         repository: dev
   #
   # Any other scenarios (e.g. when a branch is created/pushed) will cause the publish step to be skipped, most commonly this is expected to happen for the
   # branches that the GitHub merge queue feature uses internally for which the checks need to run, but we do not want artifacts to be published.
-  select_helm_repo:
-    name: Select target helm repository based on action trigger
+  check_helm_publish:
+    name: Decide if Helm charts are pushed to the helm repository based on action trigger
     runs-on: ubuntu-latest
     outputs:
-      helm_repository: ${{ steps.selecthelmrepo.outputs.helm_repo }}
+      skip_helm: ${{ steps.checkhelmpublish.outputs.skip_helm }}
     steps:
-      - id: selecthelmrepo
+      - id: checkhelmpublish
         env:
           TRIGGER: ${{ github.event_name }}
           GITHUB_REF: ${{ github.ref }}
         run: |
           if [[ "$TRIGGER" == "pull_request" ]]; then
-            echo "exporting test as target helm repo: ${{ env.TEST_REPO_HELM_URL }}"
-            echo "helm_repo=${{ env.TEST_REPO_HELM_URL }}" >> "$GITHUB_OUTPUT"
+            echo "skip_helm=false" >> "$GITHUB_OUTPUT"
           elif [[ ( "$TRIGGER" == "push" || "$TRIGGER" == "schedule" || "$TRIGGER" == "workflow_dispatch" ) && "$GITHUB_REF" == "refs/heads/main" ]]; then
-            echo "exporting dev as target helm repo: ${{ env.DEV_REPO_HELM_URL }}"
-            echo "helm_repo=${{ env.DEV_REPO_HELM_URL }}" >> "$GITHUB_OUTPUT"
+            echo "skip_helm=false" >> "$GITHUB_OUTPUT"
           elif [[ "$TRIGGER" == "push" && $GITHUB_REF == refs/tags/* ]]; then
-            echo "exporting stable as target helm repo: ${{ env.STABLE_REPO_HELM_URL }}"
-            echo "helm_repo=${{ env.STABLE_REPO_HELM_URL }}" >> "$GITHUB_OUTPUT"
+            echo "skip_helm=false" >> "$GITHUB_OUTPUT"
           else
             echo "Unknown trigger and ref combination encountered, skipping publish step: $TRIGGER $GITHUB_REF"
-            echo "helm_repo=skip" >> "$GITHUB_OUTPUT"
+            echo "skip_helm=true" >> "$GITHUB_OUTPUT"
           fi
 
   run_cargodeny:
@@ -317,7 +308,7 @@ jobs:
     name: Package Charts, Build Docker Image and publish them - ${{ matrix.runner }}
     needs:
       - tests_passed
-      - select_helm_repo
+      - check_helm_publish
     strategy:
       matrix:
         runner: ["ubuntu-latest", "ubicloud-standard-8-arm"]
@@ -326,13 +317,11 @@ jobs:
     permissions:
       id-token: write
     env:
-      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-      HELM_REPO: ${{ needs.select_helm_repo.outputs.helm_repository }}
       OCI_REGISTRY_SDP_PASSWORD: ${{ secrets.HARBOR_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
       OCI_REGISTRY_SDP_USERNAME: "robot$sdp+github-action-build"
       OCI_REGISTRY_SDP_CHARTS_PASSWORD: ${{ secrets.HARBOR_ROBOT_SDP_CHARTS_GITHUB_ACTION_BUILD_SECRET }}
       OCI_REGISTRY_SDP_CHARTS_USERNAME: "robot$sdp-charts+github-action-build"
-    if: needs.select_helm_repo.outputs.helm_repository != 'skip'
+    if: needs.check_helm_publish.outputs.skip_helm != 'true'
     outputs:
       IMAGE_TAG: ${{ steps.printtag.outputs.IMAGE_TAG }}
     steps:
@@ -379,9 +368,7 @@ jobs:
           PR_VERSION="${MANIFEST_VERSION}-pr${PR_NUMBER}"
           sed -i "s/version = \"${MANIFEST_VERSION}\"/version = \"${PR_VERSION}\"/" Cargo.toml
 
-      # Recreate charts and publish charts and docker image. The "-e" is needed as we want to override the
-      # default value in the makefile if called from this action, but not otherwise (i.e. when called locally).
-      # This is needed for the HELM_REPO variable.
+      # Recreate charts and publish charts and docker image.
       - name: Install cosign
         uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3.8.1
       - name: Install syft
@@ -397,21 +384,21 @@ jobs:
             sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_arm64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
           fi
 
-          make -e build
+          make build
       - name: Publish Docker image and Helm chart
         if: ${{ !github.event.pull_request.head.repo.fork }}
         run: |
           # We want to publish helmcharts only once as they have a common name, while still publishing both images with architecture specific tags
           if [ "$(uname -m)" = "x86_64" ]; then
-            make -e publish
+            make publish
           else
-            make -e docker-publish
+            make docker-publish
           fi
         # Output the name of the published image to the Job output for later use
       - id: printtag
         name: Output image name and tag
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: echo "IMAGE_TAG=$(make -e print-docker-tag)" >> "$GITHUB_OUTPUT"
+        run: echo "IMAGE_TAG=$(make print-docker-tag)" >> "$GITHUB_OUTPUT"
 
   create_manifest_list:
     name: Build and publish manifest list
@@ -422,7 +409,6 @@ jobs:
     permissions:
       id-token: write
     env:
-      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
       OCI_REGISTRY_SDP_PASSWORD: ${{ secrets.HARBOR_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
       OCI_REGISTRY_SDP_USERNAME: "robot$sdp+github-action-build"
       OCI_REGISTRY_SDP_CHARTS_PASSWORD: ${{ secrets.HARBOR_ROBOT_SDP_CHARTS_GITHUB_ACTION_BUILD_SECRET }}

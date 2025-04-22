@@ -45,11 +45,14 @@ spec:
 
 The example above adds a new endpoint for application metrics.
 
+== Spark History Server
+
+Unforunately integration with the Spark History Server is not supported yet. The connect server seems to ignore the `spark.eventLog` properties while also prohibiting clients to set them programatically.
+
 == Notable Omissions
 
 The following features are not supported by the Stackable Spark operator yet
 
-* Integration with the Spark History Server.
 * Authorization and authentication. Currently, anyone with access to the Spark Connect service can run jobs.
 * Volumes and volume mounts can be added only with pod overrides.
 * Job dependencies must be provisioned as custom images or via `--packages` or `--jars` arguments.

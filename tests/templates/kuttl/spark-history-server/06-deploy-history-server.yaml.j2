@@ -35,6 +35,10 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
+
+  clusterConfig:
+    listenerClass: external-unstable
+
   logFileDirectory:
     s3:
       prefix: eventlogs/

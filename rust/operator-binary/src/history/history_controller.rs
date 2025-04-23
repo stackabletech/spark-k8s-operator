@@ -52,11 +52,12 @@ use crate::{
     crd::{
         constants::{
             ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
-            JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
-            SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME,
-            SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID, STACKABLE_TRUST_STORE,
-            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME, SECRET_ACCESS_KEY,
+            SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
+            SPARK_IMAGE_BASE_NAME, SPARK_UID, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
+            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         logdir::ResolvedLogDir,
@@ -437,12 +438,16 @@ fn build_stateful_set(
         rolegroupref.object_name()
     };
 
-    let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(labels(
-            shs,
-            &resolved_product_image.app_version_label,
-            &rolegroupref.role_group,
-        ))
+    let recommended_object_labels = labels(
+        shs,
+        &resolved_product_image.app_version_label,
+        rolegroupref.role_group.as_ref(),
+    );
+    let recommended_labels =
+        Labels::recommended(recommended_object_labels.clone()).context(LabelBuildSnafu)?;
+
+    let pb_metadata = ObjectMetaBuilder::new()
+        .with_recommended_labels(recommended_object_labels.clone())
         .context(MetadataBuildSnafu)?
         .build();
 
@@ -452,7 +457,7 @@ fn build_stateful_set(
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
     pb.service_account_name(serviceaccount.name_unchecked())
-        .metadata(metadata)
+        .metadata(pb_metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
@@ -524,7 +529,22 @@ fn build_stateful_set(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
         .context(AddVolumeMountSnafu)?
+        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+        .context(AddVolumeMountSnafu)?
         .build();
+
+    // Add listener volume
+    let listener_class = &shs.spec.cluster_config.listener_class;
+    // all listeners will use ephemeral volumes as they can/should
+    // be removed when the pods are *terminated* (ephemeral PVCs will
+    // survive re-starts)
+    pb.add_listener_volume_by_listener_class(
+        LISTENER_VOLUME_NAME,
+        &listener_class.to_string(),
+        &recommended_labels.clone(),
+    )
+    .context(AddVolumeSnafu)?;
+
     pb.add_container(container);
 
     if merged_config.logging.enable_vector_agent {
@@ -560,19 +580,17 @@ fn build_stateful_set(
     pod_template.merge_from(shs.role().config.pod_overrides.clone());
     pod_template.merge_from(role_group.config.pod_overrides);
 
+    let sts_metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(shs)
+        .name(rolegroupref.object_name())
+        .ownerreference_from_resource(shs, None, Some(true))
+        .context(ObjectMissingMetadataForOwnerRefSnafu)?
+        .with_recommended_labels(recommended_object_labels)
+        .context(MetadataBuildSnafu)?
+        .build();
+
     Ok(StatefulSet {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .name(rolegroupref.object_name())
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(
-                shs,
-                &resolved_product_image.app_version_label,
-                rolegroupref.role_group.as_ref(),
-            ))
-            .context(MetadataBuildSnafu)?
-            .build(),
+        metadata: sts_metadata,
         spec: Some(StatefulSetSpec {
             template: pod_template,
             replicas: shs.replicas(rolegroupref),

@@ -38,10 +38,11 @@ use crate::{
         },
     },
     crd::constants::{
-        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-        METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID,
-        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+        LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE,
+        SPARK_DEFAULTS_FILE_NAME, SPARK_UID, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+        VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+        VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     product_logging,
 };
@@ -196,12 +197,15 @@ pub(crate) fn build_deployment(
     config_map: &ConfigMap,
     args: Vec<String>,
 ) -> Result<Deployment, Error> {
+    let server_role = SparkConnectRole::Server.to_string();
+    let recommended_object_labels =
+        common::labels(scs, &resolved_product_image.app_version_label, &server_role);
+
+    let recommended_labels =
+        Labels::recommended(recommended_object_labels.clone()).context(LabelBuildSnafu)?;
+
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(common::labels(
-            scs,
-            &resolved_product_image.app_version_label,
-            &SparkConnectRole::Server.to_string(),
-        ))
+        .with_recommended_labels(recommended_object_labels)
         .context(MetadataBuildSnafu)?
         .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
         .build();
@@ -224,6 +228,12 @@ pub(crate) fn build_deployment(
                     Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
                 )
                 .build(),
+        )
+        .context(AddVolumeSnafu)?
+        .add_listener_volume_by_listener_class(
+            LISTENER_VOLUME_NAME,
+            &scs.spec.cluster_config.listener_class.to_string(),
+            &recommended_labels.clone(),
         )
         .context(AddVolumeSnafu)?
         .security_context(PodSecurityContext {
@@ -259,6 +269,8 @@ pub(crate) fn build_deployment(
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+        .context(AddVolumeMountSnafu)?
+        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
         .readiness_probe(probe())
         .liveness_probe(probe());

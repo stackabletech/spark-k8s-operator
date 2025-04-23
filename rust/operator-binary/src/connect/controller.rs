@@ -192,21 +192,9 @@ pub async fn reconcile(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    // Expose connect server to the outside world
-    let service = server::build_service(scs, &resolved_product_image.app_version_label, None)
-        .context(BuildServiceSnafu)?;
-    cluster_resources
-        .add(client, service.clone())
-        .await
-        .context(ApplyServiceSnafu)?;
-
     // Headless service used by executors connect back to the driver
-    let service = server::build_service(
-        scs,
-        &resolved_product_image.app_version_label,
-        Some("None".to_string()),
-    )
-    .context(BuildServiceSnafu)?;
+    let service = server::build_internal_service(scs, &resolved_product_image.app_version_label)
+        .context(BuildServiceSnafu)?;
 
     cluster_resources
         .add(client, service.clone())

@@ -349,35 +349,13 @@ pub(crate) fn build_deployment(
     })
 }
 
-#[allow(clippy::result_large_err)]
-pub(crate) fn build_service(
+// This is the headless driver service used for the internal
+// communication with the executors as recommended by the Spark docs.
+pub(crate) fn build_internal_service(
     scs: &v1alpha1::SparkConnectServer,
     app_version_label: &str,
-    service_cluster_ip: Option<String>,
 ) -> Result<Service, Error> {
-    let (service_name, service_type, publish_not_ready_addresses) = match service_cluster_ip.clone()
-    {
-        Some(_) => (
-            // These are the properties of the headless driver service used for the internal
-            // communication with the executors as recommended by the Spark docs.
-            //
-            // The flag `publish_not_ready_addresses` *must* be `true` to allow for readiness
-            // probes. Without it, the driver runs into a deadlock beacuse the Pod cannot become
-            // "ready" until the Service is "ready" and vice versa.
-            object_name(&scs.name_any(), SparkConnectRole::Server),
-            "ClusterIP".to_string(),
-            Some(true),
-        ),
-        None => (
-            format!(
-                "{}-{}",
-                object_name(&scs.name_any(), SparkConnectRole::Server),
-                SparkConnectRole::Server
-            ),
-            scs.spec.cluster_config.listener_class.k8s_service_type(),
-            Some(false),
-        ),
-    };
+    let service_name = object_name(&scs.name_any(), SparkConnectRole::Server);
 
     let selector = Labels::role_selector(scs, APP_NAME, &SparkConnectRole::Server.to_string())
         .context(LabelBuildSnafu)?
@@ -398,8 +376,8 @@ pub(crate) fn build_service(
             .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
             .build(),
         spec: Some(ServiceSpec {
-            type_: Some(service_type),
-            cluster_ip: service_cluster_ip,
+            type_: Some("ClusterIP".to_string()),
+            cluster_ip: Some("None".to_string()),
             ports: Some(vec![
                 ServicePort {
                     name: Some(String::from(GRPC)),
@@ -413,7 +391,10 @@ pub(crate) fn build_service(
                 },
             ]),
             selector: Some(selector),
-            publish_not_ready_addresses,
+            // The flag `publish_not_ready_addresses` *must* be `true` to allow for readiness
+            // probes. Without it, the driver runs into a deadlock beacuse the Pod cannot become
+            // "ready" until the Service is "ready" and vice versa.
+            publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
         status: None,

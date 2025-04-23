@@ -268,17 +268,6 @@ pub async fn reconcile(
         .context(ProductConfigValidationSnafu)?
         .iter()
     {
-        let service = build_service(
-            shs,
-            &resolved_product_image.app_version_label,
-            role_name,
-            None,
-        )?;
-        cluster_resources
-            .add(client, service)
-            .await
-            .context(ApplyServiceSnafu)?;
-
         for (rolegroup_name, rolegroup_config) in role_config.iter() {
             let rgr = RoleGroupRef {
                 cluster: ObjectRef::from_obj(shs),
@@ -290,12 +279,8 @@ pub async fn reconcile(
                 .merged_config(&rgr)
                 .context(FailedToResolveConfigSnafu)?;
 
-            let service = build_service(
-                shs,
-                &resolved_product_image.app_version_label,
-                role_name,
-                Some(&rgr),
-            )?;
+            let service =
+                build_rolegroup_service(shs, &resolved_product_image.app_version_label, &rgr)?;
             cluster_resources
                 .add(client, service)
                 .await
@@ -610,73 +595,6 @@ fn build_stateful_set(
     })
 }
 
-#[allow(clippy::result_large_err)]
-fn build_service(
-    shs: &v1alpha1::SparkHistoryServer,
-    app_version_label: &str,
-    role: &str,
-    group: Option<&RoleGroupRef<v1alpha1::SparkHistoryServer>>,
-) -> Result<Service, Error> {
-    let group_name = match group {
-        Some(rgr) => rgr.role_group.clone(),
-        None => "global".to_owned(),
-    };
-
-    let (service_name, service_type, service_cluster_ip) = match group {
-        Some(rgr) => (
-            rgr.object_name(),
-            "ClusterIP".to_string(),
-            Some("None".to_string()),
-        ),
-        None => (
-            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-            format!("{}-{}", shs.metadata.name.as_ref().unwrap(), role),
-            shs.spec.cluster_config.listener_class.k8s_service_type(),
-            None,
-        ),
-    };
-
-    let selector = match group {
-        Some(rgr) => Labels::role_group_selector(shs, APP_NAME, &rgr.role, &rgr.role_group)
-            .context(LabelBuildSnafu)?
-            .into(),
-        None => Labels::role_selector(shs, APP_NAME, role)
-            .context(LabelBuildSnafu)?
-            .into(),
-    };
-
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .name(service_name)
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(shs, app_version_label, &group_name))
-            .context(MetadataBuildSnafu)?
-            .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
-            .build(),
-        spec: Some(ServiceSpec {
-            type_: Some(service_type),
-            cluster_ip: service_cluster_ip,
-            ports: Some(vec![
-                ServicePort {
-                    name: Some(String::from("http")),
-                    port: 18080,
-                    ..ServicePort::default()
-                },
-                ServicePort {
-                    name: Some(String::from("metrics")),
-                    port: METRICS_PORT.into(),
-                    ..ServicePort::default()
-                },
-            ]),
-            selector: Some(selector),
-            ..ServiceSpec::default()
-        }),
-        status: None,
-    })
-}
-
 // TODO: This function should be replaced with operator-rs build_rbac_resources.
 // See: https://github.com/stackabletech/spark-k8s-operator/issues/499
 #[allow(clippy::result_large_err)]
@@ -815,4 +733,59 @@ fn cleaner_config(
     }
 
     Ok(result)
+}
+
+/// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
+///
+/// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
+#[allow(clippy::result_large_err)]
+fn build_rolegroup_service(
+    shs: &v1alpha1::SparkHistoryServer,
+    app_version_label: &str,
+    group: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
+) -> Result<Service> {
+    let ports = Some(vec![
+        ServicePort {
+            name: Some(String::from("http")),
+            port: 18080,
+            ..ServicePort::default()
+        },
+        ServicePort {
+            name: Some(String::from("metrics")),
+            port: METRICS_PORT.into(),
+            ..ServicePort::default()
+        },
+    ]);
+
+    let metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(shs)
+        .name(group.object_name())
+        .ownerreference_from_resource(shs, None, Some(true))
+        .context(ObjectMissingMetadataForOwnerRefSnafu)?
+        .with_recommended_labels(labels(shs, app_version_label, &group.role_group))
+        .context(MetadataBuildSnafu)?
+        .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
+        .build();
+
+    let selector = Some(
+        Labels::role_group_selector(shs, APP_NAME, &group.role, &group.role_group)
+            .context(LabelBuildSnafu)?
+            .into(),
+    );
+
+    let service_spec = ServiceSpec {
+        // Internal communication does not need to be exposed
+        type_: Some("ClusterIP".to_string()),
+        cluster_ip: Some("None".to_string()),
+        ports,
+        selector,
+        publish_not_ready_addresses: Some(true),
+        ..ServiceSpec::default()
+    };
+
+    Ok(Service {
+        metadata,
+        spec: Some(service_spec),
+        status: None,
+    })
 }

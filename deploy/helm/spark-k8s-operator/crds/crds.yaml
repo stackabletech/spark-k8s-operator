@@ -1124,16 +1124,6 @@ spec:
                   properties:
                     listenerClass:
                       default: cluster-internal
-                      description: |-
-                        This field controls which type of Service the Operator creates for this HistoryServer:
-
-                        * cluster-internal: Use a ClusterIP service
-
-                        * external-unstable: Use a NodePort service
-
-                        * external-stable: Use a LoadBalancer service
-
-                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
                       enum:
                         - cluster-internal
                         - external-unstable
@@ -1880,21 +1870,12 @@ spec:
                   type: array
                 clusterConfig:
                   default:
-                    listenerClass: external-unstable
+                    listenerClass: cluster-internal
                   description: Global Spark Connect server configuration that applies to all roles.
                   properties:
                     listenerClass:
-                      default: external-unstable
-                      description: |-
-                        This field controls which type of Service the Operator creates for this ConnectServer:
-
-                        * cluster-internal: Use a ClusterIP service
-
-                        * external-unstable: Use a NodePort service
-
-                        * external-stable: Use a LoadBalancer service
-
-                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
+                      default: cluster-internal
+                      description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark services.
                       enum:
                         - cluster-internal
                         - external-unstable

@@ -32,7 +32,10 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 
 use crate::{
-    crd::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir},
+    crd::{
+        affinity::history_affinity, constants::*, listener::SupportedListenerClasses,
+        logdir::ResolvedLogDir,
+    },
     history::config::jvm::construct_history_jvm_args,
 };
 
@@ -62,6 +65,7 @@ pub enum Error {
 
 #[versioned(version(name = "v1alpha1"))]
 pub mod versioned {
+
     /// A Spark cluster history server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
@@ -103,42 +107,8 @@ pub mod versioned {
     #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct SparkHistoryServerClusterConfig {
-        /// This field controls which type of Service the Operator creates for this HistoryServer:
-        ///
-        /// * cluster-internal: Use a ClusterIP service
-        ///
-        /// * external-unstable: Use a NodePort service
-        ///
-        /// * external-stable: Use a LoadBalancer service
-        ///
-        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-        /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
-        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
         #[serde(default)]
-        pub listener_class: CurrentlySupportedListenerClasses,
-    }
-}
-
-// TODO: Temporary solution until listener-operator is finished
-#[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum CurrentlySupportedListenerClasses {
-    #[default]
-    #[serde(rename = "cluster-internal")]
-    ClusterInternal,
-    #[serde(rename = "external-unstable")]
-    ExternalUnstable,
-    #[serde(rename = "external-stable")]
-    ExternalStable,
-}
-
-impl CurrentlySupportedListenerClasses {
-    pub fn k8s_service_type(&self) -> String {
-        match self {
-            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
-            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
-            CurrentlySupportedListenerClasses::ExternalStable => "LoadBalancer".to_string(),
-        }
+        pub listener_class: SupportedListenerClasses,
     }
 }
 

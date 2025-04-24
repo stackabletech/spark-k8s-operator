@@ -51,11 +51,7 @@ For example, you can use the `--cluster kind` flag to create a Kubernetes cluste
 Helm::
 +
 --
-Add the Stackable Helm repository:
-[source,bash]
-----
-include::example$getting_started/getting_started.sh[tag=helm-add-repo]
-----
+NOTE: `helm repo` subcommands are not supported for OCI registries. The operators are installed directly, without adding the Helm Chart repository first.
 
 Install the Stackable Operators:
 [source,bash]

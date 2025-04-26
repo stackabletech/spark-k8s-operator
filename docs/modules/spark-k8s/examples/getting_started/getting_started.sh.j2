@@ -21,19 +21,12 @@ cd "$(dirname "$0")"
 
 case "$1" in
 "helm")
-echo "Adding '{{ helm.repo_name }}' Helm Chart repository"
-# tag::helm-add-repo[]
-helm repo add {{ helm.repo_name }} {{ helm.repo_url }}
-# end::helm-add-repo[]
-echo "Updating Helm repo"
-helm repo update
-
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator {{ helm.repo_name }}/commons-operator --version {{ versions.commons }}
-helm install --wait secret-operator {{ helm.repo_name }}/secret-operator --version {{ versions.secret }}
-helm install --wait listener-operator {{ helm.repo_name }}/listener-operator --version {{ versions.listener }}
-helm install --wait spark-k8s-operator {{ helm.repo_name }}/spark-k8s-operator --version {{ versions.spark }}
+helm install --wait commons-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/commons-operator --version {{ versions.commons }}
+helm install --wait secret-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/secret-operator --version {{ versions.secret }}
+helm install --wait listener-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/listener-operator --version {{ versions.listener }}
+helm install --wait spark-k8s-operator oci://{{ helm.repo_url }}/{{ helm.repo_name }}/spark-k8s-operator --version {{ versions.spark }}
 # end::helm-install-operators[]
 ;;
 "stackablectl")

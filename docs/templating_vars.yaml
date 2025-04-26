@@ -1,7 +1,7 @@
 ---
 helm:
-  repo_name: stackable-dev
-  repo_url: https://repo.stackable.tech/repository/helm-dev/
+  repo_name: sdp-charts
+  repo_url: oci.stackable.tech
 versions:
   commons: 0.0.0-dev
   secret: 0.0.0-dev

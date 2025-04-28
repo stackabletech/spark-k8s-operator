@@ -11,8 +11,8 @@ use stackable_operator::{
     },
     logging::controller::ReconcilerError,
     status::condition::{
-        compute_conditions, deployment::DeploymentConditionBuilder,
-        operations::ClusterOperationsConditionBuilder,
+        compute_conditions, operations::ClusterOperationsConditionBuilder,
+        statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
 };
@@ -264,7 +264,7 @@ pub async fn reconcile(
         })?;
 
     let args = server::command_args(&scs.spec.args);
-    let deployment = server::build_deployment(
+    let deployment = server::build_stateful_set(
         scs,
         &server_config,
         &resolved_product_image,
@@ -274,7 +274,7 @@ pub async fn reconcile(
     )
     .context(BuildServerDeploymentSnafu)?;
 
-    let mut ss_cond_builder = DeploymentConditionBuilder::default();
+    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     ss_cond_builder.add(
         cluster_resources

@@ -23,3 +23,13 @@ pub enum SupportedListenerClasses {
     #[strum(serialize = "external-stable")]
     ExternalStable,
 }
+
+impl SupportedListenerClasses {
+    pub fn discoverable(&self) -> bool {
+        match self {
+            SupportedListenerClasses::ClusterInternal => false,
+            SupportedListenerClasses::ExternalUnstable => true,
+            SupportedListenerClasses::ExternalStable => true,
+        }
+    }
+}

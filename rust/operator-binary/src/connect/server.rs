@@ -7,15 +7,20 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            volume::VolumeBuilder,
+            PodBuilder,
+            container::ContainerBuilder,
+            resources::ResourceRequirementsBuilder,
+            volume::{
+                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+                ListenerReference, VolumeBuilder,
+            },
         },
     },
     commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::{
         DeepMerge,
         api::{
-            apps::v1::{Deployment, DeploymentSpec},
+            apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, EnvVar, HTTPGetAction, PodSecurityContext, Probe, Service,
                 ServiceAccount, ServicePort, ServiceSpec,
@@ -53,6 +58,11 @@ const HTTP: &str = "http";
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build listener volume"))]
+    BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    },
+
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
 
@@ -188,15 +198,14 @@ pub(crate) fn server_config_map(
         .context(InvalidConfigMapSnafu { name: cm_name })
 }
 
-#[allow(clippy::result_large_err)]
-pub(crate) fn build_deployment(
+pub(crate) fn build_stateful_set(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
     config_map: &ConfigMap,
     args: Vec<String>,
-) -> Result<Deployment, Error> {
+) -> Result<StatefulSet, Error> {
     let server_role = SparkConnectRole::Server.to_string();
     let recommended_object_labels =
         common::labels(scs, &resolved_product_image.app_version_label, &server_role);
@@ -228,12 +237,6 @@ pub(crate) fn build_deployment(
                     Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
                 )
                 .build(),
-        )
-        .context(AddVolumeSnafu)?
-        .add_listener_volume_by_listener_class(
-            LISTENER_VOLUME_NAME,
-            &scs.spec.cluster_config.listener_class.to_string(),
-            &recommended_labels.clone(),
         )
         .context(AddVolumeSnafu)?
         .security_context(PodSecurityContext {
@@ -320,13 +323,37 @@ pub(crate) fn build_deployment(
         }
     }
 
+    // Add listener volume
+    let listener_class = &scs.spec.cluster_config.listener_class;
+    let pvcs = if listener_class.discoverable() {
+        // externally reachable listener endpoints will use persistent volumes
+        // so that load balancers can hard-code the target addresses
+        let pvc = ListenerOperatorVolumeSourceBuilder::new(
+            &ListenerReference::ListenerClass(listener_class.to_string()),
+            &recommended_labels,
+        )
+        .context(BuildListenerVolumeSnafu)?
+        .build_pvc(LISTENER_VOLUME_NAME.to_string())
+        .context(BuildListenerVolumeSnafu)?;
+        Some(vec![pvc])
+    } else {
+        // non-reachable endpoints use ephemeral volumes
+        pb.add_listener_volume_by_listener_class(
+            LISTENER_VOLUME_NAME,
+            &listener_class.to_string(),
+            &recommended_labels,
+        )
+        .context(AddVolumeSnafu)?;
+        None
+    };
+
     // Merge user defined pod template if available
     let mut pod_template = pb.build_template();
     if let Some(pod_overrides_spec) = scs.spec.server.as_ref().map(|s| s.pod_overrides.clone()) {
         pod_template.merge_from(pod_overrides_spec);
     }
 
-    Ok(Deployment {
+    Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(scs)
             .name(object_name(&scs.name_any(), SparkConnectRole::Server))
@@ -339,9 +366,10 @@ pub(crate) fn build_deployment(
             ))
             .context(MetadataBuildSnafu)?
             .build(),
-        spec: Some(DeploymentSpec {
+        spec: Some(StatefulSetSpec {
             template: pod_template,
             replicas: Some(1),
+            volume_claim_templates: pvcs,
             selector: LabelSelector {
                 match_labels: Some(
                     Labels::role_group_selector(
@@ -355,9 +383,9 @@ pub(crate) fn build_deployment(
                 ),
                 ..LabelSelector::default()
             },
-            ..DeploymentSpec::default()
+            ..StatefulSetSpec::default()
         }),
-        ..Deployment::default()
+        ..StatefulSet::default()
     })
 }
 

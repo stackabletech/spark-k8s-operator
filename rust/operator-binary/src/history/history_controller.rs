@@ -11,8 +11,13 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            volume::VolumeBuilder,
+            PodBuilder,
+            container::ContainerBuilder,
+            resources::ResourceRequirementsBuilder,
+            volume::{
+                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+                ListenerReference, VolumeBuilder,
+            },
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
@@ -71,6 +76,11 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build listener volume"))]
+    BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    },
+
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
 
@@ -535,15 +545,27 @@ fn build_stateful_set(
 
     // Add listener volume
     let listener_class = &shs.spec.cluster_config.listener_class;
-    // all listeners will use ephemeral volumes as they can/should
-    // be removed when the pods are *terminated* (ephemeral PVCs will
-    // survive re-starts)
-    pb.add_listener_volume_by_listener_class(
-        LISTENER_VOLUME_NAME,
-        &listener_class.to_string(),
-        &recommended_labels.clone(),
-    )
-    .context(AddVolumeSnafu)?;
+    let pvcs = if listener_class.discoverable() {
+        // externally reachable listener endpoints will use persistent volumes
+        // so that load balancers can hard-code the target addresses
+        let pvc = ListenerOperatorVolumeSourceBuilder::new(
+            &ListenerReference::ListenerClass(listener_class.to_string()),
+            &recommended_labels,
+        )
+        .context(BuildListenerVolumeSnafu)?
+        .build_pvc(LISTENER_VOLUME_NAME.to_string())
+        .context(BuildListenerVolumeSnafu)?;
+        Some(vec![pvc])
+    } else {
+        // non-reachable endpoints use ephemeral volumes
+        pb.add_listener_volume_by_listener_class(
+            LISTENER_VOLUME_NAME,
+            &listener_class.to_string(),
+            &recommended_labels,
+        )
+        .context(AddVolumeSnafu)?;
+        None
+    };
 
     pb.add_container(container);
 
@@ -593,6 +615,7 @@ fn build_stateful_set(
         metadata: sts_metadata,
         spec: Some(StatefulSetSpec {
             template: pod_template,
+            volume_claim_templates: pvcs,
             replicas: shs.replicas(rolegroupref),
             selector: LabelSelector {
                 match_labels: Some(

@@ -29,6 +29,14 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build spark connect listener"))]
+    BuildListener { source: server::Error },
+
+    #[snafu(display("failed to apply spark connect listener"))]
+    ApplyListener {
+        source: stackable_operator::cluster_resources::Error,
+    },
+
     #[snafu(display("failed to serialize connect properties"))]
     SerializeProperties { source: common::Error },
 
@@ -263,6 +271,8 @@ pub async fn reconcile(
             name: scs.name_unchecked(),
         })?;
 
+    // ========================================
+    // Server stateful set
     let args = server::command_args(&scs.spec.args);
     let deployment = server::build_stateful_set(
         scs,
@@ -273,6 +283,16 @@ pub async fn reconcile(
         args,
     )
     .context(BuildServerDeploymentSnafu)?;
+
+    // ========================================
+    // Server listener
+    let listener = server::build_listener(scs, &server_config, &resolved_product_image)
+        .context(BuildListenerSnafu)?;
+
+    cluster_resources
+        .add(client, listener)
+        .await
+        .context(ApplyListenerSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 

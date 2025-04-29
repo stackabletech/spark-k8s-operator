@@ -16,7 +16,10 @@ use stackable_operator::{
             },
         },
     },
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{
+        listener::{Listener, ListenerPort},
+        product_image_selection::ResolvedProductImage,
+    },
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -42,12 +45,15 @@ use crate::{
             SparkConnectContainer, v1alpha1,
         },
     },
-    crd::constants::{
-        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
-        LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE,
-        SPARK_DEFAULTS_FILE_NAME, SPARK_UID, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
-        VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
-        VOLUME_MOUNT_PATH_LOG_CONFIG,
+    crd::{
+        constants::{
+            APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE,
+            POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID, VOLUME_MOUNT_NAME_CONFIG,
+            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        },
+        listener,
     },
     product_logging,
 };
@@ -58,6 +64,9 @@ const HTTP: &str = "http";
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build spark connect listener"))]
+    BuildListener { source: crate::crd::listener::Error },
+
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
@@ -177,11 +186,7 @@ pub(crate) fn server_config_map(
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
-    let role_group_ref = RoleGroupRef {
-        cluster: ObjectRef::from_obj(scs),
-        role: SparkConnectRole::Server.to_string(),
-        role_group: DUMMY_SPARK_CONNECT_GROUP_NAME.to_string(),
-    };
+    let role_group_ref = dummy_role_group_ref(scs);
     product_logging::extend_config_map(
         &role_group_ref,
         &config.logging,
@@ -324,28 +329,19 @@ pub(crate) fn build_stateful_set(
     }
 
     // Add listener volume
-    let listener_class = &scs.spec.cluster_config.listener_class;
-    let pvcs = if listener_class.discoverable() {
-        // externally reachable listener endpoints will use persistent volumes
-        // so that load balancers can hard-code the target addresses
-        let pvc = ListenerOperatorVolumeSourceBuilder::new(
-            &ListenerReference::ListenerClass(listener_class.to_string()),
+    // Listener endpoints for the Webserver role will use persistent volumes
+    // so that load balancers can hard-code the target addresses. This will
+    // be the case even when no class is set (and the value defaults to
+    // cluster-internal) as the address should still be consistent.
+    let volume_claim_templates = Some(vec![
+        ListenerOperatorVolumeSourceBuilder::new(
+            &ListenerReference::ListenerName(dummy_role_group_ref(scs).object_name()),
             &recommended_labels,
         )
         .context(BuildListenerVolumeSnafu)?
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
-        .context(BuildListenerVolumeSnafu)?;
-        Some(vec![pvc])
-    } else {
-        // non-reachable endpoints use ephemeral volumes
-        pb.add_listener_volume_by_listener_class(
-            LISTENER_VOLUME_NAME,
-            &listener_class.to_string(),
-            &recommended_labels,
-        )
-        .context(AddVolumeSnafu)?;
-        None
-    };
+        .context(BuildListenerVolumeSnafu)?,
+    ]);
 
     // Merge user defined pod template if available
     let mut pod_template = pb.build_template();
@@ -369,7 +365,7 @@ pub(crate) fn build_stateful_set(
         spec: Some(StatefulSetSpec {
             template: pod_template,
             replicas: Some(1),
-            volume_claim_templates: pvcs,
+            volume_claim_templates,
             selector: LabelSelector {
                 match_labels: Some(
                     Labels::role_group_selector(
@@ -604,4 +600,48 @@ fn probe() -> Probe {
         failure_threshold: Some(10),
         ..Probe::default()
     }
+}
+
+fn dummy_role_group_ref(
+    scs: &v1alpha1::SparkConnectServer,
+) -> RoleGroupRef<v1alpha1::SparkConnectServer> {
+    RoleGroupRef {
+        cluster: ObjectRef::from_obj(scs),
+        role: SparkConnectRole::Server.to_string(),
+        role_group: DUMMY_SPARK_CONNECT_GROUP_NAME.to_string(),
+    }
+}
+
+pub(crate) fn build_listener(
+    scs: &v1alpha1::SparkConnectServer,
+    config: &v1alpha1::ServerConfig,
+    resolved_product_image: &ResolvedProductImage,
+) -> Result<Listener, Error> {
+    let listener_name = dummy_role_group_ref(scs).object_name();
+    let listener_class = config.listener_class.clone();
+    let role = SparkConnectRole::Server.to_string();
+    let recommended_object_labels =
+        common::labels(scs, &resolved_product_image.app_version_label, &role);
+
+    let listener_ports = [
+        ListenerPort {
+            name: GRPC.to_string(),
+            port: CONNECT_GRPC_PORT,
+            protocol: Some("TCP".to_string()),
+        },
+        ListenerPort {
+            name: HTTP.to_string(),
+            port: CONNECT_UI_PORT,
+            protocol: Some("TCP".to_string()),
+        },
+    ];
+
+    listener::build_listener(
+        scs,
+        &listener_name,
+        &listener_class,
+        recommended_object_labels,
+        &listener_ports,
+    )
+    .context(BuildListenerSnafu)
 }

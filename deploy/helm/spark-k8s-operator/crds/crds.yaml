@@ -1866,18 +1866,8 @@ spec:
                     type: string
                   type: array
                 clusterConfig:
-                  default:
-                    listenerClass: cluster-internal
+                  default: {}
                   description: Global Spark Connect server configuration that applies to all roles.
-                  properties:
-                    listenerClass:
-                      default: cluster-internal
-                      description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark services.
-                      enum:
-                        - cluster-internal
-                        - external-unstable
-                        - external-stable
-                      type: string
                   type: object
                 clusterOperation:
                   default:
@@ -2169,6 +2159,10 @@ spec:
                     config:
                       default: {}
                       properties:
+                        listenerClass:
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark services.
+                          nullable: true
+                          type: string
                         logging:
                           default:
                             containers: {}

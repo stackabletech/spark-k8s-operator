@@ -33,7 +33,7 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 
 use super::common::SparkConnectRole;
-use crate::crd::{constants::APP_NAME, listener::SupportedListenerClasses};
+use crate::crd::constants::APP_NAME;
 
 pub const CONNECT_CONTROLLER_NAME: &str = "connect";
 pub const CONNECT_FULL_CONTROLLER_NAME: &str = concatcp!(
@@ -106,11 +106,7 @@ pub mod versioned {
 
     #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct SparkConnectServerClusterConfig {
-        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the Spark services.
-        #[serde(default)]
-        pub listener_class: SupportedListenerClasses,
-    }
+    pub struct SparkConnectServerClusterConfig {}
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
     #[fragment_attrs(
@@ -137,6 +133,10 @@ pub mod versioned {
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
         #[fragment_attrs(serde(default))]
         pub requested_secret_lifetime: Option<Duration>,
+
+        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the Spark services.
+        #[serde(default)]
+        pub listener_class: String,
     }
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -225,6 +225,7 @@ impl v1alpha1::ServerConfig {
             },
             logging: product_logging::spec::default_logging(),
             requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
+            listener_class: Some("cluster-internal".into()),
         }
     }
 

@@ -58,8 +58,8 @@ pub enum Error {
     #[snafu(display("failed to build spark connect server config map for {name}"))]
     BuildServerConfigMap { source: server::Error, name: String },
 
-    #[snafu(display("failed to build spark connect deployment"))]
-    BuildServerDeployment { source: server::Error },
+    #[snafu(display("failed to build spark connect stateful set"))]
+    BuildServerStatefulSet { source: server::Error },
 
     #[snafu(display("failed to update status of spark connect server {name}"))]
     ApplyStatus {
@@ -70,8 +70,8 @@ pub enum Error {
     #[snafu(display("spark connect object has no namespace"))]
     ObjectHasNoNamespace,
 
-    #[snafu(display("failed to update the connect server deployment"))]
-    ApplyDeployment {
+    #[snafu(display("failed to update the connect server stateful set"))]
+    ApplyStatefulSet {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -274,7 +274,7 @@ pub async fn reconcile(
     // ========================================
     // Server stateful set
     let args = server::command_args(&scs.spec.args);
-    let deployment = server::build_stateful_set(
+    let stateful_set = server::build_stateful_set(
         scs,
         &server_config,
         &resolved_product_image,
@@ -282,7 +282,7 @@ pub async fn reconcile(
         &server_config_map,
         args,
     )
-    .context(BuildServerDeploymentSnafu)?;
+    .context(BuildServerStatefulSetSnafu)?;
 
     // ========================================
     // Server listener
@@ -298,9 +298,9 @@ pub async fn reconcile(
 
     ss_cond_builder.add(
         cluster_resources
-            .add(client, deployment)
+            .add(client, stateful_set)
             .await
-            .context(ApplyDeploymentSnafu)?,
+            .context(ApplyStatefulSetSnafu)?,
     );
 
     cluster_resources

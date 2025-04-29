@@ -29,9 +29,7 @@ use stackable_operator::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{
-                ConfigMap, PodSecurityContext, Service, ServiceAccount, ServicePort, ServiceSpec,
-            },
+            core::v1::{ConfigMap, PodSecurityContext, ServiceAccount},
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
@@ -41,7 +39,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, reflector::ObjectRef},
     },
-    kvp::{Label, Labels, ObjectLabels},
+    kvp::{Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_logging::{
         framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
@@ -300,13 +298,6 @@ pub async fn reconcile(
             let merged_config = shs
                 .merged_config(&rgr)
                 .context(FailedToResolveConfigSnafu)?;
-
-            let service =
-                build_rolegroup_service(shs, &resolved_product_image.app_version_label, &rgr)?;
-            cluster_resources
-                .add(client, service)
-                .await
-                .context(ApplyServiceSnafu)?;
 
             let config_map = build_config_map(
                 shs,
@@ -614,9 +605,9 @@ fn build_stateful_set(
     // so that load balancers can hard-code the target addresses. This will
     // be the case even when no class is set (and the value defaults to
     // cluster-internal) as the address should still be consistent.
-    let pvcs = Some(vec![
+    let volume_claim_templates = Some(vec![
         ListenerOperatorVolumeSourceBuilder::new(
-            &ListenerReference::ListenerClass(merged_config.listener_class.to_string()),
+            &ListenerReference::ListenerName(shs.group_listener_name(rolegroupref)),
             &recommended_labels,
         )
         .context(BuildListenerVolumeSnafu)?
@@ -672,7 +663,7 @@ fn build_stateful_set(
         metadata: sts_metadata,
         spec: Some(StatefulSetSpec {
             template: pod_template,
-            volume_claim_templates: pvcs,
+            volume_claim_templates,
             replicas: shs.replicas(rolegroupref),
             selector: LabelSelector {
                 match_labels: Some(
@@ -831,59 +822,4 @@ fn cleaner_config(
     }
 
     Ok(result)
-}
-
-/// The rolegroup [`Service`] is a headless service that allows direct access to the instances of a certain rolegroup
-///
-/// This is mostly useful for internal communication between peers, or for clients that perform client-side load balancing.
-#[allow(clippy::result_large_err)]
-fn build_rolegroup_service(
-    shs: &v1alpha1::SparkHistoryServer,
-    app_version_label: &str,
-    group: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
-) -> Result<Service, Error> {
-    let ports = Some(vec![
-        ServicePort {
-            name: Some(String::from("http")),
-            port: HISTORY_UI_PORT.into(),
-            ..ServicePort::default()
-        },
-        ServicePort {
-            name: Some(String::from("metrics")),
-            port: METRICS_PORT.into(),
-            ..ServicePort::default()
-        },
-    ]);
-
-    let metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(shs)
-        .name(group.object_name())
-        .ownerreference_from_resource(shs, None, Some(true))
-        .context(ObjectMissingMetadataForOwnerRefSnafu)?
-        .with_recommended_labels(labels(shs, app_version_label, &group.role_group))
-        .context(MetadataBuildSnafu)?
-        .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
-        .build();
-
-    let selector = Some(
-        Labels::role_group_selector(shs, APP_NAME, &group.role, &group.role_group)
-            .context(LabelBuildSnafu)?
-            .into(),
-    );
-
-    let service_spec = ServiceSpec {
-        // Internal communication does not need to be exposed
-        type_: Some("ClusterIP".to_string()),
-        cluster_ip: Some("None".to_string()),
-        ports,
-        selector,
-        publish_not_ready_addresses: Some(true),
-        ..ServiceSpec::default()
-    };
-
-    Ok(Service {
-        metadata,
-        spec: Some(service_spec),
-        status: None,
-    })
 }

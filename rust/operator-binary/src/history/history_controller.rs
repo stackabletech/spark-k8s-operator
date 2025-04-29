@@ -22,7 +22,7 @@ use stackable_operator::{
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{
-        listener::{Listener, ListenerPort, ListenerSpec},
+        listener::{Listener, ListenerPort},
         product_image_selection::ResolvedProductImage,
     },
     k8s_openapi::{
@@ -66,6 +66,7 @@ use crate::{
             VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
+        listener,
         logdir::ResolvedLogDir,
         tlscerts, to_spark_env_sh_string,
     },
@@ -81,6 +82,9 @@ pub enum Error {
     ObjectMeta {
         source: stackable_operator::builder::meta::Error,
     },
+
+    #[snafu(display("failed to build spark history group listener"))]
+    BuildListener { source: crate::crd::listener::Error },
 
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
@@ -363,41 +367,27 @@ fn build_group_listener(
     rolegroup: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
     listener_class: String,
 ) -> Result<Listener, Error> {
-    Ok(Listener {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .name(shs.group_listener_name(rolegroup))
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(
-                shs,
-                &resolved_product_image.app_version_label,
-                &rolegroup.role_group,
-            ))
-            .context(ObjectMetaSnafu)?
-            .build(),
-        spec: ListenerSpec {
-            class_name: Some(listener_class),
-            ports: Some(listener_ports()),
-            ..ListenerSpec::default()
-        },
-        status: None,
-    })
-}
+    let listener_name = rolegroup.object_name();
+    let recommended_object_labels = labels(
+        shs,
+        &resolved_product_image.app_version_label,
+        &rolegroup.role_group,
+    );
 
-fn listener_ports() -> Vec<ListenerPort> {
-    vec![
-        ListenerPort {
-            name: "metrics".to_string(),
-            port: METRICS_PORT.into(),
-            protocol: Some("TCP".to_string()),
-        },
-        ListenerPort {
-            name: "http".to_string(),
-            port: HISTORY_UI_PORT.into(),
-            protocol: Some("TCP".to_string()),
-        },
-    ]
+    let listener_ports = [ListenerPort {
+        name: "http".to_string(),
+        port: HISTORY_UI_PORT.into(),
+        protocol: Some("TCP".to_string()),
+    }];
+
+    listener::build_listener(
+        shs,
+        &listener_name,
+        &listener_class,
+        recommended_object_labels,
+        &listener_ports,
+    )
+    .context(BuildListenerSnafu)
 }
 
 pub fn error_policy(
@@ -607,7 +597,7 @@ fn build_stateful_set(
     // cluster-internal) as the address should still be consistent.
     let volume_claim_templates = Some(vec![
         ListenerOperatorVolumeSourceBuilder::new(
-            &ListenerReference::ListenerName(shs.group_listener_name(rolegroupref)),
+            &ListenerReference::ListenerName(rolegroupref.object_name()),
             &recommended_labels,
         )
         .context(BuildListenerVolumeSnafu)?

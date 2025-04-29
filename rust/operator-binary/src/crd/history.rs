@@ -107,13 +107,6 @@ pub mod versioned {
 }
 
 impl v1alpha1::SparkHistoryServer {
-    /// The name of the group-listener provided for a specific role-group.
-    /// History servers will use this group listener so that only one load balancer
-    /// is needed (per role group).
-    pub fn group_listener_name(&self, rolegroup: &RoleGroupRef<Self>) -> String {
-        format!("{}-group", rolegroup.object_name())
-    }
-
     /// Returns a reference to the role. Raises an error if the role is not defined.
     pub fn role(&self) -> &Role<HistoryConfigFragment, GenericRoleConfig, JavaCommonConfig> {
         &self.spec.nodes

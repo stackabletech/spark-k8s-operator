@@ -24,13 +24,13 @@ use stackable_operator::{
     commons::{
         listener::{Listener, ListenerPort},
         product_image_selection::ResolvedProductImage,
+        rbac::build_rbac_resources,
     },
     k8s_openapi::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{ConfigMap, PodSecurityContext, ServiceAccount},
-            rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
@@ -60,10 +60,10 @@ use crate::{
             ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME, HISTORY_UI_PORT,
             JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
             MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME, SECRET_ACCESS_KEY,
-            SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-            SPARK_IMAGE_BASE_NAME, SPARK_UID, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
+            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+            VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         listener,
@@ -78,9 +78,9 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to build object meta data"))]
-    ObjectMeta {
-        source: stackable_operator::builder::meta::Error,
+    #[snafu(display("failed to build RBAC resources"))]
+    BuildRbacResources {
+        source: stackable_operator::commons::rbac::Error,
     },
 
     #[snafu(display("failed to build spark history group listener"))]
@@ -113,18 +113,13 @@ pub enum Error {
         source: stackable_operator::builder::meta::Error,
     },
 
-    #[snafu(display("failed to update the history server deployment"))]
-    ApplyDeployment {
+    #[snafu(display("failed to update the history server stateful set"))]
+    ApplyStatefulSet {
         source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to update history server config map"))]
     ApplyConfigMap {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to update history server service"))]
-    ApplyService {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -275,14 +270,20 @@ pub async fn reconcile(
     .context(LogDirSnafu)?;
 
     // Use a dedicated service account for history server pods.
-    let (serviceaccount, rolebinding) =
-        build_history_role_serviceaccount(shs, &resolved_product_image.app_version_label)?;
-    let serviceaccount = cluster_resources
-        .add(client, serviceaccount)
+    let (service_account, role_binding) = build_rbac_resources(
+        shs,
+        APP_NAME,
+        cluster_resources
+            .get_required_labels()
+            .context(GetRequiredLabelsSnafu)?,
+    )
+    .context(BuildRbacResourcesSnafu)?;
+    let service_account = cluster_resources
+        .add(client, service_account)
         .await
         .context(ApplyServiceAccountSnafu)?;
     cluster_resources
-        .add(client, rolebinding)
+        .add(client, role_binding)
         .await
         .context(ApplyRoleBindingSnafu)?;
 
@@ -322,12 +323,12 @@ pub async fn reconcile(
                 &rgr,
                 &log_dir,
                 &merged_config,
-                &serviceaccount,
+                &service_account,
             )?;
             cluster_resources
                 .add(client, sts)
                 .await
-                .context(ApplyDeploymentSnafu)?;
+                .context(ApplyStatefulSetSnafu)?;
 
             let rg_group_listener = build_group_listener(
                 shs,
@@ -672,49 +673,6 @@ fn build_stateful_set(
         }),
         ..StatefulSet::default()
     })
-}
-
-// TODO: This function should be replaced with operator-rs build_rbac_resources.
-// See: https://github.com/stackabletech/spark-k8s-operator/issues/499
-#[allow(clippy::result_large_err)]
-fn build_history_role_serviceaccount(
-    shs: &v1alpha1::SparkHistoryServer,
-    app_version_label: &str,
-) -> Result<(ServiceAccount, RoleBinding), Error> {
-    let sa = ServiceAccount {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
-            .context(MetadataBuildSnafu)?
-            .build(),
-        ..ServiceAccount::default()
-    };
-    let binding = RoleBinding {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
-            .context(MetadataBuildSnafu)?
-            .build(),
-        role_ref: RoleRef {
-            api_group: <ClusterRole as stackable_operator::k8s_openapi::Resource>::GROUP // need to fully qualify because of "Resource" name clash
-                .to_string(),
-            kind: <ClusterRole as stackable_operator::k8s_openapi::Resource>::KIND.to_string(),
-            name: SPARK_CLUSTER_ROLE.to_string(),
-        },
-        subjects: Some(vec![Subject {
-            api_group: Some(
-                <ServiceAccount as stackable_operator::k8s_openapi::Resource>::GROUP.to_string(),
-            ),
-            kind: <ServiceAccount as stackable_operator::k8s_openapi::Resource>::KIND.to_string(),
-            name: sa.name_any(),
-            namespace: sa.namespace(),
-        }]),
-    };
-    Ok((sa, binding))
 }
 
 #[allow(clippy::result_large_err)]

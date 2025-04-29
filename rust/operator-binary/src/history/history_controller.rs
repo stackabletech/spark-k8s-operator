@@ -21,7 +21,10 @@ use stackable_operator::{
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{
+        listener::{Listener, ListenerPort, ListenerSpec},
+        product_image_selection::ResolvedProductImage,
+    },
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -56,7 +59,7 @@ use crate::{
     Ctx,
     crd::{
         constants::{
-            ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
+            ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME, HISTORY_UI_PORT,
             JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
             MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME, SECRET_ACCESS_KEY,
             SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
@@ -76,6 +79,11 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build object meta data"))]
+    ObjectMeta {
+        source: stackable_operator::builder::meta::Error,
+    },
+
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
@@ -216,9 +224,12 @@ pub enum Error {
 
     #[snafu(display("failed to merge environment config and/or overrides"))]
     MergeEnv { source: crate::crd::history::Error },
-}
 
-type Result<T, E = Error> = std::result::Result<T, E>;
+    #[snafu(display("failed to apply group listener"))]
+    ApplyGroupListener {
+        source: stackable_operator::cluster_resources::Error,
+    },
+}
 
 impl ReconcilerError for Error {
     fn category(&self) -> &'static str {
@@ -229,7 +240,7 @@ impl ReconcilerError for Error {
 pub async fn reconcile(
     shs: Arc<DeserializeGuard<v1alpha1::SparkHistoryServer>>,
     ctx: Arc<Ctx>,
-) -> Result<Action> {
+) -> Result<Action, Error> {
     tracing::info!("Starting reconcile history server");
 
     let shs = shs
@@ -322,6 +333,17 @@ pub async fn reconcile(
                 .add(client, sts)
                 .await
                 .context(ApplyDeploymentSnafu)?;
+
+            let rg_group_listener = build_group_listener(
+                shs,
+                &resolved_product_image,
+                &rgr,
+                merged_config.listener_class.to_string(),
+            )?;
+            cluster_resources
+                .add(client, rg_group_listener)
+                .await
+                .context(ApplyGroupListenerSnafu)?;
         }
 
         let role_config = &shs.spec.nodes.role_config;
@@ -341,6 +363,50 @@ pub async fn reconcile(
         .context(DeleteOrphanedResourcesSnafu)?;
 
     Ok(Action::await_change())
+}
+
+#[allow(clippy::result_large_err)]
+fn build_group_listener(
+    shs: &v1alpha1::SparkHistoryServer,
+    resolved_product_image: &ResolvedProductImage,
+    rolegroup: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
+    listener_class: String,
+) -> Result<Listener, Error> {
+    Ok(Listener {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(shs)
+            .name(shs.group_listener_name(rolegroup))
+            .ownerreference_from_resource(shs, None, Some(true))
+            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .with_recommended_labels(labels(
+                shs,
+                &resolved_product_image.app_version_label,
+                &rolegroup.role_group,
+            ))
+            .context(ObjectMetaSnafu)?
+            .build(),
+        spec: ListenerSpec {
+            class_name: Some(listener_class),
+            ports: Some(listener_ports()),
+            ..ListenerSpec::default()
+        },
+        status: None,
+    })
+}
+
+fn listener_ports() -> Vec<ListenerPort> {
+    vec![
+        ListenerPort {
+            name: "metrics".to_string(),
+            port: METRICS_PORT.into(),
+            protocol: Some("TCP".to_string()),
+        },
+        ListenerPort {
+            name: "http".to_string(),
+            port: HISTORY_UI_PORT.into(),
+            protocol: Some("TCP".to_string()),
+        },
+    ]
 }
 
 pub fn error_policy(
@@ -528,7 +594,7 @@ fn build_stateful_set(
             "-c".to_string(),
         ])
         .args(command_args(log_dir))
-        .add_container_port("http", 18080)
+        .add_container_port("http", HISTORY_UI_PORT.into())
         .add_container_port("metrics", METRICS_PORT.into())
         .add_env_vars(merged_env)
         .add_volume_mounts(log_dir.volume_mounts())
@@ -544,28 +610,19 @@ fn build_stateful_set(
         .build();
 
     // Add listener volume
-    let listener_class = &shs.spec.cluster_config.listener_class;
-    let pvcs = if listener_class.discoverable() {
-        // externally reachable listener endpoints will use persistent volumes
-        // so that load balancers can hard-code the target addresses
-        let pvc = ListenerOperatorVolumeSourceBuilder::new(
-            &ListenerReference::ListenerClass(listener_class.to_string()),
+    // Listener endpoints for the Webserver role will use persistent volumes
+    // so that load balancers can hard-code the target addresses. This will
+    // be the case even when no class is set (and the value defaults to
+    // cluster-internal) as the address should still be consistent.
+    let pvcs = Some(vec![
+        ListenerOperatorVolumeSourceBuilder::new(
+            &ListenerReference::ListenerClass(merged_config.listener_class.to_string()),
             &recommended_labels,
         )
         .context(BuildListenerVolumeSnafu)?
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
-        .context(BuildListenerVolumeSnafu)?;
-        Some(vec![pvc])
-    } else {
-        // non-reachable endpoints use ephemeral volumes
-        pb.add_listener_volume_by_listener_class(
-            LISTENER_VOLUME_NAME,
-            &listener_class.to_string(),
-            &recommended_labels,
-        )
-        .context(AddVolumeSnafu)?;
-        None
-    };
+        .context(BuildListenerVolumeSnafu)?,
+    ]);
 
     pb.add_container(container);
 
@@ -642,7 +699,7 @@ fn build_stateful_set(
 fn build_history_role_serviceaccount(
     shs: &v1alpha1::SparkHistoryServer,
     app_version_label: &str,
-) -> Result<(ServiceAccount, RoleBinding)> {
+) -> Result<(ServiceAccount, RoleBinding), Error> {
     let sa = ServiceAccount {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(shs)
@@ -784,11 +841,11 @@ fn build_rolegroup_service(
     shs: &v1alpha1::SparkHistoryServer,
     app_version_label: &str,
     group: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
-) -> Result<Service> {
+) -> Result<Service, Error> {
     let ports = Some(vec![
         ServicePort {
             name: Some(String::from("http")),
-            port: 18080,
+            port: HISTORY_UI_PORT.into(),
             ..ServicePort::default()
         },
         ServicePort {

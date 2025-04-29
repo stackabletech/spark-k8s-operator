@@ -36,9 +36,6 @@ spec:
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
 
-  clusterConfig:
-    listenerClass: external-unstable
-
   logFileDirectory:
     s3:
       prefix: eventlogs/
@@ -48,6 +45,7 @@ spec:
   #sparkConf:
   nodes:
     config:
+      listenerClass: external-unstable
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
         containers:

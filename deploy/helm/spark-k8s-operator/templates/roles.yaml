@@ -133,3 +133,14 @@ rules:
       - bind
     resourceNames:
       - {{ include "operator.name" . }}-clusterrole
+  - apiGroups:
+      - listeners.stackable.tech
+    resources:
+      - listeners
+    verbs:
+      - get
+      - list
+      - watch
+      - patch
+      - create
+      - delete

@@ -32,10 +32,7 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 
 use crate::{
-    crd::{
-        affinity::history_affinity, constants::*, listener::SupportedListenerClasses,
-        logdir::ResolvedLogDir,
-    },
+    crd::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir},
     history::config::jvm::construct_history_jvm_args,
 };
 
@@ -106,13 +103,17 @@ pub mod versioned {
 
     #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct SparkHistoryServerClusterConfig {
-        #[serde(default)]
-        pub listener_class: SupportedListenerClasses,
-    }
+    pub struct SparkHistoryServerClusterConfig {}
 }
 
 impl v1alpha1::SparkHistoryServer {
+    /// The name of the group-listener provided for a specific role-group.
+    /// History servers will use this group listener so that only one load balancer
+    /// is needed (per role group).
+    pub fn group_listener_name(&self, rolegroup: &RoleGroupRef<Self>) -> String {
+        format!("{}-group", rolegroup.object_name())
+    }
+
     /// Returns a reference to the role. Raises an error if the role is not defined.
     pub fn role(&self) -> &Role<HistoryConfigFragment, GenericRoleConfig, JavaCommonConfig> {
         &self.spec.nodes
@@ -343,6 +344,9 @@ pub struct HistoryConfig {
     /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
+
+    #[serde(default)]
+    pub listener_class: String,
 }
 
 impl HistoryConfig {
@@ -366,6 +370,7 @@ impl HistoryConfig {
             logging: product_logging::spec::default_logging(),
             affinity: history_affinity(cluster_name),
             requested_secret_lifetime: Some(Self::DEFAULT_HISTORY_SECRET_LIFETIME),
+            listener_class: Some(default_listener_class()),
         }
     }
 }
@@ -400,6 +405,10 @@ impl Configuration for HistoryConfigFragment {
     {
         Ok(BTreeMap::new())
     }
+}
+
+fn default_listener_class() -> String {
+    "cluster-internal".to_string()
 }
 
 #[cfg(test)]

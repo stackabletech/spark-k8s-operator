@@ -13,8 +13,9 @@ kind: SparkHistoryServer
 metadata:
   name: spark-history
 spec:
-  clusterConfig:
-    listenerClass: external-unstable  # <1>
+  nodes:
+    config:
+      listenerClass: external-unstable  # <1>
 ----
 <1> Specify one of `external-stable`, `external-unstable`, `cluster-internal` (the default setting is `cluster-internal`).
 

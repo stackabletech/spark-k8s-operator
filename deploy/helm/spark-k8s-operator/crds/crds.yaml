@@ -1118,17 +1118,8 @@ spec:
               description: A Spark cluster history server component. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/history-server).
               properties:
                 clusterConfig:
-                  default:
-                    listenerClass: cluster-internal
+                  default: {}
                   description: Global Spark history server configuration that applies to all roles and role groups.
-                  properties:
-                    listenerClass:
-                      default: cluster-internal
-                      enum:
-                        - cluster-internal
-                        - external-unstable
-                        - external-stable
-                      type: string
                   type: object
                 image:
                   anyOf:
@@ -1385,6 +1376,9 @@ spec:
                         cleaner:
                           nullable: true
                           type: boolean
+                        listenerClass:
+                          nullable: true
+                          type: string
                         logging:
                           default:
                             containers: {}
@@ -1631,6 +1625,9 @@ spec:
                               cleaner:
                                 nullable: true
                                 type: boolean
+                              listenerClass:
+                                nullable: true
+                                type: string
                               logging:
                                 default:
                                   containers: {}

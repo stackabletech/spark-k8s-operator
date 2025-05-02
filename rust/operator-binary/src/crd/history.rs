@@ -401,7 +401,7 @@ impl Configuration for HistoryConfigFragment {
 }
 
 fn default_listener_class() -> String {
-    "cluster-internal".to_string()
+    "cluster-internal".to_owned()
 }
 
 #[cfg(test)]

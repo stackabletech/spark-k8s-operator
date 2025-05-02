@@ -82,6 +82,7 @@ pub mod versioned {
         pub image: ProductImage,
 
         /// Global Spark history server configuration that applies to all roles and role groups.
+        /// Currently not in use.
         #[serde(default)]
         pub cluster_config: v1alpha1::SparkHistoryServerClusterConfig,
 

@@ -1118,27 +1118,11 @@ spec:
               description: A Spark cluster history server component. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/history-server).
               properties:
                 clusterConfig:
-                  default:
-                    listenerClass: cluster-internal
-                  description: Global Spark history server configuration that applies to all roles and role groups.
-                  properties:
-                    listenerClass:
-                      default: cluster-internal
-                      description: |-
-                        This field controls which type of Service the Operator creates for this HistoryServer:
+                  default: {}
+                  description: |-
+                    Global Spark history server configuration that applies to all roles.
 
-                        * cluster-internal: Use a ClusterIP service
-
-                        * external-unstable: Use a NodePort service
-
-                        * external-stable: Use a LoadBalancer service
-
-                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-                      enum:
-                        - cluster-internal
-                        - external-unstable
-                        - external-stable
-                      type: string
+                    This was previously used to hold the listener configuration, which has since moved to the role configuration.
                   type: object
                 image:
                   anyOf:
@@ -1395,6 +1379,9 @@ spec:
                         cleaner:
                           nullable: true
                           type: boolean
+                        listenerClass:
+                          nullable: true
+                          type: string
                         logging:
                           default:
                             containers: {}
@@ -1641,6 +1628,9 @@ spec:
                               cleaner:
                                 nullable: true
                                 type: boolean
+                              listenerClass:
+                                nullable: true
+                                type: string
                               logging:
                                 default:
                                   containers: {}
@@ -1879,27 +1869,11 @@ spec:
                     type: string
                   type: array
                 clusterConfig:
-                  default:
-                    listenerClass: external-unstable
-                  description: Global Spark Connect server configuration that applies to all roles.
-                  properties:
-                    listenerClass:
-                      default: external-unstable
-                      description: |-
-                        This field controls which type of Service the Operator creates for this ConnectServer:
+                  default: {}
+                  description: |-
+                    Global Spark Connect server configuration that applies to all roles.
 
-                        * cluster-internal: Use a ClusterIP service
-
-                        * external-unstable: Use a NodePort service
-
-                        * external-stable: Use a LoadBalancer service
-
-                        This is a temporary solution with the goal to keep yaml manifests forward compatible. In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html> will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-                      enum:
-                        - cluster-internal
-                        - external-unstable
-                        - external-stable
-                      type: string
+                    This was previously used to hold the listener configuration, which has since moved to the server configuration.
                   type: object
                 clusterOperation:
                   default:
@@ -2191,6 +2165,10 @@ spec:
                     config:
                       default: {}
                       properties:
+                        listenerClass:
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark services.
+                          nullable: true
+                          type: string
                         logging:
                           default:
                             containers: {}

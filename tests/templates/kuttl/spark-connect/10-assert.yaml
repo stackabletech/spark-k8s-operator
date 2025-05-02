@@ -4,7 +4,7 @@ kind: TestAssert
 timeout: 300
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: spark-connect-server
 status:

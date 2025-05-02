@@ -88,3 +88,7 @@ pub const SPARK_ENV_SH_FILE_NAME: &str = "spark-env.sh";
 pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
 pub const SPARK_UID: i64 = 1000;
 pub const METRICS_PORT: u16 = 18081;
+pub const HISTORY_UI_PORT: u16 = 18080;
+
+pub const LISTENER_VOLUME_NAME: &str = "listener";
+pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";

@@ -11,20 +11,26 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            volume::VolumeBuilder,
+            PodBuilder,
+            container::ContainerBuilder,
+            resources::ResourceRequirementsBuilder,
+            volume::{
+                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+                ListenerReference, VolumeBuilder,
+            },
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{
+        listener::{Listener, ListenerPort},
+        product_image_selection::ResolvedProductImage,
+        rbac::build_rbac_resources,
+    },
     k8s_openapi::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{
-                ConfigMap, PodSecurityContext, Service, ServiceAccount, ServicePort, ServiceSpec,
-            },
-            rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
+            core::v1::{ConfigMap, PodSecurityContext, ServiceAccount},
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
@@ -33,7 +39,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, reflector::ObjectRef},
     },
-    kvp::{Label, Labels, ObjectLabels},
+    kvp::{Labels, ObjectLabels},
     logging::controller::ReconcilerError,
     product_logging::{
         framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
@@ -51,14 +57,16 @@ use crate::{
     Ctx,
     crd::{
         constants::{
-            ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
-            JVM_SECURITY_PROPERTIES_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
-            SECRET_ACCESS_KEY, SPARK_CLUSTER_ROLE, SPARK_DEFAULTS_FILE_NAME,
-            SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID, STACKABLE_TRUST_STORE,
-            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME, HISTORY_UI_PORT,
+            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME, SECRET_ACCESS_KEY,
+            SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
+            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+            VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
+        listener,
         logdir::ResolvedLogDir,
         tlscerts, to_spark_env_sh_string,
     },
@@ -70,6 +78,19 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build RBAC resources"))]
+    BuildRbacResources {
+        source: stackable_operator::commons::rbac::Error,
+    },
+
+    #[snafu(display("failed to build spark history group listener"))]
+    BuildListener { source: crate::crd::listener::Error },
+
+    #[snafu(display("failed to build listener volume"))]
+    BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    },
+
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
 
@@ -92,18 +113,13 @@ pub enum Error {
         source: stackable_operator::builder::meta::Error,
     },
 
-    #[snafu(display("failed to update the history server deployment"))]
-    ApplyDeployment {
+    #[snafu(display("failed to update the history server stateful set"))]
+    ApplyStatefulSet {
         source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to update history server config map"))]
     ApplyConfigMap {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to update history server service"))]
-    ApplyService {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -205,9 +221,12 @@ pub enum Error {
 
     #[snafu(display("failed to merge environment config and/or overrides"))]
     MergeEnv { source: crate::crd::history::Error },
-}
 
-type Result<T, E = Error> = std::result::Result<T, E>;
+    #[snafu(display("failed to apply group listener"))]
+    ApplyGroupListener {
+        source: stackable_operator::cluster_resources::Error,
+    },
+}
 
 impl ReconcilerError for Error {
     fn category(&self) -> &'static str {
@@ -218,7 +237,7 @@ impl ReconcilerError for Error {
 pub async fn reconcile(
     shs: Arc<DeserializeGuard<v1alpha1::SparkHistoryServer>>,
     ctx: Arc<Ctx>,
-) -> Result<Action> {
+) -> Result<Action, Error> {
     tracing::info!("Starting reconcile history server");
 
     let shs = shs
@@ -251,14 +270,20 @@ pub async fn reconcile(
     .context(LogDirSnafu)?;
 
     // Use a dedicated service account for history server pods.
-    let (serviceaccount, rolebinding) =
-        build_history_role_serviceaccount(shs, &resolved_product_image.app_version_label)?;
-    let serviceaccount = cluster_resources
-        .add(client, serviceaccount)
+    let (service_account, role_binding) = build_rbac_resources(
+        shs,
+        APP_NAME,
+        cluster_resources
+            .get_required_labels()
+            .context(GetRequiredLabelsSnafu)?,
+    )
+    .context(BuildRbacResourcesSnafu)?;
+    let service_account = cluster_resources
+        .add(client, service_account)
         .await
         .context(ApplyServiceAccountSnafu)?;
     cluster_resources
-        .add(client, rolebinding)
+        .add(client, role_binding)
         .await
         .context(ApplyRoleBindingSnafu)?;
 
@@ -268,17 +293,6 @@ pub async fn reconcile(
         .context(ProductConfigValidationSnafu)?
         .iter()
     {
-        let service = build_service(
-            shs,
-            &resolved_product_image.app_version_label,
-            role_name,
-            None,
-        )?;
-        cluster_resources
-            .add(client, service)
-            .await
-            .context(ApplyServiceSnafu)?;
-
         for (rolegroup_name, rolegroup_config) in role_config.iter() {
             let rgr = RoleGroupRef {
                 cluster: ObjectRef::from_obj(shs),
@@ -289,17 +303,6 @@ pub async fn reconcile(
             let merged_config = shs
                 .merged_config(&rgr)
                 .context(FailedToResolveConfigSnafu)?;
-
-            let service = build_service(
-                shs,
-                &resolved_product_image.app_version_label,
-                role_name,
-                Some(&rgr),
-            )?;
-            cluster_resources
-                .add(client, service)
-                .await
-                .context(ApplyServiceSnafu)?;
 
             let config_map = build_config_map(
                 shs,
@@ -320,12 +323,23 @@ pub async fn reconcile(
                 &rgr,
                 &log_dir,
                 &merged_config,
-                &serviceaccount,
+                &service_account,
             )?;
             cluster_resources
                 .add(client, sts)
                 .await
-                .context(ApplyDeploymentSnafu)?;
+                .context(ApplyStatefulSetSnafu)?;
+
+            let rg_group_listener = build_group_listener(
+                shs,
+                &resolved_product_image,
+                &rgr,
+                merged_config.listener_class.to_string(),
+            )?;
+            cluster_resources
+                .add(client, rg_group_listener)
+                .await
+                .context(ApplyGroupListenerSnafu)?;
         }
 
         let role_config = &shs.spec.nodes.role_config;
@@ -345,6 +359,36 @@ pub async fn reconcile(
         .context(DeleteOrphanedResourcesSnafu)?;
 
     Ok(Action::await_change())
+}
+
+#[allow(clippy::result_large_err)]
+fn build_group_listener(
+    shs: &v1alpha1::SparkHistoryServer,
+    resolved_product_image: &ResolvedProductImage,
+    rolegroup: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
+    listener_class: String,
+) -> Result<Listener, Error> {
+    let listener_name = rolegroup.object_name();
+    let recommended_object_labels = labels(
+        shs,
+        &resolved_product_image.app_version_label,
+        &rolegroup.role_group,
+    );
+
+    let listener_ports = [ListenerPort {
+        name: "http".to_string(),
+        port: HISTORY_UI_PORT.into(),
+        protocol: Some("TCP".to_string()),
+    }];
+
+    listener::build_listener(
+        shs,
+        &listener_name,
+        &listener_class,
+        recommended_object_labels,
+        &listener_ports,
+    )
+    .context(BuildListenerSnafu)
 }
 
 pub fn error_policy(
@@ -452,12 +496,16 @@ fn build_stateful_set(
         rolegroupref.object_name()
     };
 
-    let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(labels(
-            shs,
-            &resolved_product_image.app_version_label,
-            &rolegroupref.role_group,
-        ))
+    let recommended_object_labels = labels(
+        shs,
+        &resolved_product_image.app_version_label,
+        rolegroupref.role_group.as_ref(),
+    );
+    let recommended_labels =
+        Labels::recommended(recommended_object_labels.clone()).context(LabelBuildSnafu)?;
+
+    let pb_metadata = ObjectMetaBuilder::new()
+        .with_recommended_labels(recommended_object_labels.clone())
         .context(MetadataBuildSnafu)?
         .build();
 
@@ -467,7 +515,7 @@ fn build_stateful_set(
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
     pb.service_account_name(serviceaccount.name_unchecked())
-        .metadata(metadata)
+        .metadata(pb_metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
@@ -528,7 +576,7 @@ fn build_stateful_set(
             "-c".to_string(),
         ])
         .args(command_args(log_dir))
-        .add_container_port("http", 18080)
+        .add_container_port("http", HISTORY_UI_PORT.into())
         .add_container_port("metrics", METRICS_PORT.into())
         .add_env_vars(merged_env)
         .add_volume_mounts(log_dir.volume_mounts())
@@ -539,7 +587,25 @@ fn build_stateful_set(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
         .context(AddVolumeMountSnafu)?
+        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+        .context(AddVolumeMountSnafu)?
         .build();
+
+    // Add listener volume
+    // Listener endpoints for the Webserver role will use persistent volumes
+    // so that load balancers can hard-code the target addresses. This will
+    // be the case even when no class is set (and the value defaults to
+    // cluster-internal) as the address should still be consistent.
+    let volume_claim_templates = Some(vec![
+        ListenerOperatorVolumeSourceBuilder::new(
+            &ListenerReference::ListenerName(rolegroupref.object_name()),
+            &recommended_labels,
+        )
+        .context(BuildListenerVolumeSnafu)?
+        .build_pvc(LISTENER_VOLUME_NAME.to_string())
+        .context(BuildListenerVolumeSnafu)?,
+    ]);
+
     pb.add_container(container);
 
     if merged_config.logging.enable_vector_agent {
@@ -575,21 +641,20 @@ fn build_stateful_set(
     pod_template.merge_from(shs.role().config.pod_overrides.clone());
     pod_template.merge_from(role_group.config.pod_overrides);
 
+    let sts_metadata = ObjectMetaBuilder::new()
+        .name_and_namespace(shs)
+        .name(rolegroupref.object_name())
+        .ownerreference_from_resource(shs, None, Some(true))
+        .context(ObjectMissingMetadataForOwnerRefSnafu)?
+        .with_recommended_labels(recommended_object_labels)
+        .context(MetadataBuildSnafu)?
+        .build();
+
     Ok(StatefulSet {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .name(rolegroupref.object_name())
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(
-                shs,
-                &resolved_product_image.app_version_label,
-                rolegroupref.role_group.as_ref(),
-            ))
-            .context(MetadataBuildSnafu)?
-            .build(),
+        metadata: sts_metadata,
         spec: Some(StatefulSetSpec {
             template: pod_template,
+            volume_claim_templates,
             replicas: shs.replicas(rolegroupref),
             selector: LabelSelector {
                 match_labels: Some(
@@ -608,116 +673,6 @@ fn build_stateful_set(
         }),
         ..StatefulSet::default()
     })
-}
-
-#[allow(clippy::result_large_err)]
-fn build_service(
-    shs: &v1alpha1::SparkHistoryServer,
-    app_version_label: &str,
-    role: &str,
-    group: Option<&RoleGroupRef<v1alpha1::SparkHistoryServer>>,
-) -> Result<Service, Error> {
-    let group_name = match group {
-        Some(rgr) => rgr.role_group.clone(),
-        None => "global".to_owned(),
-    };
-
-    let (service_name, service_type, service_cluster_ip) = match group {
-        Some(rgr) => (
-            rgr.object_name(),
-            "ClusterIP".to_string(),
-            Some("None".to_string()),
-        ),
-        None => (
-            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-            format!("{}-{}", shs.metadata.name.as_ref().unwrap(), role),
-            shs.spec.cluster_config.listener_class.k8s_service_type(),
-            None,
-        ),
-    };
-
-    let selector = match group {
-        Some(rgr) => Labels::role_group_selector(shs, APP_NAME, &rgr.role, &rgr.role_group)
-            .context(LabelBuildSnafu)?
-            .into(),
-        None => Labels::role_selector(shs, APP_NAME, role)
-            .context(LabelBuildSnafu)?
-            .into(),
-    };
-
-    Ok(Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .name(service_name)
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(shs, app_version_label, &group_name))
-            .context(MetadataBuildSnafu)?
-            .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
-            .build(),
-        spec: Some(ServiceSpec {
-            type_: Some(service_type),
-            cluster_ip: service_cluster_ip,
-            ports: Some(vec![
-                ServicePort {
-                    name: Some(String::from("http")),
-                    port: 18080,
-                    ..ServicePort::default()
-                },
-                ServicePort {
-                    name: Some(String::from("metrics")),
-                    port: METRICS_PORT.into(),
-                    ..ServicePort::default()
-                },
-            ]),
-            selector: Some(selector),
-            ..ServiceSpec::default()
-        }),
-        status: None,
-    })
-}
-
-// TODO: This function should be replaced with operator-rs build_rbac_resources.
-// See: https://github.com/stackabletech/spark-k8s-operator/issues/499
-#[allow(clippy::result_large_err)]
-fn build_history_role_serviceaccount(
-    shs: &v1alpha1::SparkHistoryServer,
-    app_version_label: &str,
-) -> Result<(ServiceAccount, RoleBinding)> {
-    let sa = ServiceAccount {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
-            .context(MetadataBuildSnafu)?
-            .build(),
-        ..ServiceAccount::default()
-    };
-    let binding = RoleBinding {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(labels(shs, app_version_label, HISTORY_CONTROLLER_NAME))
-            .context(MetadataBuildSnafu)?
-            .build(),
-        role_ref: RoleRef {
-            api_group: <ClusterRole as stackable_operator::k8s_openapi::Resource>::GROUP // need to fully qualify because of "Resource" name clash
-                .to_string(),
-            kind: <ClusterRole as stackable_operator::k8s_openapi::Resource>::KIND.to_string(),
-            name: SPARK_CLUSTER_ROLE.to_string(),
-        },
-        subjects: Some(vec![Subject {
-            api_group: Some(
-                <ServiceAccount as stackable_operator::k8s_openapi::Resource>::GROUP.to_string(),
-            ),
-            kind: <ServiceAccount as stackable_operator::k8s_openapi::Resource>::KIND.to_string(),
-            name: sa.name_any(),
-            namespace: sa.namespace(),
-        }]),
-    };
-    Ok((sa, binding))
 }
 
 #[allow(clippy::result_large_err)]

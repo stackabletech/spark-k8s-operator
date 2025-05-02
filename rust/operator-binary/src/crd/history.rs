@@ -62,6 +62,7 @@ pub enum Error {
 
 #[versioned(version(name = "v1alpha1"))]
 pub mod versioned {
+
     /// A Spark cluster history server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
@@ -80,7 +81,10 @@ pub mod versioned {
     pub struct SparkHistoryServerSpec {
         pub image: ProductImage,
 
-        /// Global Spark history server configuration that applies to all roles and role groups.
+        /// Global Spark history server configuration that applies to all roles.
+        ///
+        /// This was previously used to hold the listener configuration, which has since moved
+        /// to the role configuration.
         #[serde(default)]
         pub cluster_config: v1alpha1::SparkHistoryServerClusterConfig,
 
@@ -102,44 +106,7 @@ pub mod versioned {
 
     #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct SparkHistoryServerClusterConfig {
-        /// This field controls which type of Service the Operator creates for this HistoryServer:
-        ///
-        /// * cluster-internal: Use a ClusterIP service
-        ///
-        /// * external-unstable: Use a NodePort service
-        ///
-        /// * external-stable: Use a LoadBalancer service
-        ///
-        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-        /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
-        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-        #[serde(default)]
-        pub listener_class: CurrentlySupportedListenerClasses,
-    }
-}
-
-// TODO: Temporary solution until listener-operator is finished
-#[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum CurrentlySupportedListenerClasses {
-    #[default]
-    #[serde(rename = "cluster-internal")]
-    ClusterInternal,
-    #[serde(rename = "external-unstable")]
-    ExternalUnstable,
-    #[serde(rename = "external-stable")]
-    ExternalStable,
-}
-
-impl CurrentlySupportedListenerClasses {
-    pub fn k8s_service_type(&self) -> String {
-        match self {
-            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
-            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
-            CurrentlySupportedListenerClasses::ExternalStable => "LoadBalancer".to_string(),
-        }
-    }
+    pub struct SparkHistoryServerClusterConfig {}
 }
 
 impl v1alpha1::SparkHistoryServer {
@@ -373,6 +340,9 @@ pub struct HistoryConfig {
     /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
+
+    #[serde(default)]
+    pub listener_class: String,
 }
 
 impl HistoryConfig {
@@ -396,6 +366,7 @@ impl HistoryConfig {
             logging: product_logging::spec::default_logging(),
             affinity: history_affinity(cluster_name),
             requested_secret_lifetime: Some(Self::DEFAULT_HISTORY_SECRET_LIFETIME),
+            listener_class: Some(default_listener_class()),
         }
     }
 }
@@ -430,6 +401,10 @@ impl Configuration for HistoryConfigFragment {
     {
         Ok(BTreeMap::new())
     }
+}
+
+fn default_listener_class() -> String {
+    "cluster-internal".to_owned()
 }
 
 #[cfg(test)]

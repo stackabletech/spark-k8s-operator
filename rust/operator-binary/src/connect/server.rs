@@ -7,15 +7,23 @@ use stackable_operator::{
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder,
-            volume::VolumeBuilder,
+            PodBuilder,
+            container::ContainerBuilder,
+            resources::ResourceRequirementsBuilder,
+            volume::{
+                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+                ListenerReference, VolumeBuilder,
+            },
         },
     },
-    commons::product_image_selection::ResolvedProductImage,
+    commons::{
+        listener::{Listener, ListenerPort},
+        product_image_selection::ResolvedProductImage,
+    },
     k8s_openapi::{
         DeepMerge,
         api::{
-            apps::v1::{Deployment, DeploymentSpec},
+            apps::v1::{StatefulSet, StatefulSetSpec},
             core::v1::{
                 ConfigMap, EnvVar, HTTPGetAction, PodSecurityContext, Probe, Service,
                 ServiceAccount, ServicePort, ServiceSpec,
@@ -37,11 +45,15 @@ use crate::{
             SparkConnectContainer, v1alpha1,
         },
     },
-    crd::constants::{
-        APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-        METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID,
-        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+    crd::{
+        constants::{
+            APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE,
+            POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID, VOLUME_MOUNT_NAME_CONFIG,
+            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        },
+        listener,
     },
     product_logging,
 };
@@ -52,6 +64,14 @@ const HTTP: &str = "http";
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build spark connect listener"))]
+    BuildListener { source: crate::crd::listener::Error },
+
+    #[snafu(display("failed to build listener volume"))]
+    BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    },
+
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
 
@@ -166,11 +186,7 @@ pub(crate) fn server_config_map(
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
-    let role_group_ref = RoleGroupRef {
-        cluster: ObjectRef::from_obj(scs),
-        role: SparkConnectRole::Server.to_string(),
-        role_group: DUMMY_SPARK_CONNECT_GROUP_NAME.to_string(),
-    };
+    let role_group_ref = dummy_role_group_ref(scs);
     product_logging::extend_config_map(
         &role_group_ref,
         &config.logging,
@@ -187,21 +203,23 @@ pub(crate) fn server_config_map(
         .context(InvalidConfigMapSnafu { name: cm_name })
 }
 
-#[allow(clippy::result_large_err)]
-pub(crate) fn build_deployment(
+pub(crate) fn build_stateful_set(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
     config_map: &ConfigMap,
     args: Vec<String>,
-) -> Result<Deployment, Error> {
+) -> Result<StatefulSet, Error> {
+    let server_role = SparkConnectRole::Server.to_string();
+    let recommended_object_labels =
+        common::labels(scs, &resolved_product_image.app_version_label, &server_role);
+
+    let recommended_labels =
+        Labels::recommended(recommended_object_labels.clone()).context(LabelBuildSnafu)?;
+
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(common::labels(
-            scs,
-            &resolved_product_image.app_version_label,
-            &SparkConnectRole::Server.to_string(),
-        ))
+        .with_recommended_labels(recommended_object_labels)
         .context(MetadataBuildSnafu)?
         .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
         .build();
@@ -260,6 +278,8 @@ pub(crate) fn build_deployment(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
         .context(AddVolumeMountSnafu)?
+        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+        .context(AddVolumeMountSnafu)?
         .readiness_probe(probe())
         .liveness_probe(probe());
 
@@ -308,13 +328,28 @@ pub(crate) fn build_deployment(
         }
     }
 
+    // Add listener volume
+    // Listener endpoints for the Webserver role will use persistent volumes
+    // so that load balancers can hard-code the target addresses. This will
+    // be the case even when no class is set (and the value defaults to
+    // cluster-internal) as the address should still be consistent.
+    let volume_claim_templates = Some(vec![
+        ListenerOperatorVolumeSourceBuilder::new(
+            &ListenerReference::ListenerName(dummy_role_group_ref(scs).object_name()),
+            &recommended_labels,
+        )
+        .context(BuildListenerVolumeSnafu)?
+        .build_pvc(LISTENER_VOLUME_NAME.to_string())
+        .context(BuildListenerVolumeSnafu)?,
+    ]);
+
     // Merge user defined pod template if available
     let mut pod_template = pb.build_template();
     if let Some(pod_overrides_spec) = scs.spec.server.as_ref().map(|s| s.pod_overrides.clone()) {
         pod_template.merge_from(pod_overrides_spec);
     }
 
-    Ok(Deployment {
+    Ok(StatefulSet {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(scs)
             .name(object_name(&scs.name_any(), SparkConnectRole::Server))
@@ -327,9 +362,10 @@ pub(crate) fn build_deployment(
             ))
             .context(MetadataBuildSnafu)?
             .build(),
-        spec: Some(DeploymentSpec {
+        spec: Some(StatefulSetSpec {
             template: pod_template,
             replicas: Some(1),
+            volume_claim_templates,
             selector: LabelSelector {
                 match_labels: Some(
                     Labels::role_group_selector(
@@ -343,41 +379,19 @@ pub(crate) fn build_deployment(
                 ),
                 ..LabelSelector::default()
             },
-            ..DeploymentSpec::default()
+            ..StatefulSetSpec::default()
         }),
-        ..Deployment::default()
+        ..StatefulSet::default()
     })
 }
 
-#[allow(clippy::result_large_err)]
-pub(crate) fn build_service(
+// This is the headless driver service used for the internal
+// communication with the executors as recommended by the Spark docs.
+pub(crate) fn build_internal_service(
     scs: &v1alpha1::SparkConnectServer,
     app_version_label: &str,
-    service_cluster_ip: Option<String>,
 ) -> Result<Service, Error> {
-    let (service_name, service_type, publish_not_ready_addresses) = match service_cluster_ip.clone()
-    {
-        Some(_) => (
-            // These are the properties of the headless driver service used for the internal
-            // communication with the executors as recommended by the Spark docs.
-            //
-            // The flag `publish_not_ready_addresses` *must* be `true` to allow for readiness
-            // probes. Without it, the driver runs into a deadlock beacuse the Pod cannot become
-            // "ready" until the Service is "ready" and vice versa.
-            object_name(&scs.name_any(), SparkConnectRole::Server),
-            "ClusterIP".to_string(),
-            Some(true),
-        ),
-        None => (
-            format!(
-                "{}-{}",
-                object_name(&scs.name_any(), SparkConnectRole::Server),
-                SparkConnectRole::Server
-            ),
-            scs.spec.cluster_config.listener_class.k8s_service_type(),
-            Some(false),
-        ),
-    };
+    let service_name = object_name(&scs.name_any(), SparkConnectRole::Server);
 
     let selector = Labels::role_selector(scs, APP_NAME, &SparkConnectRole::Server.to_string())
         .context(LabelBuildSnafu)?
@@ -398,8 +412,8 @@ pub(crate) fn build_service(
             .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
             .build(),
         spec: Some(ServiceSpec {
-            type_: Some(service_type),
-            cluster_ip: service_cluster_ip,
+            type_: Some("ClusterIP".to_owned()),
+            cluster_ip: Some("None".to_owned()),
             ports: Some(vec![
                 ServicePort {
                     name: Some(String::from(GRPC)),
@@ -413,7 +427,10 @@ pub(crate) fn build_service(
                 },
             ]),
             selector: Some(selector),
-            publish_not_ready_addresses,
+            // The flag `publish_not_ready_addresses` *must* be `true` to allow for readiness
+            // probes. Without it, the driver runs into a deadlock beacuse the Pod cannot become
+            // "ready" until the Service is "ready" and vice versa.
+            publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
         status: None,
@@ -583,4 +600,48 @@ fn probe() -> Probe {
         failure_threshold: Some(10),
         ..Probe::default()
     }
+}
+
+fn dummy_role_group_ref(
+    scs: &v1alpha1::SparkConnectServer,
+) -> RoleGroupRef<v1alpha1::SparkConnectServer> {
+    RoleGroupRef {
+        cluster: ObjectRef::from_obj(scs),
+        role: SparkConnectRole::Server.to_string(),
+        role_group: DUMMY_SPARK_CONNECT_GROUP_NAME.to_string(),
+    }
+}
+
+pub(crate) fn build_listener(
+    scs: &v1alpha1::SparkConnectServer,
+    config: &v1alpha1::ServerConfig,
+    resolved_product_image: &ResolvedProductImage,
+) -> Result<Listener, Error> {
+    let listener_name = dummy_role_group_ref(scs).object_name();
+    let listener_class = config.listener_class.clone();
+    let role = SparkConnectRole::Server.to_string();
+    let recommended_object_labels =
+        common::labels(scs, &resolved_product_image.app_version_label, &role);
+
+    let listener_ports = [
+        ListenerPort {
+            name: GRPC.to_string(),
+            port: CONNECT_GRPC_PORT,
+            protocol: Some("TCP".to_string()),
+        },
+        ListenerPort {
+            name: HTTP.to_string(),
+            port: CONNECT_UI_PORT,
+            protocol: Some("TCP".to_string()),
+        },
+    ];
+
+    listener::build_listener(
+        scs,
+        &listener_name,
+        &listener_class,
+        recommended_object_labels,
+        &listener_ports,
+    )
+    .context(BuildListenerSnafu)
 }

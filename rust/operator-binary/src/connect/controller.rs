@@ -11,8 +11,8 @@ use stackable_operator::{
     },
     logging::controller::ReconcilerError,
     status::condition::{
-        compute_conditions, deployment::DeploymentConditionBuilder,
-        operations::ClusterOperationsConditionBuilder,
+        compute_conditions, operations::ClusterOperationsConditionBuilder,
+        statefulset::StatefulSetConditionBuilder,
     },
     time::Duration,
 };
@@ -29,6 +29,14 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build spark connect listener"))]
+    BuildListener { source: server::Error },
+
+    #[snafu(display("failed to apply spark connect listener"))]
+    ApplyListener {
+        source: stackable_operator::cluster_resources::Error,
+    },
+
     #[snafu(display("failed to serialize connect properties"))]
     SerializeProperties { source: common::Error },
 
@@ -50,8 +58,8 @@ pub enum Error {
     #[snafu(display("failed to build spark connect server config map for {name}"))]
     BuildServerConfigMap { source: server::Error, name: String },
 
-    #[snafu(display("failed to build spark connect deployment"))]
-    BuildServerDeployment { source: server::Error },
+    #[snafu(display("failed to build spark connect stateful set"))]
+    BuildServerStatefulSet { source: server::Error },
 
     #[snafu(display("failed to update status of spark connect server {name}"))]
     ApplyStatus {
@@ -62,8 +70,8 @@ pub enum Error {
     #[snafu(display("spark connect object has no namespace"))]
     ObjectHasNoNamespace,
 
-    #[snafu(display("failed to update the connect server deployment"))]
-    ApplyDeployment {
+    #[snafu(display("failed to update the connect server stateful set"))]
+    ApplyStatefulSet {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -192,21 +200,9 @@ pub async fn reconcile(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    // Expose connect server to the outside world
-    let service = server::build_service(scs, &resolved_product_image.app_version_label, None)
-        .context(BuildServiceSnafu)?;
-    cluster_resources
-        .add(client, service.clone())
-        .await
-        .context(ApplyServiceSnafu)?;
-
     // Headless service used by executors connect back to the driver
-    let service = server::build_service(
-        scs,
-        &resolved_product_image.app_version_label,
-        Some("None".to_string()),
-    )
-    .context(BuildServiceSnafu)?;
+    let service = server::build_internal_service(scs, &resolved_product_image.app_version_label)
+        .context(BuildServiceSnafu)?;
 
     cluster_resources
         .add(client, service.clone())
@@ -275,8 +271,10 @@ pub async fn reconcile(
             name: scs.name_unchecked(),
         })?;
 
+    // ========================================
+    // Server stateful set
     let args = server::command_args(&scs.spec.args);
-    let deployment = server::build_deployment(
+    let stateful_set = server::build_stateful_set(
         scs,
         &server_config,
         &resolved_product_image,
@@ -284,15 +282,25 @@ pub async fn reconcile(
         &server_config_map,
         args,
     )
-    .context(BuildServerDeploymentSnafu)?;
+    .context(BuildServerStatefulSetSnafu)?;
 
-    let mut ss_cond_builder = DeploymentConditionBuilder::default();
+    // ========================================
+    // Server listener
+    let listener = server::build_listener(scs, &server_config, &resolved_product_image)
+        .context(BuildListenerSnafu)?;
+
+    cluster_resources
+        .add(client, listener)
+        .await
+        .context(ApplyListenerSnafu)?;
+
+    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 
     ss_cond_builder.add(
         cluster_resources
-            .add(client, deployment)
+            .add(client, stateful_set)
             .await
-            .context(ApplyDeploymentSnafu)?,
+            .context(ApplyStatefulSetSnafu)?,
     );
 
     cluster_resources

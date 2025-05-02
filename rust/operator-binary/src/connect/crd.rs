@@ -79,6 +79,9 @@ pub mod versioned {
         pub image: ProductImage,
 
         /// Global Spark Connect server configuration that applies to all roles.
+        ///
+        /// This was previously used to hold the listener configuration, which has since moved
+        /// to the server configuration.
         #[serde(default)]
         pub cluster_config: v1alpha1::SparkConnectServerClusterConfig,
 
@@ -106,21 +109,7 @@ pub mod versioned {
 
     #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct SparkConnectServerClusterConfig {
-        /// This field controls which type of Service the Operator creates for this ConnectServer:
-        ///
-        /// * cluster-internal: Use a ClusterIP service
-        ///
-        /// * external-unstable: Use a NodePort service
-        ///
-        /// * external-stable: Use a LoadBalancer service
-        ///
-        /// This is a temporary solution with the goal to keep yaml manifests forward compatible.
-        /// In the future, this setting will control which ListenerClass <https://docs.stackable.tech/home/stable/listener-operator/listenerclass.html>
-        /// will be used to expose the service, and ListenerClass names will stay the same, allowing for a non-breaking change.
-        #[serde(default)]
-        pub listener_class: CurrentlySupportedListenerClasses,
-    }
+    pub struct SparkConnectServerClusterConfig {}
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
     #[fragment_attrs(
@@ -147,6 +136,10 @@ pub mod versioned {
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
         #[fragment_attrs(serde(default))]
         pub requested_secret_lifetime: Option<Duration>,
+
+        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the Spark services.
+        #[serde(default)]
+        pub listener_class: String,
     }
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -175,29 +168,6 @@ pub mod versioned {
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
         #[fragment_attrs(serde(default))]
         pub requested_secret_lifetime: Option<Duration>,
-    }
-}
-
-// TODO: Temporary solution until listener-operator is finished
-#[derive(Clone, Debug, Default, Display, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub(crate) enum CurrentlySupportedListenerClasses {
-    #[serde(rename = "cluster-internal")]
-    ClusterInternal,
-    #[default]
-    #[serde(rename = "external-unstable")]
-    ExternalUnstable,
-    #[serde(rename = "external-stable")]
-    ExternalStable,
-}
-
-impl CurrentlySupportedListenerClasses {
-    pub fn k8s_service_type(&self) -> String {
-        match self {
-            CurrentlySupportedListenerClasses::ClusterInternal => "ClusterIP".to_string(),
-            CurrentlySupportedListenerClasses::ExternalUnstable => "NodePort".to_string(),
-            CurrentlySupportedListenerClasses::ExternalStable => "LoadBalancer".to_string(),
-        }
     }
 }
 
@@ -258,6 +228,7 @@ impl v1alpha1::ServerConfig {
             },
             logging: product_logging::spec::default_logging(),
             requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
+            listener_class: Some("cluster-internal".into()),
         }
     }
 

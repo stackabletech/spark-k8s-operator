@@ -412,8 +412,8 @@ pub(crate) fn build_internal_service(
             .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
             .build(),
         spec: Some(ServiceSpec {
-            type_: Some("ClusterIP".to_string()),
-            cluster_ip: Some("None".to_string()),
+            type_: Some("ClusterIP".to_owned()),
+            cluster_ip: Some("None".to_owned()),
             ports: Some(vec![
                 ServicePort {
                     name: Some(String::from(GRPC)),

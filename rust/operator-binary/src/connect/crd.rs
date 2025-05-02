@@ -79,7 +79,9 @@ pub mod versioned {
         pub image: ProductImage,
 
         /// Global Spark Connect server configuration that applies to all roles.
-        /// Currently not in use.
+        ///
+        /// This was previously used to hold the listener configuration, which has since moved
+        /// to the server configuration.
         #[serde(default)]
         pub cluster_config: v1alpha1::SparkConnectServerClusterConfig,
 

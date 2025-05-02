@@ -81,8 +81,10 @@ pub mod versioned {
     pub struct SparkHistoryServerSpec {
         pub image: ProductImage,
 
-        /// Global Spark history server configuration that applies to all roles and role groups.
-        /// Currently not in use.
+        /// Global Spark history server configuration that applies to all roles.
+        ///
+        /// This was previously used to hold the listener configuration, which has since moved
+        /// to the role configuration.
         #[serde(default)]
         pub cluster_config: v1alpha1::SparkHistoryServerClusterConfig,
 

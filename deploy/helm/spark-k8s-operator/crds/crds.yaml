@@ -1119,7 +1119,10 @@ spec:
               properties:
                 clusterConfig:
                   default: {}
-                  description: Global Spark history server configuration that applies to all roles and role groups. Currently not in use.
+                  description: |-
+                    Global Spark history server configuration that applies to all roles.
+
+                    This was previously used to hold the listener configuration, which has since moved to the role configuration.
                   type: object
                 image:
                   anyOf:
@@ -1867,7 +1870,10 @@ spec:
                   type: array
                 clusterConfig:
                   default: {}
-                  description: Global Spark Connect server configuration that applies to all roles. Currently not in use.
+                  description: |-
+                    Global Spark Connect server configuration that applies to all roles.
+
+                    This was previously used to hold the listener configuration, which has since moved to the server configuration.
                   type: object
                 clusterOperation:
                   default:

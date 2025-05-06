@@ -1,4 +1,4 @@
-# Bump Rust Dependencies for Stackable Release YY.M.X
+## Bump Rust Dependencies for Stackable Release YY.M.X
 
 <!--
     Make sure to update the link in 'issues/.github/ISSUE_TEMPLATE/pre-release-operator-rust-deps.md'
@@ -17,11 +17,10 @@ Part of <https://github.com/stackabletech/issues/issues/TRACKING_ISSUE>
 > crates. These bumps also include previously updated and released crates from
 > the `operator-rs` repository.
 
-```[tasklist]
 ### Tasks
+
 - [ ] Bump Rust Dependencies, see below for more details.
 - [ ] Add changelog entry stating which important crates were bumped (including the version).
-```
 
 > [!NOTE]
 > The bumping / updating of Rust dependencies is done in multiple steps:
@@ -30,9 +29,8 @@ Part of <https://github.com/stackabletech/issues/issues/TRACKING_ISSUE>
 > 2. Run the `cargo update` command, which also updates the `Cargo.lock` file.
 > 3. Lastly, run `make regenerate-nix` to update the `Cargo.nix` file.
 
-```[tasklist]
 ### Bump Rust Dependencies
+
 - [ ] Bump `stackable-operator` and friends
 - [ ] Bump `product-config`
 - [ ] Bump all other dependencies
-```

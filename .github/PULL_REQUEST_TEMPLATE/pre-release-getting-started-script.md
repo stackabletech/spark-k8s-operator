@@ -1,4 +1,4 @@
-# Check and Update Getting Started Script
+## Check and Update Getting Started Script
 
 <!--
     Make sure to update the link in 'issues/.github/ISSUE_TEMPLATE/pre-release-getting-started-scripts.md'

@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
     of having the operator write it to the vector config ([#551]).
 - Document that Spark Connect doesn't integrate with the history server ([#559])
+- test: Bump to Vector `0.46.1` ([#565]).
 
 ### Fixed
 
@@ -37,6 +38,7 @@ All notable changes to this project will be documented in this file.
 [#559]: https://github.com/stackabletech/spark-k8s-operator/pull/559
 [#560]: https://github.com/stackabletech/spark-k8s-operator/pull/560
 [#562]: https://github.com/stackabletech/spark-k8s-operator/pull/562
+[#565]: https://github.com/stackabletech/spark-k8s-operator/pull/565
 
 ## [25.3.0] - 2025-03-21
 

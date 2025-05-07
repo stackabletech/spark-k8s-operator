@@ -6,6 +6,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  NIX_PKG_MANAGER_VERSION: "2.28.3"
   RUST_TOOLCHAIN_VERSION: "nightly-2025-01-15"
   HADOLINT_VERSION: "v2.12.0"
   PYTHON_VERSION: "3.12"
@@ -29,3 +30,5 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           rust: ${{ env.RUST_TOOLCHAIN_VERSION }}
           hadolint: ${{ env.HADOLINT_VERSION }}
+          nix: ${{ env.NIX_PKG_MANAGER_VERSION }}
+          nix-github-token: ${{ secrets.GITHUB_TOKEN }}

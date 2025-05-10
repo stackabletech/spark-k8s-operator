@@ -1,4 +1,56 @@
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-connect-client
+data:
+  example.py: |-
+    import sys
+
+    from pyspark.sql import SparkSession
+    import pyspark.sql.functions as fn
+
+    if __name__ == "__main__":
+        remote: str = sys.argv[1]
+
+        print(f"Connecting to Spark Connect server at {remote}")
+
+        spark = (
+            SparkSession.builder.appName("SimpleSparkConnectApp")
+            .remote(remote)
+            .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+            .config("spark.hadoop.fs.s3a.path.style.access", "true")
+            .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000")
+            .config("spark.hadoop.fs.s3a.region", "us-east-1")
+            .config("spark.hadoop.fs.s3a.access.key", "spark")
+            .config("spark.hadoop.fs.s3a.secret.key", "sparkspark")
+            .getOrCreate()
+        )
+
+        # See https://issues.apache.org/jira/browse/SPARK-46032
+        # spark.addArtifacts("/stackable/spark/connect/spark-connect_2.12-3.5.5.jar")
+
+        logFile = "/stackable/spark/README.md"
+
+        print(f"Reading log file: {logFile}")
+        logData = spark.read.text(logFile).cache()
+
+        print("Counting words in log file")
+        wc = (
+          logData.select(
+            fn.explode(fn.split(logData["value"], r"\s+"))
+          .alias("words"))
+          .groupBy("words").count()
+        )
+
+        wc.show()
+
+        dest = "s3a://mybucket/wordcount"
+        print(f"Writing word count to S3 {dest}")
+        wc.write.mode("overwrite").parquet(dest)
+
+        spark.stop()
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -21,7 +73,7 @@ spec:
           command:
             [
               "/usr/bin/python",
-              "/stackable/spark-connect-examples/python/simple-connect-app.py",
+              "/app/example.py",
               "sc://spark-connect-server-default",
             ]
           resources:
@@ -31,3 +83,21 @@ spec:
             requests:
               cpu: 200m
               memory: 128Mi
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: accessKey
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secretKey
+          volumeMounts:
+            - name: spark-connect-client
+              mountPath: /app
+      volumes:
+        - name: spark-connect-client
+          configMap:
+            name: spark-connect-client

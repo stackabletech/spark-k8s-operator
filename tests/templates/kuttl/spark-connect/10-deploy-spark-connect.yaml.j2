@@ -37,7 +37,7 @@ spec:
 {% endif %}
   args:
     - --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
-    - --conf spark.hadoop.fs.s3a.path.style.access=Path
+    - --conf spark.hadoop.fs.s3a.path.style.access=true
     - --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
     - --conf spark.hadoop.fs.s3a.region=us-east-1
   server:

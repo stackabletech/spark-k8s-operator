@@ -73,11 +73,6 @@ spec:
     configOverrides:
       spark-defaults.conf:
         spark.jars.ivy: /tmp/ivy2
-        # spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-        # spark.sql.catalog.local: org.apache.iceberg.spark.SparkCatalog
-        # spark.sql.catalog.local.type: hadoop
-        # spark.sql.catalog.local.warehouse: /tmp/warehouse
-        # spark.sql.defaultCatalog: local
   executor:
     configOverrides:
       spark-defaults.conf:

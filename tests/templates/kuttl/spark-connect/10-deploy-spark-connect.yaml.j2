@@ -36,15 +36,29 @@ spec:
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   args:
-    - --packages org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-connect'].split('.')[:2]) }}_2.12:1.8.1
+    # These are unfortunately required to make the S3A connector work with MinIO
+    # I had expected the clients to be able to set these, but that is not the case.
+    - --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+    - --conf spark.hadoop.fs.s3a.path.style.access=true
+    - --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
+    - --conf spark.hadoop.fs.s3a.region=us-east-1
   server:
     podOverrides:
       spec:
         containers:
           - name: spark
             env:
-              - name: DEMO_GREETING
-                value: "Hello from the overlords"
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: s3-credentials
+                    key: accessKey
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: s3-credentials
+                    key: secretKey
+
     jvmArgumentOverrides:
       add:
         - -Dmy.custom.jvm.arg=customValue
@@ -59,11 +73,6 @@ spec:
     configOverrides:
       spark-defaults.conf:
         spark.jars.ivy: /tmp/ivy2
-        spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-        spark.sql.catalog.local: org.apache.iceberg.spark.SparkCatalog
-        spark.sql.catalog.local.type: hadoop
-        spark.sql.catalog.local.warehouse: /tmp/warehouse
-        spark.sql.defaultCatalog: local
   executor:
     configOverrides:
       spark-defaults.conf:

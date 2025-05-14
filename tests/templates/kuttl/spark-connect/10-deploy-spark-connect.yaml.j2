@@ -36,7 +36,7 @@ spec:
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   args:
-    # These are unfortunatly required to make the S3A connector work with MinIO
+    # These are unfortunately required to make the S3A connector work with MinIO
     # I had expected the clients to be able to set these, but that is not the case.
     - --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
     - --conf spark.hadoop.fs.s3a.path.style.access=true

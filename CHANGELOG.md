@@ -30,6 +30,10 @@ All notable changes to this project will be documented in this file.
 
 - Use `json` file extension for log files ([#553]).
 
+### Removed
+
+- Support for Spark versions 3.5.2 has been dropped ([#570]).
+
 [#539]: https://github.com/stackabletech/spark-k8s-operator/pull/539
 [#547]: https://github.com/stackabletech/spark-k8s-operator/pull/547
 [#551]: https://github.com/stackabletech/spark-k8s-operator/pull/551
@@ -39,6 +43,7 @@ All notable changes to this project will be documented in this file.
 [#560]: https://github.com/stackabletech/spark-k8s-operator/pull/560
 [#562]: https://github.com/stackabletech/spark-k8s-operator/pull/562
 [#565]: https://github.com/stackabletech/spark-k8s-operator/pull/565
+[#570]: https://github.com/stackabletech/spark-k8s-operator/pull/570
 
 ## [25.3.0] - 2025-03-21
 

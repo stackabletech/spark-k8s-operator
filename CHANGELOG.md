@@ -25,6 +25,7 @@ All notable changes to this project will be documented in this file.
     of having the operator write it to the vector config ([#551]).
 - Document that Spark Connect doesn't integrate with the history server ([#559])
 - test: Bump to Vector `0.46.1` ([#565]).
+- Use versioned common structs ([#572]).
 
 ### Fixed
 
@@ -44,6 +45,7 @@ All notable changes to this project will be documented in this file.
 [#562]: https://github.com/stackabletech/spark-k8s-operator/pull/562
 [#565]: https://github.com/stackabletech/spark-k8s-operator/pull/565
 [#570]: https://github.com/stackabletech/spark-k8s-operator/pull/570
+[#572]: https://github.com/stackabletech/spark-k8s-operator/pull/572
 
 ## [25.3.0] - 2025-03-21
 

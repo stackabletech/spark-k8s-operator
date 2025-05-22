@@ -1,6 +1,8 @@
-use stackable_operator::commons::{
-    s3::{ResolvedS3Connection, S3ConnectionSpec},
-    tls_verification::{CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification},
+use stackable_operator::{
+    commons::tls_verification::{
+        CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification,
+    },
+    crd::s3,
 };
 
 use crate::crd::{
@@ -11,8 +13,8 @@ use crate::crd::{
     logdir::ResolvedLogDir,
 };
 
-pub fn tls_secret_name(s3conn: &ResolvedS3Connection) -> Option<&str> {
-    if let ResolvedS3Connection {
+pub fn tls_secret_name(s3conn: &s3::v1alpha1::ConnectionSpec) -> Option<&str> {
+    if let s3::v1alpha1::ConnectionSpec {
         tls:
             TlsClientDetails {
                 tls:
@@ -33,7 +35,7 @@ pub fn tls_secret_name(s3conn: &ResolvedS3Connection) -> Option<&str> {
 }
 
 pub fn tls_secret_names<'a>(
-    s3conn: &'a Option<S3ConnectionSpec>,
+    s3conn: &'a Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &'a Option<ResolvedLogDir>,
 ) -> Option<Vec<&'a str>> {
     let mut names = Vec::new();

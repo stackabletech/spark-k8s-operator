@@ -1,9 +1,6 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
-    commons::listener::{Listener, ListenerPort, ListenerSpec},
-    kube::Resource,
-    kvp::ObjectLabels,
+    builder::meta::ObjectMetaBuilder, crd::listener, kube::Resource, kvp::ObjectLabels,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -22,14 +19,15 @@ pub enum Error {
     },
 }
 
+// TODO (@NickLarsenNZ): Move this functionality to stackable-operator
 pub fn build_listener<T: Resource<DynamicType = ()>>(
     resource: &T,
     listener_name: &str,
     listener_class: &str,
     listener_labels: ObjectLabels<T>,
-    listener_ports: &[ListenerPort],
-) -> Result<Listener, Error> {
-    Ok(Listener {
+    listener_ports: &[listener::v1alpha1::ListenerPort],
+) -> Result<listener::v1alpha1::Listener, Error> {
+    Ok(listener::v1alpha1::Listener {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(resource)
             .name(listener_name)
@@ -38,10 +36,10 @@ pub fn build_listener<T: Resource<DynamicType = ()>>(
             .with_recommended_labels(listener_labels)
             .context(ObjectMetaSnafu)?
             .build(),
-        spec: ListenerSpec {
+        spec: listener::v1alpha1::ListenerSpec {
             class_name: Some(listener_class.into()),
             ports: Some(listener_ports.to_vec()),
-            ..ListenerSpec::default()
+            ..listener::v1alpha1::ListenerSpec::default()
         },
         status: None,
     })

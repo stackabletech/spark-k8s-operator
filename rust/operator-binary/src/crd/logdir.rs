@@ -6,10 +6,8 @@ use stackable_operator::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
         VolumeBuilder,
     },
-    commons::{
-        s3::{ResolvedS3Bucket, S3AccessStyle, S3Error},
-        secret_class::SecretClassVolume,
-    },
+    commons::secret_class::SecretClassVolume,
+    crd::s3,
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
     time::Duration,
 };
@@ -47,8 +45,15 @@ pub enum Error {
         source: stackable_operator::commons::secret_class::SecretClassVolumeError,
     },
 
-    #[snafu(display("failed to configure S3 connection/bucket"))]
-    ConfigureS3 { source: S3Error },
+    #[snafu(display("failed to configure S3 bucket"))]
+    ConfigureS3Bucket {
+        source: stackable_operator::crd::s3::v1alpha1::BucketError,
+    },
+
+    #[snafu(display("failed to configure S3 connection"))]
+    ConfigureS3Connection {
+        source: stackable_operator::crd::s3::v1alpha1::ConnectionError,
+    },
 }
 
 pub enum ResolvedLogDir {
@@ -142,7 +147,7 @@ impl ResolvedLogDir {
 }
 
 pub struct S3LogDir {
-    pub bucket: ResolvedS3Bucket,
+    pub bucket: s3::v1alpha1::ResolvedBucket,
     pub prefix: String,
 }
 
@@ -158,7 +163,7 @@ impl S3LogDir {
             // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
             .resolve(client, namespace.unwrap().as_str())
             .await
-            .context(ConfigureS3Snafu)?;
+            .context(ConfigureS3BucketSnafu)?;
 
         if bucket.connection.tls.uses_tls() && !bucket.connection.tls.uses_tls() {
             return S3TlsNoVerificationNotSupportedSnafu.fail();
@@ -187,11 +192,14 @@ impl S3LogDir {
             ("spark.history.fs.logDirectory".to_string(), self.url()),
             (
                 "spark.hadoop.fs.s3a.endpoint".to_string(),
-                connection.endpoint().context(ConfigureS3Snafu)?.to_string(),
+                connection
+                    .endpoint()
+                    .context(ConfigureS3ConnectionSnafu)?
+                    .to_string(),
             ),
             (
                 "spark.hadoop.fs.s3a.path.style.access".to_string(),
-                (connection.access_style == S3AccessStyle::Path).to_string(),
+                (connection.access_style == s3::v1alpha1::S3AccessStyle::Path).to_string(),
             ),
             (
                 "spark.hadoop.fs.s3a.endpoint.region".to_string(),
@@ -212,11 +220,14 @@ impl S3LogDir {
         let bucket_name = &self.bucket.bucket_name;
         result.insert(
             format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.endpoint"),
-            connection.endpoint().context(ConfigureS3Snafu)?.to_string(),
+            connection
+                .endpoint()
+                .context(ConfigureS3ConnectionSnafu)?
+                .to_string(),
         );
         result.insert(
             format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.path.style.access"),
-            (connection.access_style == S3AccessStyle::Path).to_string(),
+            (connection.access_style == s3::v1alpha1::S3AccessStyle::Path).to_string(),
         );
         result.insert(
             format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.region"),

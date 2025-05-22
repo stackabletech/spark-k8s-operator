@@ -23,12 +23,12 @@ use stackable_operator::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             Resources, ResourcesFragment,
         },
-        s3::S3ConnectionSpec,
     },
     config::{
         fragment::Fragment,
         merge::{Atomic, Merge},
     },
+    crd::s3,
     k8s_openapi::{api::core::v1::VolumeMount, apimachinery::pkg::api::resource::Quantity},
     product_config_utils::Configuration,
     product_logging::{self, spec::Logging},
@@ -157,7 +157,7 @@ impl RoleConfig {
     pub fn volume_mounts(
         &self,
         spark_application: &v1alpha1::SparkApplication,
-        s3conn: &Option<S3ConnectionSpec>,
+        s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
     ) -> Vec<VolumeMount> {
         let volume_mounts = self.volume_mounts.clone().into();

@@ -19,12 +19,12 @@ use stackable_operator::{
     commons::{
         product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{CpuLimits, MemoryLimits, Resources},
-        s3::{S3AccessStyle, S3ConnectionInlineOrReference, S3ConnectionSpec, S3Error},
     },
     config::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
+    crd::s3,
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
         apimachinery::pkg::api::resource::Quantity,
@@ -55,7 +55,7 @@ use crate::{
 pub mod affinity;
 pub mod constants;
 pub mod history;
-pub mod listener;
+pub mod listener_ext;
 pub mod logdir;
 pub mod roles;
 pub mod tlscerts;
@@ -109,8 +109,13 @@ pub enum Error {
         source: stackable_operator::commons::secret_class::SecretClassVolumeError,
     },
 
-    #[snafu(display("failed to configure S3 connection/bucket"))]
-    ConfigureS3 { source: S3Error },
+    #[snafu(display("failed to configure S3 bucket"))]
+    ConfigureS3Bucket { source: s3::v1alpha1::BucketError },
+
+    #[snafu(display("failed to configure S3 copnnection"))]
+    ConfigureS3Connection {
+        source: s3::v1alpha1::ConnectionError,
+    },
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
@@ -209,7 +214,7 @@ pub struct SparkApplicationSpec {
     /// Configure an S3 connection that the SparkApplication has access to.
     /// Read more in the [Spark S3 usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/s3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3connection: Option<S3ConnectionInlineOrReference>,
+    pub s3connection: Option<s3::v1alpha1::InlineConnectionOrReference>,
 
     /// Arguments passed directly to the job artifact.
     #[serde(default)]
@@ -292,7 +297,7 @@ impl v1alpha1::SparkApplication {
 
     pub fn volumes(
         &self,
-        s3conn: &Option<S3ConnectionSpec>,
+        s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
         log_config_map: Option<&str>,
         requested_secret_lifetime: &Duration,
@@ -315,7 +320,7 @@ impl v1alpha1::SparkApplication {
             );
         }
 
-        if let Some(S3ConnectionSpec {
+        if let Some(s3::v1alpha1::ConnectionSpec {
             credentials: Some(secret_class_volume),
             ..
         }) = s3conn
@@ -396,7 +401,7 @@ impl v1alpha1::SparkApplication {
     ///
     pub fn spark_job_volume_mounts(
         &self,
-        s3conn: &Option<S3ConnectionSpec>,
+        s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
     ) -> Vec<VolumeMount> {
         let mut tmpl_mounts = vec![
@@ -435,7 +440,7 @@ impl v1alpha1::SparkApplication {
     fn add_common_volume_mounts(
         &self,
         mut mounts: Vec<VolumeMount>,
-        s3conn: &Option<S3ConnectionSpec>,
+        s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
         logging_enabled: bool,
     ) -> Vec<VolumeMount> {
@@ -454,7 +459,7 @@ impl v1alpha1::SparkApplication {
             });
         }
 
-        if let Some(S3ConnectionSpec {
+        if let Some(s3::v1alpha1::ConnectionSpec {
             credentials: Some(secret_class_volume),
             ..
         }) = s3conn
@@ -534,7 +539,7 @@ impl v1alpha1::SparkApplication {
     pub fn build_command(
         &self,
         serviceaccount_name: &str,
-        s3conn: &Option<S3ConnectionSpec>,
+        s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
         spark_image: &str,
     ) -> Result<Vec<String>, Error> {
@@ -594,11 +599,11 @@ impl v1alpha1::SparkApplication {
         if let Some(s3conn) = s3conn.as_ref() {
             submit_cmd.push(format!(
                 "--conf spark.hadoop.fs.s3a.endpoint=\"{}\"",
-                s3conn.endpoint().context(ConfigureS3Snafu)?
+                s3conn.endpoint().context(ConfigureS3ConnectionSnafu)?
             ));
             submit_cmd.push(format!(
                 "--conf spark.hadoop.fs.s3a.path.style.access={}",
-                s3conn.access_style == S3AccessStyle::Path
+                s3conn.access_style == s3::v1alpha1::S3AccessStyle::Path
             ));
             submit_cmd.push(format!(
                 "--conf spark.hadoop.fs.s3a.endpoint.region=\"{region_name}\"",
@@ -719,7 +724,7 @@ impl v1alpha1::SparkApplication {
 
     pub fn env(
         &self,
-        s3conn: &Option<S3ConnectionSpec>,
+        s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
     ) -> Vec<EnvVar> {
         let mut e: Vec<EnvVar> = self.spec.env.clone();

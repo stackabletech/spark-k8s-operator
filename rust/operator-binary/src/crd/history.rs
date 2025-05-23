@@ -11,12 +11,12 @@ use stackable_operator::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             Resources, ResourcesFragment,
         },
-        s3::S3BucketInlineOrReference,
     },
     config::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    crd::s3,
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     product_config_utils::{
@@ -271,7 +271,7 @@ pub enum LogFileDirectorySpec {
 #[serde(rename_all = "camelCase")]
 pub struct S3LogFileDirectorySpec {
     pub prefix: String,
-    pub bucket: S3BucketInlineOrReference,
+    pub bucket: s3::v1alpha1::InlineBucketOrReference,
 }
 
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -410,10 +410,7 @@ fn default_listener_class() -> String {
 #[cfg(test)]
 mod test {
     use indoc::indoc;
-    use stackable_operator::commons::{
-        s3::{ResolvedS3Bucket, ResolvedS3Connection},
-        tls_verification::TlsClientDetails,
-    };
+    use stackable_operator::{commons::tls_verification::TlsClientDetails, crd::s3};
 
     use super::*;
     use crate::crd::logdir::S3LogDir;
@@ -451,9 +448,9 @@ mod test {
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
         let log_dir = ResolvedLogDir::S3(S3LogDir {
-            bucket: ResolvedS3Bucket {
+            bucket: s3::v1alpha1::ResolvedBucket {
                 bucket_name: "my-bucket".to_string(),
-                connection: ResolvedS3Connection {
+                connection: s3::v1alpha1::ConnectionSpec {
                     host: "my-s3".to_string().try_into().unwrap(),
                     port: None,
                     access_style: Default::default(),

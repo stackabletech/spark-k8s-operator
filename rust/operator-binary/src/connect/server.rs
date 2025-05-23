@@ -16,10 +16,8 @@ use stackable_operator::{
             },
         },
     },
-    commons::{
-        listener::{Listener, ListenerPort},
-        product_image_selection::ResolvedProductImage,
-    },
+    commons::product_image_selection::ResolvedProductImage,
+    crd::listener,
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -53,7 +51,7 @@ use crate::{
             VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
             VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
-        listener,
+        listener_ext,
     },
     product_logging,
 };
@@ -65,7 +63,9 @@ const HTTP: &str = "http";
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("failed to build spark connect listener"))]
-    BuildListener { source: crate::crd::listener::Error },
+    BuildListener {
+        source: crate::crd::listener_ext::Error,
+    },
 
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
@@ -616,7 +616,7 @@ pub(crate) fn build_listener(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
-) -> Result<Listener, Error> {
+) -> Result<listener::v1alpha1::Listener, Error> {
     let listener_name = dummy_role_group_ref(scs).object_name();
     let listener_class = config.listener_class.clone();
     let role = SparkConnectRole::Server.to_string();
@@ -624,19 +624,19 @@ pub(crate) fn build_listener(
         common::labels(scs, &resolved_product_image.app_version_label, &role);
 
     let listener_ports = [
-        ListenerPort {
+        listener::v1alpha1::ListenerPort {
             name: GRPC.to_string(),
             port: CONNECT_GRPC_PORT,
             protocol: Some("TCP".to_string()),
         },
-        ListenerPort {
+        listener::v1alpha1::ListenerPort {
             name: HTTP.to_string(),
             port: CONNECT_UI_PORT,
             protocol: Some("TCP".to_string()),
         },
     ];
 
-    listener::build_listener(
+    listener_ext::build_listener(
         scs,
         &listener_name,
         &listener_class,

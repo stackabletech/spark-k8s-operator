@@ -1,6 +1,6 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    commons::s3::S3ConnectionSpec,
+    crd::s3,
     role_utils::{self, JvmArgumentOverrides},
 };
 
@@ -25,7 +25,7 @@ pub enum Error {
 /// 2. `spark.executor.extraJavaOptions`
 pub fn construct_extra_java_options(
     spark_application: &SparkApplication,
-    s3_conn: &Option<S3ConnectionSpec>,
+    s3_conn: &Option<s3::v1alpha1::ConnectionSpec>,
     log_dir: &Option<ResolvedLogDir>,
 ) -> Result<(String, String), Error> {
     // Note (@sbernauer): As of 2025-03-04, we did not set any heap related JVM arguments, so I

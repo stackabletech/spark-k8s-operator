@@ -21,11 +21,8 @@ use stackable_operator::{
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{
-        listener::{Listener, ListenerPort},
-        product_image_selection::ResolvedProductImage,
-        rbac::build_rbac_resources,
-    },
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    crd::listener,
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -66,7 +63,7 @@ use crate::{
             VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
-        listener,
+        listener_ext,
         logdir::ResolvedLogDir,
         tlscerts, to_spark_env_sh_string,
     },
@@ -84,7 +81,9 @@ pub enum Error {
     },
 
     #[snafu(display("failed to build spark history group listener"))]
-    BuildListener { source: crate::crd::listener::Error },
+    BuildListener {
+        source: crate::crd::listener_ext::Error,
+    },
 
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
@@ -367,7 +366,7 @@ fn build_group_listener(
     resolved_product_image: &ResolvedProductImage,
     rolegroup: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
     listener_class: String,
-) -> Result<Listener, Error> {
+) -> Result<listener::v1alpha1::Listener, Error> {
     let listener_name = rolegroup.object_name();
     let recommended_object_labels = labels(
         shs,
@@ -375,13 +374,13 @@ fn build_group_listener(
         &rolegroup.role_group,
     );
 
-    let listener_ports = [ListenerPort {
+    let listener_ports = [listener::v1alpha1::ListenerPort {
         name: "http".to_string(),
         port: HISTORY_UI_PORT.into(),
         protocol: Some("TCP".to_string()),
     }];
 
-    listener::build_listener(
+    listener_ext::build_listener(
         shs,
         &listener_name,
         &listener_class,

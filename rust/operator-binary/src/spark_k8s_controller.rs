@@ -18,9 +18,9 @@ use stackable_operator::{
     },
     commons::{
         product_image_selection::ResolvedProductImage,
-        s3::{S3ConnectionSpec, S3Error},
         tls_verification::{CaCert, TlsVerification},
     },
+    crd::s3,
     k8s_openapi::{
         DeepMerge, Resource,
         api::{
@@ -107,8 +107,15 @@ pub enum Error {
     #[snafu(display("pod template serialization"))]
     PodTemplateSerde { source: serde_yaml::Error },
 
-    #[snafu(display("failed to configure S3 connection/bucket"))]
-    ConfigureS3 { source: S3Error },
+    #[snafu(display("failed to configure S3 bucket"))]
+    ConfigureS3Bucket {
+        source: stackable_operator::crd::s3::v1alpha1::BucketError,
+    },
+
+    #[snafu(display("failed to configure S3 connection"))]
+    ConfigureS3Connection {
+        source: stackable_operator::crd::s3::v1alpha1::ConnectionError,
+    },
 
     #[snafu(display("tls non-verification not supported"))]
     S3TlsNoVerificationNotSupported,
@@ -237,7 +244,7 @@ pub async fn reconcile(
                     spark_application.metadata.namespace.as_deref().unwrap(),
                 )
                 .await
-                .context(ConfigureS3Snafu)?,
+                .context(ConfigureS3ConnectionSnafu)?,
         ),
         _ => None,
     };
@@ -419,7 +426,7 @@ pub async fn reconcile(
 fn init_containers(
     spark_application: &v1alpha1::SparkApplication,
     logging: &Logging<SparkContainer>,
-    s3conn: &Option<S3ConnectionSpec>,
+    s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
 ) -> Result<Vec<Container>> {
@@ -577,7 +584,7 @@ fn pod_template(
     config: &RoleConfig,
     volumes: &[Volume],
     env: &[EnvVar],
-    s3conn: &Option<S3ConnectionSpec>,
+    s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
 ) -> Result<PodTemplateSpec> {
@@ -679,7 +686,7 @@ fn pod_template_config_map(
     merged_config: &RoleConfig,
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
     env: &[EnvVar],
-    s3conn: &Option<S3ConnectionSpec>,
+    s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
@@ -855,7 +862,7 @@ fn spark_job(
     serviceaccount: &ServiceAccount,
     env: &[EnvVar],
     job_commands: &[String],
-    s3conn: &Option<S3ConnectionSpec>,
+    s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
     job_config: &SubmitConfig,
 ) -> Result<Job> {

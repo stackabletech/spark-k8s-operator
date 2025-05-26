@@ -26,7 +26,8 @@ All notable changes to this project will be documented in this file.
 - Document that Spark Connect doesn't integrate with the history server ([#559])
 - test: Bump to Vector `0.46.1` ([#565]).
 - Use versioned common structs ([#572]).
-- Change the label `app.kubernetes.io/name` for Spark history and connect objects to use `spark-history` and `spark-connect` instead of `spark-k8s` ([#573]).
+- BREAKING: Change the label `app.kubernetes.io/name` for Spark history and connect objects to use `spark-history` and `spark-connect` instead of `spark-k8s` ([#573]).
+- BREAKING: The history  pods now have their own `ClusterRole` named `spark-history-clusterrole` ([#573]).
 
 ### Fixed
 

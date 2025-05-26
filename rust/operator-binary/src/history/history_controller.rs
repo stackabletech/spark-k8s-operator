@@ -54,13 +54,13 @@ use crate::{
     Ctx,
     crd::{
         constants::{
-            ACCESS_KEY_ID, APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME, HISTORY_UI_PORT,
-            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
-            MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME, SECRET_ACCESS_KEY,
-            SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME, SPARK_UID,
-            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
-            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
-            VOLUME_MOUNT_PATH_LOG_CONFIG,
+            ACCESS_KEY_ID, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
+            HISTORY_UI_PORT, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR,
+            LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
+            SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
+            SPARK_IMAGE_BASE_NAME, SPARK_UID, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
+            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         listener_ext,
@@ -248,7 +248,7 @@ pub async fn reconcile(
     let client = &ctx.client;
 
     let mut cluster_resources = ClusterResources::new(
-        APP_NAME,
+        HISTORY_APP_NAME,
         OPERATOR_NAME,
         HISTORY_CONTROLLER_NAME,
         &shs.object_ref(&()),
@@ -271,7 +271,7 @@ pub async fn reconcile(
     // Use a dedicated service account for history server pods.
     let (service_account, role_binding) = build_rbac_resources(
         shs,
-        APP_NAME,
+        HISTORY_APP_NAME,
         cluster_resources
             .get_required_labels()
             .context(GetRequiredLabelsSnafu)?,
@@ -659,7 +659,7 @@ fn build_stateful_set(
                 match_labels: Some(
                     Labels::role_group_selector(
                         shs,
-                        APP_NAME,
+                        HISTORY_APP_NAME,
                         &rolegroupref.role,
                         &rolegroupref.role_group,
                     )
@@ -726,7 +726,7 @@ fn labels<'a, T>(
 ) -> ObjectLabels<'a, T> {
     ObjectLabels {
         owner: shs,
-        app_name: APP_NAME,
+        app_name: HISTORY_APP_NAME,
         app_version: app_version_label,
         operator_name: OPERATOR_NAME,
         controller_name: HISTORY_CONTROLLER_NAME,

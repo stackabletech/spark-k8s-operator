@@ -26,10 +26,12 @@ All notable changes to this project will be documented in this file.
 - Document that Spark Connect doesn't integrate with the history server ([#559])
 - test: Bump to Vector `0.46.1` ([#565]).
 - Use versioned common structs ([#572]).
+- Change the label `app.kubernetes.io/name` for Spark history and connect objects to use `spark-hhistory` and `spark-connect` instead of `spark-k8s` ([#573]).
 
 ### Fixed
 
 - Use `json` file extension for log files ([#553]).
+- The Spark connect controller now watches StatefulSets instead of Deplyments (again) ([#573]).
 
 ### Removed
 
@@ -46,6 +48,7 @@ All notable changes to this project will be documented in this file.
 [#565]: https://github.com/stackabletech/spark-k8s-operator/pull/565
 [#570]: https://github.com/stackabletech/spark-k8s-operator/pull/570
 [#572]: https://github.com/stackabletech/spark-k8s-operator/pull/572
+[#573]: https://github.com/stackabletech/spark-k8s-operator/pull/573
 
 ## [25.3.0] - 2025-03-21
 

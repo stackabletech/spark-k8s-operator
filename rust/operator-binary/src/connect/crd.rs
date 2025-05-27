@@ -33,7 +33,6 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 
 use super::common::SparkConnectRole;
-use crate::crd::constants::APP_NAME;
 
 pub const CONNECT_CONTROLLER_NAME: &str = "connect";
 pub const CONNECT_FULL_CONTROLLER_NAME: &str = concatcp!(
@@ -47,6 +46,8 @@ pub const CONNECT_GRPC_PORT: i32 = 15002;
 pub const CONNECT_UI_PORT: i32 = 4040;
 
 pub const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
+
+pub const CONNECT_APP_NAME: &str = "spark-connect";
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -346,7 +347,7 @@ impl v1alpha1::ExecutorConfig {
 
     fn affinity(cluster_name: &str) -> StackableAffinityFragment {
         let affinity_between_role_pods = affinity_between_role_pods(
-            APP_NAME,
+            CONNECT_APP_NAME,
             cluster_name,
             &SparkConnectRole::Executor.to_string(),
             70,

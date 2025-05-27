@@ -5,7 +5,7 @@ use stackable_operator::{
 };
 
 use crate::crd::{
-    constants::{APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME, OPERATOR_NAME},
+    constants::{HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME, OPERATOR_NAME},
     history::v1alpha1,
 };
 
@@ -37,7 +37,7 @@ pub async fn add_pdbs(
         .unwrap_or(max_unavailable_history_servers());
     let pdb = PodDisruptionBudgetBuilder::new_with_role(
         history,
-        APP_NAME,
+        HISTORY_APP_NAME,
         HISTORY_ROLE_NAME,
         OPERATOR_NAME,
         HISTORY_CONTROLLER_NAME,

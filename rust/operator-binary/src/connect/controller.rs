@@ -18,11 +18,11 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use super::crd::{CONNECT_CONTROLLER_NAME, v1alpha1};
+use super::crd::{CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, v1alpha1};
 use crate::{
     Ctx,
     connect::{common, crd::SparkConnectServerStatus, executor, server},
-    crd::constants::{APP_NAME, OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
+    crd::constants::{OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -168,7 +168,7 @@ pub async fn reconcile(
     let client = &ctx.client;
 
     let mut cluster_resources = ClusterResources::new(
-        APP_NAME,
+        CONNECT_APP_NAME,
         OPERATOR_NAME,
         CONNECT_CONTROLLER_NAME,
         &scs.object_ref(&()),
@@ -184,7 +184,7 @@ pub async fn reconcile(
     // Use a dedicated service account for connect server pods.
     let (service_account, role_binding) = build_rbac_resources(
         scs,
-        APP_NAME,
+        CONNECT_APP_NAME,
         cluster_resources
             .get_required_labels()
             .context(GetRequiredLabelsSnafu)?,

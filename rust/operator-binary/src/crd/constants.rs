@@ -77,7 +77,7 @@ pub const POD_DRIVER_FULL_CONTROLLER_NAME: &str =
 pub const HISTORY_CONTROLLER_NAME: &str = "history";
 pub const HISTORY_FULL_CONTROLLER_NAME: &str =
     concatcp!(HISTORY_CONTROLLER_NAME, '.', OPERATOR_NAME);
-
+pub const HISTORY_APP_NAME: &str = "spark-history";
 pub const HISTORY_ROLE_NAME: &str = "node";
 
 pub const SPARK_IMAGE_BASE_NAME: &str = "spark-k8s";

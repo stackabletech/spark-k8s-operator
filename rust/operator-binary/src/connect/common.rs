@@ -11,9 +11,10 @@ use strum::Display;
 use super::crd::CONNECT_EXECUTOR_ROLE_NAME;
 use crate::{
     connect::crd::{
-        CONNECT_CONTROLLER_NAME, CONNECT_SERVER_ROLE_NAME, DUMMY_SPARK_CONNECT_GROUP_NAME,
+        CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, CONNECT_SERVER_ROLE_NAME,
+        DUMMY_SPARK_CONNECT_GROUP_NAME,
     },
-    crd::constants::{APP_NAME, OPERATOR_NAME},
+    crd::constants::OPERATOR_NAME,
 };
 
 #[derive(Snafu, Debug)]
@@ -42,7 +43,7 @@ pub(crate) fn labels<'a, T>(
 ) -> ObjectLabels<'a, T> {
     ObjectLabels {
         owner: scs,
-        app_name: APP_NAME,
+        app_name: CONNECT_APP_NAME,
         app_version: app_version_label,
         operator_name: OPERATOR_NAME,
         controller_name: CONNECT_CONTROLLER_NAME,

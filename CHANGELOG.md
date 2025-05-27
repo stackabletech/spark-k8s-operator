@@ -27,7 +27,7 @@ All notable changes to this project will be documented in this file.
 - test: Bump to Vector `0.46.1` ([#565]).
 - Use versioned common structs ([#572]).
 - BREAKING: Change the label `app.kubernetes.io/name` for Spark history and connect objects to use `spark-history` and `spark-connect` instead of `spark-k8s` ([#573]).
-- BREAKING: The history  pods now have their own `ClusterRole` named `spark-history-clusterrole` ([#573]).
+- BREAKING: The history Pods now have their own ClusterRole named `spark-history-clusterrole` ([#573]).
 
 ### Fixed
 

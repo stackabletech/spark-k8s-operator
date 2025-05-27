@@ -35,6 +35,7 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
 };
 
+use super::crd::CONNECT_APP_NAME;
 use crate::{
     connect::{
         common::{self, SparkConnectRole, object_name},
@@ -45,7 +46,7 @@ use crate::{
     },
     crd::{
         constants::{
-            APP_NAME, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
             LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE,
             POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_UID, VOLUME_MOUNT_NAME_CONFIG,
             VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
@@ -370,7 +371,7 @@ pub(crate) fn build_stateful_set(
                 match_labels: Some(
                     Labels::role_group_selector(
                         scs,
-                        APP_NAME,
+                        CONNECT_APP_NAME,
                         &SparkConnectRole::Server.to_string(),
                         DUMMY_SPARK_CONNECT_GROUP_NAME,
                     )
@@ -393,9 +394,10 @@ pub(crate) fn build_internal_service(
 ) -> Result<Service, Error> {
     let service_name = object_name(&scs.name_any(), SparkConnectRole::Server);
 
-    let selector = Labels::role_selector(scs, APP_NAME, &SparkConnectRole::Server.to_string())
-        .context(LabelBuildSnafu)?
-        .into();
+    let selector =
+        Labels::role_selector(scs, CONNECT_APP_NAME, &SparkConnectRole::Server.to_string())
+            .context(LabelBuildSnafu)?
+            .into();
 
     Ok(Service {
         metadata: ObjectMetaBuilder::new()

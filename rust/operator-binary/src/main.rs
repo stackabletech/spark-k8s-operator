@@ -9,7 +9,7 @@ use stackable_operator::{
     YamlSchema,
     cli::{Command, ProductOperatorRun},
     k8s_openapi::api::{
-        apps::v1::{Deployment, StatefulSet},
+        apps::v1::StatefulSet,
         core::v1::{ConfigMap, Pod, Service},
     },
     kube::{
@@ -273,7 +273,7 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<Deployment>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
                 watcher::Config::default(),
             )
             .owns(

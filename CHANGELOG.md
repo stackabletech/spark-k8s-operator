@@ -34,6 +34,7 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 - Support for Spark versions 3.5.2 has been dropped ([#570]).
+- Integration test spark-pi-public-s3 because the AWS SDK >2.24 doesn't suuport anonymous S3 access anymore ([#574]).
 
 [#539]: https://github.com/stackabletech/spark-k8s-operator/pull/539
 [#547]: https://github.com/stackabletech/spark-k8s-operator/pull/547
@@ -46,6 +47,7 @@ All notable changes to this project will be documented in this file.
 [#565]: https://github.com/stackabletech/spark-k8s-operator/pull/565
 [#570]: https://github.com/stackabletech/spark-k8s-operator/pull/570
 [#572]: https://github.com/stackabletech/spark-k8s-operator/pull/572
+[#574]: https://github.com/stackabletech/spark-k8s-operator/pull/574
 
 ## [25.3.0] - 2025-03-21
 

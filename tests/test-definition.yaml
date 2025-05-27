@@ -60,10 +60,6 @@ tests:
     dimensions:
       - spark
       - openshift
-  - name: spark-pi-public-s3
-    dimensions:
-      - spark
-      - openshift
   - name: spark-ny-public-s3
     dimensions:
       - spark

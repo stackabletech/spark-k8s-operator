@@ -28,6 +28,10 @@ All notable changes to this project will be documented in this file.
 - Use versioned common structs ([#572]).
 - BREAKING: Change the label `app.kubernetes.io/name` for Spark history and connect objects to use `spark-history` and `spark-connect` instead of `spark-k8s` ([#573]).
 - BREAKING: The history Pods now have their own ClusterRole named `spark-history-clusterrole` ([#573]).
+- BREAKING: Previously this operator would hardcode the UID and GID of the Pods being created to 1000/0, this has changed now ([#575])
+  - The `runAsUser` and `runAsGroup` fields will not be set anymore by the operator
+  - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
+  - This is marked as breaking because tools and policies might exist, which require these fields to be set
 
 ### Fixed
 
@@ -52,6 +56,7 @@ All notable changes to this project will be documented in this file.
 [#572]: https://github.com/stackabletech/spark-k8s-operator/pull/572
 [#573]: https://github.com/stackabletech/spark-k8s-operator/pull/573
 [#574]: https://github.com/stackabletech/spark-k8s-operator/pull/574
+[#575]: https://github.com/stackabletech/spark-k8s-operator/pull/575
 
 ## [25.3.0] - 2025-03-21
 

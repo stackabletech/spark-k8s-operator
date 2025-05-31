@@ -109,10 +109,13 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
-            let spark_event_recorder = Arc::new(Recorder::new(client.as_kube_client(), Reporter {
-                controller: SPARK_FULL_CONTROLLER_NAME.to_string(),
-                instance: None,
-            }));
+            let spark_event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
+                    controller: SPARK_FULL_CONTROLLER_NAME.to_string(),
+                    instance: None,
+                },
+            ));
             let app_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<crd::v1alpha1::SparkApplication>>(&client),
@@ -147,11 +150,13 @@ async fn main() -> anyhow::Result<()> {
                 },
             );
 
-            let pod_driver_event_recorder =
-                Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+            let pod_driver_event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
                     controller: POD_DRIVER_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
-                }));
+                },
+            ));
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default()
@@ -191,11 +196,13 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
-            let history_event_recorder =
-                Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+            let history_event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
                     controller: HISTORY_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
-                }));
+                },
+            ));
             let history_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<crd::history::v1alpha1::SparkHistoryServer>>(
@@ -253,11 +260,13 @@ async fn main() -> anyhow::Result<()> {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
             };
-            let connect_event_recorder =
-                Arc::new(Recorder::new(client.as_kube_client(), Reporter {
+            let connect_event_recorder = Arc::new(Recorder::new(
+                client.as_kube_client(),
+                Reporter {
                     controller: CONNECT_FULL_CONTROLLER_NAME.to_string(),
                     instance: None,
-                }));
+                },
+            ));
             let connect_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<connect::crd::v1alpha1::SparkConnectServer>>(

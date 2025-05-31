@@ -1023,8 +1023,6 @@ fn build_spark_role_serviceaccount(
 
 fn security_context() -> PodSecurityContext {
     PodSecurityContext {
-        run_as_user: Some(SPARK_UID),
-        run_as_group: Some(0),
         fs_group: Some(1000),
         ..PodSecurityContext::default()
     }

@@ -8,7 +8,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   NIX_PKG_MANAGER_VERSION: "2.28.3"
-  RUST_TOOLCHAIN_VERSION: "nightly-2025-01-15"
+  RUST_TOOLCHAIN_VERSION: "nightly-2025-05-26"
   HADOLINT_VERSION: "v2.12.0"
   PYTHON_VERSION: "3.12"
 
@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 0
-      - uses: stackabletech/actions/run-pre-commit@4bfd3b65f22af597fe784599c077dc34bf5894a7 # v0.8.0
+      - uses: stackabletech/actions/run-pre-commit@9aae2d1c14239021bfa33c041010f6fb7adec815 # v0.8.2
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           rust: ${{ env.RUST_TOOLCHAIN_VERSION }}

@@ -82,7 +82,7 @@ repos:
       - id: cargo-rustfmt
         name: cargo-rustfmt
         language: system
-        entry: cargo +nightly-2025-01-15 fmt --all -- --check
+        entry: cargo +nightly-2025-05-26 fmt --all -- --check
         stages: [pre-commit, pre-merge-commit]
         pass_filenames: false
         files: \.rs$

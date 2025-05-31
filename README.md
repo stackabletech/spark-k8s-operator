@@ -6,7 +6,6 @@
 <h1 align="center">Stackable Operator for Apache Spark</h1>
 
 <!-- markdownlint-disable MD041 -->
-![Build Actions Status](https://ci.stackable.tech/buildStatus/icon?job=spark-k8s%2doperator%2dit%2dnightly&subject=Integration%20Tests)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/stackabletech/spark-k8s-operator/graphs/commit-activity)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
 [![License OSL3.0](https://img.shields.io/badge/license-OSL3.0-green)](./LICENSE)
@@ -102,5 +101,9 @@ This is enforced automatically when you submit a Pull Request where a bot will g
 ## Support
 
 Get started with the community edition! If you want professional support, [we offer subscription plans and custom licensing](https://stackable.tech/en/plans/).
+
+## Sponsor
+
+If you want to support our work but don't need professional support please consider [sponsoring](https://github.com/sponsors/stackabletech) our work.
 
 <!-- markdownlint-disable MD041 MD022 MD032 -->

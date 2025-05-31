@@ -15,6 +15,8 @@
 - [ ] Helm chart can be installed and deployed operator works
 - [ ] Integration tests passed (for non trivial changes)
 - [ ] Changes need to be "offline" compatible
+- [ ] Links to generated (nightly) docs added
+- [ ] Release note snippet added
 
 ### Reviewer
 
@@ -29,4 +31,7 @@
 
 - [ ] Feature Tracker has been updated
 - [ ] Proper release label has been added
-- [ ] [Roadmap](https://github.com/orgs/stackabletech/projects/25/views/1) has been updated
+- [ ] Links to generated (nightly) docs added
+- [ ] Release note snippet added
+- [ ] Add `type/deprecation` label & add to the [deprecation schedule](https://github.com/orgs/stackabletech/projects/44/views/1)
+- [ ] Add `type/experimental` label & add to the [experimental features tracker](https://github.com/orgs/stackabletech/projects/47)

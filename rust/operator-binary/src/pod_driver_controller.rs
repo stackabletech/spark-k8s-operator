@@ -99,9 +99,13 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
     tracing::info!("Update spark application [{app_name}] status to [{phase}]");
 
     client
-        .apply_patch_status(POD_DRIVER_CONTROLLER_NAME, &app, &SparkApplicationStatus {
-            phase: phase.clone(),
-        })
+        .apply_patch_status(
+            POD_DRIVER_CONTROLLER_NAME,
+            &app,
+            &SparkApplicationStatus {
+                phase: phase.clone(),
+            },
+        )
         .await
         .with_context(|_| ApplySparkApplicationStatusSnafu {
             name: app_name.clone(),

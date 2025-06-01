@@ -22,3 +22,6 @@ MD033:
 MD024:
   # Only check sibling headings
   siblings_only: true
+
+# MD041/first-line-heading/first-line-h1 First line in a file should be a top-level heading
+MD041: false # Github issues and PRs already have titles, and H1 is enormous in the description box.

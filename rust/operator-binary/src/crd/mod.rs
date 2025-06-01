@@ -827,11 +827,14 @@ impl v1alpha1::SparkApplication {
         };
         if let Some(role_envs) = role_envs {
             env.extend(role_envs.iter().map(|(k, v)| {
-                (k, EnvVar {
-                    name: k.clone(),
-                    value: Some(v.clone()),
-                    ..Default::default()
-                })
+                (
+                    k,
+                    EnvVar {
+                        name: k.clone(),
+                        value: Some(v.clone()),
+                        ..Default::default()
+                    },
+                )
             }))
         }
 
@@ -889,10 +892,13 @@ impl v1alpha1::SparkApplication {
                 Role {
                     config: submit_conf.clone(),
                     role_config: GenericRoleConfig::default(),
-                    role_groups: [("default".to_string(), RoleGroup {
-                        config: submit_conf,
-                        replicas: Some(1),
-                    })]
+                    role_groups: [(
+                        "default".to_string(),
+                        RoleGroup {
+                            config: submit_conf,
+                            replicas: Some(1),
+                        },
+                    )]
                     .into(),
                 }
                 .erase(),
@@ -909,10 +915,13 @@ impl v1alpha1::SparkApplication {
                 Role {
                     config: driver_conf.clone(),
                     role_config: GenericRoleConfig::default(),
-                    role_groups: [("default".to_string(), RoleGroup {
-                        config: driver_conf,
-                        replicas: Some(1),
-                    })]
+                    role_groups: [(
+                        "default".to_string(),
+                        RoleGroup {
+                            config: driver_conf,
+                            replicas: Some(1),
+                        },
+                    )]
                     .into(),
                 }
                 .erase(),

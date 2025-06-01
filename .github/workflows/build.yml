@@ -27,7 +27,7 @@ env:
   CARGO_INCREMENTAL: '0'
   CARGO_PROFILE_DEV_DEBUG: '0'
   RUST_TOOLCHAIN_VERSION: "1.85.0"
-  RUST_NIGHTLY_TOOLCHAIN_VERSION: "nightly-2025-01-15"
+  RUST_NIGHTLY_TOOLCHAIN_VERSION: "nightly-2025-05-26"
   PYTHON_VERSION: "3.12"
   RUSTFLAGS: "-D warnings"
   RUSTDOCFLAGS: "-D warnings"
@@ -340,7 +340,7 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
-      - uses: cachix/install-nix-action@754537aaedb35f72ab11a60cc162c49ef3016495 # v31.2.0
+      - uses: cachix/install-nix-action@17fe5fb4a23ad6cbbe47d6b3f359611ad276644c # v31.4.0
       - uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN_VERSION }}
@@ -378,7 +378,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
       - name: Install syft
-        uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
+        uses: anchore/sbom-action/download-syft@e11c554f704a0b820cbf8c51673f6945e0731532 # v0.20.0
       - name: Build Docker image and Helm chart
         run: |
           # Installing helm and yq on ubicloud-standard-8-arm only

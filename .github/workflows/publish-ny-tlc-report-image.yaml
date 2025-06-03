@@ -1,0 +1,40 @@
+name: Build and publish ny-tlc-report image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      -
+        name: Login to Stackable Harbor
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
+        with:
+          registry: oci.stackable.tech
+          username: robot$stackable+github-action-build
+          password: ${{ secrets.HARBOR_ROBOT_STACKABLE_GITHUB_ACTION_BUILD_SECRET }}
+      -
+        name: Set up Cosign
+        uses: sigstore/cosign-installer@9614fae9e5c5eddabb09f90a270fcb487c9f7149 # tag=v3.3.0
+      -
+        name: Build and push
+        id: build-and-push
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: ./
+          file: ./apps/docker/Dockerfile
+          push: true
+          tags: oci.stackable.tech/stackable/ny-tlc-report:0.3.0
+          build-args: |
+            REVISION=${{ github.sha }}
+            VERSION=dev
+      -
+        name: Sign the published image
+        run: cosign sign -y oci.stackable.tech/stackable/ny-tlc-report@${{ steps.build-and-push.outputs.digest }}

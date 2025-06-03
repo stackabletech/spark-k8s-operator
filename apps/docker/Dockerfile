@@ -5,4 +5,9 @@ LABEL maintainer="Stackable GmbH"
 
 WORKDIR /jobs
 
+# A user must be specified for the container to run on OpenShift
+# with the nonroot-v2 security context constraint and
+# without a runAsUser container annotation.
+USER 1000
+
 COPY apps/ny_tlc_report.py .

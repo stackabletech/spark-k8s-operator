@@ -5,7 +5,7 @@ metadata:
   name: spark-connect # <1>
 spec:
   image:
-    productVersion: "3.5.5" # <2>
+    productVersion: "3.5.6" # <2>
     pullPolicy: IfNotPresent
   args:
     - "--package org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.8.1" # <3>

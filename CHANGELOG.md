@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
   - Use `--file-log-rotation-period` (or `FILE_LOG_ROTATION_PERIOD`) to configure the frequency of rotation.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
 - Expose history and connect services via listener classes ([#562]).
+- Support for Spark 3.5.6 ([#580]).
 
 ### Changed
 
@@ -52,6 +53,7 @@ All notable changes to this project will be documented in this file.
 [#572]: https://github.com/stackabletech/spark-k8s-operator/pull/572
 [#573]: https://github.com/stackabletech/spark-k8s-operator/pull/573
 [#574]: https://github.com/stackabletech/spark-k8s-operator/pull/574
+[#580]: https://github.com/stackabletech/spark-k8s-operator/pull/580
 
 ## [25.3.0] - 2025-03-21
 

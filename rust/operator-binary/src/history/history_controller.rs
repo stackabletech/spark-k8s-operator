@@ -58,7 +58,7 @@ use crate::{
             HISTORY_UI_PORT, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR,
             LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
             SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-            SPARK_IMAGE_BASE_NAME, SPARK_UID, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
+            SPARK_IMAGE_BASE_NAME, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
             VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
             VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
@@ -544,8 +544,6 @@ fn build_stateful_set(
         )
         .context(AddVolumeSnafu)?
         .security_context(PodSecurityContext {
-            run_as_user: Some(SPARK_UID),
-            run_as_group: Some(0),
             fs_group: Some(1000),
             ..PodSecurityContext::default()
         });

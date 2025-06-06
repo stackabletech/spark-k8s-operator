@@ -1,5 +1,11 @@
+# Provision Spark applications from seaparate image
 
-# Generate report from the public data set
+## Build the image
+
+    docker build -t oci.stackable.tech/stackable/ny-tlc-report:0.3.0 -f apps/docker/Dockerfile .
+    docker push oci.stackable.tech/stackable/ny-tlc-report:0.3.0
+
+## Generate report from the public data set
 
     spark-submit --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider --packages org.apache.hadoop:hadoop-aws:3.2.0,com.amazonaws:aws-java-sdk-s3:1.12.180,com.amazonaws:aws-java-sdk-core:1.12.180 ny_tlc_report.py --input 's3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'
 

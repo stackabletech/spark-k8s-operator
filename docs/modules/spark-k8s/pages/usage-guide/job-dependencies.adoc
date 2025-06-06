@@ -58,7 +58,7 @@ Below is an example of a custom image that includes a JDBC driver:
 
 [source, Dockerfile]
 ----
-FROM oci.stackable.tech/sdp/spark-k8s:3.5.5-stackable25.3.0 # <1>
+FROM oci.stackable.tech/sdp/spark-k8s:3.5.6-stackable25.3.0 # <1>
 
 RUN curl --fail -o /stackable/spark/jars/postgresql-42.6.0.jar "https://jdbc.postgresql.org/download/postgresql-42.6.0.jar"
 ----
@@ -75,8 +75,8 @@ metadata:
   name: spark-jdbc
 spec:
   sparkImage:
-    custom: "oci.stackable.tech/sandbox/spark-k8s:3.5.5-stackable0.0.0-dev" # <1>
-    productVersion: "3.5.5" # <2>
+    custom: "oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev" # <1>
+    productVersion: "3.5.6" # <2>
     pullPolicy: IfNotPresent # <3>
 ...
 ----

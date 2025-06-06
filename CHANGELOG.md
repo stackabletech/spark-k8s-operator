@@ -60,7 +60,6 @@ All notable changes to this project will be documented in this file.
 [#580]: https://github.com/stackabletech/spark-k8s-operator/pull/580
 [#575]: https://github.com/stackabletech/spark-k8s-operator/pull/575
 
-
 ## [25.3.0] - 2025-03-21
 
 ### Added

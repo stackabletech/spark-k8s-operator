@@ -3,7 +3,7 @@ name: Build and publish ny-tlc-report
 
 env:
   IMAGE_NAME: ny-tlc-report
-  IMAGE_VERSION: 0.2.0
+  IMAGE_VERSION: 0.3.0
   REGISTRY_PATH: stackable
   DOCKERFILE_PATH: "apps/docker/Dockerfile"
 

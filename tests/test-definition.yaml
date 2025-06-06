@@ -34,7 +34,7 @@ dimensions:
       - 3.9.3
   - name: ny-tlc-report
     values:
-      - 0.2.0
+      - 0.3.0
   - name: s3-use-tls
     values:
       - "false"

@@ -17,11 +17,7 @@ spec:
     pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
-  mainApplicationFile: "/stackable/spark/examples/jars/spark-examples.jar"
-  sparkConf:
-    spark.kubernetes.file.upload.path: "s3a://my-bucket"
-  s3connection:
-    reference: spark-data-s3-connection
+  mainApplicationFile: "local:///stackable/spark/examples/src/main/python/pi.py"
   logFileDirectory:
     s3:
       prefix: eventlogs/

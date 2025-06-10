@@ -60,7 +60,7 @@ spec:
 {% if test_scenario['values']['spark-connect-client'].find(",") > 0 %}
           image: "{{ test_scenario['values']['spark-connect-client'].split(',')[1] }}"
 {% else %}
-          image: oci.stackable.tech/sdp/spark-connect-client:{{ test_scenario['values']['spark-connect-client'] }}-stackable0.0.0-dev
+          image: oci.stackable.tech/stackable/spark-connect-client:{{ test_scenario['values']['spark-connect-client'] }}-stackable0.0.0-dev
 {% endif %}
           imagePullPolicy: IfNotPresent
           command:

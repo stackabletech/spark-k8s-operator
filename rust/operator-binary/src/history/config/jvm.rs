@@ -5,9 +5,8 @@ use stackable_operator::role_utils::{
 
 use crate::crd::{
     constants::{
-        JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, METRICS_PORT,
-        STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_CONFIG,
-        VOLUME_MOUNT_PATH_LOG_CONFIG,
+        JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, STACKABLE_TLS_STORE_PASSWORD,
+        STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     history::HistoryConfigFragment,
     logdir::ResolvedLogDir,
@@ -32,9 +31,6 @@ pub fn construct_history_jvm_args(
         format!("-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"),
         format!(
             "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
-        ),
-        format!(
-            "-javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar={METRICS_PORT}:/stackable/jmx/config.yaml"
         ),
     ];
 
@@ -86,8 +82,7 @@ mod tests {
         assert_eq!(
             jvm_config,
             "-Dlog4j.configurationFile=/stackable/log_config/log4j2.properties \
-            -Djava.security.properties=/stackable/spark/conf/security.properties \
-            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=18081:/stackable/jmx/config.yaml"
+            -Djava.security.properties=/stackable/spark/conf/security.properties"
         );
     }
 
@@ -130,7 +125,6 @@ mod tests {
             jvm_config,
             "-Dlog4j.configurationFile=/stackable/log_config/log4j2.properties \
             -Djava.security.properties=/stackable/spark/conf/security.properties \
-            -javaagent:/stackable/jmx/jmx_prometheus_javaagent.jar=18081:/stackable/jmx/config.yaml \
             -Dhttps.proxyHost=proxy.my.corp \
             -Djava.net.preferIPv4Stack=true \
             -Dhttps.proxyPort=1234"

@@ -56,11 +56,11 @@ use crate::{
         constants::{
             ACCESS_KEY_ID, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
             HISTORY_UI_PORT, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR,
-            LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
-            SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-            SPARK_IMAGE_BASE_NAME, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, OPERATOR_NAME, SECRET_ACCESS_KEY,
+            SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME,
+            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+            VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         listener_ext,
@@ -574,7 +574,6 @@ fn build_stateful_set(
         ])
         .args(command_args(log_dir))
         .add_container_port("http", HISTORY_UI_PORT.into())
-        .add_container_port("metrics", METRICS_PORT.into())
         .add_env_vars(merged_env)
         .add_volume_mounts(log_dir.volume_mounts())
         .context(AddVolumeMountSnafu)?

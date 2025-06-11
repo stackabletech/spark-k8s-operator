@@ -1,0 +1,14 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  - script: |
+      # This endpoint (/metrics/prometheus) is also used as liveliness probe
+      echo test Prometheus endpoint for driver metrics
+      DRIVER_METRIC_COUNT=$(kubectl exec spark-connect-server-0 -c spark -n $NAMESPACE -- curl localhost:4040/metrics/prometheus | grep _driver_ | wc -l)
+      test 0 -lt "$DRIVER_METRIC_COUNT"
+
+      echo test Prometheus endpoint for executor metrics
+      EXECUTOR_METRIC_COUNT=$(kubectl exec spark-connect-server-0 -c spark -n $NAMESPACE -- curl localhost:4040/metrics/executors/prometheus | grep _executor_ | wc -l)
+      test 0 -lt "$EXECUTOR_METRIC_COUNT"

@@ -34,6 +34,11 @@ pub enum Error {
     JvmSecurityProperties {
         source: product_config::writer::PropertiesWriterError,
     },
+
+    #[snafu(display("failed to serialize metrics properties",))]
+    MetricsProperties {
+        source: product_config::writer::PropertiesWriterError,
+    },
 }
 
 pub(crate) fn labels<'a, T>(
@@ -149,5 +154,5 @@ pub(crate) fn metrics_properties(
         );
     }
 
-    to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
+    to_java_properties_string(result.iter()).context(MetricsPropertiesSnafu)
 }

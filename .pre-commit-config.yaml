@@ -15,7 +15,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/adrienverge/yamllint
-    rev: 79a6b2b1392eaf49cdd32ac4f14be1a809bbd8f7 # 1.37.0
+    rev: 79a6b2b1392eaf49cdd32ac4f14be1a809bbd8f7 # 1.37.1
     hooks:
       - id: yamllint
 
@@ -39,7 +39,7 @@ repos:
     rev: d19233b89771be2d89273f163f5edc5a39bbc34a # 0.11.12
     hooks:
       # Run the linter.
-      - id: ruff
+      - id: ruff-check
       # Run the formatter.
       - id: ruff-format
 

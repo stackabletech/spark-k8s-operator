@@ -37,6 +37,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, reflector::ObjectRef},
     },
+    kvp::Label,
     logging::controller::ReconcilerError,
     product_config_utils::ValidatedRoleConfigByPropertyKind,
     product_logging::{
@@ -610,27 +611,32 @@ fn pod_template(
         );
     }
 
+    let mut omb = ObjectMetaBuilder::new();
+    omb.name(&container_name)
+        // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
+        // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
+        .ownerreference_from_resource(spark_application, None, None)
+        .context(ObjectMissingMetadataForOwnerRefSnafu)?
+        .with_recommended_labels(
+            spark_application
+                .build_recommended_labels(&spark_image.app_version_label, &container_name),
+        )
+        .context(MetadataBuildSnafu)?;
+
+    // Only the driver pod should be scraped by Prometheus
+    // because the executor metrics are also available via /metrics/executors/prometheus/
+    if role == SparkApplicationRole::Driver {
+        omb.with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?);
+    }
+
     let mut pb = PodBuilder::new();
-    pb.metadata(
-        ObjectMetaBuilder::new()
-            .name(&container_name)
-            // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
-            // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
-            .ownerreference_from_resource(spark_application, None, None)
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(
-                spark_application
-                    .build_recommended_labels(&spark_image.app_version_label, &container_name),
-            )
-            .context(MetadataBuildSnafu)?
-            .build(),
-    )
-    .add_container(cb.build())
-    .add_volumes(volumes.to_vec())
-    .context(AddVolumeSnafu)?
-    .security_context(security_context())
-    .image_pull_secrets_from_product_image(spark_image)
-    .affinity(&config.affinity);
+    pb.metadata(omb.build())
+        .add_container(cb.build())
+        .add_volumes(volumes.to_vec())
+        .context(AddVolumeSnafu)?
+        .security_context(security_context())
+        .image_pull_secrets_from_product_image(spark_image)
+        .affinity(&config.affinity);
 
     let init_containers = init_containers(
         spark_application,

@@ -649,6 +649,14 @@ impl v1alpha1::SparkApplication {
             )]);
         }
 
+        // Enable Prometheus metrics export
+        submit_cmd.extend(vec![
+            "--conf spark.metrics.conf.\\*.sink.prometheusServlet.class=org.apache.spark.metrics.sink.PrometheusServlet".to_string(),
+            "--conf spark.metrics.conf.\\*.sink.prometheusServlet.path=/metrics/prometheus".to_string(),
+            "--conf spark.ui.prometheus.enabled=true".to_string(),
+            "--conf spark.sql.streaming.metricsEnabled=true".to_string(),
+        ]);
+
         // some command elements need to be initially stored in a map (to allow overwrites) and
         // then added to the vector once complete.
         let mut submit_conf: BTreeMap<String, String> = BTreeMap::new();

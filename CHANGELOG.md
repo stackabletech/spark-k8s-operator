@@ -33,7 +33,7 @@ All notable changes to this project will be documented in this file.
   - The `runAsUser` and `runAsGroup` fields will not be set anymore by the operator
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
-- BREAKING: the JMX exporter has been an replaced with the built-in Prometheus servlet. The history pods do not expose metrics anymore ([#584])
+- BREAKING: the JMX exporter has been an replaced with the built-in Prometheus servlet. The history server pods do not expose metrics anymore ([#584])
 
 ### Fixed
 

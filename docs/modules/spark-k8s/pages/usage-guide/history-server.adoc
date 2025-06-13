@@ -156,3 +156,11 @@ spark-history-node-cleaner   NodePort    10.96.203.43    <none>        18080:325
 By setting up port forwarding on 18080 the UI can be opened by pointing your browser to `http://localhost:18080`:
 
 image::history-server-ui.png[History Server Console]
+
+== Metrics
+
+[NOTE]
+====
+Up to version 25.3 of the Stackable Data Platform, the history server used the JMX exporter to expose metrics on a separate port.
+Starting with version 25.7 the JMX exporter has been removed and the history server doesn't expose metrics as of Spark version 3.5.6.
+====

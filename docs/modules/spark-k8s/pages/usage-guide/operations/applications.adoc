@@ -8,3 +8,18 @@ As the operator creates the necessary resources, the status of the application t
 
 NOTE: The operator never reconciles an application once it has been created.
 To resubmit an application, a new SparkApplication resource must be created.
+
+== Metrics
+
+[NOTE]
+====
+Up to version 25.3 of the Stackable Data Platform, Spark applications used the JMX exporter to expose metrics on a separate port.
+Starting with version 25.7, the built-in Prometheus servlet is used instead.
+====
+
+Application driver pods expose Prometheus metrics at the following endpoints:
+
+* `/metrics/prometheus` for driver instances
+* `/metrics/executors/prometheus` for executor instances.
+
+These endpoints are available on the same port as the Spark UI, which is 4040 by default.

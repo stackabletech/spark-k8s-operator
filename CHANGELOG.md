@@ -23,7 +23,7 @@ All notable changes to this project will be documented in this file.
     by `FILE_LOG_DIRECTORY` (or via `--file-log-directory <DIRECTORY>`).
   - Replace stackable-operator `print_startup_string` with `tracing::info!` with fields.
 - BREAKING: Inject the vector aggregator address into the vector config using the env var `VECTOR_AGGREGATOR_ADDRESS` instead
-    of having the operator write it to the vector config ([#551]).
+  of having the operator write it to the vector config ([#551]).
 - Document that Spark Connect doesn't integrate with the history server ([#559])
 - test: Bump to Vector `0.46.1` ([#565]).
 - Use versioned common structs ([#572]).
@@ -33,7 +33,7 @@ All notable changes to this project will be documented in this file.
   - The `runAsUser` and `runAsGroup` fields will not be set anymore by the operator
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
-- BREAKING: the JMX exporter has been an replaced with the built-in Prometheus servlet. The history server pods do not expose metrics anymore ([#584])
+- Enable the built-in Prometheus servlet. The jmx exporter was removed in ([#584]) but added back in ([#585]).
 
 ### Fixed
 
@@ -61,6 +61,7 @@ All notable changes to this project will be documented in this file.
 [#580]: https://github.com/stackabletech/spark-k8s-operator/pull/580
 [#575]: https://github.com/stackabletech/spark-k8s-operator/pull/575
 [#584]: https://github.com/stackabletech/spark-k8s-operator/pull/584
+[#585]: https://github.com/stackabletech/spark-k8s-operator/pull/585
 
 ## [25.3.0] - 2025-03-21
 
@@ -111,7 +112,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING: The fields `connection` and `host` on `S3Connection` as well as `bucketName` on `S3Bucket`are now mandatory ([#472]).
 - Fix `envOverrides` for SparkApplication and SparkHistoryServer ([#451]).
 - Ensure SparkApplications can only create a single submit Job. Fix for #457 ([#460]).
-- Invalid `SparkApplication`/`SparkHistoryServer`  objects don't cause the operator to stop functioning (#[482]).
+- Invalid `SparkApplication`/`SparkHistoryServer` objects don't cause the operator to stop functioning (#[482]).
 
 ### Removed
 
@@ -186,7 +187,7 @@ All notable changes to this project will be documented in this file.
 - Support PodDisruptionBudgets for HistoryServer ([#288]).
 - Support for versions 3.4.1, 3.5.0 ([#291]).
 - History server now exports metrics via jmx exporter (port 18081) ([#291]).
-- Document graceful shutdown  ([#306]).
+- Document graceful shutdown ([#306]).
 
 ### Changed
 

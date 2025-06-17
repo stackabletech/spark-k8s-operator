@@ -161,6 +161,6 @@ image::history-server-ui.png[History Server Console]
 
 [NOTE]
 ====
-Up to version 25.3 of the Stackable Data Platform, the history server used the JMX exporter to expose metrics on a separate port.
-Starting with version 25.7 the JMX exporter has been removed and the history server doesn't expose metrics as of Spark version 3.5.6.
+Starting with version 25.7, the built-in Prometheus servlet is enabled in addition to the existing JMX exporter.
+The JMX exporter is still available but it is deprecated and will be removed in a future release.
 ====

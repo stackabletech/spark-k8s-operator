@@ -13,8 +13,8 @@ To resubmit an application, a new SparkApplication resource must be created.
 
 [NOTE]
 ====
-Up to version 25.3 of the Stackable Data Platform, Spark applications used the JMX exporter to expose metrics on a separate port.
-Starting with version 25.7, the built-in Prometheus servlet is used instead.
+Starting with version 25.7, the built-in Prometheus servlet is enabled.
+The JMX exporter is available but not used for applications. It has never been used automatically for applications and now it is deprecated.
 ====
 
 Application driver pods expose Prometheus metrics at the following endpoints:

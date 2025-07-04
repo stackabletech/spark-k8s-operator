@@ -1379,9 +1379,6 @@ spec:
                         cleaner:
                           nullable: true
                           type: boolean
-                        listenerClass:
-                          nullable: true
-                          type: string
                         logging:
                           default:
                             containers: {}
@@ -1556,11 +1553,16 @@ spec:
                       x-kubernetes-preserve-unknown-fields: true
                     roleConfig:
                       default:
+                        listenerClass: cluster-internal
                         podDisruptionBudget:
                           enabled: true
                           maxUnavailable: null
                       description: This is a product-agnostic RoleConfig, which is sufficient for most of the products.
                       properties:
+                        listenerClass:
+                          default: cluster-internal
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the history server.
+                          type: string
                         podDisruptionBudget:
                           default:
                             enabled: true
@@ -1628,9 +1630,6 @@ spec:
                               cleaner:
                                 nullable: true
                                 type: boolean
-                              listenerClass:
-                                nullable: true
-                                type: string
                               logging:
                                 default:
                                   containers: {}

@@ -333,7 +333,7 @@ pub async fn reconcile(
                 shs,
                 &resolved_product_image,
                 &rgr,
-                merged_config.listener_class.to_string(),
+                shs.node_listener_class().to_string(),
             )?;
             cluster_resources
                 .add(client, rg_group_listener)
@@ -343,7 +343,7 @@ pub async fn reconcile(
 
         let role_config = &shs.spec.nodes.role_config;
         add_pdbs(
-            &role_config.pod_disruption_budget,
+            &role_config.common.pod_disruption_budget,
             shs,
             client,
             &mut cluster_resources,

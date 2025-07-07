@@ -114,7 +114,8 @@ pub mod versioned {
     /// Global role config settings for the Spark Connect Server.
     #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize, Deserialize)]
     pub struct SparkConnectServerRoleConfig {
-        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the Spark services.
+        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
+        /// is used to expose the Spark Connect services.
         #[serde(default = "default_listener_class")]
         pub listener_class: String,
     }

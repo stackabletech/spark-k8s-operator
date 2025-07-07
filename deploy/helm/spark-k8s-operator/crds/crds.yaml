@@ -2334,10 +2334,11 @@ spec:
                     role_config:
                       default:
                         listener_class: cluster-internal
+                      description: Global role config settings for the Spark Connect Server.
                       properties:
                         listener_class:
                           default: cluster-internal
-                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark services.
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark Connect services.
                           type: string
                       type: object
                   type: object

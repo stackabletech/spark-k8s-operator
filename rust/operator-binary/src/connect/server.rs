@@ -148,6 +148,7 @@ pub(crate) fn server_config_map(
     let jvm_sec_props = common::security_properties(
         scs.spec
             .server
+            .config
             .as_ref()
             .and_then(|s| s.config_overrides.get(JVM_SECURITY_PROPERTIES_FILE)),
     )
@@ -158,6 +159,7 @@ pub(crate) fn server_config_map(
     let metrics_props = common::metrics_properties(
         scs.spec
             .server
+            .config
             .as_ref()
             .and_then(|s| s.config_overrides.get(METRICS_PROPERTIES_FILE)),
     )
@@ -253,6 +255,7 @@ pub(crate) fn build_stateful_set(
     let container_env = env(scs
         .spec
         .server
+        .config
         .as_ref()
         .map(|s| s.env_overrides.clone())
         .as_ref())?;
@@ -344,7 +347,13 @@ pub(crate) fn build_stateful_set(
 
     // Merge user defined pod template if available
     let mut pod_template = pb.build_template();
-    if let Some(pod_overrides_spec) = scs.spec.server.as_ref().map(|s| s.pod_overrides.clone()) {
+    if let Some(pod_overrides_spec) = scs
+        .spec
+        .server
+        .config
+        .as_ref()
+        .map(|s| s.pod_overrides.clone())
+    {
         pod_template.merge_from(pod_overrides_spec);
     }
 
@@ -507,6 +516,7 @@ pub(crate) fn server_properties(
     let config_overrides = scs
         .spec
         .server
+        .config
         .as_ref()
         .and_then(|s| s.config_overrides.get(SPARK_DEFAULTS_FILE_NAME));
 
@@ -581,6 +591,7 @@ fn server_jvm_args(
         &jvm_args,
         scs.spec
             .server
+            .config
             .as_ref()
             .map(|s| &s.product_specific_common_config),
     )
@@ -614,11 +625,11 @@ fn dummy_role_group_ref(
 
 pub(crate) fn build_listener(
     scs: &v1alpha1::SparkConnectServer,
-    config: &v1alpha1::ServerConfig,
+    role_config: &v1alpha1::ServerRoleConfig,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<listener::v1alpha1::Listener, Error> {
     let listener_name = dummy_role_group_ref(scs).object_name();
-    let listener_class = config.listener_class.clone();
+    let listener_class = role_config.listener_class.clone();
     let role = SparkConnectRole::Server.to_string();
     let recommended_object_labels =
         common::labels(scs, &resolved_product_image.app_version_label, &role);

@@ -2146,8 +2146,10 @@ spec:
                       type: string
                   type: object
                 server:
+                  default:
+                    role_config:
+                      listener_class: cluster-internal
                   description: A Spark Connect server definition.
-                  nullable: true
                   properties:
                     cliOverrides:
                       additionalProperties:
@@ -2157,10 +2159,6 @@ spec:
                     config:
                       default: {}
                       properties:
-                        listenerClass:
-                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark services.
-                          nullable: true
-                          type: string
                         logging:
                           default:
                             containers: {}
@@ -2333,6 +2331,15 @@ spec:
                       description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides) for more information.
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
+                    role_config:
+                      properties:
+                        listener_class:
+                          default: cluster-internal
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark services.
+                          type: string
+                      type: object
+                  required:
+                    - role_config
                   type: object
                 vectorAggregatorConfigMapName:
                   description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.

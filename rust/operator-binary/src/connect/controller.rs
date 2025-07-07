@@ -163,6 +163,7 @@ pub async fn reconcile(
         .context(InvalidSparkConnectServerSnafu)?;
 
     let server_config = scs.server_config().context(ServerConfigSnafu)?;
+    let server_role_config = &scs.spec.server.role_config;
     let executor_config = scs.executor_config().context(ExecutorConfigSnafu)?;
 
     let client = &ctx.client;
@@ -286,7 +287,7 @@ pub async fn reconcile(
 
     // ========================================
     // Server listener
-    let listener = server::build_listener(scs, &server_config, &resolved_product_image)
+    let listener = server::build_listener(scs, server_role_config, &resolved_product_image)
         .context(BuildListenerSnafu)?;
 
     cluster_resources

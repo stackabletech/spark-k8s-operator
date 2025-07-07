@@ -93,12 +93,28 @@ pub mod versioned {
         pub vector_aggregator_config_map_name: Option<String>,
 
         /// A Spark Connect server definition.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub server: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
+        #[serde(default)]
+        pub server: ServerConfigWrapper,
 
         /// Spark Connect executor properties.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub executor: Option<CommonConfiguration<ExecutorConfigFragment, JavaCommonConfig>>,
+    }
+
+    /// This struct i
+    #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Serialize, Deserialize)]
+    pub struct ServerConfigWrapper {
+        #[serde(flatten)]
+        pub config: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
+
+        pub role_config: ServerRoleConfig,
+    }
+
+    #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize, Deserialize)]
+    pub struct ServerRoleConfig {
+        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the Spark services.
+        #[serde(default = "default_listener_class")]
+        pub listener_class: String,
     }
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -126,10 +142,6 @@ pub mod versioned {
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
         #[fragment_attrs(serde(default))]
         pub requested_secret_lifetime: Option<Duration>,
-
-        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the Spark services.
-        #[serde(default)]
-        pub listener_class: String,
     }
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -218,7 +230,6 @@ impl v1alpha1::ServerConfig {
             },
             logging: product_logging::spec::default_logging(),
             requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
-            listener_class: Some("cluster-internal".into()),
         }
     }
 
@@ -248,7 +259,7 @@ impl v1alpha1::SparkConnectServer {
     pub fn server_config(&self) -> Result<v1alpha1::ServerConfig, Error> {
         let defaults = v1alpha1::ServerConfig::default_config();
         fragment::validate(
-            match self.spec.server.as_ref().map(|cc| cc.config.clone()) {
+            match self.spec.server.config.as_ref().map(|cc| cc.config.clone()) {
                 Some(fragment) => {
                     let mut fc = fragment.clone();
                     fc.merge(&defaults);
@@ -274,6 +285,18 @@ impl v1alpha1::SparkConnectServer {
         )
         .context(FragmentValidationFailureSnafu)
     }
+}
+
+impl Default for v1alpha1::ServerRoleConfig {
+    fn default() -> Self {
+        v1alpha1::ServerRoleConfig {
+            listener_class: default_listener_class(),
+        }
+    }
+}
+
+pub fn default_listener_class() -> String {
+    "cluster-internal".to_string()
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]

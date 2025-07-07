@@ -94,7 +94,7 @@ pub mod versioned {
 
         /// A Spark Connect server definition.
         #[serde(default)]
-        pub server: ServerConfigWrapper,
+        pub server: SparkConnectServerConfigWrapper,
 
         /// Spark Connect executor properties.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -103,15 +103,15 @@ pub mod versioned {
 
     /// This struct i
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Serialize, Deserialize)]
-    pub struct ServerConfigWrapper {
+    pub struct SparkConnectServerConfigWrapper {
         #[serde(flatten)]
         pub config: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
 
-        pub role_config: ServerRoleConfig,
+        pub role_config: SparkConnectServerRoleConfig,
     }
 
     #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize, Deserialize)]
-    pub struct ServerRoleConfig {
+    pub struct SparkConnectServerRoleConfig {
         /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the Spark services.
         #[serde(default = "default_listener_class")]
         pub listener_class: String,
@@ -287,9 +287,9 @@ impl v1alpha1::SparkConnectServer {
     }
 }
 
-impl Default for v1alpha1::ServerRoleConfig {
+impl Default for v1alpha1::SparkConnectServerRoleConfig {
     fn default() -> Self {
-        v1alpha1::ServerRoleConfig {
+        v1alpha1::SparkConnectServerRoleConfig {
             listener_class: default_listener_class(),
         }
     }

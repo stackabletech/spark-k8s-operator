@@ -625,7 +625,7 @@ fn dummy_role_group_ref(
 
 pub(crate) fn build_listener(
     scs: &v1alpha1::SparkConnectServer,
-    role_config: &v1alpha1::ServerRoleConfig,
+    role_config: &v1alpha1::SparkConnectServerRoleConfig,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<listener::v1alpha1::Listener, Error> {
     let listener_name = dummy_role_group_ref(scs).object_name();

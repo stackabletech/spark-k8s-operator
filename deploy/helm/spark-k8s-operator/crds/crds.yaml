@@ -1867,13 +1867,6 @@ spec:
                   items:
                     type: string
                   type: array
-                clusterConfig:
-                  default: {}
-                  description: |-
-                    Global Spark Connect server configuration that applies to all roles.
-
-                    This was previously used to hold the listener configuration, which has since moved to the server configuration.
-                  type: object
                 clusterOperation:
                   default:
                     reconciliationPaused: false

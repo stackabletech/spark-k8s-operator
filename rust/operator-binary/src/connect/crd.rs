@@ -79,13 +79,6 @@ pub mod versioned {
     pub struct SparkConnectServerSpec {
         pub image: ProductImage,
 
-        /// Global Spark Connect server configuration that applies to all roles.
-        ///
-        /// This was previously used to hold the listener configuration, which has since moved
-        /// to the server configuration.
-        #[serde(default)]
-        pub cluster_config: v1alpha1::SparkConnectServerClusterConfig,
-
         // no doc string - See ClusterOperation struct
         #[serde(default)]
         pub cluster_operation: ClusterOperation,
@@ -107,10 +100,6 @@ pub mod versioned {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub executor: Option<CommonConfiguration<ExecutorConfigFragment, JavaCommonConfig>>,
     }
-
-    #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct SparkConnectServerClusterConfig {}
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
     #[fragment_attrs(

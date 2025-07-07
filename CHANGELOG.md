@@ -44,6 +44,7 @@ All notable changes to this project will be documented in this file.
 
 - Support for Spark versions 3.5.2 has been dropped ([#570]).
 - Integration test spark-pi-public-s3 because the AWS SDK >2.24 doesn't suuport anonymous S3 access anymore ([#574]).
+- Move `listenerClass` to `roleConfig` for Spark History Server and Spark Connect ([#588]).
 
 [#539]: https://github.com/stackabletech/spark-k8s-operator/pull/539
 [#547]: https://github.com/stackabletech/spark-k8s-operator/pull/547
@@ -62,6 +63,7 @@ All notable changes to this project will be documented in this file.
 [#575]: https://github.com/stackabletech/spark-k8s-operator/pull/575
 [#584]: https://github.com/stackabletech/spark-k8s-operator/pull/584
 [#585]: https://github.com/stackabletech/spark-k8s-operator/pull/585
+[#588]: https://github.com/stackabletech/spark-k8s-operator/pull/588
 
 ## [25.3.0] - 2025-03-21
 

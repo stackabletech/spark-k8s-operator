@@ -104,6 +104,7 @@ pub mod versioned {
     /// This struct is a wrapper for the `ServerConfig` in order to keep the `spec.server.roleConfig` setting consistent.
     /// It is required since Spark Connect does not utilize the Stackable `Role` and therefore does not offer a `roleConfig`.
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
     pub struct SparkConnectServerConfigWrapper {
         #[serde(flatten)]
         pub config: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
@@ -113,6 +114,7 @@ pub mod versioned {
 
     /// Global role config settings for the Spark Connect Server.
     #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
     pub struct SparkConnectServerRoleConfig {
         /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
         /// is used to expose the Spark Connect services.

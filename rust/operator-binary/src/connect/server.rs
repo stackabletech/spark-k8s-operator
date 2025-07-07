@@ -613,6 +613,7 @@ fn probe() -> Probe {
     }
 }
 
+// TODO: remove this and all rolegroup references
 fn dummy_role_group_ref(
     scs: &v1alpha1::SparkConnectServer,
 ) -> RoleGroupRef<v1alpha1::SparkConnectServer> {
@@ -628,7 +629,9 @@ pub(crate) fn build_listener(
     role_config: &v1alpha1::SparkConnectServerRoleConfig,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<listener::v1alpha1::Listener, Error> {
+    //let listener_name = server_listener_name(scs);
     let listener_name = dummy_role_group_ref(scs).object_name();
+
     let listener_class = role_config.listener_class.clone();
     let role = SparkConnectRole::Server.to_string();
     let recommended_object_labels =
@@ -655,4 +658,11 @@ pub(crate) fn build_listener(
         &listener_ports,
     )
     .context(BuildListenerSnafu)
+}
+
+fn server_listener_name(scs: &v1alpha1::SparkConnectServer) -> String {
+    format!(
+        "{cluster_name}-server",
+        cluster_name = ObjectRef::from_obj(scs)
+    )
 }

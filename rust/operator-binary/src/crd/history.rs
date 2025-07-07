@@ -83,14 +83,6 @@ pub mod versioned {
     pub struct SparkHistoryServerSpec {
         pub image: ProductImage,
 
-        /// Global Spark history server configuration that applies to all roles.
-        ///
-        /// This was previously used to hold the listener configuration, which has since moved
-        /// to the role configuration.
-        // TODO: remove?
-        #[serde(default)]
-        pub cluster_config: v1alpha1::SparkHistoryServerClusterConfig,
-
         /// Name of the Vector aggregator discovery ConfigMap.
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,10 +98,6 @@ pub mod versioned {
         /// A history server node role definition.
         pub nodes: Role<HistoryConfigFragment, SparkHistoryServerRoleConfig, JavaCommonConfig>,
     }
-
-    #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct SparkHistoryServerClusterConfig {}
 
     // TODO: move generic version to op-rs?
     #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

@@ -62,8 +62,9 @@ spec:
     jvmArgumentOverrides:
       add:
         - -Dmy.custom.jvm.arg=customValue
-    config:
+    roleConfig:
       listenerClass: external-unstable
+    config:  
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
         containers:

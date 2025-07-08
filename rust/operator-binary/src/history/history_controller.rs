@@ -333,7 +333,7 @@ pub async fn reconcile(
         let rg_group_listener = build_group_listener(
             shs,
             &resolved_product_image,
-            &role_name,
+            role_name,
             shs.node_listener_class().to_string(),
         )?;
 

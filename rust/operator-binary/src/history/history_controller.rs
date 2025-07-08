@@ -328,18 +328,19 @@ pub async fn reconcile(
                 .add(client, sts)
                 .await
                 .context(ApplyStatefulSetSnafu)?;
-
-            let rg_group_listener = build_group_listener(
-                shs,
-                &resolved_product_image,
-                &rgr,
-                shs.node_listener_class().to_string(),
-            )?;
-            cluster_resources
-                .add(client, rg_group_listener)
-                .await
-                .context(ApplyGroupListenerSnafu)?;
         }
+
+        let rg_group_listener = build_group_listener(
+            shs,
+            &resolved_product_image,
+            &role_name,
+            shs.node_listener_class().to_string(),
+        )?;
+
+        cluster_resources
+            .add(client, rg_group_listener)
+            .await
+            .context(ApplyGroupListenerSnafu)?;
 
         let role_config = &shs.spec.nodes.role_config;
         add_pdbs(
@@ -364,15 +365,12 @@ pub async fn reconcile(
 fn build_group_listener(
     shs: &v1alpha1::SparkHistoryServer,
     resolved_product_image: &ResolvedProductImage,
-    rolegroup: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
+    role: &str,
     listener_class: String,
 ) -> Result<listener::v1alpha1::Listener, Error> {
-    let listener_name = rolegroup.object_name();
-    let recommended_object_labels = labels(
-        shs,
-        &resolved_product_image.app_version_label,
-        &rolegroup.role_group,
-    );
+    let listener_name = group_listener_name(shs, role);
+
+    let recommended_object_labels = labels(shs, &resolved_product_image.app_version_label, "none");
 
     let listener_ports = [listener::v1alpha1::ListenerPort {
         name: "http".to_string(),
@@ -388,6 +386,10 @@ fn build_group_listener(
         &listener_ports,
     )
     .context(BuildListenerSnafu)
+}
+
+fn group_listener_name(shs: &v1alpha1::SparkHistoryServer, role: &str) -> String {
+    format!("{cluster}-{role}", cluster = shs.name_any())
 }
 
 pub fn error_policy(
@@ -595,7 +597,7 @@ fn build_stateful_set(
     // cluster-internal) as the address should still be consistent.
     let volume_claim_templates = Some(vec![
         ListenerOperatorVolumeSourceBuilder::new(
-            &ListenerReference::ListenerName(rolegroupref.object_name()),
+            &ListenerReference::ListenerName(group_listener_name(shs, &rolegroupref.role)),
             &recommended_labels,
         )
         .context(BuildListenerVolumeSnafu)?

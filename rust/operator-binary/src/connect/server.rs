@@ -40,7 +40,7 @@ use crate::{
     connect::{
         common::{self, SparkConnectRole, object_name},
         crd::{
-            CONNECT_GRPC_PORT, CONNECT_UI_PORT, DUMMY_SPARK_CONNECT_GROUP_NAME,
+            CONNECT_GRPC_PORT, CONNECT_UI_PORT, DEFAULT_SPARK_CONNECT_GROUP_NAME,
             SparkConnectContainer, v1alpha1,
         },
     },
@@ -148,6 +148,7 @@ pub(crate) fn server_config_map(
     let jvm_sec_props = common::security_properties(
         scs.spec
             .server
+            .config
             .as_ref()
             .and_then(|s| s.config_overrides.get(JVM_SECURITY_PROPERTIES_FILE)),
     )
@@ -158,6 +159,7 @@ pub(crate) fn server_config_map(
     let metrics_props = common::metrics_properties(
         scs.spec
             .server
+            .config
             .as_ref()
             .and_then(|s| s.config_overrides.get(METRICS_PROPERTIES_FILE)),
     )
@@ -187,7 +189,7 @@ pub(crate) fn server_config_map(
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
-    let role_group_ref = dummy_role_group_ref(scs);
+    let role_group_ref = default_role_group_ref(scs);
     product_logging::extend_config_map(
         &role_group_ref,
         &config.logging,
@@ -210,6 +212,7 @@ pub(crate) fn build_stateful_set(
     resolved_product_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
     config_map: &ConfigMap,
+    listener_name: &str,
     args: Vec<String>,
 ) -> Result<StatefulSet, Error> {
     let server_role = SparkConnectRole::Server.to_string();
@@ -253,6 +256,7 @@ pub(crate) fn build_stateful_set(
     let container_env = env(scs
         .spec
         .server
+        .config
         .as_ref()
         .map(|s| s.env_overrides.clone())
         .as_ref())?;
@@ -334,7 +338,7 @@ pub(crate) fn build_stateful_set(
     // cluster-internal) as the address should still be consistent.
     let volume_claim_templates = Some(vec![
         ListenerOperatorVolumeSourceBuilder::new(
-            &ListenerReference::ListenerName(dummy_role_group_ref(scs).object_name()),
+            &ListenerReference::ListenerName(listener_name.to_string()),
             &recommended_labels,
         )
         .context(BuildListenerVolumeSnafu)?
@@ -344,7 +348,13 @@ pub(crate) fn build_stateful_set(
 
     // Merge user defined pod template if available
     let mut pod_template = pb.build_template();
-    if let Some(pod_overrides_spec) = scs.spec.server.as_ref().map(|s| s.pod_overrides.clone()) {
+    if let Some(pod_overrides_spec) = scs
+        .spec
+        .server
+        .config
+        .as_ref()
+        .map(|s| s.pod_overrides.clone())
+    {
         pod_template.merge_from(pod_overrides_spec);
     }
 
@@ -371,7 +381,7 @@ pub(crate) fn build_stateful_set(
                         scs,
                         CONNECT_APP_NAME,
                         &SparkConnectRole::Server.to_string(),
-                        DUMMY_SPARK_CONNECT_GROUP_NAME,
+                        DEFAULT_SPARK_CONNECT_GROUP_NAME,
                     )
                     .context(LabelBuildSnafu)?
                     .into(),
@@ -390,7 +400,11 @@ pub(crate) fn build_internal_service(
     scs: &v1alpha1::SparkConnectServer,
     app_version_label: &str,
 ) -> Result<Service, Error> {
-    let service_name = object_name(&scs.name_any(), SparkConnectRole::Server);
+    let service_name = format!(
+        "{cluster}-{role}-headless",
+        cluster = scs.name_any(),
+        role = SparkConnectRole::Server
+    );
 
     let selector =
         Labels::role_selector(scs, CONNECT_APP_NAME, &SparkConnectRole::Server.to_string())
@@ -507,6 +521,7 @@ pub(crate) fn server_properties(
     let config_overrides = scs
         .spec
         .server
+        .config
         .as_ref()
         .and_then(|s| s.config_overrides.get(SPARK_DEFAULTS_FILE_NAME));
 
@@ -581,6 +596,7 @@ fn server_jvm_args(
         &jvm_args,
         scs.spec
             .server
+            .config
             .as_ref()
             .map(|s| &s.product_specific_common_config),
     )
@@ -602,23 +618,28 @@ fn probe() -> Probe {
     }
 }
 
-fn dummy_role_group_ref(
+fn default_role_group_ref(
     scs: &v1alpha1::SparkConnectServer,
 ) -> RoleGroupRef<v1alpha1::SparkConnectServer> {
     RoleGroupRef {
         cluster: ObjectRef::from_obj(scs),
         role: SparkConnectRole::Server.to_string(),
-        role_group: DUMMY_SPARK_CONNECT_GROUP_NAME.to_string(),
+        role_group: DEFAULT_SPARK_CONNECT_GROUP_NAME.to_string(),
     }
 }
 
 pub(crate) fn build_listener(
     scs: &v1alpha1::SparkConnectServer,
-    config: &v1alpha1::ServerConfig,
+    role_config: &v1alpha1::SparkConnectServerRoleConfig,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<listener::v1alpha1::Listener, Error> {
-    let listener_name = dummy_role_group_ref(scs).object_name();
-    let listener_class = config.listener_class.clone();
+    let listener_name = format!(
+        "{cluster}-{role}",
+        cluster = scs.name_any(),
+        role = SparkConnectRole::Server
+    );
+
+    let listener_class = role_config.listener_class.clone();
     let role = SparkConnectRole::Server.to_string();
     let recommended_object_labels =
         common::labels(scs, &resolved_product_image.app_version_label, &role);

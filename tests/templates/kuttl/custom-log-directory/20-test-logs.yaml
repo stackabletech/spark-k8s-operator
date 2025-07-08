@@ -16,5 +16,5 @@ spec:
               "bash",
               "-x",
               "-c",
-              "test 1 == $(curl http://spark-history-node-default:18080/api/v1/applications | jq length)",
+              "test 1 == $(curl http://spark-history-node:18080/api/v1/applications | jq length)",
             ]

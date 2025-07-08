@@ -45,7 +45,7 @@ pub const CONNECT_EXECUTOR_ROLE_NAME: &str = "executor";
 pub const CONNECT_GRPC_PORT: i32 = 15002;
 pub const CONNECT_UI_PORT: i32 = 4040;
 
-pub const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
+pub const DEFAULT_SPARK_CONNECT_GROUP_NAME: &str = "default";
 
 pub const CONNECT_APP_NAME: &str = "spark-connect";
 
@@ -79,13 +79,6 @@ pub mod versioned {
     pub struct SparkConnectServerSpec {
         pub image: ProductImage,
 
-        /// Global Spark Connect server configuration that applies to all roles.
-        ///
-        /// This was previously used to hold the listener configuration, which has since moved
-        /// to the server configuration.
-        #[serde(default)]
-        pub cluster_config: v1alpha1::SparkConnectServerClusterConfig,
-
         // no doc string - See ClusterOperation struct
         #[serde(default)]
         pub cluster_operation: ClusterOperation,
@@ -100,17 +93,34 @@ pub mod versioned {
         pub vector_aggregator_config_map_name: Option<String>,
 
         /// A Spark Connect server definition.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub server: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
+        #[serde(default)]
+        pub server: SparkConnectServerConfigWrapper,
 
         /// Spark Connect executor properties.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub executor: Option<CommonConfiguration<ExecutorConfigFragment, JavaCommonConfig>>,
     }
 
-    #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
+    /// This struct is a wrapper for the `ServerConfig` in order to keep the `spec.server.roleConfig` setting consistent.
+    /// It is required since Spark Connect does not utilize the Stackable `Role` and therefore does not offer a `roleConfig`.
+    #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct SparkConnectServerClusterConfig {}
+    pub struct SparkConnectServerConfigWrapper {
+        #[serde(flatten)]
+        pub config: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
+        #[serde(default)]
+        pub role_config: SparkConnectServerRoleConfig,
+    }
+
+    /// Global role config settings for the Spark Connect Server.
+    #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct SparkConnectServerRoleConfig {
+        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
+        /// is used to expose the Spark Connect services.
+        #[serde(default = "default_listener_class")]
+        pub listener_class: String,
+    }
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
     #[fragment_attrs(
@@ -137,10 +147,6 @@ pub mod versioned {
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
         #[fragment_attrs(serde(default))]
         pub requested_secret_lifetime: Option<Duration>,
-
-        /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html) is used to expose the Spark services.
-        #[serde(default)]
-        pub listener_class: String,
     }
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -229,7 +235,6 @@ impl v1alpha1::ServerConfig {
             },
             logging: product_logging::spec::default_logging(),
             requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
-            listener_class: Some("cluster-internal".into()),
         }
     }
 
@@ -259,7 +264,7 @@ impl v1alpha1::SparkConnectServer {
     pub fn server_config(&self) -> Result<v1alpha1::ServerConfig, Error> {
         let defaults = v1alpha1::ServerConfig::default_config();
         fragment::validate(
-            match self.spec.server.as_ref().map(|cc| cc.config.clone()) {
+            match self.spec.server.config.as_ref().map(|cc| cc.config.clone()) {
                 Some(fragment) => {
                     let mut fc = fragment.clone();
                     fc.merge(&defaults);
@@ -285,6 +290,18 @@ impl v1alpha1::SparkConnectServer {
         )
         .context(FragmentValidationFailureSnafu)
     }
+}
+
+impl Default for v1alpha1::SparkConnectServerRoleConfig {
+    fn default() -> Self {
+        v1alpha1::SparkConnectServerRoleConfig {
+            listener_class: default_listener_class(),
+        }
+    }
+}
+
+pub fn default_listener_class() -> String {
+    "cluster-internal".to_string()
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]

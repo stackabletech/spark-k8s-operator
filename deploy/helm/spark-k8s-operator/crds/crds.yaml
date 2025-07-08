@@ -1117,13 +1117,6 @@ spec:
             spec:
               description: A Spark cluster history server component. This resource is managed by the Stackable operator for Apache Spark. Find more information on how to use it in the [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/history-server).
               properties:
-                clusterConfig:
-                  default: {}
-                  description: |-
-                    Global Spark history server configuration that applies to all roles.
-
-                    This was previously used to hold the listener configuration, which has since moved to the role configuration.
-                  type: object
                 image:
                   anyOf:
                     - required:
@@ -1379,9 +1372,6 @@ spec:
                         cleaner:
                           nullable: true
                           type: boolean
-                        listenerClass:
-                          nullable: true
-                          type: string
                         logging:
                           default:
                             containers: {}
@@ -1556,11 +1546,16 @@ spec:
                       x-kubernetes-preserve-unknown-fields: true
                     roleConfig:
                       default:
+                        listenerClass: cluster-internal
                         podDisruptionBudget:
                           enabled: true
                           maxUnavailable: null
                       description: This is a product-agnostic RoleConfig, which is sufficient for most of the products.
                       properties:
+                        listenerClass:
+                          default: cluster-internal
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the history server.
+                          type: string
                         podDisruptionBudget:
                           default:
                             enabled: true
@@ -1628,9 +1623,6 @@ spec:
                               cleaner:
                                 nullable: true
                                 type: boolean
-                              listenerClass:
-                                nullable: true
-                                type: string
                               logging:
                                 default:
                                   containers: {}
@@ -1868,13 +1860,6 @@ spec:
                   items:
                     type: string
                   type: array
-                clusterConfig:
-                  default: {}
-                  description: |-
-                    Global Spark Connect server configuration that applies to all roles.
-
-                    This was previously used to hold the listener configuration, which has since moved to the server configuration.
-                  type: object
                 clusterOperation:
                   default:
                     reconciliationPaused: false
@@ -2154,8 +2139,10 @@ spec:
                       type: string
                   type: object
                 server:
+                  default:
+                    roleConfig:
+                      listenerClass: cluster-internal
                   description: A Spark Connect server definition.
-                  nullable: true
                   properties:
                     cliOverrides:
                       additionalProperties:
@@ -2165,10 +2152,6 @@ spec:
                     config:
                       default: {}
                       properties:
-                        listenerClass:
-                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark services.
-                          nullable: true
-                          type: string
                         logging:
                           default:
                             containers: {}
@@ -2341,6 +2324,16 @@ spec:
                       description: In the `podOverrides` property you can define a [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core) to override any property that can be set on a Kubernetes Pod. Read the [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides) for more information.
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
+                    roleConfig:
+                      default:
+                        listenerClass: cluster-internal
+                      description: Global role config settings for the Spark Connect Server.
+                      properties:
+                        listenerClass:
+                          default: cluster-internal
+                          description: This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html) is used to expose the Spark Connect services.
+                          type: string
+                      type: object
                   type: object
                 vectorAggregatorConfigMapName:
                   description: Name of the Vector aggregator discovery ConfigMap. It must contain the key `ADDRESS` with the address of the Vector aggregator.

@@ -32,7 +32,10 @@ use stackable_operator::{
 use strum::{Display, EnumIter};
 
 use crate::{
-    crd::{affinity::history_affinity, constants::*, logdir::ResolvedLogDir},
+    crd::{
+        affinity::history_affinity, constants::*, history::v1alpha1::SparkHistoryServerRoleConfig,
+        logdir::ResolvedLogDir,
+    },
     history::config::jvm::construct_history_jvm_args,
 };
 
@@ -62,7 +65,6 @@ pub enum Error {
 
 #[versioned(version(name = "v1alpha1"))]
 pub mod versioned {
-
     /// A Spark cluster history server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
@@ -81,13 +83,6 @@ pub mod versioned {
     pub struct SparkHistoryServerSpec {
         pub image: ProductImage,
 
-        /// Global Spark history server configuration that applies to all roles.
-        ///
-        /// This was previously used to hold the listener configuration, which has since moved
-        /// to the role configuration.
-        #[serde(default)]
-        pub cluster_config: v1alpha1::SparkHistoryServerClusterConfig,
-
         /// Name of the Vector aggregator discovery ConfigMap.
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -101,17 +96,28 @@ pub mod versioned {
         pub spark_conf: BTreeMap<String, String>,
 
         /// A history server node role definition.
-        pub nodes: Role<HistoryConfigFragment, GenericRoleConfig, JavaCommonConfig>,
+        pub nodes: Role<HistoryConfigFragment, SparkHistoryServerRoleConfig, JavaCommonConfig>,
     }
 
-    #[derive(Clone, Deserialize, Debug, Default, Eq, JsonSchema, PartialEq, Serialize)]
+    // TODO: move generic version to op-rs?
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct SparkHistoryServerClusterConfig {}
+    pub struct SparkHistoryServerRoleConfig {
+        #[serde(flatten)]
+        pub common: GenericRoleConfig,
+
+        /// This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html)
+        /// is used to expose the history server.
+        #[serde(default = "default_listener_class")]
+        pub listener_class: String,
+    }
 }
 
 impl v1alpha1::SparkHistoryServer {
     /// Returns a reference to the role. Raises an error if the role is not defined.
-    pub fn role(&self) -> &Role<HistoryConfigFragment, GenericRoleConfig, JavaCommonConfig> {
+    pub fn role(
+        &self,
+    ) -> &Role<HistoryConfigFragment, SparkHistoryServerRoleConfig, JavaCommonConfig> {
         &self.spec.nodes
     }
 
@@ -128,6 +134,11 @@ impl v1alpha1::SparkHistoryServer {
                 role_group: rolegroup_ref.role_group.to_owned(),
             })
             .cloned()
+    }
+
+    /// Return the listener class of the role config.
+    pub fn node_listener_class(&self) -> &str {
+        self.spec.nodes.role_config.listener_class.as_str()
     }
 
     pub fn merged_config(
@@ -188,7 +199,7 @@ impl v1alpha1::SparkHistoryServer {
             String,
             (
                 Vec<PropertyNameKind>,
-                Role<HistoryConfigFragment, GenericRoleConfig, JavaCommonConfig>,
+                Role<HistoryConfigFragment, SparkHistoryServerRoleConfig, JavaCommonConfig>,
             ),
         > = vec![(
             HISTORY_ROLE_NAME.to_string(),
@@ -340,9 +351,6 @@ pub struct HistoryConfig {
     /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
-
-    #[serde(default)]
-    pub listener_class: String,
 }
 
 impl HistoryConfig {
@@ -366,7 +374,6 @@ impl HistoryConfig {
             logging: product_logging::spec::default_logging(),
             affinity: history_affinity(cluster_name),
             requested_secret_lifetime: Some(Self::DEFAULT_HISTORY_SECRET_LIFETIME),
-            listener_class: Some(default_listener_class()),
         }
     }
 }
@@ -400,6 +407,15 @@ impl Configuration for HistoryConfigFragment {
     ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
     {
         Ok(BTreeMap::new())
+    }
+}
+
+impl Default for v1alpha1::SparkHistoryServerRoleConfig {
+    fn default() -> Self {
+        v1alpha1::SparkHistoryServerRoleConfig {
+            listener_class: default_listener_class(),
+            common: Default::default(),
+        }
     }
 }
 

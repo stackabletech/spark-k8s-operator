@@ -12,7 +12,7 @@ use super::crd::CONNECT_EXECUTOR_ROLE_NAME;
 use crate::{
     connect::crd::{
         CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, CONNECT_SERVER_ROLE_NAME,
-        DUMMY_SPARK_CONNECT_GROUP_NAME,
+        DEFAULT_SPARK_CONNECT_GROUP_NAME,
     },
     crd::constants::OPERATOR_NAME,
 };
@@ -53,7 +53,7 @@ pub(crate) fn labels<'a, T>(
         operator_name: OPERATOR_NAME,
         controller_name: CONNECT_CONTROLLER_NAME,
         role,
-        role_group: DUMMY_SPARK_CONNECT_GROUP_NAME,
+        role_group: DEFAULT_SPARK_CONNECT_GROUP_NAME,
     }
 }
 

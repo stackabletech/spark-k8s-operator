@@ -44,8 +44,9 @@ spec:
   # For possible properties see: https://spark.apache.org/docs/latest/monitoring.html#spark-history-server-configuration-options
   #sparkConf:
   nodes:
-    config:
+    roleConfig:
       listenerClass: external-unstable
+    config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
         containers:

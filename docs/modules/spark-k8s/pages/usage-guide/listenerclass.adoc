@@ -1,10 +1,10 @@
 = Service exposition with listener classes
 :description: Configure the Spark connect and history services exposure with listener classes: cluster-internal, external-unstable, or external-stable.
 
-== History services
+== Spark History services
 
-The operator deploys a xref:listener-operator:listener.adoc[Listener] for each spark history pod.
-The default is to only being accessible from within the Kubernetes cluster, but this can be changed by setting `.spec.nodes.config.listenerClass`:
+The operator deploys a xref:listener-operator:listener.adoc[Listener] for each Spark History Server pod.
+The default is to only being accessible from within the Kubernetes cluster, but this can be changed by setting `.spec.nodes.roleConfig.listenerClass`:
 
 [source,yaml]
 ----
@@ -14,13 +14,28 @@ metadata:
   name: spark-history
 spec:
   nodes:
-    config:
+    roleConfig:
       listenerClass: external-unstable  # <1>
 ----
 <1> Specify one of `external-stable`, `external-unstable`, `cluster-internal` (the default setting is `cluster-internal`).
 
-For the example above, the listener operator creates a service named `spark-history-node-default` where `spark-history` is the name of the SparkHistoryServer, `node` is the service role (the only service role available for history servers) and `default` is the role group.
+For the example above, the listener operator creates a service named `spark-history-node` where `spark-history` is the name of the SparkHistoryServer and `node` is the service role (the only service role available for history servers).
 
-== Connect services
+== Spark Connect services
 
-Connect pods can be exposed using listener classes in exactly tha same fashion as history servers.
+Connect pods can be exposed using listener classes in exactly tha same fashion as History Servers (with the exception for the role):
+
+[source,yaml]
+----
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkConnectServer
+metadata:
+  name: spark-connect
+spec:
+  servers:
+    roleConfig:
+      listenerClass: external-unstable  # <1>
+----
+<1> Specify one of `external-stable`, `external-unstable`, `cluster-internal` (the default setting is `cluster-internal`).
+
+For the example above, the listener operator creates a service named `spark-connect-server` where `spark-connect` is the name of the SparkConnectServer and `server` is the service role.

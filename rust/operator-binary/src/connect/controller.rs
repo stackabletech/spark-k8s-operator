@@ -163,6 +163,7 @@ pub async fn reconcile(
         .context(InvalidSparkConnectServerSnafu)?;
 
     let server_config = scs.server_config().context(ServerConfigSnafu)?;
+    let server_role_config = &scs.spec.server.role_config;
     let executor_config = scs.executor_config().context(ExecutorConfigSnafu)?;
 
     let client = &ctx.client;
@@ -204,7 +205,7 @@ pub async fn reconcile(
     let service = server::build_internal_service(scs, &resolved_product_image.app_version_label)
         .context(BuildServiceSnafu)?;
 
-    cluster_resources
+    let applied_internal_service = cluster_resources
         .add(client, service.clone())
         .await
         .context(ApplyServiceSnafu)?;
@@ -216,7 +217,7 @@ pub async fn reconcile(
         server::server_properties(
             scs,
             &server_config,
-            &service,
+            &applied_internal_service,
             &service_account,
             &resolved_product_image,
         )
@@ -272,6 +273,16 @@ pub async fn reconcile(
         })?;
 
     // ========================================
+    // Server listener
+    let listener = server::build_listener(scs, server_role_config, &resolved_product_image)
+        .context(BuildListenerSnafu)?;
+
+    let applied_listener = cluster_resources
+        .add(client, listener)
+        .await
+        .context(ApplyListenerSnafu)?;
+
+    // ========================================
     // Server stateful set
     let args = server::command_args(&scs.spec.args);
     let stateful_set = server::build_stateful_set(
@@ -280,19 +291,10 @@ pub async fn reconcile(
         &resolved_product_image,
         &service_account,
         &server_config_map,
+        &applied_listener.name_any(),
         args,
     )
     .context(BuildServerStatefulSetSnafu)?;
-
-    // ========================================
-    // Server listener
-    let listener = server::build_listener(scs, &server_config, &resolved_product_image)
-        .context(BuildListenerSnafu)?;
-
-    cluster_resources
-        .add(client, listener)
-        .await
-        .context(ApplyListenerSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
 

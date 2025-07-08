@@ -39,6 +39,7 @@ All notable changes to this project will be documented in this file.
 
 - Use `json` file extension for log files ([#553]).
 - The Spark connect controller now watches StatefulSets instead of Deployments (again) ([#573]).
+- BREAKING: Move `listenerClass` to `roleConfig` for Spark History Server and Spark Connect. Service names changed. ([#588]).
 
 ### Removed
 
@@ -62,6 +63,7 @@ All notable changes to this project will be documented in this file.
 [#575]: https://github.com/stackabletech/spark-k8s-operator/pull/575
 [#584]: https://github.com/stackabletech/spark-k8s-operator/pull/584
 [#585]: https://github.com/stackabletech/spark-k8s-operator/pull/585
+[#588]: https://github.com/stackabletech/spark-k8s-operator/pull/588
 
 ## [25.3.0] - 2025-03-21
 

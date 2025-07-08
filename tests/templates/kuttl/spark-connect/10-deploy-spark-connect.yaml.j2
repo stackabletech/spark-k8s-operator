@@ -64,7 +64,7 @@ spec:
         - -Dmy.custom.jvm.arg=customValue
     roleConfig:
       listenerClass: external-unstable
-    config:  
+    config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
         containers:

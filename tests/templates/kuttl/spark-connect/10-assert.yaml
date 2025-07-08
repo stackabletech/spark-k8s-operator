@@ -22,7 +22,7 @@ kind: Service
 metadata:
   name: spark-connect-server-headless
 spec:
-  type: ClusterIP  
+  type: ClusterIP
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert

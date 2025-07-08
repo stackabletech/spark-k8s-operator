@@ -17,6 +17,13 @@ metadata:
 spec:
   type: NodePort
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-connect-server-headless
+spec:
+  type: ClusterIP  
+---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 300

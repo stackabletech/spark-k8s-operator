@@ -212,6 +212,7 @@ pub(crate) fn build_stateful_set(
     resolved_product_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
     config_map: &ConfigMap,
+    listener_name: &str,
     args: Vec<String>,
 ) -> Result<StatefulSet, Error> {
     let server_role = SparkConnectRole::Server.to_string();
@@ -337,7 +338,7 @@ pub(crate) fn build_stateful_set(
     // cluster-internal) as the address should still be consistent.
     let volume_claim_templates = Some(vec![
         ListenerOperatorVolumeSourceBuilder::new(
-            &ListenerReference::ListenerName(default_role_group_ref(scs).object_name()),
+            &ListenerReference::ListenerName(listener_name.to_string()),
             &recommended_labels,
         )
         .context(BuildListenerVolumeSnafu)?
@@ -399,7 +400,11 @@ pub(crate) fn build_internal_service(
     scs: &v1alpha1::SparkConnectServer,
     app_version_label: &str,
 ) -> Result<Service, Error> {
-    let service_name = object_name(&scs.name_any(), SparkConnectRole::Server);
+    let service_name = format!(
+        "{cluster}-{role}-headless",
+        cluster = scs.name_any(),
+        role = SparkConnectRole::Server
+    );
 
     let selector =
         Labels::role_selector(scs, CONNECT_APP_NAME, &SparkConnectRole::Server.to_string())
@@ -628,7 +633,7 @@ pub(crate) fn build_listener(
     role_config: &v1alpha1::SparkConnectServerRoleConfig,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<listener::v1alpha1::Listener, Error> {
-    let listener_name = default_role_group_ref(scs).object_name();
+    let listener_name = format!("{cluster}-server", cluster = scs.name_any());
 
     let listener_class = role_config.listener_class.clone();
     let role = SparkConnectRole::Server.to_string();

@@ -633,7 +633,12 @@ pub(crate) fn build_listener(
     role_config: &v1alpha1::SparkConnectServerRoleConfig,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<listener::v1alpha1::Listener, Error> {
-    let listener_name = format!("{cluster}-server", cluster = scs.name_any());
+    let listener_name = format!(
+        "{cluster}-{role}",
+        cluster = scs.name_any(),
+        role = SparkConnectRole::Server
+    );
+
 
     let listener_class = role_config.listener_class.clone();
     let role = SparkConnectRole::Server.to_string();

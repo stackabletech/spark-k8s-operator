@@ -23,7 +23,7 @@ use stackable_operator::{
 
 use super::{
     common::{SparkConnectRole, object_name},
-    crd::{DUMMY_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer},
+    crd::{DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer},
 };
 use crate::{
     connect::{common, crd::v1alpha1},
@@ -354,7 +354,7 @@ pub(crate) fn executor_config_map(
     let role_group_ref = RoleGroupRef {
         cluster: ObjectRef::from_obj(scs),
         role: SparkConnectRole::Executor.to_string(),
-        role_group: DUMMY_SPARK_CONNECT_GROUP_NAME.to_string(),
+        role_group: DEFAULT_SPARK_CONNECT_GROUP_NAME.to_string(),
     };
     product_logging::extend_config_map(
         &role_group_ref,

@@ -45,7 +45,7 @@ pub const CONNECT_EXECUTOR_ROLE_NAME: &str = "executor";
 pub const CONNECT_GRPC_PORT: i32 = 15002;
 pub const CONNECT_UI_PORT: i32 = 4040;
 
-pub const DUMMY_SPARK_CONNECT_GROUP_NAME: &str = "default";
+pub const DEFAULT_SPARK_CONNECT_GROUP_NAME: &str = "default";
 
 pub const CONNECT_APP_NAME: &str = "spark-connect";
 

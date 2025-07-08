@@ -639,7 +639,6 @@ pub(crate) fn build_listener(
         role = SparkConnectRole::Server
     );
 
-
     let listener_class = role_config.listener_class.clone();
     let role = SparkConnectRole::Server.to_string();
     let recommended_object_labels =

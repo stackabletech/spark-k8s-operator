@@ -39,12 +39,12 @@ All notable changes to this project will be documented in this file.
 
 - Use `json` file extension for log files ([#553]).
 - The Spark connect controller now watches StatefulSets instead of Deployments (again) ([#573]).
+- BREAKING: Move `listenerClass` to `roleConfig` for Spark History Server and Spark Connect. Service names changed. ([#588]).
 
 ### Removed
 
 - Support for Spark versions 3.5.2 has been dropped ([#570]).
 - Integration test spark-pi-public-s3 because the AWS SDK >2.24 doesn't suuport anonymous S3 access anymore ([#574]).
-- Move `listenerClass` to `roleConfig` for Spark History Server and Spark Connect ([#588]).
 
 [#539]: https://github.com/stackabletech/spark-k8s-operator/pull/539
 [#547]: https://github.com/stackabletech/spark-k8s-operator/pull/547

@@ -551,20 +551,21 @@ pub(crate) fn server_properties(
         ),
         (
             "spark.driver.extraClassPath".to_string(),
-            Some(format!("/stackable/spark/extra-jars/*:/stackable/spark/connect/spark-connect_2.12-{spark_version}.jar")),
+            Some(format!("/stackable/spark/extra-jars/*:/stackable/spark/connect/spark-connect-{spark_version}.jar")),
         ),
         (
             "spark.metrics.conf".to_string(),
-            Some(format!("{VOLUME_MOUNT_PATH_CONFIG}/{METRICS_PROPERTIES_FILE}")),
+            Some(format!(
+                "{VOLUME_MOUNT_PATH_CONFIG}/{METRICS_PROPERTIES_FILE}"
+            )),
         ),
         // This enables the "/metrics/executors/prometheus" endpoint on the server pod.
         // The driver collects metrics from the executors and makes them available here.
-        // The "/metrics/prometheus" endpoint delievers the driver metrics.
+        // The "/metrics/prometheus" endpoint delivers the driver metrics.
         (
             "spark.ui.prometheus.enabled".to_string(),
             Some("true".to_string()),
         ),
-
     ]
     .into();
 

@@ -26,6 +26,7 @@ ARG RELEASE="1"
 # These are chosen at random and are this high on purpose to have very little chance to clash with an existing user or group on the host system
 ARG STACKABLE_USER_GID="574654813"
 ARG STACKABLE_USER_UID="782252253"
+ARG STACKABLE_USER_NAME="stackable"
 
 # Sets the default shell to Bash with strict error handling and robust pipeline processing.
 # "-e": Exits immediately if a command exits with a non-zero status
@@ -95,6 +96,12 @@ RUN <<EOF
 # Update image and install kerberos client libraries as well as some other utilities
 microdnf update
 
+# **findutils**
+# Needed to find all patch files, used in `apply_patches.sh`, and helpful for debugging
+# Added 2024-10: Last vulnerability in 2007, only two vulnerabilities in total, a risk we accept
+# https://nvd.nist.gov/vuln/search/results?form_type=Advanced&results_type=overview&search_type=all&isCpeNameSearch=false&cpe_vendor=cpe%3A%2F%3Agnu&cpe_product=cpe%3A%2F%3Agnu%3Afindutils
+# cpe:2.3:a:gnu:findutils:*:*:*:*:*:*:*:*
+#
 # **iputils**
 # To make debugging easier, includes things like ping
 # Added 2024-03: We cannot find any vulnerabilities in the past years
@@ -120,6 +127,7 @@ microdnf update
 # NOTE (@NickLarsenNZ): Maybe we should consider pinning package versions?
 # hadolint ignore=DL3041
 microdnf install \
+  findutils \
   iputils \
   krb5-libs \
   less \
@@ -128,7 +136,7 @@ microdnf install \
   shadow-utils \
   tar
 
-groupadd --gid ${STACKABLE_USER_GID} --system stackable
+groupadd --gid ${STACKABLE_USER_GID} --system ${STACKABLE_USER_NAME}
 # The --no-log-init is required to work around a bug/problem in Go/Docker when very large UIDs are used
 # See https://github.com/moby/moby/issues/5419#issuecomment-41478290 for more context
 # Making this a system user prevents a mail dir from being created, expiry of passwords etc. but it will warn:
@@ -142,7 +150,7 @@ useradd \
   --system \
   --create-home \
   --home-dir /stackable \
-   stackable
+   ${STACKABLE_USER_NAME}
 microdnf remove shadow-utils
 microdnf clean all
 rm -rf /var/cache/yum

@@ -353,22 +353,7 @@ def run_tests(test: str, parallel: int, namespace: str, skip_delete: bool) -> No
         if namespace:
             kuttl_cmd.extend(["--namespace", namespace])
             # kuttl doesn't create the namespace so we need to do it ourselves
-            create_ns_cmd = ["kubectl", "create", "namespace", namespace]
-            try:
-                logging.debug(f"Running : {create_ns_cmd}")
-                subprocess.run(
-                    create_ns_cmd,
-                    check=True,
-                    capture_output=True,
-                )
-            except subprocess.CalledProcessError as e:
-                stderr = e.stderr.decode("utf-8")
-                # If the namespace already exists, this will fail and we ignore the
-                # error. If it fails for any other reason, we raise an exception.
-                if "already exists" not in stderr:
-                    logging.error(stderr)
-                    logging.error("namespace creation failed")
-                    raise TestRunnerException()
+            ensure_namespace_exists(namespace)
 
         logging.debug(f"Running : {kuttl_cmd}")
 
@@ -380,6 +365,58 @@ def run_tests(test: str, parallel: int, namespace: str, skip_delete: bool) -> No
     except subprocess.CalledProcessError:
         logging.error("kuttl failed")
         raise TestRunnerException()
+
+
+def ensure_namespace_exists(namespace: str) -> None:
+    """
+    Ensure the specified namespace exists, creating it if necessary.
+
+    This function handles various permission scenarios:
+    - If the namespace already exists, it does nothing
+    - If it doesn't exist and we have permission, it creates it
+    - If we don't have permission to create/check namespaces, it logs a warning
+      and assumes the namespace exists or will be created externally (useful for OpenShift)
+
+    Examples of (permission) errors we handle:
+    - Error from server (Forbidden): namespaces is forbidden: User "developer" cannot create resource "namespaces" in API group "" at the cluster scope
+    - Error from server (Forbidden): namespaces "foobar123" is forbidden: User "developer" cannot get resource "namespaces" in API group "" in the namespace "foobar123"
+    - Error from server (AlreadyExists): namespaces "kuttl-test-finer-caiman" already exists
+    """
+    # First check if the namespace already exists
+    check_ns_cmd = ["kubectl", "get", "namespace", namespace]
+    try:
+        logging.debug(f"Checking if namespace exists: {check_ns_cmd}")
+        subprocess.run(
+            check_ns_cmd,
+            check=True,
+            capture_output=True,
+        )
+        logging.debug(f"Namespace '{namespace}' already exists")
+    except subprocess.CalledProcessError:
+        # Namespace doesn't exist, try to create it
+        create_ns_cmd = ["kubectl", "create", "namespace", namespace]
+        try:
+            logging.debug(f"Creating namespace: {create_ns_cmd}")
+            subprocess.run(
+                create_ns_cmd,
+                check=True,
+                capture_output=True,
+            )
+            logging.debug(f"Successfully created namespace '{namespace}'")
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode("utf-8")
+            if "already exists" in stderr:
+                logging.debug(
+                    f"Namespace '{namespace}' already exists (race condition)"
+                )
+            elif "forbidden" in stderr.lower():
+                logging.warning(
+                    f"No permission to create namespace '{namespace}', assuming it exists or will be created externally"
+                )
+            else:
+                logging.error(stderr)
+                logging.error("namespace creation failed")
+                raise TestRunnerException()
 
 
 def main(argv) -> int:

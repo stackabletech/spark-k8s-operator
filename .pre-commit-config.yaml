@@ -36,7 +36,7 @@ repos:
   # If you do not, you will need to delete the cached ruff binary shown in the
   # error message
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: d19233b89771be2d89273f163f5edc5a39bbc34a # 0.11.12
+    rev: 0b19ef1fd6ad680ed7752d6daba883ce1265a6de # 0.12.2
     hooks:
       # Run the linter.
       - id: ruff-check

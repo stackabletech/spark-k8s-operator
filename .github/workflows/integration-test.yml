@@ -86,7 +86,7 @@ jobs:
 
       - name: Run Integration Test
         id: test
-        uses: stackabletech/actions/run-integration-test@5901c3b1455488820c4be367531e07c3c3e82538 # v0.4.0
+        uses: stackabletech/actions/run-integration-test@4483641a7e24057bd2ba51cb4c3f2f0010ad21b7 # v0.8.4
         with:
           test-platform: ${{ env.TEST_PLATFORM }}-${{ env.TEST_ARCHITECTURE }}
           test-run: ${{ env.TEST_RUN }}
@@ -117,3 +117,21 @@ jobs:
                   }
                 ]
               }
+        # TODO: Update to version 2.1.0. This could look something like the following.
+        # The workflow is currently not in use, testing that the new version still works imposes effort.
+        # So I left it as a future exercise, but saved the current state.
+        #
+        # uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        # with:
+        #   method: chat.postMessage
+        #   token:  ${{ secrets.SLACK_INTEGRATION_TEST_TOKEN }}
+        #   payload: |
+        #     channel: "C07UYJYSMSN" # notifications-integration-tests
+        #     text: "Integration Test *${{ github.repository }}* failed"
+        #     attachments:
+        #       - pretext: "Started at ${{ steps.test.outputs.start-time }}, failed at ${{ steps.test.outputs.end-time }}"
+        #         color: "#aa0000"
+        #         actions:
+        #           - type: button
+        #             text: Go to integration test run
+        #             url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

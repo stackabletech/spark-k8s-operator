@@ -1,3 +1,6 @@
+// TODO: Look into how to properly resolve `clippy::result_large_err`.
+// This will need changes in our and upstream error types.
+#![allow(clippy::result_large_err)]
 use std::sync::Arc;
 
 use clap::Parser;
@@ -27,13 +30,16 @@ use stackable_operator::{
 use tracing::info_span;
 use tracing_futures::Instrument;
 
-use crate::crd::{
-    SparkApplication,
-    constants::{
-        HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
-        SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
+use crate::{
+    connect::crd::SparkConnectServerVersion,
+    crd::{
+        SparkApplication,
+        constants::{
+            HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
+            SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
+        },
+        history::SparkHistoryServer,
     },
-    history::SparkHistoryServer,
 };
 
 mod config;
@@ -69,11 +75,11 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => {
-            SparkApplication::merged_crd(SparkApplication::V1Alpha1)?
+            SparkApplication::merged_crd(crd::SparkApplicationVersion::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
-            SparkHistoryServer::merged_crd(SparkHistoryServer::V1Alpha1)?
+            SparkHistoryServer::merged_crd(crd::history::SparkHistoryServerVersion::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
-            SparkConnectServer::merged_crd(SparkConnectServer::V1Alpha1)?
+            SparkConnectServer::merged_crd(SparkConnectServerVersion::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
         }
         Command::Run(ProductOperatorRun {

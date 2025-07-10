@@ -58,7 +58,6 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     Ctx,
     crd::{
-        SparkApplicationStatus,
         constants::*,
         logdir::ResolvedLogDir,
         roles::{RoleConfig, SparkApplicationRole, SparkContainer, SubmitConfig},
@@ -412,7 +411,7 @@ pub async fn reconcile(
         .apply_patch_status(
             SPARK_CONTROLLER_NAME,
             spark_application,
-            &SparkApplicationStatus {
+            &v1alpha1::SparkApplicationStatus {
                 phase: "Unknown".to_string(),
             },
         )

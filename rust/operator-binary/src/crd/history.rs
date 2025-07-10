@@ -77,7 +77,13 @@ pub mod versioned {
     /// A Spark cluster history server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
-    #[versioned(crd(group = "spark.stackable.tech", shortname = "sparkhist", namespaced,))]
+    #[versioned(crd(
+        group = "spark.stackable.tech",
+        shortname = "sparkhist",
+        shortname = "sparkhistory",
+        shortname = "shs",
+        namespaced,
+    ))]
     #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct SparkHistoryServerSpec {

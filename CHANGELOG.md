@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - Expose history and connect services via listener classes ([#562]).
 - Support for Spark 3.5.6 ([#580]).
 - Add RBAC rule to helm template for automatic cluster domain detection ([#592]).
+- Add `sparkhistory` and `shs` shortnames for SparkHistoryServer ([#592]).
 
 ### Changed
 

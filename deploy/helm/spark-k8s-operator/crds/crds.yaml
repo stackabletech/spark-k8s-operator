@@ -1105,6 +1105,8 @@ spec:
     plural: sparkhistoryservers
     shortNames:
       - sparkhist
+      - sparkhistory
+      - shs
     singular: sparkhistoryserver
   scope: Namespaced
   versions:

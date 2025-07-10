@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
   - Use `--console-log-format` (or `CONSOLE_LOG_FORMAT`) to set the format to `plain` (default) or `json`.
 - Expose history and connect services via listener classes ([#562]).
 - Support for Spark 3.5.6 ([#580]).
+- Add RBAC rule to helm template for automatic cluster domain detection ([#592]).
 
 ### Changed
 
@@ -34,17 +35,24 @@ All notable changes to this project will be documented in this file.
   - The defaults from the docker images itself will now apply, which will be different from 1000/0 going forward
   - This is marked as breaking because tools and policies might exist, which require these fields to be set
 - Enable the built-in Prometheus servlet. The jmx exporter was removed in ([#584]) but added back in ([#585]).
+- BREAKING: Bump stackable-operator to 0.94.0 and update other dependencies ([#592]).
+  - The default Kubernetes cluster domain name is now fetched from the kubelet API unless explicitly configured.
+  - This requires operators to have the RBAC permission to get nodes/proxy in the apiGroup "". The helm-chart takes care of this.
+  - The CLI argument `--kubernetes-node-name` or env variable `KUBERNETES_NODE_NAME` needs to be set. The helm-chart takes care of this.
 
 ### Fixed
 
 - Use `json` file extension for log files ([#553]).
 - The Spark connect controller now watches StatefulSets instead of Deployments (again) ([#573]).
 - BREAKING: Move `listenerClass` to `roleConfig` for Spark History Server and Spark Connect. Service names changed. ([#588]).
+- Allow uppercase characters in domain names ([#592]).
 
 ### Removed
 
 - Support for Spark versions 3.5.2 has been dropped ([#570]).
 - Integration test spark-pi-public-s3 because the AWS SDK >2.24 doesn't suuport anonymous S3 access anymore ([#574]).
+- Remove the `lastUpdateTime` field from the stacklet status ([#592]).
+- Remove role binding to legacy service accounts ([#592]).
 
 [#539]: https://github.com/stackabletech/spark-k8s-operator/pull/539
 [#547]: https://github.com/stackabletech/spark-k8s-operator/pull/547
@@ -64,6 +72,7 @@ All notable changes to this project will be documented in this file.
 [#584]: https://github.com/stackabletech/spark-k8s-operator/pull/584
 [#585]: https://github.com/stackabletech/spark-k8s-operator/pull/585
 [#588]: https://github.com/stackabletech/spark-k8s-operator/pull/588
+[#592]: https://github.com/stackabletech/spark-k8s-operator/pull/592
 
 ## [25.3.0] - 2025-03-21
 

@@ -13,6 +13,13 @@ rules:
     verbs:
       - list
       - watch
+  # For automatic cluster domain detection
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/proxy
+    verbs:
+      - get
   - apiGroups:
       - ""
     resources:

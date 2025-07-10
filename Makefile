@@ -150,7 +150,7 @@ check-kubernetes:
 
 run-dev: check-nix check-kubernetes
 	kubectl apply -f deploy/stackable-operators-ns.yaml
-	nix run --extra-experimental-features "nix-command flakes" -f. tilt -- up --port 5430 --namespace stackable-operators
+	nix run --extra-experimental-features "nix-command flakes" -f. tilt -- up --port 5442 --namespace stackable-operators
 
 stop-dev: check-nix check-kubernetes
 	nix run --extra-experimental-features "nix-command flakes" -f. tilt -- down

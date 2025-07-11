@@ -341,7 +341,6 @@ pub(crate) fn build_stateful_set(
             &ListenerReference::ListenerName(listener_name.to_string()),
             &recommended_labels,
         )
-        .context(BuildListenerVolumeSnafu)?
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
         .context(BuildListenerVolumeSnafu)?,
     ]);

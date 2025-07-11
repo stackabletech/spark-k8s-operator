@@ -63,20 +63,26 @@ pub enum Error {
     },
 }
 
-#[versioned(version(name = "v1alpha1"))]
+#[versioned(
+    version(name = "v1alpha1"),
+    crates(
+        kube_core = "stackable_operator::kube::core",
+        kube_client = "stackable_operator::kube::client",
+        k8s_openapi = "stackable_operator::k8s_openapi",
+        schemars = "stackable_operator::schemars",
+        versioned = "stackable_operator::versioned"
+    )
+)]
 pub mod versioned {
     /// A Spark cluster history server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
-    #[versioned(k8s(
+    #[versioned(crd(
         group = "spark.stackable.tech",
         shortname = "sparkhist",
+        shortname = "sparkhistory",
+        shortname = "shs",
         namespaced,
-        crates(
-            kube_core = "stackable_operator::kube::core",
-            k8s_openapi = "stackable_operator::k8s_openapi",
-            schemars = "stackable_operator::schemars"
-        )
     ))]
     #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
     #[serde(rename_all = "camelCase")]

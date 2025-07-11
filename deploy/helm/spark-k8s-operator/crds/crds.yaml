@@ -1105,6 +1105,8 @@ spec:
     plural: sparkhistoryservers
     shortNames:
       - sparkhist
+      - sparkhistory
+      - shs
     singular: sparkhistoryserver
   scope: Namespaced
   versions:
@@ -2351,11 +2353,6 @@ spec:
                     properties:
                       lastTransitionTime:
                         description: Last time the condition transitioned from one status to another.
-                        format: date-time
-                        nullable: true
-                        type: string
-                      lastUpdateTime:
-                        description: The last time this condition was updated.
                         format: date-time
                         nullable: true
                         type: string

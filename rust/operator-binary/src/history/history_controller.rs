@@ -600,7 +600,6 @@ fn build_stateful_set(
             &ListenerReference::ListenerName(group_listener_name(shs, &rolegroupref.role)),
             &recommended_labels,
         )
-        .context(BuildListenerVolumeSnafu)?
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
         .context(BuildListenerVolumeSnafu)?,
     ]);

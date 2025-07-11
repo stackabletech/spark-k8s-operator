@@ -124,136 +124,141 @@ pub enum Error {
     ConstructJvmArguments { source: crate::config::jvm::Error },
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[serde(rename_all = "camelCase")]
-pub struct SparkApplicationStatus {
-    pub phase: String,
-}
-
-/// A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark.
-/// Find more information on how to use it and the resources that the operator generates in the
-/// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/).
-///
-/// The SparkApplication CRD looks a little different than the CRDs of the other products on the
-/// Stackable Data Platform.
 #[versioned(
     version(name = "v1alpha1"),
-    k8s(
+    crates(
+        kube_core = "stackable_operator::kube::core",
+        kube_client = "stackable_operator::kube::client",
+        k8s_openapi = "stackable_operator::k8s_openapi",
+        schemars = "stackable_operator::schemars",
+        versioned = "stackable_operator::versioned"
+    )
+)]
+pub mod versioned {
+
+    #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[serde(rename_all = "camelCase")]
+    pub struct SparkApplicationStatus {
+        pub phase: String,
+    }
+
+    /// A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark.
+    /// Find more information on how to use it and the resources that the operator generates in the
+    /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/).
+    ///
+    /// The SparkApplication CRD looks a little different than the CRDs of the other products on the
+    /// Stackable Data Platform.
+    #[versioned(crd(
         group = "spark.stackable.tech",
         shortname = "sparkapp",
         status = "SparkApplicationStatus",
         namespaced,
-        crates(
-            kube_core = "stackable_operator::kube::core",
-            k8s_openapi = "stackable_operator::k8s_openapi",
-            schemars = "stackable_operator::schemars"
-        )
-    )
-)]
-#[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SparkApplicationSpec {
-    /// Mode: cluster or client. Currently only cluster is supported.
-    pub mode: SparkMode,
+    ))]
+    #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct SparkApplicationSpec {
+        /// Mode: cluster or client. Currently only cluster is supported.
+        pub mode: SparkMode,
 
-    /// The main class - i.e. entry point - for JVM artifacts.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub main_class: Option<String>,
+        /// The main class - i.e. entry point - for JVM artifacts.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub main_class: Option<String>,
 
-    /// The actual application file that will be called by `spark-submit`.
-    pub main_application_file: String,
+        /// The actual application file that will be called by `spark-submit`.
+        pub main_application_file: String,
 
-    /// User-supplied image containing spark-job dependencies that will be copied to the specified volume mount.
-    /// See the [examples](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/examples).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub image: Option<String>,
+        /// User-supplied image containing spark-job dependencies that will be copied to the specified volume mount.
+        /// See the [examples](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/examples).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub image: Option<String>,
 
-    // no doc - docs in ProductImage struct.
-    pub spark_image: ProductImage,
+        // no doc - docs in ProductImage struct.
+        pub spark_image: ProductImage,
 
-    /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
-    /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
-    /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
-    /// to learn how to configure log aggregation with Vector.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vector_aggregator_config_map_name: Option<String>,
+        /// Name of the Vector aggregator [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
+        /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
+        /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
+        /// to learn how to configure log aggregation with Vector.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub vector_aggregator_config_map_name: Option<String>,
 
-    /// The job builds a spark-submit command, complete with arguments and referenced dependencies
-    /// such as templates, and passes it on to Spark.
-    /// The reason this property uses its own type (SubmitConfigFragment) is because logging is not
-    /// supported for spark-submit processes.
-    //
-    // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
-    // However, due to product-config things I wasn't able to remove them.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub job: Option<CommonConfiguration<SubmitConfigFragment, JavaCommonConfig>>,
+        /// The job builds a spark-submit command, complete with arguments and referenced dependencies
+        /// such as templates, and passes it on to Spark.
+        /// The reason this property uses its own type (SubmitConfigFragment) is because logging is not
+        /// supported for spark-submit processes.
+        //
+        // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
+        // However, due to product-config things I wasn't able to remove them.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub job: Option<CommonConfiguration<SubmitConfigFragment, JavaCommonConfig>>,
 
-    /// The driver role specifies the configuration that, together with the driver pod template, is used by
-    /// Spark to create driver pods.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub driver: Option<CommonConfiguration<RoleConfigFragment, JavaCommonConfig>>,
+        /// The driver role specifies the configuration that, together with the driver pod template, is used by
+        /// Spark to create driver pods.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub driver: Option<CommonConfiguration<RoleConfigFragment, JavaCommonConfig>>,
 
-    /// The executor role specifies the configuration that, together with the driver pod template, is used by
-    /// Spark to create the executor pods.
-    /// This is RoleGroup instead of plain CommonConfiguration because it needs to allow for the number of replicas.
-    /// to be specified.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub executor: Option<RoleGroup<RoleConfigFragment, JavaCommonConfig>>,
+        /// The executor role specifies the configuration that, together with the driver pod template, is used by
+        /// Spark to create the executor pods.
+        /// This is RoleGroup instead of plain CommonConfiguration because it needs to allow for the number of replicas.
+        /// to be specified.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub executor: Option<RoleGroup<RoleConfigFragment, JavaCommonConfig>>,
 
-    /// A map of key/value strings that will be passed directly to spark-submit.
-    #[serde(default)]
-    pub spark_conf: HashMap<String, String>,
+        /// A map of key/value strings that will be passed directly to spark-submit.
+        #[serde(default)]
+        pub spark_conf: HashMap<String, String>,
 
-    /// Job dependencies: a list of python packages that will be installed via pip, a list of packages
-    /// or repositories that is passed directly to spark-submit, or a list of excluded packages
-    /// (also passed directly to spark-submit).
-    #[serde(default)]
-    pub deps: JobDependencies,
+        /// Job dependencies: a list of python packages that will be installed via pip, a list of packages
+        /// or repositories that is passed directly to spark-submit, or a list of excluded packages
+        /// (also passed directly to spark-submit).
+        #[serde(default)]
+        pub deps: JobDependencies,
 
-    /// Configure an S3 connection that the SparkApplication has access to.
-    /// Read more in the [Spark S3 usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/s3).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub s3connection: Option<s3::v1alpha1::InlineConnectionOrReference>,
+        /// Configure an S3 connection that the SparkApplication has access to.
+        /// Read more in the [Spark S3 usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/s3).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub s3connection: Option<s3::v1alpha1::InlineConnectionOrReference>,
 
-    /// Arguments passed directly to the job artifact.
-    #[serde(default)]
-    pub args: Vec<String>,
+        /// Arguments passed directly to the job artifact.
+        #[serde(default)]
+        pub args: Vec<String>,
 
-    /// A list of volumes that can be made available to the job, driver or executors via their volume mounts.
-    #[serde(default)]
-    #[schemars(schema_with = "raw_object_list_schema")]
-    pub volumes: Vec<Volume>,
+        /// A list of volumes that can be made available to the job, driver or executors via their volume mounts.
+        #[serde(default)]
+        #[schemars(schema_with = "raw_object_list_schema")]
+        pub volumes: Vec<Volume>,
 
-    /// A list of environment variables that will be set in the job pod and the driver and executor
-    /// pod templates.
-    #[serde(default)]
-    pub env: Vec<EnvVar>,
+        /// A list of environment variables that will be set in the job pod and the driver and executor
+        /// pod templates.
+        #[serde(default)]
+        pub env: Vec<EnvVar>,
 
-    /// The log file directory definition used by the Spark history server.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub log_file_directory: Option<LogFileDirectorySpec>,
-}
+        /// The log file directory definition used by the Spark history server.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub log_file_directory: Option<LogFileDirectorySpec>,
+    }
 
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct JobDependencies {
-    /// Under the `requirements` you can specify Python dependencies that will be installed with `pip`.
-    /// Example: `tabulate==0.8.9`
-    #[serde(default)]
-    pub requirements: Vec<String>,
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct JobDependencies {
+        /// Under the `requirements` you can specify Python dependencies that will be installed with `pip`.
+        /// Example: `tabulate==0.8.9`
+        #[serde(default)]
+        pub requirements: Vec<String>,
 
-    /// A list of packages that is passed directly to `spark-submit`.
-    #[serde(default)]
-    pub packages: Vec<String>,
+        /// A list of packages that is passed directly to `spark-submit`.
+        #[serde(default)]
+        pub packages: Vec<String>,
 
-    /// A list of repositories that is passed directly to `spark-submit`.
-    #[serde(default)]
-    pub repositories: Vec<String>,
+        /// A list of repositories that is passed directly to `spark-submit`.
+        #[serde(default)]
+        pub repositories: Vec<String>,
 
-    /// A list of excluded packages that is passed directly to `spark-submit`.
-    #[serde(default)]
-    pub exclude_packages: Vec<String>,
+        /// A list of excluded packages that is passed directly to `spark-submit`.
+        #[serde(default)]
+        pub exclude_packages: Vec<String>,
+    }
 }
 
 impl v1alpha1::SparkApplication {

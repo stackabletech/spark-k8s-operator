@@ -13,7 +13,7 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::crd::{SparkApplicationStatus, constants::POD_DRIVER_CONTROLLER_NAME, v1alpha1};
+use crate::crd::{constants::POD_DRIVER_CONTROLLER_NAME, v1alpha1};
 
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
@@ -102,7 +102,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
         .apply_patch_status(
             POD_DRIVER_CONTROLLER_NAME,
             &app,
-            &SparkApplicationStatus {
+            &v1alpha1::SparkApplicationStatus {
                 phase: phase.clone(),
             },
         )

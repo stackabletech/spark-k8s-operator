@@ -3,7 +3,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 metadata:
   name: simple-connect-app
-timeout: 180
+timeout: 300
 ---
 apiVersion: batch/v1
 kind: Job

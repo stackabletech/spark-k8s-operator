@@ -33,8 +33,10 @@ commands:
   # while the spark-connect server is busy setting up the executors.
   - script: |
       # wait for the spark-connect CR to become available
-      # this is to prevent the spark apps created in the following test steps to fail intermitently
       kubectl wait --for=condition=Available sparkconnectservers/spark-connect --namespace "$NAMESPACE" --timeout=3m
 
       EXECUTOR_COUNT=$(kubectl get pods -n "$NAMESPACE" --selector 'spark-app-name=spark-connect-server' --field-selector='status.phase=Running' -o NAME|wc -l)
       test 1 -eq "$EXECUTOR_COUNT"
+
+      # wait a little longer to increase the chance apps being able to connect
+      sleep 5

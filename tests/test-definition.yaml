@@ -19,6 +19,9 @@ dimensions:
     values:
       - 3.5.6
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
+  - name: spark-iceberg
+    values:
+      - 3.5.6
   - name: spark-connect
     values:
       - 3.5.6
@@ -92,7 +95,7 @@ tests:
       - openshift
   - name: iceberg
     dimensions:
-      - spark
+      - spark-iceberg
       - openshift
   - name: delta-lake
     dimensions:

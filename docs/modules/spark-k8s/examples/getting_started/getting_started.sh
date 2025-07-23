@@ -23,20 +23,20 @@ case "$1" in
 "helm")
 echo "Installing Operators with Helm"
 # tag::helm-install-operators[]
-helm install --wait commons-operator oci://oci.stackable.tech/sdp-charts/commons-operator --version 25.7.0-rc1
-helm install --wait secret-operator oci://oci.stackable.tech/sdp-charts/secret-operator --version 25.7.0-rc1
-helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 25.7.0-rc1
-helm install --wait spark-k8s-operator oci://oci.stackable.tech/sdp-charts/spark-k8s-operator --version 25.7.0-rc1
+helm install --wait commons-operator oci://oci.stackable.tech/sdp-charts/commons-operator --version 25.7.0
+helm install --wait secret-operator oci://oci.stackable.tech/sdp-charts/secret-operator --version 25.7.0
+helm install --wait listener-operator oci://oci.stackable.tech/sdp-charts/listener-operator --version 25.7.0
+helm install --wait spark-k8s-operator oci://oci.stackable.tech/sdp-charts/spark-k8s-operator --version 25.7.0
 # end::helm-install-operators[]
 ;;
 "stackablectl")
 echo "installing Operators with stackablectl"
 # tag::stackablectl-install-operators[]
 stackablectl operator install \
-  commons=25.7.0-rc1 \
-  secret=25.7.0-rc1 \
-  listener=25.7.0-rc1 \
-  spark-k8s=25.7.0-rc1
+  commons=25.7.0 \
+  secret=25.7.0 \
+  listener=25.7.0 \
+  spark-k8s=25.7.0
 # end::stackablectl-install-operators[]
 ;;
 *)

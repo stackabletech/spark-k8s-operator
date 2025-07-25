@@ -11,6 +11,10 @@ dimensions:
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
+  - name: spark-logging
+    values:
+      - 3.5.5
+      - 3.5.6
   - name: spark-hbase-connector
     values:
       - 3.5.5
@@ -90,7 +94,7 @@ tests:
       - openshift
   - name: logging
     dimensions:
-      - spark
+      - spark-logging
       - ny-tlc-report
       - openshift
   - name: iceberg

@@ -4,9 +4,6 @@
 
 == Overview
 
-IMPORTANT: With the platform release 23.4.1 and Apache Spark 3.3.x (and all previous releases), dynamic provisioning of dependencies using the Spark `packages` field doesn't work.
-This is a known problem with Spark and is tracked https://github.com/stackabletech/spark-k8s-operator/issues/141[here].
-
 The container images provided by Stackable include Apache Spark and PySpark applications and libraries.
 In addition, they include commonly used libraries to connect to storage systems supporting the `hdfs://`, `s3a://` and `abfs://` protocols. These systems are commonly used to store data processed by Spark applications.
 
@@ -24,46 +21,29 @@ To provision job dependencies in Spark workloads, you construct the `SparkApplic
 * Maven/Java packages
 * Python packages
 
-The following table provides a high level overview of the relevant aspects of each method.
-
-|===
-|Dependency specification |Job image size |Reproduciblity |Dev-op cost
-
-|Custom Spark images
-|Large
-|Guaranteed
-|Medium to High
-
-|Dependency volumes
-|Small
-|Guaranteed
-|Small to Medium
-
-|Maven/Java packages
-|Small
-|Not guaranteed
-|Small
-
-|Python packages
-|Small
-|Not guaranteed
-|Small
-|===
-
 === Custom Spark images
 
-With this method, you submit a `SparkApplication` for which the `sparkImage` refers to the full custom image name. It is recommended to start the custom image from one of the Stackable images to ensure compatibility with the Stackable operator.
+With this method, you submit a `SparkApplication` for which the `sparkImage` refers to the full custom image name. It is recommended to start the custom image from one of the Stackable Spark images to ensure compatibility with the operator.
 
 Below is an example of a custom image that includes a JDBC driver:
 
 [source, Dockerfile]
 ----
-FROM oci.stackable.tech/sdp/spark-k8s:3.5.6-stackable25.3.0 # <1>
+FROM oci.stackable.tech/sdp/spark-k8s:4.0.0-stackable0.0.0-dev # <1>
 
-RUN curl --fail -o /stackable/spark/jars/postgresql-42.6.0.jar "https://jdbc.postgresql.org/download/postgresql-42.6.0.jar"
+RUN curl --fail -o /stackable/spark/jars/postgresql-42.6.0.jar "https://jdbc.postgresql.org/download/postgresql-42.6.0.jar" # <2>
 ----
 
 <1> Start from an existing Stackable image.
+<2> Download the JDBC driver and place it in the Spark JARs directory.
+
+Build your custom image and push it to your container registry.
+
+[source, bash]
+----
+docker build -t my-registry/spark-k8s:4.0.0-psql .
+docker push my-registry/spark-k8s:4.0.0-psql
+----
 
 And the following snippet showcases an application that uses the custom image:
 
@@ -75,14 +55,13 @@ metadata:
   name: spark-jdbc
 spec:
   sparkImage:
-    custom: "oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev" # <1>
-    productVersion: "3.5.6" # <2>
-    pullPolicy: IfNotPresent # <3>
+    custom: "my-registry/spark-k8s:4.0.0-psql" # <1>
+    productVersion: "4.0.0" # <2>
 ...
 ----
-<1> Name of the custom image.
-<2> Apache Spark version. Needed for the operator to take the correct actions.
-<3> Optional. Defaults to `Always`.
+
+<1> Reference to your custom image..
+<2> Apache Spark version bundled in your custom image.
 
 === Dependency volumes
 
@@ -93,28 +72,34 @@ With this method, the job dependencies are provisioned from a `PersistentVolume`
 include::example$example-sparkapp-pvc.yaml[]
 ----
 <1> Job artifact located on S3.
-<2> Job main class
-<3> Spark dependencies: the credentials provider (the user knows what is relevant here) plus dependencies needed to access external resources (in this case, in s3, accessed without credentials)
-<4> the name of the volume mount backed by a `PersistentVolumeClaim` that must be pre-existing
-<5> the path on the volume mount: this is referenced in the `sparkConf` section where the extra class path is defined for the driver and executors
+<2> Name of the main class to run.
+<3> The job dependencies provisioned from the volume below are added to the class path of the driver and executors.
+<4> A `PersistentVolumeClaim` created by the user prior to submitting the Spark job.
+<5> The volume containing the dependencies is mounted in the job pod.
+<6> The volume containing the dependencies is mounted in the driver pod.
+<7> The volume containing the dependencies is mounted in the executor pods.
 
 NOTE: The Spark operator has no control over the contents of the dependency volume. It is your responsibility to make sure all required dependencies are installed in the correct versions.
 
-A `PersistentVolumeClaim` and the associated `PersistentVolume` can be defined like this:
+A `PersistentVolumeClaim` and the associated `PersistentVolume` can be defined and provisioned like this:
 
 [source,yaml]
 ----
 include::example$example-pvc.yaml[]
 ----
-<1> Reference to a `PersistentVolume`, defining some cluster-reachable storage
-<2> The name of the `PersistentVolumeClaim` that references the PV
-<3> Defines a `Volume` backed by the PVC, local to the Custom Resource
-<4> Defines the `VolumeMount` that is used by the Custom Resource
-
+<1> Create a volume. This definition, the size and type of the volume are highly dependent on the type of cluster you are using.
+<2> Create a persistent volume claim. This allows the volume to be populated with the necessary dependencies and later on referenced by the Spark job.
+<3> The volume name is referenced by the `PersistentVolumeClaim`.
+<4> Create a job that mounts the volume and populates it with the necessary dependencies. This must job can be run before submitting the Spark job.
+<5> The job references the `PersistentVolumeClaim` created above.
 
 === Maven packages
 
 The last and most flexible way to provision dependencies is to use the built-in `spark-submit` support for Maven package coordinates.
+The downside of this method is that job dependencies are downloaded every time the job is submitted and this has several implications you must be aware of.
+For example, the job submission time will be longer than with the other methods
+Network connectivity problems may lead to job submission failures.
+And finally, not all type of dependencies can be provisioned this way. Most notably, JDBC drivers cannot be provisioned this way since the JVM will only look for them at startup time.
 
 The snippet below showcases how to add Apache Iceberg support to a Spark (version 3.4.x) application.
 
@@ -138,11 +123,12 @@ spec:
 ...
 ----
 
-<1> Maven package coordinates for Apache Iceberg. This is downloaded from the Manven repository and made available to the Spark application.
+<1> Maven package coordinates for Apache Iceberg. This is downloaded from the central Maven repository and made available to the Spark application.
 
-IMPORTANT: Currently it's not possible to provision dependencies that are loaded by the JVM's https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/ClassLoader.html#getSystemClassLoader()[system class loader].
-Such dependencies include JDBC drivers.
-If you need access to JDBC sources from your Spark application, consider building your own custom Spark image as shown above.
+As mentioned above, not all dependencies can be provisioned this way.
+JDBC drivers are notorious for not being supported by this method but other types of dependencies may also not work.
+If a jar file can be provisioned using it's Maven coordinates or not, depends a lot on the way it is loaded by the JVM.
+In such cases, consider building your own custom Spark image as shown above.
 
 === Python packages
 

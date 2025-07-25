@@ -22,11 +22,11 @@ metadata:
   name: spark-custom-log-config
 spec:
   sparkImage:
-{% if test_scenario['values']['spark'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% if test_scenario['values']['spark-logging'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark-logging'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark-logging'].split(',')[0] }}"
 {% else %}
-    productVersion: "{{ test_scenario['values']['spark'] }}"
+    productVersion: "{{ test_scenario['values']['spark-logging'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
   image: oci.stackable.tech/stackable/ny-tlc-report:{{ test_scenario['values']['ny-tlc-report'] }}

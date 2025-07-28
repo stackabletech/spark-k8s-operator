@@ -8,6 +8,10 @@ commands:
   # while the spark-connect server is busy setting up the executors.
   - script: |
       # wait for the spark-connect CR to become available
+      kubectl wait --for=condition=Available sparkconnectservers/spark-connect --namespace "$NAMESPACE" --timeout=3m
+
+      # FIXME: As the status currently does not respect the executors state, we wait for them to be ready ourselves
+      # (see TODO comment in code):
       kubectl wait --for=condition=Ready pod -l spark-app-name=spark-connect-server -n "$NAMESPACE" --timeout=10m
 
       # wait a little longer to increase the chance apps being able to connect

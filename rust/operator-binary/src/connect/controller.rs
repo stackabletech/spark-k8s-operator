@@ -315,6 +315,12 @@ pub async fn reconcile(
     let cluster_operation_cond_builder =
         ClusterOperationsConditionBuilder::new(&scs.spec.cluster_operation);
 
+    // TODO: This StatefulSet only contains the driver. We should probably also
+    // consider the state of the executors to determine if the
+    // SparkConnectServer is ready. This depends on the availability and
+    // resilience properties of Spark and could e.g. be "driver and more than
+    // 75% of the executors ready". Special care needs to be taken about
+    // auto-scaling executors in this case (if/once supported).
     let status = SparkConnectServerStatus {
         conditions: compute_conditions(scs, &[&ss_cond_builder, &cluster_operation_cond_builder]),
     };

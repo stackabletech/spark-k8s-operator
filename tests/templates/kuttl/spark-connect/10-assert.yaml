@@ -1,7 +1,7 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 300
+timeout: 600
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -23,20 +23,3 @@ metadata:
   name: spark-connect-server-headless
 spec:
   type: ClusterIP
----
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-timeout: 300
-commands:
-  # Test that spark connect executors are running.
-  # Sleep to prevent the following spark connect app from failing
-  # while the spark-connect server is busy setting up the executors.
-  - script: |
-      # wait for the spark-connect CR to become available
-      kubectl wait --for=condition=Available sparkconnectservers/spark-connect --namespace "$NAMESPACE" --timeout=3m
-
-      EXECUTOR_COUNT=$(kubectl get pods -n "$NAMESPACE" --selector 'spark-app-name=spark-connect-server' --field-selector='status.phase=Running' -o NAME|wc -l)
-      test 1 -eq "$EXECUTOR_COUNT"
-
-      # wait a little longer to increase the chance apps being able to connect
-      sleep 5

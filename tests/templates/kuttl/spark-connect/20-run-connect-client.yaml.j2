@@ -54,7 +54,7 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
-      activeDeadlineSeconds: 100
+      activeDeadlineSeconds: 600
       containers:
         - name: simple-connect-app
 {% if test_scenario['values']['spark-connect'].find(",") > 0 %}

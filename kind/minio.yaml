@@ -29,6 +29,6 @@ spec:
     spec:
       containers:
         - name: minio-mc
-          image: bitnami/minio:2022-debian-10
+          image: bitnamilegacy/minio:2022-debian-10
           stdin: true
           tty: true

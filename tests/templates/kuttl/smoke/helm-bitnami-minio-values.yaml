@@ -1,4 +1,21 @@
 ---
+global:
+  security:
+    allowInsecureImages: true # needed starting with Chart version 14.9.0 if modifying images
+
+image:
+  repository: bitnamilegacy/minio
+clientImage:
+  repository: bitnamilegacy/minio-client
+defaultInitContainers:
+  volumePermissions: # volumePermissions moved under defaultInitContainers starting with Chart version 17.0.0
+    enabled: false
+    image:
+      repository: bitnamilegacy/os-shell
+console:
+  image:
+    repository: bitnamilegacy/minio-object-browser
+
 mode: standalone
 disableWebUI: false
 extraEnvVars:
@@ -25,8 +42,11 @@ provisioning:
   containerSecurityContext:
     enabled: false
 
+# volumePermissions can be removed starting with Chart version 17.0.0, moved under defaultInitContainers
 volumePermissions:
   enabled: false
+  image:
+    repository: bitnamilegacy/os-shell
 
 podSecurityContext:
   enabled: false

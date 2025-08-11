@@ -136,6 +136,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         required=False,
     )
 
+    parser.add_argument(
+        "--work-dir",
+        help="Working directory for test generation and execution (default: tests/_work)",
+        type=str,
+        required=False,
+        default=os.path.join("tests", "_work"),
+    )
+
     return parser.parse_args(argv)
 
 
@@ -281,7 +289,6 @@ def maybe_install_release(skip_release: bool, release_file: str) -> None:
     if skip_release:
         logging.debug("Skip release installation")
         return
-    stackablectl_err = ""
     try:
         stackablectl_cmd = [
             "stackablectl",
@@ -313,7 +320,7 @@ def maybe_install_release(skip_release: bool, release_file: str) -> None:
         raise TestRunnerException()
 
 
-def gen_tests(test_suite: str, namespace: str) -> None:
+def gen_tests(test_suite: str, namespace: str, work_dir: str) -> None:
     try:
         beku_cmd = [
             "beku",
@@ -324,7 +331,7 @@ def gen_tests(test_suite: str, namespace: str) -> None:
             "--template_dir",
             os.path.join("tests", "templates", "kuttl"),
             "--output_dir",
-            os.path.join("tests", "_work"),
+            work_dir,
         ]
         if test_suite:
             beku_cmd.extend(["--suite", test_suite])
@@ -341,7 +348,9 @@ def gen_tests(test_suite: str, namespace: str) -> None:
         raise TestRunnerException()
 
 
-def run_tests(test: str, parallel: int, namespace: str, skip_delete: bool) -> None:
+def run_tests(
+    test: str, parallel: int, namespace: str, skip_delete: bool, work_dir: str
+) -> None:
     try:
         kuttl_cmd = ["kubectl-kuttl", "test"]
         if test:
@@ -359,7 +368,7 @@ def run_tests(test: str, parallel: int, namespace: str, skip_delete: bool) -> No
 
         subprocess.run(
             kuttl_cmd,
-            cwd="tests/_work",
+            cwd=work_dir,
             check=True,
         )
     except subprocess.CalledProcessError:
@@ -425,13 +434,19 @@ def main(argv) -> int:
         opts = parse_args(argv[1:])
         logging.basicConfig(encoding="utf-8", level=opts.log_level)
         have_requirements()
-        gen_tests(opts.test_suite, opts.namespace)
+        gen_tests(opts.test_suite, opts.namespace, opts.work_dir)
         with release_file(opts.operator, opts.skip_operator) as f:
             maybe_install_release(opts.skip_release, f)
         if opts.skip_tests:
             logging.info("Skip running tests.")
         else:
-            run_tests(opts.test, opts.parallel, opts.namespace, opts.skip_delete)
+            run_tests(
+                opts.test,
+                opts.parallel,
+                opts.namespace,
+                opts.skip_delete,
+                opts.work_dir,
+            )
     except TestRunnerException:
         ret = 1
     return ret

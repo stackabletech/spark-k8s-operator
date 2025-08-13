@@ -23,7 +23,7 @@ spec:
   restartPolicy: Never
   containers:
     - name: minio-client
-      image: docker.io/bitnami/minio-client:2023.5.18-debian-11-r2
+      image: docker.io/bitnamilegacy/minio-client:2023.5.18-debian-11-r2
       command: ["bash", "-c", "sleep infinity"]
 ---
 apiVersion: s3.stackable.tech/v1alpha1

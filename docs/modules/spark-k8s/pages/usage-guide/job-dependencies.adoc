@@ -97,9 +97,10 @@ include::example$example-pvc.yaml[]
 
 The last and most flexible way to provision dependencies is to use the built-in `spark-submit` support for Maven package coordinates.
 The downside of this method is that job dependencies are downloaded every time the job is submitted and this has several implications you must be aware of.
-For example, the job submission time will be longer than with the other methods
+For example, the job submission time will be longer than with the other methods.
 Network connectivity problems may lead to job submission failures.
-And finally, not all type of dependencies can be provisioned this way. Most notably, JDBC drivers cannot be provisioned this way since the JVM will only look for them at startup time.
+And finally, not all type of dependencies can be provisioned this way.
+Most notably, JDBC drivers cannot be provisioned this way since the JVM will only look for them at startup time.
 
 The snippet below showcases how to add Apache Iceberg support to a Spark (version 3.4.x) application.
 
@@ -127,7 +128,7 @@ spec:
 
 As mentioned above, not all dependencies can be provisioned this way.
 JDBC drivers are notorious for not being supported by this method but other types of dependencies may also not work.
-If a jar file can be provisioned using it's Maven coordinates or not, depends a lot on the way it is loaded by the JVM.
+If a jar file can be provisioned using its Maven coordinates or not, depends a lot on the way it is loaded by the JVM.
 In such cases, consider building your own custom Spark image as shown above.
 
 === Python packages

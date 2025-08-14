@@ -8191,9 +8191,9 @@ rec {
       };
       "slab" = rec {
         crateName = "slab";
-        version = "0.4.10";
+        version = "0.4.11";
         edition = "2018";
-        sha256 = "03f5a9gdp33mngya4qwq2555138pj74pl015scv57wsic5rikp04";
+        sha256 = "12bm4s88rblq02jjbi1dw31984w61y2ldn13ifk5gsqgy97f8aks";
         authors = [
           "Carl Lerche <me@carllerche.com>"
         ];

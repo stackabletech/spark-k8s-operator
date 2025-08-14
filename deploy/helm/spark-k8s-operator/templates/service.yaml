@@ -1,0 +1,19 @@
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # Note(@sbernauer): We could also call the Service something like
+  # "product-operator-conversion-webhook". However, in the future we will have more webhooks, and
+  # it seems like an overkill to have a dedicated Service per webhook.
+  name: {{ include "operator.fullname" . }}
+  labels:
+    {{- include "operator.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "operator.selectorLabels" . | nindent 6 }}
+  ports:
+    - name: conversion-webhook
+      protocol: TCP
+      port: 8443
+      targetPort: 8443

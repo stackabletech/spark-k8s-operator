@@ -6,28 +6,30 @@ metadata:
   namespace: default
 spec:
   sparkImage:
-    productVersion: 3.5.6
+    productVersion: 4.0.0
   mode: cluster
-  mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.0-SNAPSHOT.jar # <1>
+  mainApplicationFile: s3a://my-bucket/app.jar # <1>
   mainClass: org.example.App # <2>
-  args:
-    - "'s3a://nyc-tlc/trip data/yellow_tripdata_2021-07.csv'"
   sparkConf: # <3>
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider"
     "spark.driver.extraClassPath": "/dependencies/jars/*"
     "spark.executor.extraClassPath": "/dependencies/jars/*"
   volumes:
     - name: job-deps # <4>
       persistentVolumeClaim:
         claimName: pvc-ksv
-  driver:
+  job:
     config:
       volumeMounts:
         - name: job-deps
           mountPath: /dependencies # <5>
+  driver:
+    config:
+      volumeMounts:
+        - name: job-deps
+          mountPath: /dependencies # <6>
   executor:
     replicas: 3
     config:
       volumeMounts:
         - name: job-deps
-          mountPath: /dependencies # <5>
+          mountPath: /dependencies # <7>

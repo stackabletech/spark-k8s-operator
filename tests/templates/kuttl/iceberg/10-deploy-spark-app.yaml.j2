@@ -8,11 +8,11 @@ spec:
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   sparkImage:
-{% if test_scenario['values']['spark'].find(",") > 0 %}
-    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
-    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% if test_scenario['values']['spark-iceberg'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark-iceberg'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark-iceberg'].split(',')[0] }}"
 {% else %}
-    productVersion: "{{ test_scenario['values']['spark'] }}"
+    productVersion: "{{ test_scenario['values']['spark-iceberg'] }}"
 {% endif %}
     pullPolicy: IfNotPresent
   mode: cluster
@@ -48,7 +48,7 @@ spec:
       #
       # We extract the spark parts from the test scenario value.
       #
-      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark'].split('.')[:2]) }}_2.12:1.8.1
+      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.12:1.8.1
   volumes:
     - name: script
       configMap:

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- SparkConnectServer: imagePullSecret is not passed to Spark executor pods ([#603]).
+
+[#603]: https://github.com/stackabletech/spark-k8s-operator/pull/603
+
 ## [25.7.0] - 2025-07-23
 
 ## [25.7.0-rc1] - 2025-07-18

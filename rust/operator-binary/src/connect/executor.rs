@@ -132,6 +132,7 @@ pub fn executor_pod_template(
     let mut template = PodBuilder::new();
     template
         .metadata(metadata)
+        .image_pull_secrets_from_product_image(resolved_product_image)
         .affinity(&config.affinity)
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)

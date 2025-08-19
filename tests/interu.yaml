@@ -1,0 +1,25 @@
+---
+runners:
+  amd64:
+    platform: aks-1.32
+    ttl: 6h
+    node-groups:
+      - name: default
+        arch: amd64
+        size: medium
+        disk-gb: 100
+        nodes: 3
+
+profiles:
+  # TODO (@Techassi): This will be enabled later
+  # schedule:
+  #   strategy: use-runner
+  #   runner: amd64
+  #   options:
+  #     beku-parallelism: 2
+  smoke-latest:
+    strategy: use-runner
+    runner: amd64
+    options:
+      beku-parallelism: 2
+      beku-test-suite: smoke-latest

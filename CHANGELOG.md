@@ -4,10 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add experimental support for Spark 4 ([#589])
+
 ### Fixed
 
 - SparkConnectServer: The `imagePullSecret` is now correctly passed to Spark executor pods ([#603]).
 
+[#589]: https://github.com/stackabletech/spark-k8s-operator/pull/589
 [#603]: https://github.com/stackabletech/spark-k8s-operator/pull/603
 
 ## [25.7.0] - 2025-07-23

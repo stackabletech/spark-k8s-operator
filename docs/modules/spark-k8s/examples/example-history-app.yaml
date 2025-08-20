@@ -5,7 +5,7 @@ metadata:
   name: spark-pi-s3-1
 spec:
   sparkImage:
-    productVersion: 3.5.6
+    productVersion: 4.0.0
     pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi

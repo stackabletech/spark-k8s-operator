@@ -1,17 +1,5 @@
 ---
 name: Integration Test
-run-name: |
-  Integration Test on ${{ inputs.test-platform }}-${{ inputs.test-architecture }} (${{ inputs.test-run == 'all' && 'all' || format('{0}={1}', inputs.test-run, inputs.test-parameter) }})
-
-env:
-  DEFAULT_TEST_PLATFORM: kind-1.31.0
-  DEFAULT_TEST_ARCHITECTURE: amd64
-  DEFAULT_TEST_RUN: all
-  DEFAULT_TEST_PARAMETER: "" # Unused when the test-run is 'all'
-  TEST_PLATFORM: ${{ inputs.test-platform }}
-  TEST_ARCHITECTURE: ${{ inputs.test-architecture }}
-  TEST_RUN: ${{ inputs.test-run }}
-  TEST_PARAMETER: ${{ inputs.test-parameter }}
 
 on:
   # schedule:
@@ -19,119 +7,54 @@ on:
     # - cron: "0 0 * * 0"
   workflow_dispatch:
     inputs:
-      test-platform:
-        description: |
-          The test platform to run on
+      test-mode:
+        description: Test mode
         required: true
         type: choice
         options:
-          - kind-1.31.2
-          - kind-1.30.6
-          - rke2-1.31.2
-          - rke2-1.30.6
-          - k3s-1.31.2
-          - k3s-1.30.6
-          - aks-1.29
-          - aks-1.28
-          - aks-1.27
-          - eks-1.29
-          - eks-1.28
-          - eks-1.27
-          - gke-1.29
-          - gke-1.28
-          - gke-1.27
-          - okd-4.15
-          - okd-4.14
-          - okd-4.13
-      test-architecture:
-        description: |
-          The architecture the tests will run on. Consult the run-integration-test action README for
-          more details on supported architectures for each distribution
+          - profile
+          - custom
+      test-mode-input:
+        description: The profile or the runner used
         required: true
-        type: choice
-        options:
-          - amd64
-          - arm64
-      test-run:
-        description: Type of test run
-        required: true
-        type: choice
-        options:
-          - all
-          - test-suite
-          - test
-      test-parameter:
-        description: Parameter to `--test-suite` or `--test` (ignored for `all`)
-        default: smoke
+      test-suite:
+        description: Name of the test-suite. Only used if test-mode is `custom`
+      test:
+        description: Name of the test. Only used of test-mode is `custom`
 
 jobs:
   test:
     name: Run Integration Test
     runs-on: ubuntu-latest
+    # services:
+    #   otel-collector:
+    #     image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s:0.131.1
+    #     volumes:
+    #       - .:/mnt
     steps:
-      - name: Override integration test options for scheduled run
-        if: github.event_name == 'schedule'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "TEST_PLATFORM=$DEFAULT_TEST_PLATFORM" | tee -a "$GITHUB_ENV"
-          echo "TEST_ARCHITECTURE=$DEFAULT_TEST_ARCHITECTURE" | tee -a "$GITHUB_ENV"
-          echo "TEST_RUN=$DEFAULT_TEST_RUN" | tee -a "$GITHUB_ENV"
-          echo "TEST_PARAMETER=$DEFAULT_TEST_PARAMETER" | tee -a "$GITHUB_ENV"
-
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
+          persist-credentials: false
           submodules: recursive
 
+      # TODO: Enable the scheduled runs which hard-code what profile to use
       - name: Run Integration Test
         id: test
-        uses: stackabletech/actions/run-integration-test@4483641a7e24057bd2ba51cb4c3f2f0010ad21b7 # v0.8.4
+        uses: stackabletech/actions/run-integration-test@736565e3b8f657bcddff2897abcf5ccb82ae3e6c # v0.9.0
         with:
-          test-platform: ${{ env.TEST_PLATFORM }}-${{ env.TEST_ARCHITECTURE }}
-          test-run: ${{ env.TEST_RUN }}
-          test-parameter: ${{ env.TEST_PARAMETER }}
           replicated-api-token: ${{ secrets.REPLICATED_API_TOKEN }}
+          test-mode-input: ${{ inputs.test-mode-input }}
+          test-suite: ${{ inputs.test-suite }}
+          test-mode: ${{ inputs.test-mode }}
+          test: ${{ inputs.test }}
 
       - name: Send Notification
-        if: ${{ failure() }}
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_INTEGRATION_TEST_TOKEN }}
-        uses: slackapi/slack-github-action@fcfb566f8b0aab22203f066d80ca1d7e4b5d05b3 # v1.27.1
+        if: ${{ failure() || github.run_attempt > 1 }}
+        uses: stackabletech/actions/send-slack-notification@736565e3b8f657bcddff2897abcf5ccb82ae3e6c # v0.9.0
         with:
-          channel-id: "C07UYJYSMSN" # notifications-integration-tests
-          payload: |
-              {
-                "text": "Integration Test *${{ github.repository }}* failed",
-                "attachments": [
-                  {
-                    "pretext": "Started at ${{ steps.test.outputs.start-time }}, failed at ${{ steps.test.outputs.end-time }}",
-                    "color": "#aa0000",
-                    "actions": [
-                      {
-                        "type": "button",
-                        "text": "Go to integration test run",
-                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                      }
-                    ]
-                  }
-                ]
-              }
-        # TODO: Update to version 2.1.0. This could look something like the following.
-        # The workflow is currently not in use, testing that the new version still works imposes effort.
-        # So I left it as a future exercise, but saved the current state.
-        #
-        # uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        # with:
-        #   method: chat.postMessage
-        #   token:  ${{ secrets.SLACK_INTEGRATION_TEST_TOKEN }}
-        #   payload: |
-        #     channel: "C07UYJYSMSN" # notifications-integration-tests
-        #     text: "Integration Test *${{ github.repository }}* failed"
-        #     attachments:
-        #       - pretext: "Started at ${{ steps.test.outputs.start-time }}, failed at ${{ steps.test.outputs.end-time }}"
-        #         color: "#aa0000"
-        #         actions:
-        #           - type: button
-        #             text: Go to integration test run
-        #             url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          slack-token: ${{ secrets.SLACK_INTEGRATION_TEST_TOKEN }}
+          failed-tests: ${{ steps.test.outputs.failed-tests }}
+          test-health: ${{ steps.test.outputs.health }}
+          test-result: ${{ steps.test.conclusion }}
+          channel-id: C07UYJYSMSN # notifications-integration-tests
+          type: integration-test

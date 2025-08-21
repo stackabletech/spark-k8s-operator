@@ -26,8 +26,8 @@ use stackable_operator::{
     },
     role_utils::{CommonConfiguration, JavaCommonConfig},
     schemars::{self, JsonSchema},
+    shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    time::Duration,
     versioned::versioned,
 };
 use strum::{Display, EnumIter};

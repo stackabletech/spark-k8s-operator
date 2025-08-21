@@ -9,7 +9,7 @@ use stackable_operator::{
     commons::secret_class::SecretClassVolume,
     crd::s3,
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
-    time::Duration,
+    shared::time::Duration,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 

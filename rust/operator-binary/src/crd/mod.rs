@@ -39,7 +39,7 @@ use stackable_operator::{
     product_logging,
     role_utils::{CommonConfiguration, GenericRoleConfig, JavaCommonConfig, Role, RoleGroup},
     schemars::{self, JsonSchema},
-    time::Duration,
+    shared::time::Duration,
     utils::crds::raw_object_list_schema,
     versioned::versioned,
 };
@@ -1153,7 +1153,6 @@ mod tests {
         },
         product_config_utils::ValidatedRoleConfigByPropertyKind,
         product_logging::spec::Logging,
-        time::Duration,
     };
 
     use super::*;
@@ -1384,7 +1383,8 @@ mod tests {
         let resolved_product_image = spark_application
             .spec
             .spark_image
-            .resolve("spark-k8s", "0.0.0-dev");
+            .resolve("spark-k8s", "0.0.0-dev")
+            .expect("test: resolved product image is always valid");
 
         let product_config =
             ProductConfigManager::from_yaml_file("../../deploy/config-spec/properties.yaml")

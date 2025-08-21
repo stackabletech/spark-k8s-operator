@@ -9,7 +9,7 @@ use stackable_operator::{
         runtime::controller::Action,
     },
     logging::controller::ReconcilerError,
-    time::Duration,
+    shared::time::Duration,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 

@@ -178,7 +178,7 @@ pub(crate) fn server_config_map(
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(common::labels(
                     scs,
-                    &resolved_product_image.app_version_label,
+                    &resolved_product_image.app_version_label_value,
                     &SparkConnectRole::Server.to_string(),
                 ))
                 .context(MetadataBuildSnafu)?
@@ -216,8 +216,11 @@ pub(crate) fn build_stateful_set(
     args: Vec<String>,
 ) -> Result<StatefulSet, Error> {
     let server_role = SparkConnectRole::Server.to_string();
-    let recommended_object_labels =
-        common::labels(scs, &resolved_product_image.app_version_label, &server_role);
+    let recommended_object_labels = common::labels(
+        scs,
+        &resolved_product_image.app_version_label_value,
+        &server_role,
+    );
 
     let recommended_labels =
         Labels::recommended(recommended_object_labels.clone()).context(LabelBuildSnafu)?;
@@ -365,7 +368,7 @@ pub(crate) fn build_stateful_set(
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(common::labels(
                 scs,
-                &resolved_product_image.app_version_label,
+                &resolved_product_image.app_version_label_value,
                 &SparkConnectRole::Server.to_string(),
             ))
             .context(MetadataBuildSnafu)?
@@ -642,7 +645,7 @@ pub(crate) fn build_listener(
     let listener_class = role_config.listener_class.clone();
     let role = SparkConnectRole::Server.to_string();
     let recommended_object_labels =
-        common::labels(scs, &resolved_product_image.app_version_label, &role);
+        common::labels(scs, &resolved_product_image.app_version_label_value, &role);
 
     let listener_ports = [
         listener::v1alpha1::ListenerPort {

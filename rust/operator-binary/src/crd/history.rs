@@ -26,7 +26,7 @@ use stackable_operator::{
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
-    time::Duration,
+    shared::time::Duration,
     versioned::versioned,
 };
 use strum::{Display, EnumIter};

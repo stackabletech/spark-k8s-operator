@@ -123,7 +123,7 @@ pub fn executor_pod_template(
     let metadata = ObjectMetaBuilder::new()
         .with_recommended_labels(common::labels(
             scs,
-            &resolved_product_image.app_version_label,
+            &resolved_product_image.app_version_label_value,
             &SparkConnectRole::Executor.to_string(),
         ))
         .context(PodTemplateMetadataBuildSnafu)?
@@ -343,7 +343,7 @@ pub(crate) fn executor_config_map(
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(common::labels(
                     scs,
-                    &resolved_product_image.app_version_label,
+                    &resolved_product_image.app_version_label_value,
                     &SparkConnectRole::Executor.to_string(),
                 ))
                 .context(ConfigMapMetadataBuildSnafu)?

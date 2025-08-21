@@ -21,7 +21,10 @@ use stackable_operator::{
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    commons::{
+        product_image_selection::{self, ResolvedProductImage},
+        rbac::build_rbac_resources,
+    },
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -46,7 +49,7 @@ use stackable_operator::{
         },
     },
     role_utils::RoleGroupRef,
-    time::Duration,
+    shared::time::Duration,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -225,6 +228,11 @@ pub enum Error {
     ApplyGroupListener {
         source: stackable_operator::cluster_resources::Error,
     },
+
+    #[snafu(display("failed to resolve product image"))]
+    ResolveProductImage {
+        source: product_image_selection::Error,
+    },
 }
 
 impl ReconcilerError for Error {
@@ -259,7 +267,8 @@ pub async fn reconcile(
     let resolved_product_image = shs
         .spec
         .image
-        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
+        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
+        .context(ResolveProductImageSnafu)?;
     let log_dir = ResolvedLogDir::resolve(
         &shs.spec.log_file_directory,
         shs.metadata.namespace.clone(),
@@ -307,7 +316,7 @@ pub async fn reconcile(
                 shs,
                 rolegroup_config,
                 &merged_config,
-                &resolved_product_image.app_version_label,
+                &resolved_product_image.app_version_label_value,
                 &rgr,
                 &log_dir,
             )?;
@@ -370,7 +379,8 @@ fn build_group_listener(
 ) -> Result<listener::v1alpha1::Listener, Error> {
     let listener_name = group_listener_name(shs, role);
 
-    let recommended_object_labels = labels(shs, &resolved_product_image.app_version_label, "none");
+    let recommended_object_labels =
+        labels(shs, &resolved_product_image.app_version_label_value, "none");
 
     let listener_ports = [listener::v1alpha1::ListenerPort {
         name: "http".to_string(),
@@ -408,7 +418,7 @@ fn build_config_map(
     shs: &v1alpha1::SparkHistoryServer,
     config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
     merged_config: &HistoryConfig,
-    app_version_label: &str,
+    app_version_label_value: &str,
     rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
     log_dir: &ResolvedLogDir,
 ) -> Result<ConfigMap, Error> {
@@ -435,7 +445,11 @@ fn build_config_map(
                 .name(&cm_name)
                 .ownerreference_from_resource(shs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(labels(shs, app_version_label, &rolegroupref.role_group))
+                .with_recommended_labels(labels(
+                    shs,
+                    app_version_label_value,
+                    &rolegroupref.role_group,
+                ))
                 .context(MetadataBuildSnafu)?
                 .build(),
         )
@@ -499,7 +513,7 @@ fn build_stateful_set(
 
     let recommended_object_labels = labels(
         shs,
-        &resolved_product_image.app_version_label,
+        &resolved_product_image.app_version_label_value,
         rolegroupref.role_group.as_ref(),
     );
     let recommended_labels =
@@ -720,13 +734,13 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
 
 fn labels<'a, T>(
     shs: &'a T,
-    app_version_label: &'a str,
+    app_version_label_value: &'a str,
     role_group: &'a str,
 ) -> ObjectLabels<'a, T> {
     ObjectLabels {
         owner: shs,
         app_name: HISTORY_APP_NAME,
-        app_version: app_version_label,
+        app_version: app_version_label_value,
         operator_name: OPERATOR_NAME,
         controller_name: HISTORY_CONTROLLER_NAME,
         role: HISTORY_ROLE_NAME,

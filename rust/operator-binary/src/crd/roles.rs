@@ -33,7 +33,7 @@ use stackable_operator::{
     product_config_utils::Configuration,
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
-    time::Duration,
+    shared::time::Duration,
     utils::crds::raw_object_list_schema,
 };
 use strum::{Display, EnumIter};

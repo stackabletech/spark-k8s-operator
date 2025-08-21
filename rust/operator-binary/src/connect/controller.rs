@@ -3,18 +3,18 @@ use std::sync::Arc;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::rbac::build_rbac_resources,
+    commons::{product_image_selection, rbac::build_rbac_resources},
     kube::{
         Resource, ResourceExt,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
     logging::controller::ReconcilerError,
+    shared::time::Duration,
     status::condition::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
-    time::Duration,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -140,6 +140,11 @@ pub enum Error {
 
     #[snafu(display("failed to serialize executor pod template"))]
     ExecutorPodTemplateSerde { source: serde_yaml::Error },
+
+    #[snafu(display("failed to resolve product image"))]
+    ResolveProductImage {
+        source: product_image_selection::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -180,7 +185,8 @@ pub async fn reconcile(
     let resolved_product_image = scs
         .spec
         .image
-        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION);
+        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
+        .context(ResolveProductImageSnafu)?;
 
     // Use a dedicated service account for connect server pods.
     let (service_account, role_binding) = build_rbac_resources(
@@ -202,8 +208,9 @@ pub async fn reconcile(
         .context(ApplyRoleBindingSnafu)?;
 
     // Headless service used by executors connect back to the driver
-    let service = server::build_internal_service(scs, &resolved_product_image.app_version_label)
-        .context(BuildServiceSnafu)?;
+    let service =
+        server::build_internal_service(scs, &resolved_product_image.app_version_label_value)
+            .context(BuildServiceSnafu)?;
 
     let applied_internal_service = cluster_resources
         .add(client, service.clone())

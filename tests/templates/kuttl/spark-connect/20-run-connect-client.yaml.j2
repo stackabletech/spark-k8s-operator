@@ -57,11 +57,11 @@ spec:
       activeDeadlineSeconds: 600
       containers:
         - name: simple-connect-app
-{% if test_scenario['values']['spark-connect'].find(",") > 0 %}
-          image: "{{ test_scenario['values']['spark-connect'].split(',')[1] }}"
-{% else %}
-          image: oci.stackable.tech/sdp/spark-connect-client:{{ test_scenario['values']['spark-connect'] }}-stackable0.0.0-dev
-{% endif %}
+{% set spark_connect_client_version = test_scenario['values']['spark-connect'].split(',')[0] %}
+          # Extract the Spark Connect version and use it for the client.
+          # Using a separate dimension for the client doesn't work because beku would generate tests with
+          # version mismatches between client and server.
+          image: oci.stackable.tech/stackable/spark-connect-client:{{ spark_connect_client_version }}-stackable0.0.0-dev
           imagePullPolicy: IfNotPresent
           command:
             [

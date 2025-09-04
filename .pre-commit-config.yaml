@@ -18,6 +18,7 @@ repos:
     rev: 79a6b2b1392eaf49cdd32ac4f14be1a809bbd8f7 # 1.37.1
     hooks:
       - id: yamllint
+        args: ["--strict"]
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: 192ad822316c3a22fb3d3cc8aa6eafa0b8488360 # 0.45.0

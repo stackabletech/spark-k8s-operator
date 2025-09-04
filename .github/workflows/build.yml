@@ -155,7 +155,7 @@ jobs:
         with:
           key: clippy
           cache-all-crates: "true"
-        # TODO (@Techassi): Remove this step (unmaintained action, kinda useless step anyway)
+      # TODO (@Techassi): Remove this step (unmaintained action, kinda useless step anyway)
       - name: Run clippy action to produce annotations
         uses: giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0 # v1.0.1
         env:
@@ -165,7 +165,7 @@ jobs:
           clippy_flags: --all-targets -- -D warnings
           reporter: 'github-pr-review'
           github_token: ${{ secrets.GITHUB_TOKEN }}
-        # TODO (@Techassi): Remove, done by pre-commit
+      # TODO (@Techassi): Remove, done by pre-commit
       - name: Run clippy manually without annotations
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -345,9 +345,9 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN_VERSION }}
           components: rustfmt
-        # This step checks if the current run was triggered by a push to a pr (or a pr being created).
-        # If this is the case it changes the version of this project in all Cargo.toml files to include the suffix
-        # "-pr<prnumber>" so that the published artifacts can be linked to this PR.
+      # This step checks if the current run was triggered by a push to a pr (or a pr being created).
+      # If this is the case it changes the version of this project in all Cargo.toml files to include the suffix
+      # "-pr<prnumber>" so that the published artifacts can be linked to this PR.
       - uses: stackabletech/cargo-install-action@main
         with:
           crate: cargo-edit
@@ -383,8 +383,8 @@ jobs:
         run: |
           # Installing helm and yq on ubicloud-standard-8-arm only
           if [ "$(arch)" = "aarch64" ]; then
-            curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+            curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
             sudo apt-get -y update
             sudo apt-get -y install helm
             sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_arm64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq

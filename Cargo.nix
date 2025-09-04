@@ -10845,9 +10845,9 @@ rec {
       };
       "url" = rec {
         crateName = "url";
-        version = "2.5.5";
+        version = "2.5.7";
         edition = "2018";
-        sha256 = "0n6rjsz5l47z8lc69rn0nin2qbpzy9gx7awdmqa5svrbnc0id5pc";
+        sha256 = "0nzghdv0kcksyvri0npxbjzyx2ihprks5k590y77bld355m17g08";
         authors = [
           "The rust-url developers"
         ];
@@ -10888,7 +10888,7 @@ rec {
         features = {
           "default" = [ "std" ];
           "serde" = [ "dep:serde" ];
-          "std" = [ "idna/std" "percent-encoding/std" "form_urlencoded/std" ];
+          "std" = [ "idna/std" "percent-encoding/std" "form_urlencoded/std" "serde/std" ];
         };
         resolvedDefaultFeatures = [ "default" "serde" "std" ];
       };

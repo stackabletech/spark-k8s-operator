@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Add experimental support for Spark 4 ([#589])
+- Helm: Allow Pod `priorityClassName` to be configured ([#608]).
 
 ### Fixed
 
@@ -14,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 [#589]: https://github.com/stackabletech/spark-k8s-operator/pull/589
 [#603]: https://github.com/stackabletech/spark-k8s-operator/pull/603
+[#608]: https://github.com/stackabletech/spark-k8s-operator/pull/608
 
 ## [25.7.0] - 2025-07-23
 

@@ -30,7 +30,6 @@ rules:
       - events
     verbs:
       - create
-{{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:
       - security.openshift.io
     resources:
@@ -39,4 +38,3 @@ rules:
       - nonroot-v2
     verbs:
       - use
-{{ end }}

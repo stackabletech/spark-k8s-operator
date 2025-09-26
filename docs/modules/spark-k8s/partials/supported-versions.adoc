@@ -5,7 +5,6 @@
 
 - 4.0.0 (Hadoop 3.4.1, Scala 2.13, Python 3.11, Java 17) (Experimental)
 - 3.5.6 (Hadoop 3.3.4, Scala 2.12, Python 3.11, Java 17) (LTS)
-- 3.5.5 (Hadoop 3.3.4, Scala 2.12, Python 3.11, Java 17) (Deprecated)
 
 Some reasons why Spark 4 is considered experimental (as of August 2025):
 

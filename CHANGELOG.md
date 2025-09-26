@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Add experimental support for Spark 4 ([#589])
 - Helm: Allow Pod `priorityClassName` to be configured ([#608]).
-- Support for Spark 3.5.6 ([#610]).
+- Support for Spark 3.5.7 ([#610]).
 
 ### Fixed
 

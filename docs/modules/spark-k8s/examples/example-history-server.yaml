@@ -5,11 +5,11 @@ metadata:
   name: spark-history
 spec:
   image:
-    productVersion: 4.0.0
-  logFileDirectory:  # <1>
+    productVersion: 3.5.7
+  logFileDirectory: # <1>
     s3:
-      prefix: eventlogs/  # <2>
-      bucket:  # <3>
+      prefix: eventlogs/ # <2>
+      bucket: # <3>
         inline:
           bucketName: spark-logs
           connection:
@@ -19,10 +19,10 @@ spec:
               accessStyle: Path
               credentials:
                 secretClass: history-credentials-class
-  sparkConf:  # <4>
+  sparkConf: # <4>
   nodes:
     roleGroups:
       default:
-        replicas: 1  # <5>
+        replicas: 1 # <5>
         config:
           cleaner: true # <6>

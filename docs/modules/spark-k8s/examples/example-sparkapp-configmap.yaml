@@ -6,7 +6,7 @@ metadata:
   namespace: default
 spec:
   sparkImage:
-    productVersion: 4.0.0
+    productVersion: 3.5.7
   mode: cluster
   mainApplicationFile: s3a://stackable-spark-k8s-jars/jobs/ny-tlc-report-1.1.0.jar # <3>
   mainClass: tech.stackable.demo.spark.NYTLCReport
@@ -22,7 +22,7 @@ spec:
     config:
       volumeMounts:
         - name: cm-job-arguments # <6>
-          mountPath: /arguments  # <7>
+          mountPath: /arguments # <7>
   executor:
     replicas: 3
     config:

@@ -14,8 +14,7 @@ spec:
 {% else %}
     productVersion: "{{ test_scenario['values']['spark-hbase-connector'] }}"
 {% endif %}
-    # pullPolicy: IfNotPresent
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: local:///stackable/spark/jobs/test-hbase.py
   sparkConf:

@@ -8,14 +8,20 @@ All notable changes to this project will be documented in this file.
 
 - Add experimental support for Spark 4 ([#589])
 - Helm: Allow Pod `priorityClassName` to be configured ([#608]).
+- Support for Spark 3.5.7 ([#610]).
 
 ### Fixed
 
 - SparkConnectServer: The `imagePullSecret` is now correctly passed to Spark executor pods ([#603]).
 
+### Removed
+
+- Support for Spark versions 3.5.5 has been dropped ([#610]).
+
 [#589]: https://github.com/stackabletech/spark-k8s-operator/pull/589
 [#603]: https://github.com/stackabletech/spark-k8s-operator/pull/603
 [#608]: https://github.com/stackabletech/spark-k8s-operator/pull/608
+[#610]: https://github.com/stackabletech/spark-k8s-operator/pull/610
 
 ## [25.7.0] - 2025-07-23
 

@@ -17,6 +17,7 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      gracefulShutdownTimeout: 30s # speed up tests
     roleGroups:
       default:
         replicas: 2
@@ -24,6 +25,7 @@ spec:
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      gracefulShutdownTimeout: 30s # speed up tests
     roleGroups:
       default:
         replicas: 1

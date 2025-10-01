@@ -720,9 +720,9 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
     }
 
     if let Some(secret_name) = logdir.tls_secret_name() {
-        command.extend(vec![format!("mkdir -p {STACKABLE_TRUST_STORE}")]);
-        command.extend(tlscerts::convert_system_trust_store_to_pkcs12());
-        command.extend(tlscerts::import_truststore(secret_name));
+        command.push(format!("mkdir -p {STACKABLE_TRUST_STORE}"));
+        command.push(tlscerts::convert_system_trust_store_to_pkcs12());
+        command.push(tlscerts::import_truststore(secret_name));
     }
 
     command.extend(vec![

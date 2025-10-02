@@ -13,6 +13,11 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - SparkConnectServer: The `imagePullSecret` is now correctly passed to Spark executor pods ([#603]).
+- Previously we had a bug that could lead to missing certificates ([#611]).
+
+  This could be the case when you specified multiple CAs in your SecretClass.
+  We now correctly handle multiple certificates in this cases.
+  See [this GitHub issue](https://github.com/stackabletech/issues/issues/764) for details
 
 ### Removed
 
@@ -22,6 +27,7 @@ All notable changes to this project will be documented in this file.
 [#603]: https://github.com/stackabletech/spark-k8s-operator/pull/603
 [#608]: https://github.com/stackabletech/spark-k8s-operator/pull/608
 [#610]: https://github.com/stackabletech/spark-k8s-operator/pull/610
+[#611]: https://github.com/stackabletech/spark-k8s-operator/pull/611
 
 ## [25.7.0] - 2025-07-23
 

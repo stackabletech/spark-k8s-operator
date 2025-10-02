@@ -542,9 +542,9 @@ fn init_containers(
 
     let tls_container = match tlscerts::tls_secret_names(s3conn, logdir) {
         Some(cert_secrets) => {
-            args.extend(tlscerts::convert_system_trust_store_to_pkcs12());
+            args.push(tlscerts::convert_system_trust_store_to_pkcs12());
             for cert_secret in cert_secrets {
-                args.extend(tlscerts::import_truststore(cert_secret));
+                args.push(tlscerts::import_truststore(cert_secret));
                 tcb.add_volume_mount(
                     cert_secret,
                     format!("{STACKABLE_MOUNT_PATH_TLS}/{cert_secret}"),

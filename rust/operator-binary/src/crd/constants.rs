@@ -38,11 +38,9 @@ pub const METRICS_PROPERTIES_FILE: &str = "metrics.properties";
 pub const ACCESS_KEY_ID: &str = "accessKey";
 pub const SECRET_ACCESS_KEY: &str = "secretKey";
 pub const S3_SECRET_DIR_NAME: &str = "/stackable/secrets";
-pub const SYSTEM_TRUST_STORE: &str = "/etc/pki/java/cacerts";
 pub const STACKABLE_TRUST_STORE: &str = "/stackable/truststore";
 pub const STACKABLE_TRUST_STORE_NAME: &str = "stackable-truststore";
 pub const STACKABLE_TLS_STORE_PASSWORD: &str = "changeit";
-pub const SYSTEM_TRUST_STORE_PASSWORD: &str = "changeit";
 pub const STACKABLE_MOUNT_PATH_TLS: &str = "/stackable/mount_server_tls";
 
 pub const MIN_MEMORY_OVERHEAD: u32 = 384;

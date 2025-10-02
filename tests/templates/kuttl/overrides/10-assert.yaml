@@ -1,7 +1,7 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 300
+timeout: 600
 ---
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication

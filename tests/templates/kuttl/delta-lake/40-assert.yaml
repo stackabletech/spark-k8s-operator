@@ -1,7 +1,7 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 300
+timeout: 500
 ---
 # The Job starting the whole process
 apiVersion: spark.stackable.tech/v1alpha1

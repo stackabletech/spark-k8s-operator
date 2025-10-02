@@ -6,10 +6,7 @@ use stackable_operator::{
 };
 
 use crate::crd::{
-    constants::{
-        STACKABLE_MOUNT_PATH_TLS, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE,
-        SYSTEM_TRUST_STORE, SYSTEM_TRUST_STORE_PASSWORD,
-    },
+    constants::{STACKABLE_MOUNT_PATH_TLS, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE},
     logdir::ResolvedLogDir,
 };
 
@@ -52,20 +49,17 @@ pub fn tls_secret_names<'a>(
     if names.is_empty() { None } else { Some(names) }
 }
 
-pub fn convert_system_trust_store_to_pkcs12() -> Vec<String> {
-    vec![format!(
-        "keytool -importkeystore -srckeystore {SYSTEM_TRUST_STORE} -srcstoretype jks -srcstorepass {SYSTEM_TRUST_STORE_PASSWORD} -destkeystore {STACKABLE_TRUST_STORE}/truststore.p12 -deststoretype pkcs12 -deststorepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"
-    )]
+pub fn convert_system_trust_store_to_pkcs12() -> String {
+    format!(
+        "cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out {STACKABLE_TRUST_STORE}/truststore.p12 --out-password {STACKABLE_TLS_STORE_PASSWORD}"
+    )
 }
 
-pub fn import_truststore(secret_name: &str) -> Vec<String> {
+pub fn import_truststore(secret_name: &str) -> String {
     let mount_trust_store_path = format!("{STACKABLE_MOUNT_PATH_TLS}/{secret_name}/truststore.p12");
     let trust_store_path = format!("{STACKABLE_TRUST_STORE}/truststore.p12");
 
-    vec![
-        format!("echo Importing [{mount_trust_store_path}] to [{trust_store_path}] ..."),
-        format!(
-            "keytool -importkeystore -srckeystore {mount_trust_store_path} -srcalias 1 -srcstorepass \"\" -destkeystore {trust_store_path} -destalias stackable-{secret_name} -storepass {STACKABLE_TLS_STORE_PASSWORD} -noprompt"
-        ),
-    ]
+    format!(
+        "cert-tools generate-pkcs12-truststore --pkcs12 {trust_store_path}:{STACKABLE_TLS_STORE_PASSWORD} --pkcs12 {mount_trust_store_path} --out {trust_store_path} --out-password {STACKABLE_TLS_STORE_PASSWORD}"
+    )
 }

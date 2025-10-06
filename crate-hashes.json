@@ -1,10 +1,10 @@
 {
-  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.95.0#k8s-version@0.1.3": "0db745j2nz5kz5mp8sh8af26gh9wx3cdad7ggl9f9jki1ms534z0",
-  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.95.0#stackable-operator-derive@0.3.1": "0db745j2nz5kz5mp8sh8af26gh9wx3cdad7ggl9f9jki1ms534z0",
-  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.95.0#stackable-operator@0.95.0": "0db745j2nz5kz5mp8sh8af26gh9wx3cdad7ggl9f9jki1ms534z0",
-  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.95.0#stackable-shared@0.0.2": "0db745j2nz5kz5mp8sh8af26gh9wx3cdad7ggl9f9jki1ms534z0",
-  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.95.0#stackable-telemetry@0.6.1": "0db745j2nz5kz5mp8sh8af26gh9wx3cdad7ggl9f9jki1ms534z0",
-  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.95.0#stackable-versioned-macros@0.8.1": "0db745j2nz5kz5mp8sh8af26gh9wx3cdad7ggl9f9jki1ms534z0",
-  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.95.0#stackable-versioned@0.8.1": "0db745j2nz5kz5mp8sh8af26gh9wx3cdad7ggl9f9jki1ms534z0",
-  "git+https://github.com/stackabletech/product-config.git?tag=0.7.0#product-config@0.7.0": "0gjsm80g6r75pm3824dcyiz4ysq1ka4c1if6k1mjm9cnd5ym0gny"
+  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.99.0#k8s-version@0.1.3": "14mp7m9x1d6s1xxhdh5rqvkxdksmz96km1hfn0yshdfw6ic5m8cv",
+  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.99.0#stackable-operator-derive@0.3.1": "14mp7m9x1d6s1xxhdh5rqvkxdksmz96km1hfn0yshdfw6ic5m8cv",
+  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.99.0#stackable-operator@0.99.0": "14mp7m9x1d6s1xxhdh5rqvkxdksmz96km1hfn0yshdfw6ic5m8cv",
+  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.99.0#stackable-shared@0.0.3": "14mp7m9x1d6s1xxhdh5rqvkxdksmz96km1hfn0yshdfw6ic5m8cv",
+  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.99.0#stackable-telemetry@0.6.1": "14mp7m9x1d6s1xxhdh5rqvkxdksmz96km1hfn0yshdfw6ic5m8cv",
+  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.99.0#stackable-versioned-macros@0.8.2": "14mp7m9x1d6s1xxhdh5rqvkxdksmz96km1hfn0yshdfw6ic5m8cv",
+  "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.99.0#stackable-versioned@0.8.2": "14mp7m9x1d6s1xxhdh5rqvkxdksmz96km1hfn0yshdfw6ic5m8cv",
+  "git+https://github.com/stackabletech/product-config.git?tag=0.8.0#product-config@0.8.0": "1dz70kapm2wdqcr7ndyjji0lhsl98bsq95gnb2lw487wf6yr7987"
 }

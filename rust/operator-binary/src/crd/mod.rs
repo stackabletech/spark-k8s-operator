@@ -543,7 +543,6 @@ impl v1alpha1::SparkApplication {
 
     pub fn build_command(
         &self,
-        serviceaccount_name: &str,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
         spark_image: &str,
@@ -584,10 +583,6 @@ impl v1alpha1::SparkApplication {
             format!(
                 "--conf spark.kubernetes.executor.container.image={}",
                 spark_image.to_string()
-            ),
-            format!(
-                "--conf spark.kubernetes.authenticate.driver.serviceAccountName={}",
-                serviceaccount_name
             ),
             format!(
                 "--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"

@@ -14,7 +14,7 @@ commands:
       kubectl -n $NAMESPACE get pod $POD -o yaml | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_0").value' | grep 'REPLACED'
       kubectl -n $NAMESPACE get pod $POD -o yaml | yq '.spec.containers[0].env[] | select (.name == "TEST_SPARK_VAR_1").value' | grep 'DONOTREPLACE'
   - script: |
-      for POD_SA_NAME in $(kubectl get pods -n kuttl-test-flowing-reindeer -l app.kubernetes.io/instance=spark-pi-s3-1 -o=jsonpath='{.items[*].spec.serviceAccountName}'); do
+      for POD_SA_NAME in $(kubectl get pods -n $NAMESPACE -l app.kubernetes.io/instance=spark-pi-s3-1 -o=jsonpath='{.items[*].spec.serviceAccountName}'); do
         if [ "$POD_SA_NAME" != "override_sa" ]; then
           echo "Expected Pod service account [override_sa], but got [$POD_SA_NAME]"
           exit 1

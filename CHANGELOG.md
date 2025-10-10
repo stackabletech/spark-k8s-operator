@@ -19,9 +19,9 @@ All notable changes to this project will be documented in this file.
   We now correctly handle multiple certificates in this cases.
   See [this GitHub issue](https://github.com/stackabletech/issues/issues/764) for details
 
-- The service account of spark applications can now be overriden with pod overrides ([#617]).
+- The service account of spark applications can now be overridden with pod overrides ([#617]).
 
-  Previously the spplication service account was passed as command line argument to spark-submit
+  Previously the application service account was passed as command line argument to spark-submit
   and was thus not possible to overwrite with pod overrides for the driver and executors.
   This CLI argument has now been moved to the pod templates of the individual roles.
 

@@ -19,6 +19,12 @@ All notable changes to this project will be documented in this file.
   We now correctly handle multiple certificates in this cases.
   See [this GitHub issue](https://github.com/stackabletech/issues/issues/764) for details
 
+- The service account of spark applications can now be overriden with pod overrides ([#617]).
+
+  Previously the spplication service account was passed as command line argument to spark-submit
+  and was thus not possible to overwrite with pod overrides for the driver and executors.
+  This CLI argument has now been moved to the pod templates of the individual roles.
+
 ### Removed
 
 - Support for Spark versions 3.5.5 has been dropped ([#610]).
@@ -28,6 +34,7 @@ All notable changes to this project will be documented in this file.
 [#608]: https://github.com/stackabletech/spark-k8s-operator/pull/608
 [#610]: https://github.com/stackabletech/spark-k8s-operator/pull/610
 [#611]: https://github.com/stackabletech/spark-k8s-operator/pull/611
+[#617]: https://github.com/stackabletech/spark-k8s-operator/pull/617
 
 ## [25.7.0] - 2025-07-23
 

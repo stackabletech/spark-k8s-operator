@@ -26,12 +26,24 @@ data:
         response = requests.get("http://spark-connect-server-metrics:4040/metrics/prometheus")
 
         assert response.status_code == 200, (
-            f"Expected HTTP return code 200 from the metrics endpoint but got [{response.status_code}]"
+            f"Expected HTTP return code 200 from the server metrics endpoint but got [{response.status_code}]"
         )
 
         assert "BlockManager_memory_remainingOnHeapMem_MB_Value" in response.text, (
             "Expected metric [BlockManager_memory_remainingOnHeapMem_MB_Value] not found"
         )
+
+        response = requests.get("http://spark-connect-server-metrics:4040/metrics/executors/prometheus")
+
+        assert response.status_code == 200, (
+            f"Expected HTTP return code 200 from the executor metrics endpoint but got [{response.status_code}]"
+        )
+
+        assert "metrics_executor_memoryUsed_bytes" in response.text, (
+            "Expected metric [metrics_executor_memoryUsed_bytes] not found"
+        )
+
+
 ---
 apiVersion: v1
 kind: Pod

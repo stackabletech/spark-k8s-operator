@@ -157,10 +157,9 @@ By setting up port forwarding on 18080 the UI can be opened by pointing your bro
 
 image::history-server-ui.png[History Server Console]
 
-== Metrics
+== Monitoring
 
-[NOTE]
-====
-Starting with version 25.7, the built-in Prometheus servlet is enabled in addition to the existing JMX exporter.
-The JMX exporter is still available but it is deprecated and will be removed in a future release.
-====
+The operator creates a Kubernetes service dedicated specifically to collect metrics for Spark History instances with Prometheus.
+These metrics are exported via the JMX exporter as the history server doesn't support the built in Spark prometheus servlet.
+The service name follows the convention `<stacklet name>-history-metrics`.
+Metrics can be scraped at the endpoint `<service name>:18081/metrics`.

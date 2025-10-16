@@ -24,7 +24,7 @@ spec:
             claimName: pvc-ksv
       containers:
         - name: aws-deps
-          image: oci.stackable.tech/sdp/tools:0.2.0-stackable0.4.0
+          image: oci.stackable.tech/sdp/tools:1.0.0-stackable0.0.0-dev
           env:
             - name: DEST_DIR
               value: "/dependencies/jars"

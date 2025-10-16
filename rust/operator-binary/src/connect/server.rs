@@ -38,6 +38,7 @@ use stackable_operator::{
 use super::crd::CONNECT_APP_NAME;
 use crate::{
     connect::{
+        GRPC, HTTP,
         common::{self, SparkConnectRole, object_name},
         crd::{
             CONNECT_GRPC_PORT, CONNECT_UI_PORT, DEFAULT_SPARK_CONNECT_GROUP_NAME,

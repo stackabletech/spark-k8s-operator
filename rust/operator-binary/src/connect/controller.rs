@@ -21,7 +21,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use super::crd::{CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, v1alpha1};
 use crate::{
     Ctx,
-    connect::{common, crd::SparkConnectServerStatus, executor, server},
+    connect::{common, crd::SparkConnectServerStatus, executor, server, service},
     crd::constants::{OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
 };
 
@@ -47,7 +47,7 @@ pub enum Error {
     ServerProperties { source: server::Error },
 
     #[snafu(display("failed to build spark connect service"))]
-    BuildService { source: server::Error },
+    BuildService { source: service::Error },
 
     #[snafu(display("failed to build spark connect executor config map for {name}"))]
     BuildExecutorConfigMap {
@@ -66,9 +66,6 @@ pub enum Error {
         source: stackable_operator::client::Error,
         name: String,
     },
-
-    #[snafu(display("spark connect object has no namespace"))]
-    ObjectHasNoNamespace,
 
     #[snafu(display("failed to update the connect server stateful set"))]
     ApplyStatefulSet {
@@ -208,12 +205,22 @@ pub async fn reconcile(
         .context(ApplyRoleBindingSnafu)?;
 
     // Headless service used by executors connect back to the driver
-    let service =
-        server::build_internal_service(scs, &resolved_product_image.app_version_label_value)
+    let headless_service =
+        service::build_headless_service(scs, &resolved_product_image.app_version_label_value)
             .context(BuildServiceSnafu)?;
 
-    let applied_internal_service = cluster_resources
-        .add(client, service.clone())
+    let applied_headless_service = cluster_resources
+        .add(client, headless_service.clone())
+        .await
+        .context(ApplyServiceSnafu)?;
+
+    // Headless service used by executors connect back to the driver
+    let metrics_service =
+        service::build_metrics_service(scs, &resolved_product_image.app_version_label_value)
+            .context(BuildServiceSnafu)?;
+
+    cluster_resources
+        .add(client, metrics_service.clone())
         .await
         .context(ApplyServiceSnafu)?;
 
@@ -224,7 +231,7 @@ pub async fn reconcile(
         server::server_properties(
             scs,
             &server_config,
-            &applied_internal_service,
+            &applied_headless_service,
             &service_account,
             &resolved_product_image,
         )

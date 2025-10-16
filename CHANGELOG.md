@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Helm: Allow Pod `priorityClassName` to be configured ([#608]).
 - Support for Spark 3.5.7 ([#610]).
 - Add metrics service with `prometheus.io/path|port|scheme` annotations for spark history server ([#619]).
+- Add metrics service with `prometheus.io/path|port|scheme` annotations for spark connect ([#619]).
 
 ### Fixed
 

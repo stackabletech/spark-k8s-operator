@@ -1,0 +1,59 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+metadata:
+  name: install-test-container
+timeout: 300
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-scripts
+data:
+  metrics.py: |
+    import sys
+    import logging
+    import requests
+
+    if __name__ == "__main__":
+        LOG_LEVEL = "DEBUG"  # if args.debug else 'INFO'
+        logging.basicConfig(
+            level=LOG_LEVEL,
+            format="%(asctime)s %(levelname)s: %(message)s",
+            stream=sys.stdout,
+        )
+
+        response = requests.get("http://spark-history-node-default-metrics:18081/metrics")
+
+        assert response.status_code == 200, (
+            f"Expected HTTP return code 200 from the metrics endpoint but got [{response.status_code}]"
+        )
+
+        assert "jmx_scrape_error" in response.text, (
+            "Expected metric [jmx_scrape_error] not found"
+        )
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: python
+spec:
+  containers:
+    - name: tools
+      image: oci.stackable.tech/sdp/testing-tools:0.2.0-stackable0.0.0-dev
+      stdin: true
+      tty: true
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "512m"
+        limits:
+          memory: "128Mi"
+          cpu: "1"
+      volumeMounts:
+        - name: test-scripts
+          mountPath: /test-scripts
+  volumes:
+    - name: test-scripts
+      configMap:
+        name: test-scripts

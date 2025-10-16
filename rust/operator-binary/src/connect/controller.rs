@@ -214,7 +214,7 @@ pub async fn reconcile(
         .await
         .context(ApplyServiceSnafu)?;
 
-    // Headless service used by executors connect back to the driver
+    // Metrics service used for scraping
     let metrics_service =
         service::build_metrics_service(scs, &resolved_product_image.app_version_label_value)
             .context(BuildServiceSnafu)?;

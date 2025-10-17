@@ -9,6 +9,8 @@ All notable changes to this project will be documented in this file.
 - Add experimental support for Spark 4 ([#589])
 - Helm: Allow Pod `priorityClassName` to be configured ([#608]).
 - Support for Spark 3.5.7 ([#610]).
+- Add metrics service with `prometheus.io/path|port|scheme` annotations for spark history server ([#619]).
+- Add metrics service with `prometheus.io/path|port|scheme` annotations for spark connect ([#619]).
 
 ### Fixed
 
@@ -35,6 +37,7 @@ All notable changes to this project will be documented in this file.
 [#610]: https://github.com/stackabletech/spark-k8s-operator/pull/610
 [#611]: https://github.com/stackabletech/spark-k8s-operator/pull/611
 [#617]: https://github.com/stackabletech/spark-k8s-operator/pull/617
+[#619]: https://github.com/stackabletech/spark-k8s-operator/pull/619
 
 ## [25.7.0] - 2025-07-23
 

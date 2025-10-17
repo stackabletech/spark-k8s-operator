@@ -9,7 +9,7 @@ As the operator creates the necessary resources, the status of the application t
 NOTE: The operator never reconciles an application once it has been created.
 To resubmit an application, a new SparkApplication resource must be created.
 
-== Metrics
+== Monitoring
 
 [NOTE]
 ====

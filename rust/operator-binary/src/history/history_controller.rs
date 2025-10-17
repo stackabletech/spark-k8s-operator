@@ -39,7 +39,7 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, reflector::ObjectRef},
     },
-    kvp::{Labels, ObjectLabels},
+    kvp::Labels,
     logging::controller::ReconcilerError,
     product_logging::{
         framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
@@ -57,20 +57,24 @@ use crate::{
     Ctx,
     crd::{
         constants::{
-            ACCESS_KEY_ID, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME,
-            HISTORY_UI_PORT, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR,
-            LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
-            SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-            SPARK_IMAGE_BASE_NAME, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            ACCESS_KEY_ID, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_UI_PORT,
+            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME, SECRET_ACCESS_KEY,
+            SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, SPARK_IMAGE_BASE_NAME,
+            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+            VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         listener_ext,
         logdir::ResolvedLogDir,
         tlscerts, to_spark_env_sh_string,
     },
-    history::operations::pdb::add_pdbs,
+    history::{
+        operations::pdb::add_pdbs,
+        recommended_labels,
+        service::{self, build_rolegroup_metrics_service},
+    },
     product_logging::{self},
 };
 
@@ -96,9 +100,6 @@ pub enum Error {
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
 
-    #[snafu(display("object has no namespace"))]
-    ObjectHasNoNamespace,
-
     #[snafu(display("invalid config map {name}"))]
     InvalidConfigMap {
         source: stackable_operator::builder::configmap::Error,
@@ -122,6 +123,11 @@ pub enum Error {
 
     #[snafu(display("failed to update history server config map"))]
     ApplyConfigMap {
+        source: stackable_operator::cluster_resources::Error,
+    },
+
+    #[snafu(display("failed to update history server metrics service"))]
+    ApplyMetricsService {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -233,6 +239,9 @@ pub enum Error {
     ResolveProductImage {
         source: product_image_selection::Error,
     },
+
+    #[snafu(display("failed to resolve product image"))]
+    BuildMetricsService { source: service::Error },
 }
 
 impl ReconcilerError for Error {
@@ -320,10 +329,10 @@ pub async fn reconcile(
                 &rgr,
                 &log_dir,
             )?;
-            cluster_resources
-                .add(client, config_map)
-                .await
-                .context(ApplyConfigMapSnafu)?;
+
+            let metrics_service =
+                build_rolegroup_metrics_service(shs, &resolved_product_image, &rgr)
+                    .context(BuildMetricsServiceSnafu)?;
 
             let sts = build_stateful_set(
                 shs,
@@ -333,6 +342,15 @@ pub async fn reconcile(
                 &merged_config,
                 &service_account,
             )?;
+
+            cluster_resources
+                .add(client, config_map)
+                .await
+                .context(ApplyConfigMapSnafu)?;
+            cluster_resources
+                .add(client, metrics_service)
+                .await
+                .context(ApplyMetricsServiceSnafu)?;
             cluster_resources
                 .add(client, sts)
                 .await
@@ -380,7 +398,7 @@ fn build_group_listener(
     let listener_name = group_listener_name(shs, role);
 
     let recommended_object_labels =
-        labels(shs, &resolved_product_image.app_version_label_value, "none");
+        recommended_labels(shs, &resolved_product_image.app_version_label_value, "none");
 
     let listener_ports = [listener::v1alpha1::ListenerPort {
         name: "http".to_string(),
@@ -445,7 +463,7 @@ fn build_config_map(
                 .name(&cm_name)
                 .ownerreference_from_resource(shs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(labels(
+                .with_recommended_labels(recommended_labels(
                     shs,
                     app_version_label_value,
                     &rolegroupref.role_group,
@@ -511,7 +529,7 @@ fn build_stateful_set(
         rolegroupref.object_name()
     };
 
-    let recommended_object_labels = labels(
+    let recommended_object_labels = recommended_labels(
         shs,
         &resolved_product_image.app_version_label_value,
         rolegroupref.role_group.as_ref(),
@@ -730,22 +748,6 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
         format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
     vec![command.join("\n")]
-}
-
-fn labels<'a, T>(
-    shs: &'a T,
-    app_version_label_value: &'a str,
-    role_group: &'a str,
-) -> ObjectLabels<'a, T> {
-    ObjectLabels {
-        owner: shs,
-        app_name: HISTORY_APP_NAME,
-        app_version: app_version_label_value,
-        operator_name: OPERATOR_NAME,
-        controller_name: HISTORY_CONTROLLER_NAME,
-        role: HISTORY_ROLE_NAME,
-        role_group,
-    }
 }
 
 /// Return the Spark properties for the cleaner role group (if any).

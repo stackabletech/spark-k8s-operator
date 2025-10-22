@@ -15,7 +15,8 @@ on:
           - profile
           - custom
       test-mode-input:
-        description: The profile or the runner used
+        description: |
+          The profile or the runner used. Eg: `smoke-latest` or `amd64` (see test/interu.yaml)
         required: true
       test-suite:
         description: Name of the test-suite. Only used if test-mode is `custom`

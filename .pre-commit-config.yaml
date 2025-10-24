@@ -6,7 +6,7 @@ default_language_version:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b # 5.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # 6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -28,7 +28,7 @@ repos:
         files: \.md(\.j2)*$
 
   - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: 2491238703a5d3415bb2b7ff11388bf775372f29 # 0.10.0
+    rev: 99470f5e12208ff0fb17ab81c3c494f7620a1d8d # 0.11.0
     hooks:
       - id: shellcheck
         args: ["--severity=info"]
@@ -37,7 +37,7 @@ repos:
   # If you do not, you will need to delete the cached ruff binary shown in the
   # error message
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 0b19ef1fd6ad680ed7752d6daba883ce1265a6de # 0.12.2
+    rev: 3b4bc031619cde2e0a9f3c4441ac7cc8227245a4 # 0.14.1
     hooks:
       # Run the linter.
       - id: ruff-check
@@ -45,12 +45,12 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/rhysd/actionlint
-    rev: 03d0035246f3e81f36aed592ffb4bebf33a03106 # 1.7.7
+    rev: e7d448ef7507c20fc4c88a95d0c448b848cd6127 # 1.7.8
     hooks:
       - id: actionlint
 
   - repo: https://github.com/hadolint/hadolint
-    rev: b3555ba9c2bfd9401e79f2f0da68dd1ae38e10c7 # 2.12.0
+    rev: 57e1618d78fd469a92c1e584e8c9313024656623 # 2.14.0
     hooks:
       - id: hadolint
 
@@ -83,7 +83,7 @@ repos:
       - id: cargo-rustfmt
         name: cargo-rustfmt
         language: system
-        entry: cargo +nightly-2025-05-26 fmt --all -- --check
+        entry: cargo +nightly-2025-10-23 fmt --all -- --check
         stages: [pre-commit, pre-merge-commit]
         pass_filenames: false
         files: \.rs$

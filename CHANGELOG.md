@@ -31,6 +31,11 @@ All notable changes to this project will be documented in this file.
 
 - Support for Spark versions 3.5.5 has been dropped ([#610]).
 
+
+### Changed
+
+- Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#622]).
+
 [#589]: https://github.com/stackabletech/spark-k8s-operator/pull/589
 [#603]: https://github.com/stackabletech/spark-k8s-operator/pull/603
 [#608]: https://github.com/stackabletech/spark-k8s-operator/pull/608
@@ -38,6 +43,7 @@ All notable changes to this project will be documented in this file.
 [#611]: https://github.com/stackabletech/spark-k8s-operator/pull/611
 [#617]: https://github.com/stackabletech/spark-k8s-operator/pull/617
 [#619]: https://github.com/stackabletech/spark-k8s-operator/pull/619
+[#622]: https://github.com/stackabletech/spark-k8s-operator/pull/622
 
 ## [25.7.0] - 2025-07-23
 

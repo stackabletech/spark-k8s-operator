@@ -10,8 +10,8 @@ edition = "2021"
 repository = "https://github.com/stackabletech/spark-k8s-operator"
 
 [workspace.dependencies]
-product-config = { git = "https://github.com/stackabletech/product-config.git", tag = "0.7.0" }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", features = ["telemetry", "versioned"], tag = "stackable-operator-0.95.0" }
+product-config = { git = "https://github.com/stackabletech/product-config.git", tag = "0.8.0" }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", features = ["telemetry", "versioned"], tag = "stackable-operator-0.100.1" }
 
 anyhow = "1.0"
 built = { version = "0.8", features = ["chrono", "git2"] }
@@ -25,7 +25,7 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 snafu = "0.8"
 strum = { version = "0.27", features = ["derive"] }
-tokio = { version = "1.39", features = ["full"] }
+tokio = { version = "1.40", features = ["full"] }
 tracing = "0.1"
 tracing-futures = { version = "0.2", features = ["futures-03"] }
 indoc = "2"

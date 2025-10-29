@@ -5,12 +5,13 @@ use std::sync::Arc;
 
 use clap::Parser;
 use connect::crd::{CONNECT_FULL_CONTROLLER_NAME, SparkConnectServer};
-use futures::{StreamExt, pin_mut, select};
+use futures::{FutureExt, StreamExt};
 use history::history_controller;
 use product_config::ProductConfigManager;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, RunArguments},
+    eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Pod, Service},
@@ -86,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
             operator_environment: _,
             watch_namespace,
             product_config,
-            maintenance: _,
+            maintenance,
             common,
         }) => {
             // NOTE (@NickLarsenNZ): Before stackable-telemetry was used:
@@ -105,6 +106,11 @@ async fn main() -> anyhow::Result<()> {
                 "Starting {description}",
                 description = built_info::PKG_DESCRIPTION
             );
+
+            let eos_checker =
+                EndOfSupportChecker::new(built_info::BUILT_TIME_UTC, maintenance.end_of_support)?
+                    .run()
+                    .map(anyhow::Ok);
 
             let client = stackable_operator::client::initialize_operator(
                 Some(OPERATOR_NAME.to_string()),
@@ -155,7 +161,8 @@ async fn main() -> anyhow::Result<()> {
                         .await;
                     }
                 },
-            );
+            )
+            .map(anyhow::Ok);
 
             let pod_driver_event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
@@ -196,7 +203,7 @@ async fn main() -> anyhow::Result<()> {
                         .await;
                     }
                 },
-            );
+            ).map(anyhow::Ok);
 
             // Create new object because Ctx cannot be cloned
             let ctx = Ctx {
@@ -259,7 +266,8 @@ async fn main() -> anyhow::Result<()> {
                         .await;
                     }
                 },
-            );
+            )
+            .map(anyhow::Ok);
 
             // ==============================
             // Create new object because Ctx cannot be cloned
@@ -323,22 +331,17 @@ async fn main() -> anyhow::Result<()> {
                         .await;
                     }
                 },
-            );
+            )
+            .map(anyhow::Ok);
 
-            //
-            pin_mut!(
-                app_controller,
+            // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
+            futures::try_join!(
                 pod_driver_controller,
                 history_controller,
-                connect_controller
-            );
-            // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
-            select! {
-                r1 = app_controller => r1,
-                r2 = pod_driver_controller => r2,
-                r3 = history_controller => r3,
-                r4 = connect_controller => r4,
-            };
+                connect_controller,
+                app_controller,
+                eos_checker
+            )?;
         }
     }
     Ok(())

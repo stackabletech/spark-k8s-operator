@@ -18,6 +18,8 @@ built = { version = "0.8", features = ["chrono", "git2"] }
 clap = "4.5"
 const_format = "0.2"
 futures = { version = "0.3", features = ["compat"] }
+# We pin the kube version, as we use a patch for 2.0.1 below
+kube = "=2.0.1"
 rstest = "0.26"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -33,3 +35,6 @@ indoc = "2"
 # [patch."https://github.com/stackabletech/operator-rs.git"]
 # stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "main" }
 # stackable-operator = { path = "../operator-rs/crates/stackable-operator" }
+
+[patch.crates-io]
+kube = { git = "https://github.com/stackabletech/kube-rs", branch = "2.0.1-fix-schema-hoisting" }

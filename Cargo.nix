@@ -4341,7 +4341,12 @@ rec {
         crateName = "kube";
         version = "2.0.1";
         edition = "2024";
-        sha256 = "0kh1m9w0nhd3fai4pcshl7z5rx0s83zvcxa51v12ql26d85vprs8";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/stackabletech/kube-rs";
+          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
+          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+        };
         authors = [
           "clux <sszynrae@gmail.com>"
           "Natalie Klestrup Röijezon <nat@nullable.se>"
@@ -4414,7 +4419,12 @@ rec {
         crateName = "kube-client";
         version = "2.0.1";
         edition = "2024";
-        sha256 = "0dksaqk698bciyda6k8ss9lr92bqyb3pygddzna54asd31xdb1s9";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/stackabletech/kube-rs";
+          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
+          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+        };
         libName = "kube_client";
         authors = [
           "clux <sszynrae@gmail.com>"
@@ -4647,7 +4657,12 @@ rec {
         crateName = "kube-core";
         version = "2.0.1";
         edition = "2024";
-        sha256 = "0wzfc1q78s5a3k1gfa6i8xjd9gmssbnw0f1mdsh23dvv1rvvnjwi";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/stackabletech/kube-rs";
+          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
+          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+        };
         libName = "kube_core";
         authors = [
           "clux <sszynrae@gmail.com>"
@@ -4729,7 +4744,12 @@ rec {
         crateName = "kube-derive";
         version = "2.0.1";
         edition = "2024";
-        sha256 = "1ljhw6xmrj1v8ni144bpxrifwzbrrn0qnl5kd8m7fdz15cjyiph3";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/stackabletech/kube-rs";
+          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
+          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+        };
         procMacro = true;
         libName = "kube_derive";
         authors = [
@@ -4778,7 +4798,12 @@ rec {
         crateName = "kube-runtime";
         version = "2.0.1";
         edition = "2024";
-        sha256 = "1zg34fih2r72y9sr58gmgyjizbkl6jv0nc0hmf4wrib2npj4vska";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/stackabletech/kube-rs";
+          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
+          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+        };
         libName = "kube_runtime";
         authors = [
           "clux <sszynrae@gmail.com>"

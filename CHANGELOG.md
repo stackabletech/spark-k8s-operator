@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
 - Add experimental support for Spark 4 ([#589])
 - Helm: Allow Pod `priorityClassName` to be configured ([#608]).
 - Support for Spark 3.5.7 ([#610]).
+- Add metrics service with `prometheus.io/path|port|scheme` annotations for spark history server ([#619]).
+- Add metrics service with `prometheus.io/path|port|scheme` annotations for spark connect ([#619]).
 
 ### Fixed
 
@@ -22,6 +24,12 @@ All notable changes to this project will be documented in this file.
   This could be the case when you specified multiple CAs in your SecretClass.
   We now correctly handle multiple certificates in this cases.
   See [this GitHub issue](https://github.com/stackabletech/issues/issues/764) for details
+
+- The service account of spark applications can now be overridden with pod overrides ([#617]).
+
+  Previously the application service account was passed as command line argument to spark-submit
+  and was thus not possible to overwrite with pod overrides for the driver and executors.
+  This CLI argument has now been moved to the pod templates of the individual roles.
 
 ### Removed
 
@@ -33,6 +41,8 @@ All notable changes to this project will be documented in this file.
 [#610]: https://github.com/stackabletech/spark-k8s-operator/pull/610
 [#611]: https://github.com/stackabletech/spark-k8s-operator/pull/611
 [#615]: https://github.com/stackabletech/spark-k8s-operator/pull/615
+[#617]: https://github.com/stackabletech/spark-k8s-operator/pull/617
+[#619]: https://github.com/stackabletech/spark-k8s-operator/pull/619
 
 ## [25.7.0] - 2025-07-23
 

@@ -26,12 +26,14 @@ include::example$example-spark-connect.yaml[]
 <7> Customize the driver properties in the `server` role. The number of cores here is not related to Kubernetes cores!
 <8> Customize `spark.executor.\*` and `spark.kubernetes.executor.*` in the `executor` role.
 
-== Metrics
+== Monitoring
 
-The server pod exposes Prometheus metrics at the following endpoints:
+The operator creates a Kubernetes service dedicated specifically to collect metrics for Spark Connect instances with Prometheus.
+The service name follows the convention `<stacklet name>-server-metrics`.
+This service exposes Prometheus metrics at the following endpoints:
 
-* `/metrics/prometheus` for driver instances.
-* `/metrics/executors/prometheus` for executor instances.
+* `<service name>:4040/metrics/prometheus` for driver instances.
+* `<service name>:4040/metrics/executors/prometheus` for executor instances.
 
 To customize the metrics configuration use the `spec.server.configOverrides' like this:
 
@@ -47,8 +49,8 @@ The example above adds a new endpoint for application metrics.
 
 == Spark History Server
 
-Unforunately integration with the Spark History Server is not supported yet.
-The connect server seems to ignore the `spark.eventLog` properties while also prohibiting clients to set them programatically.
+Unfortunately integration with the Spark History Server is not supported yet.
+The connect server seems to ignore the `spark.eventLog` properties while also prohibiting clients to set them programmatically.
 
 == Notable Omissions
 

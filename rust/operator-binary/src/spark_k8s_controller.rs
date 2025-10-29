@@ -324,6 +324,7 @@ pub async fn reconcile(
         &opt_s3conn,
         &logdir,
         &resolved_product_image,
+        &serviceaccount,
     )?;
     client
         .apply_patch(
@@ -352,6 +353,7 @@ pub async fn reconcile(
         &opt_s3conn,
         &logdir,
         &resolved_product_image,
+        &serviceaccount,
     )?;
     client
         .apply_patch(
@@ -363,13 +365,7 @@ pub async fn reconcile(
         .context(ApplyApplicationSnafu)?;
 
     let job_commands = spark_application
-        .build_command(
-            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-            serviceaccount.metadata.name.as_ref().unwrap(),
-            &opt_s3conn,
-            &logdir,
-            &resolved_product_image.image,
-        )
+        .build_command(&opt_s3conn, &logdir, &resolved_product_image.image)
         .context(BuildCommandSnafu)?;
 
     let submit_config = spark_application
@@ -593,6 +589,7 @@ fn pod_template(
     s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
+    service_account: &ServiceAccount,
 ) -> Result<PodTemplateSpec> {
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
@@ -641,7 +638,8 @@ fn pod_template(
         .context(AddVolumeSnafu)?
         .security_context(security_context())
         .image_pull_secrets_from_product_image(spark_image)
-        .affinity(&config.affinity);
+        .affinity(&config.affinity)
+        .service_account_name(service_account.name_any());
 
     let init_containers = init_containers(
         spark_application,
@@ -700,6 +698,7 @@ fn pod_template_config_map(
     s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
+    service_account: &ServiceAccount,
 ) -> Result<ConfigMap> {
     let cm_name = spark_application.pod_template_config_map_name(role.clone());
 
@@ -741,6 +740,7 @@ fn pod_template_config_map(
         s3conn,
         logdir,
         spark_image,
+        service_account,
     )?;
 
     let mut cm_builder = ConfigMapBuilder::new();

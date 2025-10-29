@@ -47,36 +47,7 @@ esac
 
 echo "Creating a Spark Application..."
 # tag::install-sparkapp[]
-kubectl apply -f - <<EOF
----
-apiVersion: spark.stackable.tech/v1alpha1
-kind: SparkApplication
-metadata:
-  name: pyspark-pi
-  namespace: default
-spec:
-  sparkImage:
-    productVersion: 3.5.7
-  mode: cluster
-  mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py
-  driver:
-    config:
-      resources:
-        cpu:
-          min: "1"
-          max: "2"
-        memory:
-          limit: "1Gi"
-  executor:
-    replicas: 1
-    config:
-      resources:
-        cpu:
-          min: "1"
-          max: "2"
-        memory:
-          limit: "1Gi"
-EOF
+kubectl apply -f application.yaml
 # end::install-sparkapp[]
 
 sleep 15

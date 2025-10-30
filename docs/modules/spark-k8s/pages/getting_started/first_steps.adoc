@@ -12,23 +12,27 @@ A Spark application is made of up three components:
 * Driver: the driver starts the designated number of executors and removes them when the job is completed.
 * Executor(s): responsible for executing the job itself
 
-Create a `SparkApplication`:
+Create a Spark application by running:
 
 [source,bash]
 ----
 include::example$getting_started/getting_started.sh[tag=install-sparkapp]
 ----
 
-Where:
+The application manifest file points to an application file that is to be started as well as it's configuration and resources needed.
 
-* `metadata.name` contains the name of the SparkApplication
-* `spec.version`: SparkApplication version (1.0). This can be freely set by the users and is added by the operator as label to all workload resources created by the application.
-* `spec.sparkImage`: the image used by the job, driver and executor pods. This can be a custom image built by the user or an official Stackable image. Available official images are stored in the Stackable https://oci.stackable.tech/[image registry,window=_blank]. Information on how to browse the registry can be found xref:contributor:project-overview.adoc#docker-images[here,window=_blank].
-* `spec.mode`: only `cluster` is currently supported
-* `spec.mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
+[source,bash]
+----
+include::example$getting_started/application.yaml[Create a Spark application]
+----
+<1> `metadata.name` contains the name of the SparkApplication
+<2> `spec.sparkImage`: the image used by the job, driver and executor pods. This can be a custom image built by the user or an official Stackable image. Available official images are stored in the Stackable https://oci.stackable.tech/[image registry,window=_blank]. Information on how to browse the registry can be found xref:contributor:project-overview.adoc#docker-images[here,window=_blank].
+<3> `spec.mode`: only `cluster` is currently supported
+<4> `spec.mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
   This path is relative to the image, so in this case an example python script (that calculates the value of pi) is running: it is bundled with the Spark code and therefore already present in the job image
-* `spec.driver`: driver-specific settings.
-* `spec.executor`: executor-specific settings.
+<5> `spec.job`: submit command specific settings.
+<6> `spec.driver`: driver-specific settings.
+<7> `spec.executor`: executor-specific settings.
 
 == Verify that it works
 

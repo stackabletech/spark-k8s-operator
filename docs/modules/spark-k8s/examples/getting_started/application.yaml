@@ -7,7 +7,7 @@ metadata:
 spec:
   sparkImage: # <2>
     productVersion: 3.5.7
-  mode: cluster # <4>
+  mode: cluster # <3>
   mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py # <4>
   job: # <5>
     config:

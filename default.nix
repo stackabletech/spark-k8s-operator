@@ -5,7 +5,7 @@
     # on Darwin (macOS), but doesn't seem to actually be necessary beyond
     # production hardening.
     fakeroot =
-        if self.buildPlatform.isDarwin then
+        if self.stdenv.buildPlatform.isDarwin then
             self.writeScriptBin "fakeroot" ''exec "$@"''
         else
             super.fakeroot;
@@ -14,7 +14,7 @@
 # (non-Nix build tools like Tilt, as well as the container composition scripts)
 , pkgsLocal ? import nixpkgs { inherit overlays; }
 # Default to building for the local CPU architecture
-, targetArch ? pkgsLocal.hostPlatform.linuxArch
+, targetArch ? pkgsLocal.stdenv.hostPlatform.linuxArch
 , targetSystem ? "${targetArch}-unknown-linux-gnu"
 , pkgsTarget ? import nixpkgs {
     inherit overlays;

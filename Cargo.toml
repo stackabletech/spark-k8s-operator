@@ -3,7 +3,7 @@ members = ["rust/operator-binary"]
 resolver = "2"
 
 [workspace.package]
-version = "0.0.0-dev"
+version = "25.11.0-rc1"
 authors = ["Stackable GmbH <info@stackable.tech>"]
 license = "OSL-3.0"
 edition = "2021"

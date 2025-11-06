@@ -26,7 +26,7 @@ spec:
               description: |-
                 A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark.
                 Find more information on how to use it and the resources that the operator generates in the
-                [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/).
+                [operator documentation](https://docs.stackable.tech/home/25.11/spark-k8s/).
 
                 The SparkApplication CRD looks a little different than the CRDs of the other products on the
                 Stackable Data Platform.
@@ -97,7 +97,7 @@ spec:
                             podAntiAffinity: null
                           description: |-
                             These configuration settings control
-                            [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                            [Pod placement](https://docs.stackable.tech/home/25.11/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
                               description: Same as the `spec.affinity.nodeAffinity` field on the Pod, see the [Kubernetes docs](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node)
@@ -125,7 +125,7 @@ spec:
                           default:
                             containers: {}
                             enableVectorAgent: null
-                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/25.11/concepts/logging).
                           properties:
                             containers:
                               additionalProperties:
@@ -287,7 +287,7 @@ spec:
                       description: |-
                         The `configOverrides` can be used to configure properties in product config files
                         that are not exposed in the CRD. Read the
-                        [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides)
+                        [config overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#config-overrides)
                         and consult the operator specific usage guide documentation for details on the
                         available config files and settings for the specific product.
                       type: object
@@ -299,7 +299,7 @@ spec:
                         `envOverrides` configure environment variables to be set in the Pods.
                         It is a map from strings to strings - environment variables and the value to set.
                         Read the
-                        [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides)
+                        [environment variable overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#env-overrides)
                         for more information and consult the operator specific usage guide to find out about
                         the product specific environment variables that are available.
                       type: object
@@ -310,7 +310,7 @@ spec:
                         removeRegex: []
                       description: |-
                         Allows overriding JVM arguments.
-                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#jvm-argument-overrides)
+                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#jvm-argument-overrides)
                         for details on the usage.
                       properties:
                         add:
@@ -339,7 +339,7 @@ spec:
                         [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
-                        [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
+                        [Pod overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#pod-overrides)
                         for more information.
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
@@ -472,7 +472,7 @@ spec:
                             podAntiAffinity: null
                           description: |-
                             These configuration settings control
-                            [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                            [Pod placement](https://docs.stackable.tech/home/25.11/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
                               description: Same as the `spec.affinity.nodeAffinity` field on the Pod, see the [Kubernetes docs](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node)
@@ -500,7 +500,7 @@ spec:
                           default:
                             containers: {}
                             enableVectorAgent: null
-                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/25.11/concepts/logging).
                           properties:
                             containers:
                               additionalProperties:
@@ -662,7 +662,7 @@ spec:
                       description: |-
                         The `configOverrides` can be used to configure properties in product config files
                         that are not exposed in the CRD. Read the
-                        [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides)
+                        [config overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#config-overrides)
                         and consult the operator specific usage guide documentation for details on the
                         available config files and settings for the specific product.
                       type: object
@@ -674,7 +674,7 @@ spec:
                         `envOverrides` configure environment variables to be set in the Pods.
                         It is a map from strings to strings - environment variables and the value to set.
                         Read the
-                        [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides)
+                        [environment variable overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#env-overrides)
                         for more information and consult the operator specific usage guide to find out about
                         the product specific environment variables that are available.
                       type: object
@@ -685,7 +685,7 @@ spec:
                         removeRegex: []
                       description: |-
                         Allows overriding JVM arguments.
-                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#jvm-argument-overrides)
+                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#jvm-argument-overrides)
                         for details on the usage.
                       properties:
                         add:
@@ -714,7 +714,7 @@ spec:
                         [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
-                        [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
+                        [Pod overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#pod-overrides)
                         for more information.
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
@@ -728,7 +728,7 @@ spec:
                 image:
                   description: |-
                     User-supplied image containing spark-job dependencies that will be copied to the specified volume mount.
-                    See the [examples](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/examples).
+                    See the [examples](https://docs.stackable.tech/home/25.11/spark-k8s/usage-guide/examples).
                   nullable: true
                   type: string
                 job:
@@ -823,7 +823,7 @@ spec:
                       description: |-
                         The `configOverrides` can be used to configure properties in product config files
                         that are not exposed in the CRD. Read the
-                        [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides)
+                        [config overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#config-overrides)
                         and consult the operator specific usage guide documentation for details on the
                         available config files and settings for the specific product.
                       type: object
@@ -835,7 +835,7 @@ spec:
                         `envOverrides` configure environment variables to be set in the Pods.
                         It is a map from strings to strings - environment variables and the value to set.
                         Read the
-                        [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides)
+                        [environment variable overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#env-overrides)
                         for more information and consult the operator specific usage guide to find out about
                         the product specific environment variables that are available.
                       type: object
@@ -846,7 +846,7 @@ spec:
                         removeRegex: []
                       description: |-
                         Allows overriding JVM arguments.
-                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#jvm-argument-overrides)
+                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#jvm-argument-overrides)
                         for details on the usage.
                       properties:
                         add:
@@ -875,7 +875,7 @@ spec:
                         [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
-                        [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
+                        [Pod overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#pod-overrides)
                         for more information.
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
@@ -905,7 +905,7 @@ spec:
                             inline:
                               description: |-
                                 S3 bucket specification containing the bucket name and an inlined or referenced connection specification.
-                                Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/nightly/concepts/s3).
+                                Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/25.11/concepts/s3).
                               properties:
                                 bucketName:
                                   description: The name of the S3 bucket.
@@ -921,7 +921,7 @@ spec:
                                     inline:
                                       description: |-
                                         S3 connection definition as a resource.
-                                        Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/nightly/concepts/s3).
+                                        Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/25.11/concepts/s3).
                                       properties:
                                         accessStyle:
                                           default: VirtualHosted
@@ -936,14 +936,14 @@ spec:
                                         credentials:
                                           description: |-
                                             If the S3 uses authentication you have to specify you S3 credentials.
-                                            In the most cases a [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass)
+                                            In the most cases a [SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass)
                                             providing `accessKey` and `secretKey` is sufficient.
                                           nullable: true
                                           properties:
                                             scope:
                                               description: |-
-                                                [Scope](https://docs.stackable.tech/home/nightly/secret-operator/scope) of the
-                                                [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass).
+                                                [Scope](https://docs.stackable.tech/home/25.11/secret-operator/scope) of the
+                                                [SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass).
                                               nullable: true
                                               properties:
                                                 listenerVolumes:
@@ -976,7 +976,7 @@ spec:
                                                   type: array
                                               type: object
                                             secretClass:
-                                              description: '[SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) containing the LDAP bind credentials.'
+                                              description: '[SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass) containing the LDAP bind credentials.'
                                               type: string
                                           required:
                                             - secretClass
@@ -1035,7 +1035,7 @@ spec:
                                                       properties:
                                                         secretClass:
                                                           description: |-
-                                                            Name of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) which will provide the CA certificate.
+                                                            Name of the [SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass) which will provide the CA certificate.
                                                             Note that a SecretClass does not need to have a key but can also work with just a CA certificate,
                                                             so if you got provided with a CA cert but don't have access to the key you can still use this method.
                                                           type: string
@@ -1088,7 +1088,7 @@ spec:
                 s3connection:
                   description: |-
                     Configure an S3 connection that the SparkApplication has access to.
-                    Read more in the [Spark S3 usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/s3).
+                    Read more in the [Spark S3 usage guide](https://docs.stackable.tech/home/25.11/spark-k8s/usage-guide/s3).
                   nullable: true
                   oneOf:
                     - required:
@@ -1099,7 +1099,7 @@ spec:
                     inline:
                       description: |-
                         S3 connection definition as a resource.
-                        Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/nightly/concepts/s3).
+                        Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/25.11/concepts/s3).
                       properties:
                         accessStyle:
                           default: VirtualHosted
@@ -1114,14 +1114,14 @@ spec:
                         credentials:
                           description: |-
                             If the S3 uses authentication you have to specify you S3 credentials.
-                            In the most cases a [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass)
+                            In the most cases a [SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass)
                             providing `accessKey` and `secretKey` is sufficient.
                           nullable: true
                           properties:
                             scope:
                               description: |-
-                                [Scope](https://docs.stackable.tech/home/nightly/secret-operator/scope) of the
-                                [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass).
+                                [Scope](https://docs.stackable.tech/home/25.11/secret-operator/scope) of the
+                                [SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass).
                               nullable: true
                               properties:
                                 listenerVolumes:
@@ -1154,7 +1154,7 @@ spec:
                                   type: array
                               type: object
                             secretClass:
-                              description: '[SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) containing the LDAP bind credentials.'
+                              description: '[SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass) containing the LDAP bind credentials.'
                               type: string
                           required:
                             - secretClass
@@ -1213,7 +1213,7 @@ spec:
                                       properties:
                                         secretClass:
                                           description: |-
-                                            Name of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) which will provide the CA certificate.
+                                            Name of the [SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass) which will provide the CA certificate.
                                             Note that a SecretClass does not need to have a key but can also work with just a CA certificate,
                                             so if you got provided with a CA cert but don't have access to the key you can still use this method.
                                           type: string
@@ -1254,7 +1254,7 @@ spec:
                     You can also configure a custom image registry to pull from, as well as completely custom
                     images.
 
-                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/nightly/concepts/product_image_selection)
+                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/25.11/concepts/product_image_selection)
                     for details.
                   properties:
                     custom:
@@ -1300,9 +1300,9 @@ spec:
                   type: object
                 vectorAggregatorConfigMapName:
                   description: |-
-                    Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).
+                    Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/25.11/concepts/service_discovery).
                     It must contain the key `ADDRESS` with the address of the Vector aggregator.
-                    Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator)
+                    Follow the [logging tutorial](https://docs.stackable.tech/home/25.11/tutorials/logging-vector-aggregator)
                     to learn how to configure log aggregation with Vector.
                   nullable: true
                   type: string
@@ -1364,7 +1364,7 @@ spec:
               description: |-
                 A Spark cluster history server component. This resource is managed by the Stackable operator
                 for Apache Spark. Find more information on how to use it in the
-                [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/history-server).
+                [operator documentation](https://docs.stackable.tech/home/25.11/spark-k8s/usage-guide/history-server).
               properties:
                 image:
                   anyOf:
@@ -1378,7 +1378,7 @@ spec:
                     You can also configure a custom image registry to pull from, as well as completely custom
                     images.
 
-                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/nightly/concepts/product_image_selection)
+                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/25.11/concepts/product_image_selection)
                     for details.
                   properties:
                     custom:
@@ -1446,7 +1446,7 @@ spec:
                             inline:
                               description: |-
                                 S3 bucket specification containing the bucket name and an inlined or referenced connection specification.
-                                Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/nightly/concepts/s3).
+                                Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/25.11/concepts/s3).
                               properties:
                                 bucketName:
                                   description: The name of the S3 bucket.
@@ -1462,7 +1462,7 @@ spec:
                                     inline:
                                       description: |-
                                         S3 connection definition as a resource.
-                                        Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/nightly/concepts/s3).
+                                        Learn more on the [S3 concept documentation](https://docs.stackable.tech/home/25.11/concepts/s3).
                                       properties:
                                         accessStyle:
                                           default: VirtualHosted
@@ -1477,14 +1477,14 @@ spec:
                                         credentials:
                                           description: |-
                                             If the S3 uses authentication you have to specify you S3 credentials.
-                                            In the most cases a [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass)
+                                            In the most cases a [SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass)
                                             providing `accessKey` and `secretKey` is sufficient.
                                           nullable: true
                                           properties:
                                             scope:
                                               description: |-
-                                                [Scope](https://docs.stackable.tech/home/nightly/secret-operator/scope) of the
-                                                [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass).
+                                                [Scope](https://docs.stackable.tech/home/25.11/secret-operator/scope) of the
+                                                [SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass).
                                               nullable: true
                                               properties:
                                                 listenerVolumes:
@@ -1517,7 +1517,7 @@ spec:
                                                   type: array
                                               type: object
                                             secretClass:
-                                              description: '[SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) containing the LDAP bind credentials.'
+                                              description: '[SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass) containing the LDAP bind credentials.'
                                               type: string
                                           required:
                                             - secretClass
@@ -1576,7 +1576,7 @@ spec:
                                                       properties:
                                                         secretClass:
                                                           description: |-
-                                                            Name of the [SecretClass](https://docs.stackable.tech/home/nightly/secret-operator/secretclass) which will provide the CA certificate.
+                                                            Name of the [SecretClass](https://docs.stackable.tech/home/25.11/secret-operator/secretclass) which will provide the CA certificate.
                                                             Note that a SecretClass does not need to have a key but can also work with just a CA certificate,
                                                             so if you got provided with a CA cert but don't have access to the key you can still use this method.
                                                           type: string
@@ -1632,7 +1632,7 @@ spec:
                             podAntiAffinity: null
                           description: |-
                             These configuration settings control
-                            [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                            [Pod placement](https://docs.stackable.tech/home/25.11/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
                               description: Same as the `spec.affinity.nodeAffinity` field on the Pod, see the [Kubernetes docs](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node)
@@ -1663,7 +1663,7 @@ spec:
                           default:
                             containers: {}
                             enableVectorAgent: null
-                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/25.11/concepts/logging).
                           properties:
                             containers:
                               additionalProperties:
@@ -1819,7 +1819,7 @@ spec:
                       description: |-
                         The `configOverrides` can be used to configure properties in product config files
                         that are not exposed in the CRD. Read the
-                        [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides)
+                        [config overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#config-overrides)
                         and consult the operator specific usage guide documentation for details on the
                         available config files and settings for the specific product.
                       type: object
@@ -1831,7 +1831,7 @@ spec:
                         `envOverrides` configure environment variables to be set in the Pods.
                         It is a map from strings to strings - environment variables and the value to set.
                         Read the
-                        [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides)
+                        [environment variable overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#env-overrides)
                         for more information and consult the operator specific usage guide to find out about
                         the product specific environment variables that are available.
                       type: object
@@ -1842,7 +1842,7 @@ spec:
                         removeRegex: []
                       description: |-
                         Allows overriding JVM arguments.
-                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#jvm-argument-overrides)
+                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#jvm-argument-overrides)
                         for details on the usage.
                       properties:
                         add:
@@ -1871,7 +1871,7 @@ spec:
                         [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
-                        [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
+                        [Pod overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#pod-overrides)
                         for more information.
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
@@ -1900,7 +1900,7 @@ spec:
                             2. The allowed number of Pods to be unavailable (`maxUnavailable`)
 
                             Learn more in the
-                            [allowed Pod disruptions documentation](https://docs.stackable.tech/home/nightly/concepts/operations/pod_disruptions).
+                            [allowed Pod disruptions documentation](https://docs.stackable.tech/home/25.11/concepts/operations/pod_disruptions).
                           properties:
                             enabled:
                               default: true
@@ -1940,7 +1940,7 @@ spec:
                                   podAntiAffinity: null
                                 description: |-
                                   These configuration settings control
-                                  [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                                  [Pod placement](https://docs.stackable.tech/home/25.11/concepts/operations/pod_placement).
                                 properties:
                                   nodeAffinity:
                                     description: Same as the `spec.affinity.nodeAffinity` field on the Pod, see the [Kubernetes docs](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node)
@@ -1971,7 +1971,7 @@ spec:
                                 default:
                                   containers: {}
                                   enableVectorAgent: null
-                                description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                                description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/25.11/concepts/logging).
                                 properties:
                                   containers:
                                     additionalProperties:
@@ -2127,7 +2127,7 @@ spec:
                             description: |-
                               The `configOverrides` can be used to configure properties in product config files
                               that are not exposed in the CRD. Read the
-                              [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides)
+                              [config overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#config-overrides)
                               and consult the operator specific usage guide documentation for details on the
                               available config files and settings for the specific product.
                             type: object
@@ -2139,7 +2139,7 @@ spec:
                               `envOverrides` configure environment variables to be set in the Pods.
                               It is a map from strings to strings - environment variables and the value to set.
                               Read the
-                              [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides)
+                              [environment variable overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#env-overrides)
                               for more information and consult the operator specific usage guide to find out about
                               the product specific environment variables that are available.
                             type: object
@@ -2150,7 +2150,7 @@ spec:
                               removeRegex: []
                             description: |-
                               Allows overriding JVM arguments.
-                              Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#jvm-argument-overrides)
+                              Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#jvm-argument-overrides)
                               for details on the usage.
                             properties:
                               add:
@@ -2179,7 +2179,7 @@ spec:
                               [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
                               to override any property that can be set on a Kubernetes Pod.
                               Read the
-                              [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
+                              [Pod overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#pod-overrides)
                               for more information.
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
@@ -2246,7 +2246,7 @@ spec:
               description: |-
                 An Apache Spark Connect server component. This resource is managed by the Stackable operator
                 for Apache Spark. Find more information on how to use it in the
-                [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/connect-server).
+                [operator documentation](https://docs.stackable.tech/home/25.11/spark-k8s/usage-guide/connect-server).
               properties:
                 args:
                   default: []
@@ -2259,7 +2259,7 @@ spec:
                     reconciliationPaused: false
                     stopped: false
                   description: |-
-                    [Cluster operations](https://docs.stackable.tech/home/nightly/concepts/operations/cluster_operations)
+                    [Cluster operations](https://docs.stackable.tech/home/25.11/concepts/operations/cluster_operations)
                     properties, allow stopping the product instance as well as pausing reconciliation.
                   properties:
                     reconciliationPaused:
@@ -2302,7 +2302,7 @@ spec:
                             podAntiAffinity: null
                           description: |-
                             These configuration settings control
-                            [Pod placement](https://docs.stackable.tech/home/nightly/concepts/operations/pod_placement).
+                            [Pod placement](https://docs.stackable.tech/home/25.11/concepts/operations/pod_placement).
                           properties:
                             nodeAffinity:
                               description: Same as the `spec.affinity.nodeAffinity` field on the Pod, see the [Kubernetes docs](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node)
@@ -2330,7 +2330,7 @@ spec:
                           default:
                             containers: {}
                             enableVectorAgent: null
-                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/25.11/concepts/logging).
                           properties:
                             containers:
                               additionalProperties:
@@ -2486,7 +2486,7 @@ spec:
                       description: |-
                         The `configOverrides` can be used to configure properties in product config files
                         that are not exposed in the CRD. Read the
-                        [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides)
+                        [config overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#config-overrides)
                         and consult the operator specific usage guide documentation for details on the
                         available config files and settings for the specific product.
                       type: object
@@ -2498,7 +2498,7 @@ spec:
                         `envOverrides` configure environment variables to be set in the Pods.
                         It is a map from strings to strings - environment variables and the value to set.
                         Read the
-                        [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides)
+                        [environment variable overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#env-overrides)
                         for more information and consult the operator specific usage guide to find out about
                         the product specific environment variables that are available.
                       type: object
@@ -2509,7 +2509,7 @@ spec:
                         removeRegex: []
                       description: |-
                         Allows overriding JVM arguments.
-                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#jvm-argument-overrides)
+                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#jvm-argument-overrides)
                         for details on the usage.
                       properties:
                         add:
@@ -2538,7 +2538,7 @@ spec:
                         [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
-                        [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
+                        [Pod overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#pod-overrides)
                         for more information.
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
@@ -2555,7 +2555,7 @@ spec:
                     You can also configure a custom image registry to pull from, as well as completely custom
                     images.
 
-                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/nightly/concepts/product_image_selection)
+                    Consult the [Product image selection documentation](https://docs.stackable.tech/home/25.11/concepts/product_image_selection)
                     for details.
                   properties:
                     custom:
@@ -2617,7 +2617,7 @@ spec:
                           default:
                             containers: {}
                             enableVectorAgent: null
-                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/nightly/concepts/logging).
+                          description: Logging configuration, learn more in the [logging concept documentation](https://docs.stackable.tech/home/25.11/concepts/logging).
                           properties:
                             containers:
                               additionalProperties:
@@ -2773,7 +2773,7 @@ spec:
                       description: |-
                         The `configOverrides` can be used to configure properties in product config files
                         that are not exposed in the CRD. Read the
-                        [config overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#config-overrides)
+                        [config overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#config-overrides)
                         and consult the operator specific usage guide documentation for details on the
                         available config files and settings for the specific product.
                       type: object
@@ -2785,7 +2785,7 @@ spec:
                         `envOverrides` configure environment variables to be set in the Pods.
                         It is a map from strings to strings - environment variables and the value to set.
                         Read the
-                        [environment variable overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#env-overrides)
+                        [environment variable overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#env-overrides)
                         for more information and consult the operator specific usage guide to find out about
                         the product specific environment variables that are available.
                       type: object
@@ -2796,7 +2796,7 @@ spec:
                         removeRegex: []
                       description: |-
                         Allows overriding JVM arguments.
-                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#jvm-argument-overrides)
+                        Please read on the [JVM argument overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#jvm-argument-overrides)
                         for details on the usage.
                       properties:
                         add:
@@ -2825,7 +2825,7 @@ spec:
                         [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
-                        [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
+                        [Pod overrides documentation](https://docs.stackable.tech/home/25.11/concepts/overrides#pod-overrides)
                         for more information.
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
@@ -2837,7 +2837,7 @@ spec:
                         listenerClass:
                           default: cluster-internal
                           description: |-
-                            This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html)
+                            This field controls which [ListenerClass](https://docs.stackable.tech/home/25.11/listener-operator/listenerclass.html)
                             is used to expose the Spark Connect services.
                           type: string
                       type: object

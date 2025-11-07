@@ -1,4 +1,4 @@
-Installed commons=25.11.0-rc1 operator
-Installed secret=25.11.0-rc1 operator
-Installed listener=25.11.0-rc1 operator
-Installed spark-k8s=25.11.0-rc1 operator
+Installed commons=25.11.0 operator
+Installed secret=25.11.0 operator
+Installed listener=25.11.0 operator
+Installed spark-k8s=25.11.0 operator

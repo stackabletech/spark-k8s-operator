@@ -2549,7 +2549,7 @@ dependencies = [
 
 [[package]]
 name = "stackable-spark-k8s-operator"
-version = "25.11.0-rc1"
+version = "25.11.0"
 dependencies = [
  "anyhow",
  "built",

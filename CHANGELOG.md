@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [25.11.0] - 2025-11-07
+
 ## [25.11.0-rc1] - 2025-11-06
 
 ### Added

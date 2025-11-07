@@ -8404,7 +8404,7 @@ rec {
       };
       "stackable-spark-k8s-operator" = rec {
         crateName = "stackable-spark-k8s-operator";
-        version = "25.11.0-rc1";
+        version = "25.11.0";
         edition = "2021";
         crateBin = [
           {

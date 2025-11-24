@@ -14,6 +14,13 @@ repos:
         args: ["--allow-missing-credentials"]
       - id: detect-private-key
 
+  - repo: https://github.com/EmbarkStudios/cargo-deny
+    # Failing to compile cargo-deny with version >0.18.3, needs rust 1.88.0
+    rev: baa02b0a0c54e0578aae6bb7c7181ad00dc290af # 0.18.3
+    hooks:
+      - id: cargo-deny
+        args: ["--all-features", "check", "advisories", "bans", "licenses", "sources"]
+
   - repo: https://github.com/adrienverge/yamllint
     rev: 79a6b2b1392eaf49cdd32ac4f14be1a809bbd8f7 # 1.37.1
     hooks:
@@ -71,6 +78,22 @@ repos:
         stages: [pre-commit, pre-merge-commit]
         pass_filenames: false
         files: Cargo\.lock
+
+      - id: check-readme
+        name: check-readme
+        language: system
+        entry: make render-readme
+        stages: [pre-commit, pre-merge-commit]
+        pass_filenames: false
+        files: .readme
+
+      - id: cargo-doc
+        name: cargo-doc
+        language: system
+        entry: cargo doc --document-private-items
+        stages: [pre-commit, pre-merge-commit]
+        pass_filenames: false
+        files: \.rs$|Cargo\.(toml|lock)
 
       - id: cargo-test
         name: cargo-test

@@ -21,6 +21,8 @@ FROM oci.stackable.tech/sdp/ubi9-rust-builder:latest AS builder
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS operator
 
 ARG VERSION
+# NOTE (@Techassi): This is required for OpenShift/Red Hat certification
+# Keeping this as "1" seems to be fine since a couple of years /shrug
 ARG RELEASE="1"
 
 # These are chosen at random and are this high on purpose to have very little chance to clash with an existing user or group on the host system

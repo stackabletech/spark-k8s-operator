@@ -27,6 +27,7 @@ on:
       - 'docker/**'
       - 'Cargo.*'
       - '*.rs'
+  merge_group:
 
 env:
   OPERATOR_NAME: "spark-k8s-operator"
@@ -75,6 +76,7 @@ jobs:
 
   build-container-image:
     name: Build/Publish ${{ matrix.runner.arch }} Image
+    if: github.event_name != 'merge_group'
     permissions:
       id-token: write
     strategy:
@@ -157,6 +159,7 @@ jobs:
 
   publish-index-manifest:
     name: Publish/Sign ${{ needs.build-container-image.outputs.operator-version }} Index
+    if: github.event_name != 'merge_group'
     needs:
       - build-container-image
     permissions:
@@ -179,6 +182,7 @@ jobs:
 
   publish-helm-chart:
     name: Package/Publish ${{ needs.build-container-image.outputs.operator-version }} Helm Chart
+    if: github.event_name != 'merge_group'
     needs:
       - build-container-image
     permissions:
@@ -204,6 +208,7 @@ jobs:
 
   openshift-preflight-check:
     name: Run OpenShift Preflight Check for ${{ needs.build-container-image.outputs.operator-version }}-${{ matrix.arch }}
+    if: github.event_name != 'merge_group'
     needs:
       - build-container-image
       - publish-index-manifest
@@ -238,12 +243,12 @@ jobs:
 
   notify:
     name: Failure Notification
+    if: (failure() || github.run_attempt > 1) && github.event_name != 'merge_group'
     needs:
       - build-container-image
       - publish-index-manifest
       - publish-helm-chart
     runs-on: ubuntu-latest
-    if: failure() || github.run_attempt > 1
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0

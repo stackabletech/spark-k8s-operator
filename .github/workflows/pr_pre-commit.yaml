@@ -11,6 +11,7 @@ env:
   RUST_TOOLCHAIN_VERSION: "nightly-2025-10-23"
   HADOLINT_VERSION: "v2.14.0"
   PYTHON_VERSION: "3.14"
+  JINJA2_CLI_VERSION: "0.8.2"
 
 jobs:
   pre-commit:
@@ -26,10 +27,11 @@ jobs:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 0
-      - uses: stackabletech/actions/run-pre-commit@75e0756966dea229d697165bfd06ba79abcda72c # v0.10.3
+      - uses: stackabletech/actions/run-pre-commit@29bea1b451c0c2e994bd495969286f95bf49ed6a # v0.11.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           rust: ${{ env.RUST_TOOLCHAIN_VERSION }}
           hadolint: ${{ env.HADOLINT_VERSION }}
           nix: ${{ env.NIX_PKG_MANAGER_VERSION }}
           nix-github-token: ${{ secrets.GITHUB_TOKEN }}
+          jinja2-cli: ${{ env.JINJA2_CLI_VERSION }}

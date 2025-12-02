@@ -18,15 +18,7 @@ on:
     # Run every Saturday morning: https://crontab.guru/#15_3_*_*_6
     - cron: '15 3 * * 6'
   pull_request:
-    paths:
-      - '.github/workflows/build.yaml'
-      - 'rust-toolchain.toml'
-      - '.dockerignore'
-      - 'deploy/**'
-      - '.cargo/**'
-      - 'docker/**'
-      - 'Cargo.*'
-      - '*.rs'
+    # Do not limit by paths. This workflow contains a required job.
   merge_group:
 
 env:
@@ -39,8 +31,41 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # This workflow contains a "required job", and GitHub Actions isn't clever
+  # enough to detect that it should be skipped, and therefore pass (like they
+  # allow for skipping jobs in a workflow).
+  # Therefore, we have to move path filters/globs down to an actual job, and
+  # emit an output that can be used to skip irrelevant jobs.
+  detect-changes:
+    name: Detect relevant changed files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check for changed files
+        id: check
+        uses: stackabletech/actions/detect-changes@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
+        with:
+          patterns: |
+            - '.github/workflows/build.yaml'
+            - 'rust-toolchain.toml'
+            - '.dockerignore'
+            - 'deploy/**'
+            - '.cargo/**'
+            - 'docker/**'
+            - 'Cargo.*'
+            - '*.rs'
+    outputs:
+      detected: ${{ steps.check.outputs.detected }}
+
   cargo-udeps:
     name: Run cargo-udeps
+    if: needs.detect-changes.outputs.detected == 'true'
+    needs: [detect-changes]
     runs-on: ubuntu-latest
     env:
       RUSTC_BOOTSTRAP: 1
@@ -76,7 +101,8 @@ jobs:
 
   build-container-image:
     name: Build/Publish ${{ matrix.runner.arch }} Image
-    if: github.event_name != 'merge_group'
+    if: (github.event_name != 'merge_group') && needs.detect-changes.outputs.detected == 'true'
+    needs: [detect-changes]
     permissions:
       id-token: write
     strategy:
@@ -140,7 +166,7 @@ jobs:
 
       - name: Build Container Image
         id: build
-        uses: stackabletech/actions/build-container-image@29bea1b451c0c2e994bd495969286f95bf49ed6a # v0.11.0
+        uses: stackabletech/actions/build-container-image@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
         with:
           image-name: ${{ env.OPERATOR_NAME }}
           image-index-manifest-tag: ${{ steps.version.outputs.OPERATOR_VERSION }}
@@ -148,7 +174,7 @@ jobs:
           container-file: docker/Dockerfile
 
       - name: Publish Container Image
-        uses: stackabletech/actions/publish-image@29bea1b451c0c2e994bd495969286f95bf49ed6a # v0.11.0
+        uses: stackabletech/actions/publish-image@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -159,8 +185,9 @@ jobs:
 
   publish-index-manifest:
     name: Publish/Sign ${{ needs.build-container-image.outputs.operator-version }} Index
-    if: github.event_name != 'merge_group'
+    if: (github.event_name != 'merge_group') && needs.detect-changes.outputs.detected == 'true'
     needs:
+      - detect-changes
       - build-container-image
     permissions:
       id-token: write
@@ -172,7 +199,7 @@ jobs:
           persist-credentials: false
 
       - name: Publish and Sign Image Index
-        uses: stackabletech/actions/publish-image-index-manifest@29bea1b451c0c2e994bd495969286f95bf49ed6a # v0.11.0
+        uses: stackabletech/actions/publish-image-index-manifest@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -182,8 +209,9 @@ jobs:
 
   publish-helm-chart:
     name: Package/Publish ${{ needs.build-container-image.outputs.operator-version }} Helm Chart
-    if: github.event_name != 'merge_group'
+    if: (github.event_name != 'merge_group') && needs.detect-changes.outputs.detected == 'true'
     needs:
+      - detect-changes
       - build-container-image
     permissions:
       id-token: write
@@ -196,7 +224,7 @@ jobs:
           submodules: recursive
 
       - name: Package, Publish, and Sign Helm Chart
-        uses: stackabletech/actions/publish-helm-chart@29bea1b451c0c2e994bd495969286f95bf49ed6a # v0.11.0
+        uses: stackabletech/actions/publish-helm-chart@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
         with:
           chart-registry-uri: oci.stackable.tech
           chart-registry-username: robot$sdp-charts+github-action-build
@@ -208,8 +236,9 @@ jobs:
 
   openshift-preflight-check:
     name: Run OpenShift Preflight Check for ${{ needs.build-container-image.outputs.operator-version }}-${{ matrix.arch }}
-    if: github.event_name != 'merge_group'
+    if: (github.event_name != 'merge_group') && needs.detect-changes.outputs.detected == 'true'
     needs:
+      - detect-changes
       - build-container-image
       - publish-index-manifest
     strategy:
@@ -221,7 +250,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run OpenShift Preflight Check
-        uses: stackabletech/actions/run-openshift-preflight@29bea1b451c0c2e994bd495969286f95bf49ed6a # v0.11.0
+        uses: stackabletech/actions/run-openshift-preflight@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
         with:
           image-index-uri: oci.stackable.tech/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
@@ -243,8 +272,9 @@ jobs:
 
   notify:
     name: Failure Notification
-    if: (failure() || github.run_attempt > 1) && github.event_name != 'merge_group'
+    if: (failure() || github.run_attempt > 1) && github.event_name != 'merge_group' && needs.detect-changes.outputs.detected == 'true'
     needs:
+      - detect-changes
       - build-container-image
       - publish-index-manifest
       - publish-helm-chart
@@ -256,7 +286,7 @@ jobs:
           persist-credentials: false
 
       - name: Send Notification
-        uses: stackabletech/actions/send-slack-notification@29bea1b451c0c2e994bd495969286f95bf49ed6a # v0.11.0
+        uses: stackabletech/actions/send-slack-notification@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
         with:
           publish-helm-chart-result: ${{ needs.publish-helm-chart.result }}
           publish-manifests-result: ${{ needs.publish-index-manifest.result }}

@@ -15,8 +15,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/EmbarkStudios/cargo-deny
-    # Failing to compile cargo-deny with version >0.18.3, needs rust 1.88.0
-    rev: baa02b0a0c54e0578aae6bb7c7181ad00dc290af # 0.18.3
+    rev: 8d76e7e991107da82c4a59cdc362a2739539f55d # 0.18.9
     hooks:
       - id: cargo-deny
         args: ["--all-features", "check", "advisories", "bans", "licenses", "sources"]

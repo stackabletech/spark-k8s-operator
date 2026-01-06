@@ -42,6 +42,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Bump stackable-operator to `0.100.1` and product-config to `0.8.0` ([#622]).
+- Bump testing-tools to `0.3.0-stackable0.0.0-dev` ([#638]).
 
 [#589]: https://github.com/stackabletech/spark-k8s-operator/pull/589
 [#603]: https://github.com/stackabletech/spark-k8s-operator/pull/603
@@ -52,6 +53,7 @@ All notable changes to this project will be documented in this file.
 [#617]: https://github.com/stackabletech/spark-k8s-operator/pull/617
 [#619]: https://github.com/stackabletech/spark-k8s-operator/pull/619
 [#622]: https://github.com/stackabletech/spark-k8s-operator/pull/622
+[#638]: https://github.com/stackabletech/spark-k8s-operator/pull/638
 
 ## [25.7.0] - 2025-07-23
 

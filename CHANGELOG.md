@@ -7,9 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Support objectOverrides using `.spec.objectOverrides` on the `SparkConnectServer` and `SparkHistoryServer`.
-  See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#XXX]).
+  See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#640]).
 
-[#XXX]: https://github.com/stackabletech/spark-k8s-operator/pull/XXX
+[#640]: https://github.com/stackabletech/spark-k8s-operator/pull/640
 
 ## [25.11.0] - 2025-11-07
 

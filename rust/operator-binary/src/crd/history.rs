@@ -17,6 +17,7 @@ use stackable_operator::{
         merge::Merge,
     },
     crd::s3,
+    deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
     product_config_utils::{
@@ -100,6 +101,10 @@ pub mod versioned {
         /// A map of key/value strings that will be passed directly to Spark when deploying the history server.
         #[serde(default)]
         pub spark_conf: BTreeMap<String, String>,
+
+        // Docs are on the ObjectOverrides struct
+        #[serde(default)]
+        pub object_overrides: ObjectOverrides,
 
         /// A history server node role definition.
         pub nodes: Role<HistoryConfigFragment, SparkHistoryServerRoleConfig, JavaCommonConfig>,

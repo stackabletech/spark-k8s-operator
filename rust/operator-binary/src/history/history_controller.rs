@@ -270,6 +270,7 @@ pub async fn reconcile(
         HISTORY_CONTROLLER_NAME,
         &shs.object_ref(&()),
         ClusterResourceApplyStrategy::Default,
+        &shs.spec.object_overrides,
     )
     .context(CreateClusterResourcesSnafu)?;
 

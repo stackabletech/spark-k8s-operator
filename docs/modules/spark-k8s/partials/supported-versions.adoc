@@ -3,8 +3,7 @@
 // Stackable Platform documentation.
 // Please sort the versions in descending order (newest first)
 
-- 4.0.1 (Hadoop 3.4.1, Scala 2.13, Python 3.11, Java 17) (Experimental)
-- 3.5.6 (Hadoop 3.3.4, Scala 2.12, Python 3.11, Java 17) (Deprecated)
+- 4.1.1 (Hadoop 3.4.1, Scala 2.13, Python 3.11, Java 17) (Experimental)
 - 3.5.7 (Hadoop 3.3.4, Scala 2.12, Python 3.11, Java 17) (LTS)
 
 Some reasons why Spark 4 is considered experimental (as of September 2025):

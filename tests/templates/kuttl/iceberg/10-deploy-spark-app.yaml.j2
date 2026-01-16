@@ -42,13 +42,16 @@ spec:
   deps:
     packages:
       #
-      # The iceberg runtime contains the spark and scala versions in the form :
+      # Need to select the correct iceberg runtime.
       #
-      #   <spark major>.<spark minor>_<scala major>.<scala minor>
+      # For Spark 3: iceberg-spark:spark-runtime-3.5_2.12:1.10.1
+      # For Spark 4: iceberg-spark:spark-runtime-4.1_2.13:xxx    <-- no iceberg release yet
       #
-      # We extract the spark parts from the test scenario value.
-      #
-      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.12:1.8.1
+{% if test_scenario['values']['spark-iceberg'].startswith("4") %}
+      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.13:xxx
+{% else %}
+      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.12:1.10.1
+{% endif %}
   volumes:
     - name: script
       configMap:

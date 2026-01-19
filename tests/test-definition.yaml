@@ -19,8 +19,8 @@ dimensions:
   - name: spark-hbase-connector
     values:
       - 3.5.7
-      - 4.0.1
       # No hbase-connector release with support for Spark 4 yet.
+      # - 4.0.1
       # - 4.1.1
   - name: spark-delta-lake
     values:

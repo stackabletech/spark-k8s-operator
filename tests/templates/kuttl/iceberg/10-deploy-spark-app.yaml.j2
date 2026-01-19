@@ -41,14 +41,8 @@ spec:
           mountPath: /stackable/spark/jobs
   deps:
     packages:
-      #
-      # Need to select the correct iceberg runtime.
-      #
-      # For Spark 3: iceberg-spark:spark-runtime-3.5_2.12:1.10.1
-      # For Spark 4: iceberg-spark:spark-runtime-4.1_2.13:xxx    <-- no iceberg release yet
-      #
 {% if test_scenario['values']['spark-iceberg'].startswith("4") %}
-      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.13:xxx
+      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.13:1.10.1
 {% else %}
       - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.12:1.10.1
 {% endif %}

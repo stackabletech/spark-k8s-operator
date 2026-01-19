@@ -59,6 +59,7 @@ jobs:
             - 'docker/**'
             - 'Cargo.*'
             - '*.rs'
+            - 'tests/**'
     outputs:
       detected: ${{ steps.check.outputs.detected }}
 

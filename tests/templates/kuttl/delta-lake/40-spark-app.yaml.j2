@@ -42,9 +42,17 @@ spec:
   deps:
     requirements:
       - importlib-metadata
-      - delta-spark=={{ test_scenario['values']['delta'] }}
+{% if test_scenario['values']['spark-delta-lake'].startswith("4") %}
+      - delta-spark==4.0.1
+{% else %}
+      - delta-spark==3.3.2
+{% endif %}
     packages:
-      - io.delta:delta-spark_2.12:{{ test_scenario['values']['delta'] }}
+{% if test_scenario['values']['spark-delta-lake'].startswith("4") %}
+      - io.delta:delta-spark_2.13:4.0.1
+{% else %}
+      - io.delta:delta-spark_2.12:3.3.2
+{% endif %}
   volumes:
     - name: script
       configMap:

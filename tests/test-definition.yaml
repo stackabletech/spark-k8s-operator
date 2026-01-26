@@ -43,7 +43,7 @@ dimensions:
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
   - name: hbase
     values:
-      - 2.6.3
+      - 2.6.4
   - name: hdfs-latest
     values:
       - 3.4.2

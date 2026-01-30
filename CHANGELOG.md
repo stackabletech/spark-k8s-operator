@@ -10,12 +10,17 @@ All notable changes to this project will be documented in this file.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#640]).
 - Support for Spark `4.1.1` ([#642]).
 
+### Changed
+
+- Do not resubmit applications when the `spark-submit` Pod fails ([#646]).
+
 ### Removed
 
 - Support for Spark `3.5.6` ([#642]).
 
 [#640]: https://github.com/stackabletech/spark-k8s-operator/pull/640
 [#642]: https://github.com/stackabletech/spark-k8s-operator/pull/642
+[#646]: https://github.com/stackabletech/spark-k8s-operator/pull/646
 
 ## [25.11.0] - 2025-11-07
 

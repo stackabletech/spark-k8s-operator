@@ -972,6 +972,9 @@ fn spark_job(
         spec: Some(JobSpec {
             template: pod,
             ttl_seconds_after_finished: Some(600),
+            // We don't want to retry failed Spark jobs automatically, as this could lead to
+            // data corruption.
+            backoff_limit: Some(0),
             ..Default::default()
         }),
         status: None,

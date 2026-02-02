@@ -224,7 +224,7 @@ pub struct SubmitConfig {
 
     /// Number of times to retry the submit job on failure.
     #[fragment_attrs(serde(default))]
-    pub retry_on_failure_count: u8,
+    pub retry_on_failure_count: u16,
 }
 
 impl SubmitConfig {

@@ -631,8 +631,17 @@ fn pod_template(
         omb.with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?);
     }
 
+    let mut metadata = omb.build();
+
+    // We explicitely remove the application owner reference from executor pods.
+    // The executors then only have the driver as owner and Kubernetes can garbage collect them
+    // early when the driver pod or the spark-submit job is deleted.
+    if role == SparkApplicationRole::Executor {
+        metadata.owner_references = None;
+    }
+
     let mut pb = PodBuilder::new();
-    pb.metadata(omb.build())
+    pb.metadata(metadata)
         .add_container(cb.build())
         .add_volumes(volumes.to_vec())
         .context(AddVolumeSnafu)?

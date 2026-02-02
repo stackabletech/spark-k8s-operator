@@ -963,6 +963,17 @@ impl v1alpha1::SparkApplication {
         )
         .context(InvalidProductConfigSnafu)
     }
+
+    pub fn retry_on_failure_count(&self) -> i32 {
+        let effective_retry_on_failure_count = self
+            .spec
+            .job
+            .as_ref()
+            .map(|common_config| common_config.config.clone())
+            .and_then(|config| config.retry_on_failure_count)
+            .unwrap_or(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT);
+        effective_retry_on_failure_count as i32
+    }
 }
 
 /// CPU Limits can be defined as integer, decimal, or unitised values (see

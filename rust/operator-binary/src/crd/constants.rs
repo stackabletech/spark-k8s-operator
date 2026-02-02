@@ -89,3 +89,5 @@ pub const HISTORY_UI_PORT: u16 = 18080;
 
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
+
+pub const DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT: u8 = 0;

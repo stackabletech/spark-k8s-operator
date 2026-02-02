@@ -38,7 +38,7 @@ use stackable_operator::{
 };
 use strum::{Display, EnumIter};
 
-use crate::crd::{ResolvedLogDir, v1alpha1};
+use crate::crd::{ResolvedLogDir, constants::DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT, v1alpha1};
 
 #[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
 #[strum(serialize_all = "kebab-case")]
@@ -221,6 +221,10 @@ pub struct SubmitConfig {
     /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
+
+    /// Number of times to retry the submit job on failure.
+    #[fragment_attrs(serde(default))]
+    pub retry_on_failure_count: u8,
 }
 
 impl SubmitConfig {
@@ -242,6 +246,7 @@ impl SubmitConfig {
             },
             volume_mounts: Some(VolumeMounts::default()),
             requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
+            retry_on_failure_count: Some(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT),
         }
     }
 }

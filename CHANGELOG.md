@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - Support for Spark `4.1.1` ([#642]).
 - Add `SparkApplication.spec.job.retryOnFailureCount` field and default to `0`.
   This has the effect that applications where the `spark-submit` Pod fails are not resubmitted.
-  Previously jobs were retried at most 6 times by default  ([#646]).
+  Previously jobs were retried at most 6 times by default  ([#647]).
 
 ### Removed
 
@@ -19,7 +19,7 @@ All notable changes to this project will be documented in this file.
 
 [#640]: https://github.com/stackabletech/spark-k8s-operator/pull/640
 [#642]: https://github.com/stackabletech/spark-k8s-operator/pull/642
-[#646]: https://github.com/stackabletech/spark-k8s-operator/pull/646
+[#647]: https://github.com/stackabletech/spark-k8s-operator/pull/647
 
 ## [25.11.0] - 2025-11-07
 

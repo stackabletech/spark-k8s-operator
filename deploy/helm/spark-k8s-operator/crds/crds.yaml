@@ -808,7 +808,7 @@ spec:
                               type: object
                           type: object
                         retryOnFailureCount:
-                          description: Number of times to retry the submit job on failure.
+                          description: Number of times to retry the submit job on failure. Default is `0` (no retries).
                           format: uint16
                           maximum: 65535.0
                           minimum: 0.0

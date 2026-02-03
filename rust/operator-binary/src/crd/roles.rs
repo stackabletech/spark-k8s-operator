@@ -222,7 +222,7 @@ pub struct SubmitConfig {
     #[fragment_attrs(serde(default))]
     pub requested_secret_lifetime: Option<Duration>,
 
-    /// Number of times to retry the submit job on failure.
+    /// Number of times to retry the submit job on failure. Default is `0` (no retries).
     #[fragment_attrs(serde(default))]
     pub retry_on_failure_count: u16,
 }

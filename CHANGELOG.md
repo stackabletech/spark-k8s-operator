@@ -9,9 +9,9 @@ All notable changes to this project will be documented in this file.
 - Support objectOverrides using `.spec.objectOverrides` on the `SparkConnectServer` and `SparkHistoryServer`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#640]).
 - Support for Spark `4.1.1` ([#642]).
-- Add `SparkApplication.spec.job.retryOnFailureCount` field and default to `0`.
+- Add `SparkApplication.spec.job.retryOnFailureCount` field with a default of `0`.
   This has the effect that applications where the `spark-submit` Pod fails are not resubmitted.
-  Previously jobs were retried at most 6 times by default  ([#647]).
+  Previously, Jobs were retried at most 6 times by default ([#647]).
 
 ### Removed
 

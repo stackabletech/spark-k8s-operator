@@ -50,7 +50,7 @@ pub enum Error {
         source: error_boundary::InvalidObject,
     },
 
-    #[snafu(display("cannot delete Spark driver pod [{pod_name}]"))]
+    #[snafu(display("cannot delete Spark driver pod {pod_name:?}"))]
     DeleteDriverPod {
         source: stackable_operator::client::Error,
         pod_name: String,
@@ -124,7 +124,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
     // otherwise they are left hanging forever.
     if phase == "Succeeded" || phase == "Failed" {
         tracing::info!(
-            "Spark application [{app_name}] completed with phase [{phase}], deleting driver pod [{pod_name}]"
+            "Spark application {app_name:?} completed with phase {phase:?}, deleting driver pod {pod_name:?}"
         );
         client
             .delete(pod)

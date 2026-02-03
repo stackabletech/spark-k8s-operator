@@ -633,10 +633,15 @@ fn pod_template(
 
     let mut metadata = omb.build();
 
-    // We explicitely remove the application owner reference from executor pods.
+    // We explicitly remove the application owner reference from driver and executor pods.
+    //
     // The executors then only have the driver as owner and Kubernetes can garbage collect them
     // early when the driver pod or the spark-submit job is deleted.
-    if role == SparkApplicationRole::Executor {
+    // Drivers must not have the SparkApplication as owner because this prevents proper cleanup
+    // when the application is finished.
+    // The submit pod doesn't use this function right now, but we keep the "if" below for future
+    // sanity.
+    if role == SparkApplicationRole::Executor || role == SparkApplicationRole::Driver {
         metadata.owner_references = None;
     }
 

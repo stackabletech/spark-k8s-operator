@@ -49,6 +49,12 @@ pub enum Error {
     InvalidPod {
         source: error_boundary::InvalidObject,
     },
+
+    #[snafu(display("cannot delete Spark driver pod [{pod_name}]"))]
+    DeleteDriverPod {
+        source: stackable_operator::client::Error,
+        pod_name: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -58,7 +64,10 @@ impl ReconcilerError for Error {
         ErrorDiscriminants::from(self).into()
     }
 }
-/// Updates the status of the SparkApplication that started the pod.
+
+/// This function serves two purposes:
+/// 1. It updates the status of the SparkApplication CR based on the status of the driver pod.
+/// 2. It deletes the driver pod when the SparkApplication reaches a terminal state (Succeeded or Failed).
 pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> Result<Action> {
     tracing::info!("Starting reconcile driver pod");
 
@@ -111,6 +120,19 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
             name: app_name.clone(),
         })?;
 
+    // We must manually delete the driver pod when the application reached a terminal state
+    // otherwise they are left hanging forever.
+    if phase == "Succeeded" || phase == "Failed" {
+        tracing::info!(
+            "Spark application [{app_name}] completed with phase [{phase}], deleting driver pod [{pod_name}]"
+        );
+        client
+            .delete(pod)
+            .await
+            .with_context(|_| DeleteDriverPodSnafu {
+                pod_name: pod_name.clone(),
+            })?;
+    }
     Ok(Action::await_change())
 }
 

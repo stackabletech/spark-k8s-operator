@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 
 - Remove the Spark application owner reference from the executor pods.
   This allows Kubernetes to garbage collect them early when the driver or the submit job fail ([#648]).
+- Clean up driver pods when the spark application is finished.
+  Previously, driver pods created by the submit job would be left hanging even after the job has been deleted ([#649]).
 
 ### Removed
 
@@ -22,6 +24,7 @@ All notable changes to this project will be documented in this file.
 [#640]: https://github.com/stackabletech/spark-k8s-operator/pull/640
 [#642]: https://github.com/stackabletech/spark-k8s-operator/pull/642
 [#648]: https://github.com/stackabletech/spark-k8s-operator/pull/648
+[#649]: https://github.com/stackabletech/spark-k8s-operator/pull/649
 
 ## [25.11.0] - 2025-11-07
 

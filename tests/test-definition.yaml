@@ -5,6 +5,7 @@ dimensions:
       - "false"
   - name: spark
     values:
+      - 3.5.7
       - 3.5.8
       - 4.0.1
       - 4.1.1
@@ -13,17 +14,20 @@ dimensions:
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
   - name: spark-logging
     values:
+      - 3.5.7
       - 3.5.8
       - 4.0.1
       - 4.1.1
   - name: spark-hbase-connector
     values:
+      - 3.5.7
       - 3.5.8
       # No hbase-connector release with support for Spark 4 yet.
       # - 4.0.1
       # - 4.1.1
   - name: spark-delta-lake
     values:
+      - 3.5.7
       - 3.5.8
       - 4.0.1
       # No delta-lake release with support for Spark 4.1 yet
@@ -31,12 +35,14 @@ dimensions:
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
   - name: spark-iceberg
     values:
+      - 3.5.7
       - 3.5.8
       - 4.0.1
       # No iceberg release with support for Spark 4.1 yet
       # - 4.1.1
   - name: spark-connect
     values:
+      - 3.5.7
       - 3.5.8
       - 4.0.1
       - 4.1.1

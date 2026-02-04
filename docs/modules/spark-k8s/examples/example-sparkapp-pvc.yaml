@@ -6,7 +6,7 @@ metadata:
   namespace: default
 spec:
   sparkImage:
-    productVersion: 3.5.7
+    productVersion: 3.5.8
   mode: cluster
   mainApplicationFile: s3a://my-bucket/app.jar # <1>
   mainClass: org.example.App # <2>

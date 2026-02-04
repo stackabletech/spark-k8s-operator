@@ -3,11 +3,11 @@
 // Stackable Platform documentation.
 // Please sort the versions in descending order (newest first)
 
-- 4.1.1 (Hadoop 3.4.2, Scala 2.13, Python 3.12, Java 21) (Experimental)
-- 4.0.1 (Hadoop 3.4.2, Scala 2.13, Python 3.12, Java 21)
-- 3.5.7 (Hadoop 3.4.2, Scala 2.12, Python 3.11, Java 17) (LTS)
+- 4.1.1 (Hadoop 3.4.2, Scala 2.13, Python 3.12, Java 21)
+- 4.0.1 (Hadoop 3.4.2, Scala 2.13, Python 3.12, Java 21) (Deprecated)
+- 3.5.8 (Hadoop 3.4.2, Scala 2.12, Python 3.11, Java 17) (LTS)
 
-Some reasons why Spark 4.1.1 is considered experimental (as of January 2026):
+Apache Spark 4.1.1 has the following known issues (as of February 2026):
 
 - Missing HBase compatibility (See: https://github.com/apache/hbase-connectors/pull/130)
 - No Iceberg Spark runtime release with support for Spark 4.1 available yet.

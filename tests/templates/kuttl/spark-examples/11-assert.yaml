@@ -1,0 +1,7 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 900
+commands:
+  # Test that there is no spark driver pod left hanging
+  - script: test -z "$(kubectl -n $NAMESPACE get pods -o name | grep -E 'driver$')"

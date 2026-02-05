@@ -5,7 +5,7 @@ metadata:
   name: spark-history
 spec:
   image:
-    productVersion: 3.5.7
+    productVersion: 3.5.8
   logFileDirectory: # <1>
     s3:
       prefix: eventlogs/ # <2>

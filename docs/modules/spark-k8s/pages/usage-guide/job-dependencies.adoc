@@ -29,7 +29,7 @@ Below is an example of a custom image that includes a JDBC driver:
 
 [source, Dockerfile]
 ----
-FROM oci.stackable.tech/sdp/spark-k8s:3.5.7-stackable0.0.0-dev # <1>
+FROM oci.stackable.tech/sdp/spark-k8s:3.5.8-stackable0.0.0-dev # <1>
 
 RUN curl --fail -o /stackable/spark/jars/postgresql-42.6.0.jar "https://jdbc.postgresql.org/download/postgresql-42.6.0.jar" # <2>
 ----
@@ -41,8 +41,8 @@ Build your custom image and push it to your container registry.
 
 [source, bash]
 ----
-docker build -t my-registry/spark-k8s:3.5.7-psql .
-docker push my-registry/spark-k8s:3.5.7-psql
+docker build -t my-registry/spark-k8s:3.5.8-psql .
+docker push my-registry/spark-k8s:3.5.8-psql
 ----
 
 And the following snippet showcases an application that uses the custom image:
@@ -55,8 +55,8 @@ metadata:
   name: spark-jdbc
 spec:
   sparkImage:
-    custom: "my-registry/spark-k8s:3.5.7-psql" # <1>
-    productVersion: "3.5.7" # <2>
+    custom: "my-registry/spark-k8s:3.5.8-psql" # <1>
+    productVersion: "3.5.8" # <2>
 ...
 ----
 

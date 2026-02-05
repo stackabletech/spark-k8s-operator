@@ -127,8 +127,11 @@ pub enum Error {
     #[snafu(display("failed build connect server jvm args for {name}"))]
     ServerJvmArgs { source: common::Error, name: String },
 
+    #[snafu(display("failed to add S3 secret or tls volume mounts to stateful set"))]
+    AddS3VolumeMount { source: s3::Error },
+
     #[snafu(display("failed to add S3 secret volumes to stateful set"))]
-    S3SecretVolumes { source: s3::Error },
+    AddS3Volume { source: s3::Error },
 }
 
 // Assemble the configuration of the spark-connect server.
@@ -291,7 +294,12 @@ pub(crate) fn build_stateful_set(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mounts(resolved_s3_buckets.volume_mounts())
+        .add_volume_mounts(
+            resolved_s3_buckets
+                .volumes_and_mounts()
+                .context(AddS3VolumeMountSnafu)?
+                .1,
+        )
         .context(AddVolumeMountSnafu)?
         .readiness_probe(probe())
         .liveness_probe(probe());
@@ -358,8 +366,9 @@ pub(crate) fn build_stateful_set(
     // Add any secret volumes needed for the configured S3 buckets
     pb.add_volumes(
         resolved_s3_buckets
-            .volumes()
-            .context(S3SecretVolumesSnafu)?,
+            .volumes_and_mounts()
+            .context(AddS3VolumeSnafu)?
+            .0,
     )
     .context(AddVolumeSnafu)?;
 
@@ -502,7 +511,7 @@ pub(crate) fn server_properties(
         ),
         (
             "spark.kubernetes.driver.pod.name".to_string(),
-            Some("${env:HOSTNAME}".to_string()),
+            Some("${{env:HOSTNAME}}".to_string()),
         ),
         (
             "spark.driver.defaultJavaOptions".to_string(),

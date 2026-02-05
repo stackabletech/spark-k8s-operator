@@ -1,16 +1,13 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    commons::secret_class::{SecretClassVolume, SecretClassVolumeError},
+    commons::secret_class::SecretClassVolumeError,
     crd::s3,
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
 };
 
-use crate::{
-    connect::crd,
-    crd::constants::{ACCESS_KEY_ID, S3_SECRET_DIR_NAME, SECRET_ACCESS_KEY},
-};
+use crate::connect::crd;
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -34,11 +31,15 @@ pub enum Error {
         secret_class: String,
         source: SecretClassVolumeError,
     },
+
+    #[snafu(display("failed to get volumes and mounts for S3 connection"))]
+    ConnectionVolumesAndMounts {
+        source: s3::v1alpha1::ConnectionError,
+    },
 }
 
 pub(crate) struct ResolvedS3Buckets {
     s3_buckets: Vec<s3::v1alpha1::ResolvedBucket>,
-    secret_class_volumes: BTreeSet<SecretClassVolume>,
 }
 
 impl ResolvedS3Buckets {
@@ -47,7 +48,6 @@ impl ResolvedS3Buckets {
         connect_server: &crd::v1alpha1::SparkConnectServer,
     ) -> Result<ResolvedS3Buckets, Error> {
         let mut s3_buckets = Vec::new();
-        let mut secret_class_volumes = BTreeSet::new();
         let namespace = connect_server
             .metadata
             .namespace
@@ -60,17 +60,10 @@ impl ResolvedS3Buckets {
                 .await
                 .context(ResolveS3ConnectionSnafu)?;
 
-            if let Some(credentials) = &resolved_bucket.connection.credentials {
-                secret_class_volumes.insert(credentials.clone());
-            }
-
             s3_buckets.push(resolved_bucket);
         }
 
-        Ok(ResolvedS3Buckets {
-            s3_buckets,
-            secret_class_volumes,
-        })
+        Ok(ResolvedS3Buckets { s3_buckets })
     }
 
     // Generate Spark properties for the resolved S3 buckets.
@@ -100,17 +93,16 @@ impl ResolvedS3Buckets {
                 format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.endpoint.region"),
                 Some(bucket.connection.region.name.clone()),
             );
-            if let Some(credentials) = &bucket.connection.credentials {
-                let secret_class_name = credentials.secret_class.clone();
-                let secret_dir = format!("{S3_SECRET_DIR_NAME}/{secret_class_name}");
-
+            if let Some((access_key_file_path, secret_key_file_path)) =
+                bucket.connection.credentials_mount_paths()
+            {
                 result.insert(
                     format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.access.key"),
-                    Some(format!("${{file:UTF-8:{secret_dir}/{ACCESS_KEY_ID}}}")),
+                    Some(format!("${{file:UTF-8:{access_key_file_path}}}")),
                 );
                 result.insert(
                     format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.secret.key"),
-                    Some(format!("${{file:UTF-8:{secret_dir}/{SECRET_ACCESS_KEY}}}")),
+                    Some(format!("${{file:UTF-8:{secret_key_file_path}}}")),
                 );
                 result.insert(
                     format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.aws.credentials.provider"),
@@ -127,34 +119,30 @@ impl ResolvedS3Buckets {
         Ok(result)
     }
 
-    pub(crate) fn volumes(&self) -> Result<Vec<Volume>, Error> {
-        let mut volumes = Vec::new();
-        for secret_class_volume in self.secret_class_volumes.iter() {
-            volumes.push(
-                secret_class_volume
-                    .to_volume(&secret_class_volume.secret_class)
-                    .with_context(|_| S3SecretVolumeSnafu {
-                        secret_class: secret_class_volume.secret_class.clone(),
-                    })?,
-            );
-        }
-        Ok(volumes)
-    }
+    // Ensures that there are no duplicate volumes or mounts across buckets.
+    pub(crate) fn volumes_and_mounts(&self) -> Result<(Vec<Volume>, Vec<VolumeMount>), Error> {
+        let mut volumes_by_name = BTreeMap::new();
+        let mut mounts_by_name = BTreeMap::new();
 
-    pub(crate) fn volume_mounts(&self) -> Vec<VolumeMount> {
-        let mut mounts = Vec::new();
+        for bucket in self.s3_buckets.iter() {
+            let (bucket_volumes, bucket_mounts) = bucket
+                .connection
+                .volumes_and_mounts()
+                .context(ConnectionVolumesAndMountsSnafu)?;
 
-        for secret_class_volume in self.secret_class_volumes.iter() {
-            let secret_class_name = secret_class_volume.secret_class.clone();
-            let secret_dir = format!("{S3_SECRET_DIR_NAME}/{secret_class_name}");
-
-            mounts.push(VolumeMount {
-                name: secret_class_name,
-                mount_path: secret_dir,
-                ..VolumeMount::default()
-            });
+            for volume in bucket_volumes.iter() {
+                let volume_name = volume.name.clone();
+                volumes_by_name.entry(volume_name).or_insert(volume.clone());
+            }
+            for mount in bucket_mounts.iter() {
+                let mount_name = mount.name.clone();
+                mounts_by_name.entry(mount_name).or_insert(mount.clone());
+            }
         }
 
-        mounts
+        Ok((
+            volumes_by_name.into_values().collect(),
+            mounts_by_name.into_values().collect(),
+        ))
     }
 }

@@ -279,6 +279,7 @@ pub async fn reconcile(
             &executor_config,
             &resolved_product_image,
             &executor_config_map,
+            &resolved_s3_buckets,
         )
         .context(ExecutorPodTemplateSnafu)?,
     )

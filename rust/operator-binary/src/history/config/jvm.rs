@@ -65,7 +65,7 @@ mod tests {
           name: spark-history
         spec:
           image:
-            productVersion: 3.5.7
+            productVersion: 3.5.8
           logFileDirectory:
             s3:
               prefix: eventlogs/
@@ -98,7 +98,7 @@ mod tests {
           name: spark-history
         spec:
           image:
-            productVersion: 3.5.7
+            productVersion: 3.5.8
           logFileDirectory:
             s3:
               prefix: eventlogs/

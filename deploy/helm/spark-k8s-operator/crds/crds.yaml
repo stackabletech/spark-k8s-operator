@@ -336,7 +336,7 @@ spec:
                       default: {}
                       description: |-
                         In the `podOverrides` property you can define a
-                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
                         [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
@@ -711,7 +711,7 @@ spec:
                       default: {}
                       description: |-
                         In the `podOverrides` property you can define a
-                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
                         [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
@@ -807,6 +807,13 @@ spec:
                             storage:
                               type: object
                           type: object
+                        retryOnFailureCount:
+                          description: Number of times to retry the submit job on failure. Default is `0` (no retries).
+                          format: uint16
+                          maximum: 65535.0
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
                         volumeMounts:
                           description: Volume mounts for the spark-submit, driver and executor pods.
                           items:
@@ -872,7 +879,7 @@ spec:
                       default: {}
                       description: |-
                         In the `podOverrides` property you can define a
-                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
                         [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
@@ -1868,7 +1875,7 @@ spec:
                       default: {}
                       description: |-
                         In the `podOverrides` property you can define a
-                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
                         [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
@@ -2176,7 +2183,7 @@ spec:
                             default: {}
                             description: |-
                               In the `podOverrides` property you can define a
-                              [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+                              [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#podtemplatespec-v1-core)
                               to override any property that can be set on a Kubernetes Pod.
                               Read the
                               [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
@@ -2549,7 +2556,7 @@ spec:
                       default: {}
                       description: |-
                         In the `podOverrides` property you can define a
-                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
                         [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)
@@ -2850,7 +2857,7 @@ spec:
                       default: {}
                       description: |-
                         In the `podOverrides` property you can define a
-                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podtemplatespec-v1-core)
+                        [PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#podtemplatespec-v1-core)
                         to override any property that can be set on a Kubernetes Pod.
                         Read the
                         [Pod overrides documentation](https://docs.stackable.tech/home/nightly/concepts/overrides#pod-overrides)

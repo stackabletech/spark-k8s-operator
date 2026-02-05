@@ -986,6 +986,7 @@ fn spark_job(
         spec: Some(JobSpec {
             template: pod,
             ttl_seconds_after_finished: Some(600),
+            backoff_limit: Some(spark_application.retry_on_failure_count()),
             ..Default::default()
         }),
         status: None,

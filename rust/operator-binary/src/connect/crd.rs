@@ -15,6 +15,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::PodAntiAffinity, apimachinery::pkg::api::resource::Quantity},
     kube::{CustomResource, ResourceExt},
@@ -67,8 +68,6 @@ pub enum Error {
     )
 )]
 pub mod versioned {
-    use stackable_operator::crd::s3;
-
     /// An Apache Spark Connect server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/connect-server).
@@ -87,6 +86,10 @@ pub mod versioned {
         // no doc string - See ClusterOperation struct
         #[serde(default)]
         pub cluster_operation: ClusterOperation,
+
+        /// One or more S3 connections to be used by the Spark Connect server.
+        #[serde(default)]
+        pub s3: Vec<s3::v1alpha1::InlineBucketOrReference>,
 
         // Docs are on the ObjectOverrides struct
         #[serde(default)]
@@ -156,10 +159,6 @@ pub mod versioned {
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
         #[fragment_attrs(serde(default))]
         pub requested_secret_lifetime: Option<Duration>,
-
-        /// One or more S3 connections to be used by the Spark Connect server.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub s3: Vec<s3::v1alpha1::InlineConnectionOrReference>,
     }
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]

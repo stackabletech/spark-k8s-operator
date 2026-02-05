@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
+use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -44,6 +45,7 @@ use crate::{
             CONNECT_GRPC_PORT, CONNECT_UI_PORT, DEFAULT_SPARK_CONNECT_GROUP_NAME,
             SparkConnectContainer, v1alpha1,
         },
+        s3,
     },
     crd::{
         constants::{
@@ -124,6 +126,9 @@ pub enum Error {
 
     #[snafu(display("failed build connect server jvm args for {name}"))]
     ServerJvmArgs { source: common::Error, name: String },
+
+    #[snafu(display("failed to add S3 secret volumes to stateful set"))]
+    S3SecretVolumes { source: s3::Error },
 }
 
 // Assemble the configuration of the spark-connect server.
@@ -204,6 +209,7 @@ pub(crate) fn server_config_map(
         .context(InvalidConfigMapSnafu { name: cm_name })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_stateful_set(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
@@ -212,6 +218,7 @@ pub(crate) fn build_stateful_set(
     config_map: &ConfigMap,
     listener_name: &str,
     args: Vec<String>,
+    resolved_s3_buckets: &s3::ResolvedS3Buckets,
 ) -> Result<StatefulSet, Error> {
     let server_role = SparkConnectRole::Server.to_string();
     let recommended_object_labels = common::labels(
@@ -284,6 +291,8 @@ pub(crate) fn build_stateful_set(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
+        .add_volume_mounts(resolved_s3_buckets.volume_mounts())
+        .context(AddVolumeMountSnafu)?
         .readiness_probe(probe())
         .liveness_probe(probe());
 
@@ -346,6 +355,14 @@ pub(crate) fn build_stateful_set(
         .context(BuildListenerVolumeSnafu)?,
     ]);
 
+    // Add any secret volumes needed for the configured S3 buckets
+    pb.add_volumes(
+        resolved_s3_buckets
+            .volumes()
+            .context(S3SecretVolumesSnafu)?,
+    )
+    .context(AddVolumeSnafu)?;
+
     // Merge user defined pod template if available
     let mut pod_template = pb.build_template();
     if let Some(pod_overrides_spec) = scs
@@ -396,18 +413,17 @@ pub(crate) fn build_stateful_set(
 
 #[allow(clippy::result_large_err)]
 pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
-    let mut command = vec![
-        // ---------- start containerdebug
-        format!(
-            "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-        ),
-        // ---------- start spark connect server
-        "/stackable/spark/sbin/start-connect-server.sh".to_string(),
-        "--deploy-mode client".to_string(), // 'cluster' mode not supported
-        "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
-            .to_string(),
-        format!("--properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
-    ];
+    let mut command = vec![formatdoc! { "
+    containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &
+
+    cp {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME} /tmp/spark.properties
+    config-utils template /tmp/spark.properties
+
+    /stackable/spark/sbin/start-connect-server.sh \\
+    --deploy-mode client \\
+    --master k8s://https://${{KUBERNETES_SERVICE_HOST}}:${{KUBERNETES_SERVICE_PORT_HTTPS}} \\
+    --properties-file /tmp/spark.properties
+    " }];
 
     // User provided command line arguments
     command.extend_from_slice(user_args);

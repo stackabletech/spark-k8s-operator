@@ -67,3 +67,7 @@ resources:
 
 service:
   type: NodePort
+
+tls:
+  enabled: true
+  existingSecret: minio-tls-ca

@@ -511,7 +511,7 @@ pub(crate) fn server_properties(
         ),
         (
             "spark.kubernetes.driver.pod.name".to_string(),
-            Some("${{env:HOSTNAME}}".to_string()),
+            Some("${env:HOSTNAME}".to_string()),
         ),
         (
             "spark.driver.defaultJavaOptions".to_string(),

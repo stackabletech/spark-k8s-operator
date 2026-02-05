@@ -8523,6 +8523,10 @@ rec {
             features = [ "compat" ];
           }
           {
+            name = "indoc";
+            packageId = "indoc";
+          }
+          {
             name = "product-config";
             packageId = "product-config";
           }

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::secret_class::SecretClassVolumeError,
-    crd::s3,
+    crd::s3::{self, v1alpha1::S3AccessStyle},
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
 };
 
@@ -87,7 +87,7 @@ impl ResolvedS3Buckets {
             );
             result.insert(
                 format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.path.style.access"),
-                Some(bucket.connection.access_style.to_string()),
+                Some((bucket.connection.access_style == S3AccessStyle::Path).to_string()),
             );
             result.insert(
                 format!("spark.hadoop.fs.s3a.bucket.{bucket_name}.endpoint.region"),

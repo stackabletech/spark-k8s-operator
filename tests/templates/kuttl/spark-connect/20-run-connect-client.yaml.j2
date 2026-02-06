@@ -76,17 +76,6 @@ spec:
             requests:
               cpu: 200m
               memory: 128Mi
-          # env:
-          #   - name: AWS_ACCESS_KEY_ID
-          #     valueFrom:
-          #       secretKeyRef:
-          #         name: minio-credentials
-          #         key: accessKey
-          #   - name: AWS_SECRET_ACCESS_KEY
-          #     valueFrom:
-          #       secretKeyRef:
-          #         name: minio-credentials
-          #         key: secretKey
           volumeMounts:
             - name: spark-connect-client
               mountPath: /app

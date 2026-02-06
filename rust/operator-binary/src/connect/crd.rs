@@ -422,7 +422,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cr_s3_deserialization() {
+    fn test_cr_s3_ref_deserialization() {
         let input = indoc! { r#"
           ---
           apiVersion: spark.stackable.tech/v1alpha1
@@ -435,6 +435,41 @@ mod tests {
             connectors:
               s3:
                 - reference: my-s3-bucket
+        "# };
+
+        let deserializer = serde_yaml::Deserializer::from_str(input);
+        let _spark_connect_cr: v1alpha1::SparkConnectServer =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("Failed to deserialize SparkConnectServer with S3 connectors CR");
+    }
+
+    #[test]
+    fn test_cr_s3_inline_deserialization() {
+        let input = indoc! { r#"
+          ---
+          apiVersion: spark.stackable.tech/v1alpha1
+          kind: SparkConnectServer
+          metadata:
+            name: spark-connect
+          spec:
+            image:
+              productVersion: 4.1.1
+            connectors:
+              s3:
+                - inline:
+                    bucketName: mybucket
+                    connection:
+                      inline:
+                        host: minio
+                        port: 9000
+                        accessStyle: Path
+                        credentials:
+                          secretClass: minio-credentials-class
+                        tls:
+                          verification:
+                            server:
+                              caCert:
+                                secretClass: minio-tls-ca
         "# };
 
         let deserializer = serde_yaml::Deserializer::from_str(input);

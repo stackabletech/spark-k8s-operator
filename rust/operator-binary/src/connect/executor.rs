@@ -14,7 +14,7 @@ use stackable_operator::{
     },
     k8s_openapi::{
         DeepMerge,
-        api::core::v1::{ConfigMap, EnvVar, PodTemplateSpec},
+        api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
     },
     kube::{ResourceExt, runtime::reflector::ObjectRef},
     product_logging::framework::calculate_log_volume_size_limit,
@@ -169,7 +169,20 @@ pub fn executor_pod_template(
                 .context(AddS3VolumeSnafu)?
                 .0,
         )
-        .context(AddVolumeSnafu)?;
+        .context(AddVolumeSnafu)?
+        // This is needed for shared enpryDir volumes with other containers like the truststore
+        // init container.
+        .security_context(PodSecurityContext {
+            fs_group: Some(1000),
+            ..PodSecurityContext::default()
+        });
+
+    // S3: Add truststore init container for S3 endpoint communication with TLS.
+    if let Some(truststore_init_container) =
+        resolved_s3_buckets.truststore_init_container(resolved_product_image.clone())
+    {
+        template.add_init_container(truststore_init_container);
+    }
 
     if let Some(cm_name) = config.log_config_map() {
         container

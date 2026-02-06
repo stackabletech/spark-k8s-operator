@@ -259,6 +259,8 @@ pub(crate) fn build_stateful_set(
                 .build(),
         )
         .context(AddVolumeSnafu)?
+        // This is needed for shared enpryDir volumes with other containers like the truststore
+        // init container.
         .security_context(PodSecurityContext {
             fs_group: Some(1000),
             ..PodSecurityContext::default()
@@ -363,7 +365,7 @@ pub(crate) fn build_stateful_set(
         .context(BuildListenerVolumeSnafu)?,
     ]);
 
-    // Add any secret volumes needed for the configured S3 buckets
+    // S3: Add secret volumes needed for accessing S3 buckets.
     pb.add_volumes(
         resolved_s3_buckets
             .volumes_and_mounts()
@@ -371,6 +373,13 @@ pub(crate) fn build_stateful_set(
             .0,
     )
     .context(AddVolumeSnafu)?;
+
+    // S3: Add truststore init container for S3 endpoint communication with TLS.
+    if let Some(truststore_init_container) =
+        resolved_s3_buckets.truststore_init_container(resolved_product_image.clone())
+    {
+        pb.add_init_container(truststore_init_container);
+    }
 
     // Merge user defined pod template if available
     let mut pod_template = pb.build_template();

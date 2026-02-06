@@ -62,8 +62,7 @@ dimensions:
   - name: s3-use-tls
     values:
       - "false"
-      # TODO: re-enable when the spark-connect implementation works.
-      # - "true"
+      - "true"
 tests:
   - name: smoke
     dimensions:

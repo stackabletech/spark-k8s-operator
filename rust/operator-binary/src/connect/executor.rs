@@ -14,7 +14,7 @@ use stackable_operator::{
     },
     k8s_openapi::{
         DeepMerge,
-        api::core::v1::{ConfigMap, EnvVar, PodTemplateSpec},
+        api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
     },
     kube::{ResourceExt, runtime::reflector::ObjectRef},
     product_logging::framework::calculate_log_volume_size_limit,
@@ -26,7 +26,7 @@ use super::{
     crd::{DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer},
 };
 use crate::{
-    connect::{common, crd::v1alpha1},
+    connect::{common, crd::v1alpha1, s3},
     crd::constants::{
         JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
         METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME,
@@ -85,6 +85,12 @@ pub enum Error {
         source: builder::configmap::Error,
         cm_name: String,
     },
+
+    #[snafu(display("failed to add S3 secret or tls volume mounts to exectors"))]
+    AddS3VolumeMount { source: s3::Error },
+
+    #[snafu(display("failed to add S3 secret volumes to exectors"))]
+    AddS3Volume { source: s3::Error },
 }
 
 // The executor pod template can contain only a handful of properties.
@@ -102,6 +108,7 @@ pub fn executor_pod_template(
     config: &v1alpha1::ExecutorConfig,
     resolved_product_image: &ResolvedProductImage,
     config_map: &ConfigMap,
+    resolved_s3_buckets: &s3::ResolvedS3Buckets,
 ) -> Result<PodTemplateSpec, Error> {
     let container_env = executor_env(
         scs.spec
@@ -118,6 +125,13 @@ pub fn executor_pod_template(
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+        .context(AddVolumeMountSnafu)?
+        .add_volume_mounts(
+            resolved_s3_buckets
+                .volumes_and_mounts()
+                .context(AddS3VolumeMountSnafu)?
+                .1,
+        )
         .context(AddVolumeMountSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
@@ -148,7 +162,27 @@ pub fn executor_pod_template(
                 .with_config_map(config_map.name_unchecked())
                 .build(),
         )
-        .context(AddVolumeSnafu)?;
+        .context(AddVolumeSnafu)?
+        .add_volumes(
+            resolved_s3_buckets
+                .volumes_and_mounts()
+                .context(AddS3VolumeSnafu)?
+                .0,
+        )
+        .context(AddVolumeSnafu)?
+        // This is needed for shared enpryDir volumes with other containers like the truststore
+        // init container.
+        .security_context(PodSecurityContext {
+            fs_group: Some(1000),
+            ..PodSecurityContext::default()
+        });
+
+    // S3: Add truststore init container for S3 endpoint communication with TLS.
+    if let Some(truststore_init_container) =
+        resolved_s3_buckets.truststore_init_container(resolved_product_image.clone())
+    {
+        template.add_init_container(truststore_init_container);
+    }
 
     if let Some(cm_name) = config.log_config_map() {
         container

@@ -25,6 +25,7 @@ tracing-futures.workspace = true
 clap.workspace = true
 futures.workspace = true
 tokio.workspace = true
+indoc.workspace = true
 
 [dev-dependencies]
 indoc.workspace = true

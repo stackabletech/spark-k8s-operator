@@ -1728,9 +1728,9 @@ rec {
       };
       "deranged" = rec {
         crateName = "deranged";
-        version = "0.4.0";
+        version = "0.5.5";
         edition = "2021";
-        sha256 = "13h6skwk411wzhf1l9l7d3yz5y6vg9d7s3dwhhb4a942r88nm7lw";
+        sha256 = "11z5939gv2klp1r1lgrp4w5fnlkj18jqqf0h9zxmia3vkrjwpv7c";
         authors = [
           "Jacob Pratt <jacob@jhpratt.dev>"
         ];
@@ -1743,7 +1743,6 @@ rec {
           }
         ];
         features = {
-          "default" = [ "std" ];
           "macros" = [ "dep:deranged-macros" ];
           "num" = [ "dep:num-traits" ];
           "powerfmt" = [ "dep:powerfmt" ];
@@ -1751,10 +1750,9 @@ rec {
           "rand" = [ "rand08" "rand09" ];
           "rand08" = [ "dep:rand08" ];
           "rand09" = [ "dep:rand09" ];
-          "serde" = [ "dep:serde" ];
-          "std" = [ "alloc" ];
+          "serde" = [ "dep:serde_core" ];
         };
-        resolvedDefaultFeatures = [ "alloc" "powerfmt" "std" ];
+        resolvedDefaultFeatures = [ "default" "powerfmt" ];
       };
       "derive_more" = rec {
         crateName = "derive_more";
@@ -5350,9 +5348,9 @@ rec {
       };
       "num-conv" = rec {
         crateName = "num-conv";
-        version = "0.1.0";
+        version = "0.2.0";
         edition = "2021";
-        sha256 = "1ndiyg82q73783jq18isi71a7mjh56wxrk52rlvyx0mi5z9ibmai";
+        sha256 = "0l4hj7lp8zbb9am4j3p7vlcv47y9bbazinvnxx9zjhiwkibyr5yg";
         libName = "num_conv";
         authors = [
           "Jacob Pratt <jacob@jhpratt.dev>"
@@ -7665,35 +7663,34 @@ rec {
       };
       "serde" = rec {
         crateName = "serde";
-        version = "1.0.219";
-        edition = "2018";
-        sha256 = "1dl6nyxnsi82a197sd752128a4avm6mxnscywas1jq30srp2q3jz";
+        version = "1.0.228";
+        edition = "2021";
+        sha256 = "17mf4hhjxv5m90g42wmlbc61hdhlm6j9hwfkpcnd72rpgzm993ls";
         authors = [
           "Erick Tryzelaar <erick.tryzelaar@gmail.com>"
           "David Tolnay <dtolnay@gmail.com>"
         ];
         dependencies = [
           {
+            name = "serde_core";
+            packageId = "serde_core";
+            usesDefaultFeatures = false;
+            features = [ "result" ];
+          }
+          {
             name = "serde_derive";
             packageId = "serde_derive";
             optional = true;
           }
-          {
-            name = "serde_derive";
-            packageId = "serde_derive";
-            target = { target, features }: false;
-          }
-        ];
-        devDependencies = [
-          {
-            name = "serde_derive";
-            packageId = "serde_derive";
-          }
         ];
         features = {
+          "alloc" = [ "serde_core/alloc" ];
           "default" = [ "std" ];
           "derive" = [ "serde_derive" ];
+          "rc" = [ "serde_core/rc" ];
           "serde_derive" = [ "dep:serde_derive" ];
+          "std" = [ "serde_core/std" ];
+          "unstable" = [ "serde_core/unstable" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "derive" "serde_derive" "std" ];
       };
@@ -7718,11 +7715,38 @@ rec {
         ];
 
       };
+      "serde_core" = rec {
+        crateName = "serde_core";
+        version = "1.0.228";
+        edition = "2021";
+        sha256 = "1bb7id2xwx8izq50098s5j2sqrrvk31jbbrjqygyan6ask3qbls1";
+        authors = [
+          "Erick Tryzelaar <erick.tryzelaar@gmail.com>"
+          "David Tolnay <dtolnay@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "serde_derive";
+            packageId = "serde_derive";
+            target = { target, features }: false;
+          }
+        ];
+        devDependencies = [
+          {
+            name = "serde_derive";
+            packageId = "serde_derive";
+          }
+        ];
+        features = {
+          "default" = [ "std" "result" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "result" "std" ];
+      };
       "serde_derive" = rec {
         crateName = "serde_derive";
-        version = "1.0.219";
-        edition = "2015";
-        sha256 = "001azhjmj7ya52pmfiw4ppxm16nd44y15j2pf5gkcwrcgz7pc0jv";
+        version = "1.0.228";
+        edition = "2021";
+        sha256 = "0y8xm7fvmr2kjcd029g9fijpndh8csv5m20g4bd76w8qschg4h6m";
         procMacro = true;
         authors = [
           "Erick Tryzelaar <erick.tryzelaar@gmail.com>"
@@ -9117,9 +9141,9 @@ rec {
       };
       "time" = rec {
         crateName = "time";
-        version = "0.3.41";
-        edition = "2021";
-        sha256 = "0h0cpiyya8cjlrh00d2r72bmgg4lsdcncs76qpwy0rn2kghijxla";
+        version = "0.3.47";
+        edition = "2024";
+        sha256 = "0b7g9ly2iabrlgizliz6v5x23yq5d6bpp0mqz6407z1s526d8fvl";
         authors = [
           "Jacob Pratt <open-source@jhpratt.dev>"
           "Time contributors"
@@ -9128,7 +9152,6 @@ rec {
           {
             name = "deranged";
             packageId = "deranged";
-            usesDefaultFeatures = false;
             features = [ "powerfmt" ];
           }
           {
@@ -9146,8 +9169,8 @@ rec {
             usesDefaultFeatures = false;
           }
           {
-            name = "serde";
-            packageId = "serde";
+            name = "serde_core";
+            packageId = "serde_core";
             optional = true;
             usesDefaultFeatures = false;
           }
@@ -9167,51 +9190,48 @@ rec {
             packageId = "num-conv";
           }
           {
-            name = "serde";
-            packageId = "serde";
-            usesDefaultFeatures = false;
-            features = [ "derive" ];
-          }
-          {
             name = "time-macros";
             packageId = "time-macros";
           }
         ];
         features = {
-          "alloc" = [ "serde?/alloc" ];
+          "alloc" = [ "serde_core?/alloc" ];
           "default" = [ "std" ];
           "formatting" = [ "dep:itoa" "std" "time-macros?/formatting" ];
-          "large-dates" = [ "time-macros?/large-dates" ];
+          "large-dates" = [ "time-core/large-dates" "time-macros?/large-dates" ];
           "local-offset" = [ "std" "dep:libc" "dep:num_threads" ];
           "macros" = [ "dep:time-macros" ];
           "parsing" = [ "time-macros?/parsing" ];
           "quickcheck" = [ "dep:quickcheck" "alloc" "deranged/quickcheck" ];
-          "rand" = [ "dep:rand" "deranged/rand" ];
-          "serde" = [ "dep:serde" "time-macros?/serde" "deranged/serde" ];
+          "rand" = [ "rand08" "rand09" ];
+          "rand08" = [ "dep:rand08" "deranged/rand08" ];
+          "rand09" = [ "dep:rand09" "deranged/rand09" ];
+          "serde" = [ "dep:serde_core" "time-macros?/serde" "deranged/serde" ];
           "serde-human-readable" = [ "serde" "formatting" "parsing" ];
           "serde-well-known" = [ "serde" "formatting" "parsing" ];
-          "std" = [ "alloc" "deranged/std" ];
+          "std" = [ "alloc" ];
           "wasm-bindgen" = [ "dep:js-sys" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "formatting" "parsing" "std" ];
       };
       "time-core" = rec {
         crateName = "time-core";
-        version = "0.1.4";
-        edition = "2021";
-        sha256 = "0z5h9fknvdvbs2k2s1chpi3ab3jvgkfhdnqwrvixjngm263s7sf9";
+        version = "0.1.8";
+        edition = "2024";
+        sha256 = "1jidl426mw48i7hjj4hs9vxgd9lwqq4vyalm4q8d7y4iwz7y353n";
         libName = "time_core";
         authors = [
           "Jacob Pratt <open-source@jhpratt.dev>"
           "Time contributors"
         ];
-
+        features = {
+        };
       };
       "time-macros" = rec {
         crateName = "time-macros";
-        version = "0.2.22";
-        edition = "2021";
-        sha256 = "0jcaxpw220han2bzbrdlpqhy1s5k9i8ri3lw6n5zv4zcja9p69im";
+        version = "0.2.27";
+        edition = "2024";
+        sha256 = "058ja265waq275wxvnfwavbz9r1hd4dgwpfn7a1a9a70l32y8w1f";
         procMacro = true;
         libName = "time_macros";
         authors = [

@@ -53,7 +53,7 @@ impl ResolvedS3Buckets {
             .namespace
             .as_ref()
             .context(MissingNamespaceSnafu)?;
-        for conn in connect_server.spec.s3.iter() {
+        for conn in connect_server.spec.connectors.s3.iter() {
             let resolved_bucket = conn
                 .clone()
                 .resolve(client, namespace)

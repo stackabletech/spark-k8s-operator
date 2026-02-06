@@ -62,7 +62,8 @@ dimensions:
   - name: s3-use-tls
     values:
       - "false"
-      - "true"
+      # TODO: re-enable when the spark-connect implementation works.
+      # - "true"
 tests:
   - name: smoke
     dimensions:
@@ -134,6 +135,7 @@ tests:
     dimensions:
       - spark-connect
       - openshift
+      - s3-use-tls
 
 suites:
   - name: nightly

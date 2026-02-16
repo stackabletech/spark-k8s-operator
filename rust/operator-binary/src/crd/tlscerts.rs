@@ -37,7 +37,7 @@ pub fn tls_secret_names<'a>(
     s3conn: &'a Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &'a Option<ResolvedLogDir>,
 ) -> Option<Vec<&'a str>> {
-    // Ensure the secret names are duplicated.
+    // Ensure there are no duplicate secret names.
     let mut names = BTreeSet::new();
 
     if let Some(secret_name) = s3conn.as_ref().and_then(|s3conn| tls_secret_name(s3conn)) {

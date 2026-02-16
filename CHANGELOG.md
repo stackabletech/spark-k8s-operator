@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
   Previously, Jobs were retried at most 6 times by default ([#647]).
 - Support for Spark `3.5.8` ([#650]).
 
+### Fixed
+
+- Spark applications now correctly handle the case where both the History Server and the S3 connection use the same TLS secret class ([#655]).
+  Previously the Spark application pods would have the same TLS volume twice which would lead to an error.
+  Also the spark-submit job was missing the correct `-Djavax.net.ssl.trustStore` properties.
+
 ### Changed
 
 - Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#651]).
@@ -34,6 +40,7 @@ All notable changes to this project will be documented in this file.
 [#649]: https://github.com/stackabletech/spark-k8s-operator/pull/649
 [#650]: https://github.com/stackabletech/spark-k8s-operator/pull/650
 [#651]: https://github.com/stackabletech/spark-k8s-operator/pull/651
+[#655]: https://github.com/stackabletech/spark-k8s-operator/pull/655
 
 ## [25.11.0] - 2025-11-07
 

@@ -896,6 +896,10 @@ fn spark_job(
 
     let merged_env = spark_application.merged_env(SparkApplicationRole::Submit, env);
 
+    // The SPARK_SUBMIT_OPTS env var is used to configure the JVM settings of the spark-submit job.
+    // Here we need to point the JVM to our logging configuration and if S3 is used for data or Spark History,
+    // we also need to tell the JVM where the trust store is located.
+    // The same properties are also set for the driver and executor pods via the pod template config maps.
     let mut spark_submit_opts_env = vec![format!(
         "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
     )];

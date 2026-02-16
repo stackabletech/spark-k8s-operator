@@ -46,6 +46,15 @@ affinity: {}
 # See the https://docs.stackable.tech/home/stable/guides/kubernetes-cluster-domain guide for details.
 # kubernetesClusterDomain: my-cluster.local
 
+maintenance:
+  endOfSupportCheck:
+    enabled: true
+    # mode: offline
+    # interval: 24h
+
+  customResourceDefinitions:
+    maintain: true
+
 # See all available options and detailed explanations about the concept here:
 # https://docs.stackable.tech/home/stable/concepts/telemetry/
 telemetry:

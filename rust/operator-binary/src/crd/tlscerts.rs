@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use stackable_operator::{
     commons::tls_verification::{
         CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification,
@@ -35,18 +37,23 @@ pub fn tls_secret_names<'a>(
     s3conn: &'a Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &'a Option<ResolvedLogDir>,
 ) -> Option<Vec<&'a str>> {
-    let mut names = Vec::new();
+    // Ensure there are no duplicate secret names.
+    let mut names = BTreeSet::new();
 
     if let Some(secret_name) = s3conn.as_ref().and_then(|s3conn| tls_secret_name(s3conn)) {
-        names.push(secret_name);
+        names.insert(secret_name);
     }
 
     if let Some(logdir) = logdir {
         if let Some(secret_name) = logdir.tls_secret_name() {
-            names.push(secret_name);
+            names.insert(secret_name);
         }
     }
-    if names.is_empty() { None } else { Some(names) }
+    if names.is_empty() {
+        None
+    } else {
+        Some(names.into_iter().collect())
+    }
 }
 
 pub fn convert_system_trust_store_to_pkcs12() -> String {

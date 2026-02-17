@@ -21,7 +21,7 @@ spec:
   sparkConf:
     spark.kubernetes.file.upload.path: "s3a://my-bucket"
   s3connection:
-    reference: spark-data-s3-connection
+    reference: spark-history-s3-connection
   logFileDirectory:
     s3:
       prefix: eventlogs/

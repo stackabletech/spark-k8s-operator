@@ -300,6 +300,7 @@ impl v1alpha1::SparkApplication {
         self.spec.deps.packages.clone()
     }
 
+    // Returns a list of volumes common to all application roles: job, driver and executor.
     pub fn volumes(
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
@@ -307,10 +308,13 @@ impl v1alpha1::SparkApplication {
         log_config_map: Option<&str>,
         requested_secret_lifetime: &Duration,
     ) -> Result<Vec<Volume>, Error> {
-        let mut result: Vec<Volume> = self.spec.volumes.clone();
+        // Collect the volumes in a map keyed by name to avoid duplicates.
+        // Duplicates can happen when the the S3 credentials volume and the history server log directory use the same secret class.
+        let mut result = BTreeMap::new();
 
         if self.spec.image.is_some() {
-            result.push(
+            result.insert(
+                VOLUME_MOUNT_NAME_JOB.to_string(),
                 VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
                     .empty_dir(EmptyDirVolumeSource::default())
                     .build(),
@@ -318,7 +322,8 @@ impl v1alpha1::SparkApplication {
         }
 
         if self.requirements().is_some() {
-            result.push(
+            result.insert(
+                VOLUME_MOUNT_NAME_REQ.to_string(),
                 VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
                     .empty_dir(EmptyDirVolumeSource::default())
                     .build(),
@@ -330,28 +335,32 @@ impl v1alpha1::SparkApplication {
             ..
         }) = s3conn
         {
-            result.push(
+            let volume_name = &secret_class_volume.secret_class;
+            result.insert(
+                volume_name.clone(),
                 secret_class_volume
-                    .to_volume(secret_class_volume.secret_class.as_ref())
+                    .to_volume(volume_name)
                     .context(S3CredentialsVolumeBuildSnafu)?,
             );
         }
 
         if let Some(log_dir) = logdir.as_ref() {
             if let Some(volume) = log_dir.credentials_volume().context(ConfigureLogDirSnafu)? {
-                result.push(volume);
+                result.insert(volume.name.clone(), volume);
             }
         }
 
         if let Some(log_config_map) = log_config_map {
-            result.push(
+            result.insert(
+                VOLUME_MOUNT_NAME_LOG_CONFIG.to_string(),
                 VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
                     .with_config_map(log_config_map)
                     .build(),
             );
         }
         // This volume is also used by the containerdebug process so it must always be there.
-        result.push(
+        result.insert(
+            VOLUME_MOUNT_NAME_LOG.to_string(),
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
                 .with_empty_dir(
                     None::<String>,
@@ -363,20 +372,23 @@ impl v1alpha1::SparkApplication {
         );
 
         if !self.packages().is_empty() {
-            result.push(
+            result.insert(
+                VOLUME_MOUNT_NAME_IVY2.to_string(),
                 VolumeBuilder::new(VOLUME_MOUNT_NAME_IVY2)
                     .empty_dir(EmptyDirVolumeSource::default())
                     .build(),
             );
         }
         if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir) {
-            result.push(
+            result.insert(
+                STACKABLE_TRUST_STORE_NAME.to_string(),
                 VolumeBuilder::new(STACKABLE_TRUST_STORE_NAME)
                     .with_empty_dir(None::<String>, Some(Quantity("5Mi".to_string())))
                     .build(),
             );
             for cert_secret in cert_secrets {
-                result.push(
+                result.insert(
+                    cert_secret.to_string(),
                     VolumeBuilder::new(cert_secret)
                         .ephemeral(
                             SecretOperatorVolumeSourceBuilder::new(cert_secret)
@@ -390,7 +402,15 @@ impl v1alpha1::SparkApplication {
             }
         }
 
-        Ok(result)
+        // Finally add the user specified volumes. These should overwrite any volumes with the same name that we have added above.
+        result.extend(
+            self.spec
+                .volumes
+                .iter()
+                .map(|v| (v.name.clone(), v.clone())),
+        );
+
+        Ok(result.into_values().collect())
     }
 
     /// Return the volume mounts for the spark-submit pod.
@@ -551,7 +571,24 @@ impl v1alpha1::SparkApplication {
         let mode = &self.spec.mode;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
+        // Commands needed to build the p12 trust store from the secret class certs configured for
+        // S3 connections.
+        let build_truststore_commands = match tlscerts::tls_secret_names(s3conn, log_dir) {
+            Some(cert_secrets) => {
+                let mut build_truststore_str =
+                    vec![tlscerts::convert_system_trust_store_to_pkcs12()];
+                build_truststore_str
+                    .extend(cert_secrets.into_iter().map(tlscerts::import_truststore));
+                format!("{};", build_truststore_str.join(" && "))
+            }
+            None => "".to_string(),
+        };
+
         let mut submit_cmd = vec![
+            format!(
+                "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+            ),
+            build_truststore_commands,
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
@@ -722,12 +759,7 @@ impl v1alpha1::SparkApplication {
 
         submit_cmd.extend(self.spec.args.clone());
 
-        Ok(vec![
-            format!(
-                "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-            ),
-            submit_cmd.join(" "),
-        ])
+        Ok(vec![submit_cmd.join(" ")])
     }
 
     pub fn env(

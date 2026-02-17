@@ -15,6 +15,12 @@ All notable changes to this project will be documented in this file.
 - Support for Spark `3.5.8` ([#650]).
 - First class support for S3 buckets on Spark connect clusters ([#652]).
 
+### Fixed
+
+- Spark applications now correctly handle the case where both the History Server and the S3 connection use the same TLS secret class ([#655]).
+  Previously, the Spark application pods contained the same TLS volume twice, which could not be applied to the API server.
+- The spark-submit job now sets the correct `-Djavax.net.ssl.trustStore` properties ([#655]).
+
 ### Changed
 
 - Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#651]).
@@ -36,6 +42,7 @@ All notable changes to this project will be documented in this file.
 [#650]: https://github.com/stackabletech/spark-k8s-operator/pull/650
 [#651]: https://github.com/stackabletech/spark-k8s-operator/pull/651
 [#652]: https://github.com/stackabletech/spark-k8s-operator/pull/652
+[#655]: https://github.com/stackabletech/spark-k8s-operator/pull/655
 
 ## [25.11.0] - 2025-11-07
 

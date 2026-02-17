@@ -64,6 +64,7 @@ pub const MAX_INIT_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
 };
 
 pub const OPERATOR_NAME: &str = "spark.stackable.tech";
+pub const FIELD_MANAGER: &str = "spark-operator";
 
 pub const SPARK_CONTROLLER_NAME: &str = "sparkapplication";
 pub const SPARK_FULL_CONTROLLER_NAME: &str = concatcp!(SPARK_CONTROLLER_NAME, '.', OPERATOR_NAME);

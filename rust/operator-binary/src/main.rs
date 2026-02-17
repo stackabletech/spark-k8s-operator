@@ -3,9 +3,10 @@
 #![allow(clippy::result_large_err)]
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use clap::Parser;
 use connect::crd::{CONNECT_FULL_CONTROLLER_NAME, SparkConnectServer};
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, TryFutureExt};
 use history::history_controller;
 use product_config::ProductConfigManager;
 use stackable_operator::{
@@ -42,6 +43,7 @@ use crate::{
         },
         history::SparkHistoryServer,
     },
+    webhooks::conversion::create_webhook_server,
 };
 
 mod config;
@@ -51,6 +53,7 @@ mod history;
 mod pod_driver_controller;
 mod product_logging;
 mod spark_k8s_controller;
+mod webhooks;
 
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -85,7 +88,7 @@ async fn main() -> anyhow::Result<()> {
                 .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
         }
         Command::Run(RunArguments {
-            operator_environment: _,
+            operator_environment,
             watch_namespace,
             product_config,
             maintenance,
@@ -122,6 +125,17 @@ async fn main() -> anyhow::Result<()> {
                 &common.cluster_info,
             )
             .await?;
+
+            let webhook_server = create_webhook_server(
+                &operator_environment,
+                maintenance.disable_crd_maintenance,
+                client.as_kube_client(),
+            )
+            .await?;
+
+            let webhook_server = webhook_server
+                .run(sigterm_watcher.handle())
+                .map_err(|err| anyhow!(err).context("failed to run webhook server"));
 
             let ctx = Ctx {
                 client: client.clone(),
@@ -344,8 +358,9 @@ async fn main() -> anyhow::Result<()> {
                 pod_driver_controller,
                 history_controller,
                 connect_controller,
+                webhook_server,
                 app_controller,
-                eos_checker
+                eos_checker,
             )?;
         }
     }

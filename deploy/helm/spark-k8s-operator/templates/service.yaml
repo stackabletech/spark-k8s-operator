@@ -11,7 +11,10 @@ metadata:
     {{- include "operator.labels" . | nindent 4 }}
 spec:
   selector:
-    {{- include "operator.selectorLabels" . | nindent 6 }}
+    {{- if .Values.maintenance.customResourceDefinitions.maintain }}
+    webhook.stackable.tech/conversion: enabled
+    {{- end }}
+    {{- include "operator.selectorLabels" . | nindent 4 }}
   ports:
     - name: conversion-webhook
       protocol: TCP

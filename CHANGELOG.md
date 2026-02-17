@@ -17,8 +17,8 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Spark applications now correctly handle the case where both the History Server and the S3 connection use the same TLS secret class ([#655]).
-  Previously the Spark application pods would have the same TLS volume twice which would lead to an error.
-  Also the spark-submit job was missing the correct `-Djavax.net.ssl.trustStore` properties.
+  Previously, the Spark application pods contained the same TLS volume twice, which could not be applied to the API server.
+- The spark-submit job now sets the correct `-Djavax.net.ssl.trustStore` properties ([#655]).
 
 ### Changed
 

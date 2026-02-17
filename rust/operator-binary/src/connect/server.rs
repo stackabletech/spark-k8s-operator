@@ -221,7 +221,7 @@ pub(crate) fn build_stateful_set(
     config_map: &ConfigMap,
     listener_name: &str,
     args: Vec<String>,
-    resolved_s3_buckets: &s3::ResolvedS3Buckets,
+    resolved_s3: &s3::ResolvedS3,
 ) -> Result<StatefulSet, Error> {
     let server_role = SparkConnectRole::Server.to_string();
     let recommended_object_labels = common::labels(
@@ -297,7 +297,7 @@ pub(crate) fn build_stateful_set(
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mounts(
-            resolved_s3_buckets
+            resolved_s3
                 .volumes_and_mounts()
                 .context(AddS3VolumeMountSnafu)?
                 .1,
@@ -367,7 +367,7 @@ pub(crate) fn build_stateful_set(
 
     // S3: Add secret volumes needed for accessing S3 buckets.
     pb.add_volumes(
-        resolved_s3_buckets
+        resolved_s3
             .volumes_and_mounts()
             .context(AddS3VolumeSnafu)?
             .0,
@@ -376,7 +376,7 @@ pub(crate) fn build_stateful_set(
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.
     if let Some(truststore_init_container) =
-        resolved_s3_buckets.truststore_init_container(resolved_product_image.clone())
+        resolved_s3.truststore_init_container(resolved_product_image.clone())
     {
         pb.add_init_container(truststore_init_container);
     }

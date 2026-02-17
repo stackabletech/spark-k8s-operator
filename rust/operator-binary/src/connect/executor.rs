@@ -108,7 +108,7 @@ pub fn executor_pod_template(
     config: &v1alpha1::ExecutorConfig,
     resolved_product_image: &ResolvedProductImage,
     config_map: &ConfigMap,
-    resolved_s3_buckets: &s3::ResolvedS3Buckets,
+    resolved_s3: &s3::ResolvedS3,
 ) -> Result<PodTemplateSpec, Error> {
     let container_env = executor_env(
         scs.spec
@@ -127,7 +127,7 @@ pub fn executor_pod_template(
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
         .context(AddVolumeMountSnafu)?
         .add_volume_mounts(
-            resolved_s3_buckets
+            resolved_s3
                 .volumes_and_mounts()
                 .context(AddS3VolumeMountSnafu)?
                 .1,
@@ -164,7 +164,7 @@ pub fn executor_pod_template(
         )
         .context(AddVolumeSnafu)?
         .add_volumes(
-            resolved_s3_buckets
+            resolved_s3
                 .volumes_and_mounts()
                 .context(AddS3VolumeSnafu)?
                 .0,
@@ -179,7 +179,7 @@ pub fn executor_pod_template(
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.
     if let Some(truststore_init_container) =
-        resolved_s3_buckets.truststore_init_container(resolved_product_image.clone())
+        resolved_s3.truststore_init_container(resolved_product_image.clone())
     {
         template.add_init_container(truststore_init_container);
     }

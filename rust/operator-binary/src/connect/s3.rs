@@ -1,6 +1,5 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
@@ -12,8 +11,11 @@ use stackable_operator::{
 
 use crate::{
     connect::crd,
-    crd::constants::{
-        STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_NAME,
+    crd::{
+        constants::{
+            STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, STACKABLE_TRUST_STORE_NAME,
+        },
+        tlscerts,
     },
 };
 
@@ -21,10 +23,20 @@ use crate::{
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[snafu(display("failed to resolve S3 connection"))]
-    ResolveS3Connection { source: s3::v1alpha1::BucketError },
+    ResolveS3Connection {
+        source: s3::v1alpha1::ConnectionError,
+    },
+
+    #[snafu(display("failed to resolve S3 bucket"))]
+    ResolveS3Bucket { source: s3::v1alpha1::BucketError },
 
     #[snafu(display("missing namespace"))]
     MissingNamespace,
+
+    #[snafu(display("failed to get endpoint for S3 connection"))]
+    S3ConnectionEndpoint {
+        source: s3::v1alpha1::ConnectionError,
+    },
 
     #[snafu(display("failed to get endpoint for S3 bucket {bucket_name:?}"))]
     BucketEndpoint {
@@ -46,32 +58,45 @@ pub enum Error {
     },
 }
 
-pub(crate) struct ResolvedS3Buckets {
+pub(crate) struct ResolvedS3 {
     s3_buckets: Vec<s3::v1alpha1::ResolvedBucket>,
+    s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
 }
 
-impl ResolvedS3Buckets {
+impl ResolvedS3 {
     pub(crate) async fn resolve(
         client: &stackable_operator::client::Client,
         connect_server: &crd::v1alpha1::SparkConnectServer,
-    ) -> Result<ResolvedS3Buckets, Error> {
+    ) -> Result<ResolvedS3, Error> {
         let mut s3_buckets = Vec::new();
         let namespace = connect_server
             .metadata
             .namespace
             .as_ref()
             .context(MissingNamespaceSnafu)?;
-        for conn in connect_server.spec.connectors.s3.iter() {
-            let resolved_bucket = conn
+        for bucket in connect_server.spec.connectors.s3buckets.iter() {
+            let resolved_bucket = bucket
                 .clone()
                 .resolve(client, namespace)
                 .await
-                .context(ResolveS3ConnectionSnafu)?;
+                .context(ResolveS3BucketSnafu)?;
 
             s3_buckets.push(resolved_bucket);
         }
 
-        Ok(ResolvedS3Buckets { s3_buckets })
+        let s3_connection = match connect_server.spec.connectors.s3connection.clone() {
+            Some(conn) => Some(
+                conn.resolve(client, namespace)
+                    .await
+                    .context(ResolveS3ConnectionSnafu)?,
+            ),
+            None => None,
+        };
+
+        Ok(ResolvedS3 {
+            s3_buckets,
+            s3_connection,
+        })
     }
 
     // Generate Spark properties for the resolved S3 buckets.
@@ -79,6 +104,52 @@ impl ResolvedS3Buckets {
     pub(crate) fn spark_properties(&self) -> Result<BTreeMap<String, Option<String>>, Error> {
         let mut result = BTreeMap::new();
 
+        // --------------------------------------------------------------------------------
+        // Add global connection properties if a connection is defined.
+        // --------------------------------------------------------------------------------
+        if let Some(conn) = &self.s3_connection {
+            result.insert(
+                "spark.hadoop.fs.s3a.endpoint".to_string(),
+                Some(
+                    conn.endpoint()
+                        .context(S3ConnectionEndpointSnafu)?
+                        .to_string(),
+                ),
+            );
+            result.insert(
+                "spark.hadoop.fs.s3a.path.style.access".to_string(),
+                Some((conn.access_style == S3AccessStyle::Path).to_string()),
+            );
+            result.insert(
+                "spark.hadoop.fs.s3a.endpoint.region".to_string(),
+                Some(conn.region.name.clone()),
+            );
+            if let Some((access_key_file_path, secret_key_file_path)) =
+                conn.credentials_mount_paths()
+            {
+                result.insert(
+                    "spark.hadoop.fs.s3a.access.key".to_string(),
+                    Some(format!("${{file:UTF-8:{access_key_file_path}}}")),
+                );
+                result.insert(
+                    "spark.hadoop.fs.s3a.secret.key".to_string(),
+                    Some(format!("${{file:UTF-8:{secret_key_file_path}}}")),
+                );
+                result.insert(
+                    "spark.hadoop.fs.s3a.aws.credentials.provider".to_string(),
+                    Some("org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider".to_string()),
+                );
+            } else {
+                result.insert(
+                    "spark.hadoop.fs.s3a.aws.credentials.provider".to_string(),
+                    Some("org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider".to_string()),
+                );
+            }
+        }
+
+        // --------------------------------------------------------------------------------
+        // Add per-bucket properties for all the buckets.
+        // --------------------------------------------------------------------------------
         for bucket in &self.s3_buckets {
             let bucket_name = bucket.bucket_name.clone();
             result.insert(
@@ -176,7 +247,7 @@ impl ResolvedS3Buckets {
         &self,
         image: ResolvedProductImage,
     ) -> Option<stackable_operator::k8s_openapi::api::core::v1::Container> {
-        self.build_truststore_from_pem_ca_command().map(|command| {
+        self.build_truststore_command().map(|command| {
             stackable_operator::k8s_openapi::api::core::v1::Container {
                 name: "tls-truststore-init".to_string(),
                 image: Some(image.image.clone()),
@@ -208,11 +279,22 @@ impl ResolvedS3Buckets {
 
     // The list of volume mounts for TLS CAs.
     fn tls_volume_mounts(&self) -> Vec<VolumeMount> {
-        self.s3_buckets
-            .iter()
-            .flat_map(|bucket| bucket.connection.tls.volumes_and_mounts())
-            .flat_map(|(_, mount)| mount)
-            .collect()
+        // Ensure volume mounts are unique by name across all buckets and the connection.
+        let mounts_by_name = BTreeMap::from_iter(
+            self.s3_buckets
+                .iter()
+                .flat_map(|bucket| bucket.connection.tls.volumes_and_mounts())
+                .flat_map(|(_, mount)| mount)
+                .map(|mount| (mount.name.clone(), mount))
+                .chain(
+                    self.s3_connection
+                        .iter()
+                        .flat_map(|conn| conn.tls.volumes_and_mounts())
+                        .flat_map(|(_, mount)| mount)
+                        .map(|mount| (mount.name.clone(), mount)),
+                ),
+        );
+        mounts_by_name.into_values().collect()
     }
 
     // The volume where the truststore is written to by the init container.
@@ -224,15 +306,26 @@ impl ResolvedS3Buckets {
         }
     }
 
+    // List of paths to ca.crt files mounted by the secret classes.
     fn secret_class_tls_ca_paths(&self) -> Vec<String> {
-        // List of ca.crt files mounted by the secret classes.
-        self.s3_buckets
+        // Ensure that CA paths are unique across all buckets and the connection.
+        let paths: BTreeSet<String> = self
+            .s3_buckets
             .iter()
             .flat_map(|bucket| bucket.connection.tls.tls_ca_cert_mount_path())
-            .collect()
+            .chain(
+                self.s3_connection
+                    .iter()
+                    .flat_map(|conn| conn.tls.tls_ca_cert_mount_path().into_iter()),
+            )
+            .collect();
+
+        paths.into_iter().collect()
     }
 
-    fn build_truststore_from_pem_ca_command(&self) -> Option<String> {
+    // Builds the command that generates a truststore from the system trust store
+    // and any additional CA certs provided by the user through secret classes.
+    fn build_truststore_command(&self) -> Option<String> {
         let input_ca_paths: Vec<String> = self.secret_class_tls_ca_paths();
 
         let out_truststore_path = format!("{STACKABLE_TRUST_STORE}/truststore.p12");
@@ -240,19 +333,17 @@ impl ResolvedS3Buckets {
         if input_ca_paths.is_empty() {
             None
         } else {
-            Some(formatdoc! { "
-                cert-tools generate-pkcs12-truststore --out {out_truststore_path} --out-password {STACKABLE_TLS_STORE_PASSWORD} {pem_args}",
-                pem_args = input_ca_paths
-                    .iter()
-                    .map(|path| format!("--pem {path}"))
-                    .collect::<Vec<String>>()
-                    .join(" ")
-            })
+            Some(
+                Some(tlscerts::convert_system_trust_store_to_pkcs12())
+                .into_iter()
+                .chain(input_ca_paths.iter().map(|path| format!("cert-tools generate-pkcs12-truststore --out {out_truststore_path} --out-password {STACKABLE_TLS_STORE_PASSWORD} --pkcs12 {out_truststore_path}:{STACKABLE_TLS_STORE_PASSWORD} --pkcs12 {path}")))
+                .collect::<Vec<String>>()
+                .join(" && "))
         }
     }
 
     fn extra_java_options(&self) -> Option<BTreeMap<String, Option<String>>> {
-        if self.build_truststore_from_pem_ca_command().is_some() {
+        if self.build_truststore_command().is_some() {
             let mut ssl_options = BTreeMap::new();
             ssl_options.insert(
                 "-Djavax.net.ssl.trustStore".to_string(),

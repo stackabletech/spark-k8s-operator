@@ -192,7 +192,9 @@ pub mod versioned {
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Deserialize, Serialize)]
     struct Connectors {
         #[serde(default)]
-        pub s3: Vec<s3::v1alpha1::InlineBucketOrReference>,
+        pub s3buckets: Vec<s3::v1alpha1::InlineBucketOrReference>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub s3connection: Option<s3::v1alpha1::InlineConnectionOrReference>,
     }
 }
 

@@ -193,7 +193,7 @@ pub async fn reconcile(
         .context(ResolveProductImageSnafu)?;
 
     // Resolve any S3 connections early to fail fast if there are issues.
-    let resolved_s3_buckets = s3::ResolvedS3Buckets::resolve(client, scs)
+    let resolved_s3 = s3::ResolvedS3::resolve(client, scs)
         .await
         .with_context(|_| ResolveS3ConnectionsSnafu {
             name: scs.name_unchecked(),
@@ -242,7 +242,7 @@ pub async fn reconcile(
     // Server config map
 
     let spark_props = common::spark_properties(&[
-        resolved_s3_buckets
+        resolved_s3
             .spark_properties()
             .context(S3SparkPropertiesSnafu)?,
         server::server_properties(
@@ -279,7 +279,7 @@ pub async fn reconcile(
             &executor_config,
             &resolved_product_image,
             &executor_config_map,
-            &resolved_s3_buckets,
+            &resolved_s3,
         )
         .context(ExecutorPodTemplateSnafu)?,
     )
@@ -325,7 +325,7 @@ pub async fn reconcile(
         &server_config_map,
         &applied_listener.name_any(),
         args,
-        &resolved_s3_buckets,
+        &resolved_s3,
     )
     .context(BuildServerStatefulSetSnafu)?;
 

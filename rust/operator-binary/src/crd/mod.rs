@@ -335,11 +335,11 @@ impl v1alpha1::SparkApplication {
             ..
         }) = s3conn
         {
-            let volume_name = secret_class_volume.secret_class.clone();
+            let volume_name = &secret_class_volume.secret_class;
             result.insert(
                 volume_name.clone(),
                 secret_class_volume
-                    .to_volume(&volume_name)
+                    .to_volume(volume_name)
                     .context(S3CredentialsVolumeBuildSnafu)?,
             );
         }

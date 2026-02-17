@@ -300,7 +300,7 @@ impl v1alpha1::SparkApplication {
         self.spec.deps.packages.clone()
     }
 
-    // Returns a list volumes common to all application roles: job, driver and executor.
+    // Returns a list of volumes common to all application roles: job, driver and executor.
     pub fn volumes(
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,

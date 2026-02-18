@@ -86,11 +86,14 @@ pub enum Error {
         cm_name: String,
     },
 
-    #[snafu(display("failed to add S3 secret or tls volume mounts to exectors"))]
+    #[snafu(display("failed to add S3 secret or tls volume mounts to executors"))]
     AddS3VolumeMount { source: s3::Error },
 
-    #[snafu(display("failed to add S3 secret volumes to exectors"))]
+    #[snafu(display("failed to add S3 secret volumes to executors"))]
     AddS3Volume { source: s3::Error },
+
+    #[snafu(display("failed to create the init container for the S3 truststore"))]
+    TrustStoreInitContainer { source: s3::Error },
 }
 
 // The executor pod template can contain only a handful of properties.
@@ -178,8 +181,9 @@ pub fn executor_pod_template(
         });
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.
-    if let Some(truststore_init_container) =
-        resolved_s3.truststore_init_container(resolved_product_image.clone())
+    if let Some(truststore_init_container) = resolved_s3
+        .truststore_init_container(resolved_product_image.clone())
+        .context(TrustStoreInitContainerSnafu)?
     {
         template.add_init_container(truststore_init_container);
     }

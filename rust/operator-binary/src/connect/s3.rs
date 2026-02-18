@@ -203,11 +203,33 @@ impl ResolvedS3 {
         Ok(result)
     }
 
-    // Ensures that there are no duplicate volumes or mounts across buckets.
+    // Build the list of volumes and mounts needed for the S3 credentials and/or TLS trust stores.
     pub(crate) fn volumes_and_mounts(&self) -> Result<(Vec<Volume>, Vec<VolumeMount>), Error> {
+        // Ensures that there are no duplicate volumes or mounts across buckets.
         let mut volumes_by_name = BTreeMap::new();
         let mut mounts_by_name = BTreeMap::new();
 
+        // --------------------------------------------------------------------------------
+        // Connection volumes and mounts.
+        // --------------------------------------------------------------------------------
+        if let Some(conn) = &self.s3_connection {
+            let (conn_volumes, conn_mounts) = conn
+                .volumes_and_mounts()
+                .context(ConnectionVolumesAndMountsSnafu)?;
+
+            for volume in conn_volumes.iter() {
+                let volume_name = volume.name.clone();
+                volumes_by_name.entry(volume_name).or_insert(volume.clone());
+            }
+            for mount in conn_mounts.iter() {
+                let mount_name = mount.name.clone();
+                mounts_by_name.entry(mount_name).or_insert(mount.clone());
+            }
+        }
+
+        // --------------------------------------------------------------------------------
+        // Per-bucket volumes and mounts.
+        // --------------------------------------------------------------------------------
         for bucket in self.s3_buckets.iter() {
             let (bucket_volumes, bucket_mounts) = bucket
                 .connection
@@ -224,11 +246,17 @@ impl ResolvedS3 {
             }
         }
 
-        // Always add the truststore volume and mount even if they are not populated by an init
-        // container.
+        // --------------------------------------------------------------------------------
+        // Trust store volume and mount.
+        // This is where the the trust store built by `cert-tools` in the init container is stored.
+        // --------------------------------------------------------------------------------
         volumes_by_name
             .entry(STACKABLE_TRUST_STORE_NAME.to_string())
-            .or_insert_with(|| self.truststore_volume());
+            .or_insert_with(|| Volume {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                empty_dir: Some(Default::default()),
+                ..Default::default()
+            });
         mounts_by_name
             .entry(STACKABLE_TRUST_STORE_NAME.to_string())
             .or_insert_with(|| VolumeMount {
@@ -246,63 +274,27 @@ impl ResolvedS3 {
     pub(crate) fn truststore_init_container(
         &self,
         image: ResolvedProductImage,
-    ) -> Option<stackable_operator::k8s_openapi::api::core::v1::Container> {
-        self.build_truststore_command().map(|command| {
-            stackable_operator::k8s_openapi::api::core::v1::Container {
-                name: "tls-truststore-init".to_string(),
-                image: Some(image.image.clone()),
-                command: Some(vec![
-                    "/bin/bash".to_string(),
-                    "-x".to_string(),
-                    "-euo".to_string(),
-                    "pipefail".to_string(),
-                    "-c".to_string(),
-                    command,
-                ]),
-                volume_mounts: Some(self.truststore_init_container_volume_mounts()),
-                ..Default::default()
-            }
-        })
-    }
-
-    // The list of volume mounts for the init container that builds the truststore from PEM CA certs.
-    // It contains the output volume mount as well as all the input mounts for the PEM CA certs.
-    fn truststore_init_container_volume_mounts(&self) -> Vec<VolumeMount> {
-        let mut result = self.tls_volume_mounts();
-        result.extend([VolumeMount {
-            name: STACKABLE_TRUST_STORE_NAME.to_string(),
-            mount_path: STACKABLE_TRUST_STORE.to_string(),
-            ..Default::default()
-        }]);
-        result
-    }
-
-    // The list of volume mounts for TLS CAs.
-    fn tls_volume_mounts(&self) -> Vec<VolumeMount> {
-        // Ensure volume mounts are unique by name across all buckets and the connection.
-        let mounts_by_name = BTreeMap::from_iter(
-            self.s3_buckets
-                .iter()
-                .flat_map(|bucket| bucket.connection.tls.volumes_and_mounts())
-                .flat_map(|(_, mount)| mount)
-                .map(|mount| (mount.name.clone(), mount))
-                .chain(
-                    self.s3_connection
-                        .iter()
-                        .flat_map(|conn| conn.tls.volumes_and_mounts())
-                        .flat_map(|(_, mount)| mount)
-                        .map(|mount| (mount.name.clone(), mount)),
-                ),
-        );
-        mounts_by_name.into_values().collect()
-    }
-
-    // The volume where the truststore is written to by the init container.
-    fn truststore_volume(&self) -> Volume {
-        Volume {
-            name: STACKABLE_TRUST_STORE_NAME.to_string(),
-            empty_dir: Some(Default::default()),
-            ..Default::default()
+    ) -> Result<Option<stackable_operator::k8s_openapi::api::core::v1::Container>, Error> {
+        if let Some(command) = self.truststore_init_container_command() {
+            let (_, volume_mounts) = self.volumes_and_mounts()?;
+            Ok(Some(
+                stackable_operator::k8s_openapi::api::core::v1::Container {
+                    name: "tls-truststore-init".to_string(),
+                    image: Some(image.image.clone()),
+                    command: Some(vec![
+                        "/bin/bash".to_string(),
+                        "-x".to_string(),
+                        "-euo".to_string(),
+                        "pipefail".to_string(),
+                        "-c".to_string(),
+                        command,
+                    ]),
+                    volume_mounts: Some(volume_mounts),
+                    ..Default::default()
+                },
+            ))
+        } else {
+            Ok(None)
         }
     }
 
@@ -325,7 +317,11 @@ impl ResolvedS3 {
 
     // Builds the command that generates a truststore from the system trust store
     // and any additional CA certs provided by the user through secret classes.
-    fn build_truststore_command(&self) -> Option<String> {
+    //
+    // IMPORTANT: We assume the CA certs are in PEM format because we know that `s3::v1alpha1::ConnectionSpec::volumes_and_mounts()`
+    // does NOT set the format annotation on the secret volumes.
+    //
+    fn truststore_init_container_command(&self) -> Option<String> {
         let input_ca_paths: Vec<String> = self.secret_class_tls_ca_paths();
 
         let out_truststore_path = format!("{STACKABLE_TRUST_STORE}/truststore.p12");
@@ -336,14 +332,14 @@ impl ResolvedS3 {
             Some(
                 Some(tlscerts::convert_system_trust_store_to_pkcs12())
                 .into_iter()
-                .chain(input_ca_paths.iter().map(|path| format!("cert-tools generate-pkcs12-truststore --out {out_truststore_path} --out-password {STACKABLE_TLS_STORE_PASSWORD} --pkcs12 {out_truststore_path}:{STACKABLE_TLS_STORE_PASSWORD} --pkcs12 {path}")))
+                .chain(input_ca_paths.iter().map(|path| format!("cert-tools generate-pkcs12-truststore --out {out_truststore_path} --out-password {STACKABLE_TLS_STORE_PASSWORD} --pkcs12 {out_truststore_path}:{STACKABLE_TLS_STORE_PASSWORD} --pem {path}")))
                 .collect::<Vec<String>>()
                 .join(" && "))
         }
     }
 
     fn extra_java_options(&self) -> Option<BTreeMap<String, Option<String>>> {
-        if self.build_truststore_command().is_some() {
+        if self.truststore_init_container_command().is_some() {
             let mut ssl_options = BTreeMap::new();
             ssl_options.insert(
                 "-Djavax.net.ssl.trustStore".to_string(),

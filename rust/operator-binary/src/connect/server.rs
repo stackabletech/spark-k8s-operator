@@ -132,6 +132,9 @@ pub enum Error {
 
     #[snafu(display("failed to add S3 secret volumes to stateful set"))]
     AddS3Volume { source: s3::Error },
+
+    #[snafu(display("failed to create the init container for the S3 truststore"))]
+    TrustStoreInitContainer { source: s3::Error },
 }
 
 // Assemble the configuration of the spark-connect server.
@@ -375,8 +378,9 @@ pub(crate) fn build_stateful_set(
     .context(AddVolumeSnafu)?;
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.
-    if let Some(truststore_init_container) =
-        resolved_s3.truststore_init_container(resolved_product_image.clone())
+    if let Some(truststore_init_container) = resolved_s3
+        .truststore_init_container(resolved_product_image.clone())
+        .context(TrustStoreInitContainerSnafu)?
     {
         pb.add_init_container(truststore_init_container);
     }

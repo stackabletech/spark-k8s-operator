@@ -375,3 +375,539 @@ impl ResolvedS3 {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use product_config::writer::to_java_properties_string;
+    use rstest::*;
+    use stackable_operator::commons::{
+        secret_class::SecretClassVolume,
+        tls_verification::{CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification},
+    };
+
+    use super::*;
+
+    #[rstest]
+    #[case("no connection and no buckets",
+        ResolvedS3 {
+            s3_buckets: vec![],
+            s3_connection: None,
+        },
+        vec![STACKABLE_TRUST_STORE_NAME.to_string(),],
+        vec![VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                mount_path: STACKABLE_TRUST_STORE.to_string(),
+                ..Default::default()
+            }],
+        None,
+    )]
+    #[case("connection without credentials and without tls",
+        ResolvedS3 {
+            s3_buckets: vec![],
+            s3_connection: Some(s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: None,
+                tls: TlsClientDetails {
+                    tls: None,
+                },
+            })
+        },
+        vec![STACKABLE_TRUST_STORE_NAME.to_string()],
+        vec![VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                mount_path: STACKABLE_TRUST_STORE.to_string(),
+                ..Default::default()
+            }],
+        None,
+    )]
+    #[case("connection with credentials and no tls",
+        ResolvedS3 {
+            s3_buckets: vec![],
+            s3_connection: Some(s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "connection-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: None,
+                },
+            })
+        },
+        vec!["connection-secret-class-s3-credentials".to_string(),
+             STACKABLE_TRUST_STORE_NAME.to_string()],
+        vec![
+            VolumeMount {
+                name: "connection-secret-class-s3-credentials".to_string(),
+                mount_path: "/stackable/secrets/connection-secret-class".to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                mount_path: STACKABLE_TRUST_STORE.to_string(),
+                ..Default::default()
+            }],
+        None,
+    )]
+    #[case("connection with credentials and tls",
+        ResolvedS3 {
+            s3_buckets: vec![],
+            s3_connection: Some(s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "connection-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: Some(Tls {
+                        verification: TlsVerification::Server(
+                            TlsServerVerification{
+                            ca_cert: CaCert::SecretClass("connection-tls-ca-secret-class".to_string()),
+                        })
+                    }),
+                },
+            })
+        },
+        vec!["connection-secret-class-s3-credentials".to_string(),
+            "connection-tls-ca-secret-class-ca-cert".to_string(),
+             STACKABLE_TRUST_STORE_NAME.to_string()],
+        vec![
+            VolumeMount {
+                name: "connection-secret-class-s3-credentials".to_string(),
+                mount_path: "/stackable/secrets/connection-secret-class".to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: "connection-tls-ca-secret-class-ca-cert".to_string(),
+                mount_path: "/stackable/secrets/connection-tls-ca-secret-class".to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                mount_path: STACKABLE_TRUST_STORE.to_string(),
+                ..Default::default()
+            }],
+        Some("cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out /stackable/truststore/truststore.p12 --out-password changeit && cert-tools generate-pkcs12-truststore --out /stackable/truststore/truststore.p12 --out-password changeit --pkcs12 /stackable/truststore/truststore.p12:changeit --pem /stackable/secrets/connection-tls-ca-secret-class/ca.crt".to_string()),
+    )]
+    #[case("one bucket without credentials and without tls",
+        ResolvedS3 {
+            s3_connection: None,
+            s3_buckets: vec![
+                s3::v1alpha1::ResolvedBucket {
+                    bucket_name: "bucket-1".to_string(),
+                    connection: s3::v1alpha1::ConnectionSpec {
+                        host: "my-s3-endpoint.com".parse().unwrap(),
+                        port: None,
+                        region: s3::v1alpha1::Region {
+                            name: "us-east-1".to_string(),
+                        },
+                        access_style: S3AccessStyle::Path,
+                        credentials: None,
+                        tls: TlsClientDetails {
+                            tls: None,
+                        },
+            }}]
+        },
+        vec![STACKABLE_TRUST_STORE_NAME.to_string()],
+        vec![VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                mount_path: STACKABLE_TRUST_STORE.to_string(),
+                ..Default::default()
+            }],
+        None,
+    )]
+    #[case("one bucket with credentials and no tls",
+        ResolvedS3 {
+            s3_connection: None,
+            s3_buckets: vec![
+                s3::v1alpha1::ResolvedBucket {
+                    bucket_name: "bucket-1".to_string(),
+                    connection: s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "bucket-1-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: None,
+                },
+            }}]
+        },
+        vec!["bucket-1-secret-class-s3-credentials".to_string(),
+             STACKABLE_TRUST_STORE_NAME.to_string()],
+        vec![
+            VolumeMount {
+                name: "bucket-1-secret-class-s3-credentials".to_string(),
+                mount_path: "/stackable/secrets/bucket-1-secret-class".to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                mount_path: STACKABLE_TRUST_STORE.to_string(),
+                ..Default::default()
+            }],
+        None,
+    )]
+    #[case("one bucket with credentials and tls",
+        ResolvedS3 {
+            s3_connection: None,
+            s3_buckets: vec![
+                s3::v1alpha1::ResolvedBucket {
+                    bucket_name: "bucket-1".to_string(),
+                    connection: s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "bucket-1-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: Some(Tls {
+                        verification: TlsVerification::Server(
+                            TlsServerVerification{
+                            ca_cert: CaCert::SecretClass("bucket-1-tls-ca-secret-class".to_string()),
+                        })
+                    }),
+                },
+            }}]
+        },
+        vec!["bucket-1-secret-class-s3-credentials".to_string(),
+            "bucket-1-tls-ca-secret-class-ca-cert".to_string(),
+             STACKABLE_TRUST_STORE_NAME.to_string()],
+        vec![
+            VolumeMount {
+                name: "bucket-1-secret-class-s3-credentials".to_string(),
+                mount_path: "/stackable/secrets/bucket-1-secret-class".to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: "bucket-1-tls-ca-secret-class-ca-cert".to_string(),
+                mount_path: "/stackable/secrets/bucket-1-tls-ca-secret-class".to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                mount_path: STACKABLE_TRUST_STORE.to_string(),
+                ..Default::default()
+            }],
+        Some("cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out /stackable/truststore/truststore.p12 --out-password changeit && cert-tools generate-pkcs12-truststore --out /stackable/truststore/truststore.p12 --out-password changeit --pkcs12 /stackable/truststore/truststore.p12:changeit --pem /stackable/secrets/bucket-1-tls-ca-secret-class/ca.crt".to_string()),
+    )]
+    #[case("connection and one bucket with different credentials and same TLS secret class",
+        ResolvedS3 {
+            s3_connection: Some(
+                s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "connection-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: Some(Tls {
+                        verification: TlsVerification::Server(
+                            TlsServerVerification{
+                            ca_cert: CaCert::SecretClass("tls-ca-secret-class".to_string()),
+                        })
+                    }),
+                },
+            }
+            ),
+            s3_buckets: vec![
+                s3::v1alpha1::ResolvedBucket {
+                    bucket_name: "bucket-1".to_string(),
+                    connection: s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "bucket-1-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: Some(Tls {
+                        verification: TlsVerification::Server(
+                            TlsServerVerification{
+                            ca_cert: CaCert::SecretClass("tls-ca-secret-class".to_string()),
+                        })
+                    }),
+                },
+            }}]
+        },
+        vec![
+            "bucket-1-secret-class-s3-credentials".to_string(),
+            "connection-secret-class-s3-credentials".to_string(),
+             STACKABLE_TRUST_STORE_NAME.to_string(),
+            "tls-ca-secret-class-ca-cert".to_string(),],
+        vec![
+            VolumeMount {
+                name: "bucket-1-secret-class-s3-credentials".to_string(),
+                mount_path: "/stackable/secrets/bucket-1-secret-class".to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: "connection-secret-class-s3-credentials".to_string(),
+                mount_path: "/stackable/secrets/connection-secret-class".to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                mount_path: STACKABLE_TRUST_STORE.to_string(),
+                ..Default::default()
+            },
+                        VolumeMount {
+                name: "tls-ca-secret-class-ca-cert".to_string(),
+                mount_path: "/stackable/secrets/tls-ca-secret-class".to_string(),
+                ..Default::default()
+            }],
+        Some("cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out /stackable/truststore/truststore.p12 --out-password changeit && cert-tools generate-pkcs12-truststore --out /stackable/truststore/truststore.p12 --out-password changeit --pkcs12 /stackable/truststore/truststore.p12:changeit --pem /stackable/secrets/tls-ca-secret-class/ca.crt".to_string()),
+    )]
+    #[case("connection and one bucket with same credentials and same TLS secret class",
+        ResolvedS3 {
+            s3_connection: Some(
+                s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "credentials-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: Some(Tls {
+                        verification: TlsVerification::Server(
+                            TlsServerVerification{
+                            ca_cert: CaCert::SecretClass("tls-ca-secret-class".to_string()),
+                        })
+                    }),
+                },
+            }
+            ),
+            s3_buckets: vec![
+                s3::v1alpha1::ResolvedBucket {
+                    bucket_name: "bucket-1".to_string(),
+                    connection: s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "credentials-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: Some(Tls {
+                        verification: TlsVerification::Server(
+                            TlsServerVerification{
+                            ca_cert: CaCert::SecretClass("tls-ca-secret-class".to_string()),
+                        })
+                    }),
+                },
+            }}]
+        },
+        vec![
+            "credentials-secret-class-s3-credentials".to_string(),
+             STACKABLE_TRUST_STORE_NAME.to_string(),
+            "tls-ca-secret-class-ca-cert".to_string(),],
+        vec![
+            VolumeMount {
+                name: "credentials-secret-class-s3-credentials".to_string(),
+                mount_path: "/stackable/secrets/credentials-secret-class".to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: STACKABLE_TRUST_STORE_NAME.to_string(),
+                mount_path: STACKABLE_TRUST_STORE.to_string(),
+                ..Default::default()
+            },
+            VolumeMount {
+                name: "tls-ca-secret-class-ca-cert".to_string(),
+                mount_path: "/stackable/secrets/tls-ca-secret-class".to_string(),
+                ..Default::default()
+            }],
+        Some("cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out /stackable/truststore/truststore.p12 --out-password changeit && cert-tools generate-pkcs12-truststore --out /stackable/truststore/truststore.p12 --out-password changeit --pkcs12 /stackable/truststore/truststore.p12:changeit --pem /stackable/secrets/tls-ca-secret-class/ca.crt".to_string()),
+    )]
+    fn test_volumes_and_mounts(
+        #[case] case_name: &str,
+        #[case] resolved_s3: ResolvedS3,
+        #[case] expected_volumes_names: Vec<String>,
+        #[case] expected_mounts: Vec<VolumeMount>,
+        #[case] init_container_command: Option<String>,
+    ) {
+        let (volumes, mounts) = resolved_s3.volumes_and_mounts().unwrap();
+        assert_eq!(
+            volumes.into_iter().map(|v| v.name).collect::<Vec<_>>(),
+            expected_volumes_names,
+            "Case failed for volumes: {}",
+            case_name
+        );
+        assert_eq!(
+            mounts, expected_mounts,
+            "Case failed for mounts: {}",
+            case_name
+        );
+
+        assert_eq!(
+            resolved_s3.truststore_init_container_command(),
+            init_container_command,
+            "Case failed for init container command: {}",
+            case_name
+        );
+    }
+
+    #[rstest]
+    #[case("connection and one bucket with same credentials",
+        ResolvedS3 {
+            s3_connection: Some(
+                s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "credentials-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: None,
+                },
+            }),
+            s3_buckets: vec![
+                s3::v1alpha1::ResolvedBucket {
+                    bucket_name: "bucket-1".to_string(),
+                    connection: s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "credentials-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: None,
+                },
+            }}]
+        },
+        indoc::indoc! {r#"
+            spark.hadoop.fs.s3a.access.key=${file\:UTF-8\:/stackable/secrets/credentials-secret-class/accessKey}
+            spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+            spark.hadoop.fs.s3a.bucket.bucket-1.access.key=${file\:UTF-8\:/stackable/secrets/credentials-secret-class/accessKey}
+            spark.hadoop.fs.s3a.bucket.bucket-1.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+            spark.hadoop.fs.s3a.bucket.bucket-1.endpoint=http\://my-s3-endpoint.com/
+            spark.hadoop.fs.s3a.bucket.bucket-1.endpoint.region=us-east-1
+            spark.hadoop.fs.s3a.bucket.bucket-1.path.style.access=true
+            spark.hadoop.fs.s3a.bucket.bucket-1.secret.key=${file\:UTF-8\:/stackable/secrets/credentials-secret-class/secretKey}
+            spark.hadoop.fs.s3a.endpoint=http\://my-s3-endpoint.com/
+            spark.hadoop.fs.s3a.endpoint.region=us-east-1
+            spark.hadoop.fs.s3a.path.style.access=true
+            spark.hadoop.fs.s3a.secret.key=${file\:UTF-8\:/stackable/secrets/credentials-secret-class/secretKey}
+        "#}.to_string(),
+    )]
+    #[case("connection and one bucket with different credentials and endpoints",
+        ResolvedS3 {
+            s3_connection: Some(
+                s3::v1alpha1::ConnectionSpec {
+                host: "far-away.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "connection-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: None,
+                },
+            }),
+            s3_buckets: vec![
+                s3::v1alpha1::ResolvedBucket {
+                    bucket_name: "bucket-1".to_string(),
+                    connection: s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().unwrap(),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: Some(SecretClassVolume {
+                    secret_class: "bucket-1-secret-class".to_string(),
+                    scope: None,
+                }),
+                tls: TlsClientDetails {
+                    tls: None,
+                },
+            }}]
+        },
+        indoc::indoc! {r#"
+            spark.hadoop.fs.s3a.access.key=${file\:UTF-8\:/stackable/secrets/connection-secret-class/accessKey}
+            spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+            spark.hadoop.fs.s3a.bucket.bucket-1.access.key=${file\:UTF-8\:/stackable/secrets/bucket-1-secret-class/accessKey}
+            spark.hadoop.fs.s3a.bucket.bucket-1.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+            spark.hadoop.fs.s3a.bucket.bucket-1.endpoint=http\://my-s3-endpoint.com/
+            spark.hadoop.fs.s3a.bucket.bucket-1.endpoint.region=us-east-1
+            spark.hadoop.fs.s3a.bucket.bucket-1.path.style.access=true
+            spark.hadoop.fs.s3a.bucket.bucket-1.secret.key=${file\:UTF-8\:/stackable/secrets/bucket-1-secret-class/secretKey}
+            spark.hadoop.fs.s3a.endpoint=http\://far-away.com/
+            spark.hadoop.fs.s3a.endpoint.region=us-east-1
+            spark.hadoop.fs.s3a.path.style.access=true
+            spark.hadoop.fs.s3a.secret.key=${file\:UTF-8\:/stackable/secrets/connection-secret-class/secretKey}
+        "#}.to_string(),
+    )]
+
+    fn test_spark_properties(
+        #[case] case_name: &str,
+        #[case] resolved_s3: ResolvedS3,
+        #[case] spark_properties_string: String,
+    ) {
+        let properties = resolved_s3.spark_properties().unwrap();
+
+        assert_eq!(
+            to_java_properties_string(properties.iter()).unwrap(),
+            spark_properties_string,
+            "Case failed for spark properties: {}",
+            case_name
+        );
+    }
+}

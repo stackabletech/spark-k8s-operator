@@ -105,6 +105,12 @@ rules:
       - customresourcedefinitions
     verbs:
       - get
+      # Required to maintain the CRD. The operator needs to do this, as it needs to enter e.g. it's
+      # generated certificate in the conversion webhook.
+      {{- if .Values.maintenance.customResourceDefinitions.maintain }}
+      - create
+      - patch
+      {{- end }}
   - apiGroups:
       - events.k8s.io
     resources:

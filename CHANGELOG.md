@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add conversion webhook ([#656]).
 - Support objectOverrides using `.spec.objectOverrides` on the `SparkConnectServer` and `SparkHistoryServer`.
   See [objectOverrides concepts page](https://docs.stackable.tech/home/nightly/concepts/overrides/#object-overrides) for details ([#640]).
 - Support for Spark `4.1.1` ([#642]).
@@ -43,6 +44,7 @@ All notable changes to this project will be documented in this file.
 [#651]: https://github.com/stackabletech/spark-k8s-operator/pull/651
 [#652]: https://github.com/stackabletech/spark-k8s-operator/pull/652
 [#655]: https://github.com/stackabletech/spark-k8s-operator/pull/655
+[#656]: https://github.com/stackabletech/spark-k8s-operator/pull/656
 
 ## [25.11.0] - 2025-11-07
 

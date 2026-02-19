@@ -2,7 +2,7 @@
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Connection
 metadata:
-  name: mybucket-s3-connection
+  name: s3-connection
 spec:
   host: minio
   port: 9000
@@ -20,11 +20,11 @@ spec:
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Bucket
 metadata:
-  name: mybucket-s3-bucket
+  name: ingest-bucket
 spec:
-  bucketName: mybucket
+  bucketName: ingest-bucket
   connection:
-    reference: mybucket-s3-connection
+    reference: s3-connection
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -64,7 +64,9 @@ spec:
 {% endif %}
   connectors:
     s3buckets:
-      - reference: mybucket-s3-bucket
+      - reference: ingest-bucket
+    s3connection:
+      reference: s3-connection
   server:
     jvmArgumentOverrides:
       add:

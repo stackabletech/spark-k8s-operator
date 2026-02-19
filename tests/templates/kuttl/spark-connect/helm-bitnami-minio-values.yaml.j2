@@ -27,7 +27,8 @@ extraEnvVars:
 provisioning:
   enabled: true
   buckets:
-    - name: mybucket
+    - name: ingest-bucket
+    - name: stats-bucket
   usersExistingSecrets:
     - minio-users
   resources:

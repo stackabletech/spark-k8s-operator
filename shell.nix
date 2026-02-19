@@ -21,10 +21,10 @@ in pkgs.mkShell rec {
   ];
 
   # derivation runtime dependencies
-  buildInputs = pkgs.lib.concatMap (crate: crate.buildInputs) cargoDependencySet;
+  buildInputs = pkgs.lib.unique (pkgs.lib.concatMap (crate: crate.buildInputs) cargoDependencySet);
 
   # build time dependencies
-  nativeBuildInputs = pkgs.lib.concatMap (crate: crate.nativeBuildInputs) cargoDependencySet ++ (with pkgs; [
+  nativeBuildInputs = pkgs.lib.unique (pkgs.lib.concatMap (crate: crate.nativeBuildInputs) cargoDependencySet ++ (with pkgs; [
     beku
     docker
     gettext # for the proper envsubst
@@ -38,7 +38,7 @@ in pkgs.mkShell rec {
     # tilt already defined in default.nix
     which
     yq-go
-  ]);
+  ]));
 
   LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
   BINDGEN_EXTRA_CLANG_ARGS = "-I${pkgs.glibc.dev}/include -I${pkgs.clang}/resource-root/include";

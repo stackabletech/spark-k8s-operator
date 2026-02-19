@@ -1136,12 +1136,6 @@ rec {
             usesDefaultFeatures = false;
           }
           {
-            name = "serde";
-            packageId = "serde";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
             name = "windows-link";
             packageId = "windows-link";
             optional = true;
@@ -1170,7 +1164,7 @@ rec {
           "winapi" = [ "windows-link" ];
           "windows-link" = [ "dep:windows-link" ];
         };
-        resolvedDefaultFeatures = [ "alloc" "android-tzdata" "clock" "iana-time-zone" "now" "serde" "std" "winapi" "windows-link" ];
+        resolvedDefaultFeatures = [ "alloc" "android-tzdata" "clock" "iana-time-zone" "now" "std" "winapi" "windows-link" ];
       };
       "clap" = rec {
         crateName = "clap";
@@ -1405,9 +1399,9 @@ rec {
       };
       "convert_case" = rec {
         crateName = "convert_case";
-        version = "0.10.0";
+        version = "0.11.0";
         edition = "2021";
-        sha256 = "1fff1x78mp2c233g68my0ag0zrmjdbym8bfyahjbfy4cxza5hd33";
+        sha256 = "0jfv1ajyr65bjlx533n5alfkfjdl8ks4zxfywdiz1jnj1qcz1yxg";
         authors = [
           "rutrum <dave@rutrum.net>"
         ];
@@ -1418,6 +1412,25 @@ rec {
           }
         ];
 
+      };
+      "convert_case_extras" = rec {
+        crateName = "convert_case_extras";
+        version = "0.2.0";
+        edition = "2021";
+        sha256 = "1fyfc5vdblw15k8w7xahmif7bmslx3mdamvmg0brvapqzbq7172q";
+        authors = [
+          "rutrum <dave@rutrum.net>"
+        ];
+        dependencies = [
+          {
+            name = "convert_case";
+            packageId = "convert_case";
+          }
+        ];
+        features = {
+          "rand" = [ "dep:rand" ];
+          "random" = [ "rand" ];
+        };
       };
       "core-foundation" = rec {
         crateName = "core-foundation";
@@ -1627,33 +1640,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "std" ];
       };
-      "darling 0.21.2" = rec {
-        crateName = "darling";
-        version = "0.21.2";
-        edition = "2021";
-        sha256 = "0w05fq6kl16avbgkgwxg5c8myj397539gq337r1x1hr2s8yhni08";
-        authors = [
-          "Ted Driggs <ted.driggs@outlook.com>"
-        ];
-        dependencies = [
-          {
-            name = "darling_core";
-            packageId = "darling_core 0.21.2";
-          }
-          {
-            name = "darling_macro";
-            packageId = "darling_macro 0.21.2";
-          }
-        ];
-        features = {
-          "default" = [ "suggestions" ];
-          "diagnostics" = [ "darling_core/diagnostics" ];
-          "serde" = [ "darling_core/serde" ];
-          "suggestions" = [ "darling_core/suggestions" ];
-        };
-        resolvedDefaultFeatures = [ "default" "suggestions" ];
-      };
-      "darling 0.23.0" = rec {
+      "darling" = rec {
         crateName = "darling";
         version = "0.23.0";
         edition = "2021";
@@ -1664,11 +1651,11 @@ rec {
         dependencies = [
           {
             name = "darling_core";
-            packageId = "darling_core 0.23.0";
+            packageId = "darling_core";
           }
           {
             name = "darling_macro";
-            packageId = "darling_macro 0.23.0";
+            packageId = "darling_macro";
           }
         ];
         features = {
@@ -1679,50 +1666,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "suggestions" ];
       };
-      "darling_core 0.21.2" = rec {
-        crateName = "darling_core";
-        version = "0.21.2";
-        edition = "2021";
-        sha256 = "0zmzz0czsc8590n4n6isnii5d8da0gm6hnkinyqlm818ph97jnyj";
-        authors = [
-          "Ted Driggs <ted.driggs@outlook.com>"
-        ];
-        dependencies = [
-          {
-            name = "fnv";
-            packageId = "fnv";
-          }
-          {
-            name = "ident_case";
-            packageId = "ident_case";
-          }
-          {
-            name = "proc-macro2";
-            packageId = "proc-macro2";
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-          }
-          {
-            name = "strsim";
-            packageId = "strsim";
-            optional = true;
-          }
-          {
-            name = "syn";
-            packageId = "syn 2.0.106";
-            features = [ "full" "extra-traits" ];
-          }
-        ];
-        features = {
-          "serde" = [ "dep:serde" ];
-          "strsim" = [ "dep:strsim" ];
-          "suggestions" = [ "strsim" ];
-        };
-        resolvedDefaultFeatures = [ "strsim" "suggestions" ];
-      };
-      "darling_core 0.23.0" = rec {
+      "darling_core" = rec {
         crateName = "darling_core";
         version = "0.23.0";
         edition = "2021";
@@ -1761,32 +1705,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "strsim" "suggestions" ];
       };
-      "darling_macro 0.21.2" = rec {
-        crateName = "darling_macro";
-        version = "0.21.2";
-        edition = "2021";
-        sha256 = "0cfmv5ks4fjfr2w23zvhjzkkc300ah1x0qkf6blcic3zxadln5ff";
-        procMacro = true;
-        authors = [
-          "Ted Driggs <ted.driggs@outlook.com>"
-        ];
-        dependencies = [
-          {
-            name = "darling_core";
-            packageId = "darling_core 0.21.2";
-          }
-          {
-            name = "quote";
-            packageId = "quote";
-          }
-          {
-            name = "syn";
-            packageId = "syn 2.0.106";
-          }
-        ];
-
-      };
-      "darling_macro 0.23.0" = rec {
+      "darling_macro" = rec {
         crateName = "darling_macro";
         version = "0.23.0";
         edition = "2021";
@@ -1798,7 +1717,7 @@ rec {
         dependencies = [
           {
             name = "darling_core";
-            packageId = "darling_core 0.23.0";
+            packageId = "darling_core";
           }
           {
             name = "quote";
@@ -2713,9 +2632,9 @@ rec {
       };
       "foldhash" = rec {
         crateName = "foldhash";
-        version = "0.1.5";
+        version = "0.2.0";
         edition = "2021";
-        sha256 = "1wisr1xlc2bj7hk4rgkcjkz3j2x4dhd1h9lwk7mj8p71qpdgbi6r";
+        sha256 = "1nvgylb099s11xpfm1kn2wcsql080nqmnhj1l25bp3r2b35j9kkp";
         authors = [
           "Orson Peters <orsonpeters@gmail.com>"
         ];
@@ -3420,11 +3339,32 @@ rec {
         features = {
         };
       };
-      "hashbrown" = rec {
+      "hashbrown 0.15.5" = rec {
         crateName = "hashbrown";
         version = "0.15.5";
         edition = "2021";
         sha256 = "189qaczmjxnikm9db748xyhiw04kpmhm9xj9k9hg0sgx7pjwyacj";
+        authors = [
+          "Amanieu d'Antras <amanieu@gmail.com>"
+        ];
+        features = {
+          "alloc" = [ "dep:alloc" ];
+          "allocator-api2" = [ "dep:allocator-api2" ];
+          "core" = [ "dep:core" ];
+          "default" = [ "default-hasher" "inline-more" "allocator-api2" "equivalent" "raw-entry" ];
+          "default-hasher" = [ "dep:foldhash" ];
+          "equivalent" = [ "dep:equivalent" ];
+          "nightly" = [ "bumpalo/allocator_api" ];
+          "rayon" = [ "dep:rayon" ];
+          "rustc-dep-of-std" = [ "nightly" "core" "alloc" "rustc-internal-api" ];
+          "serde" = [ "dep:serde" ];
+        };
+      };
+      "hashbrown 0.16.1" = rec {
+        crateName = "hashbrown";
+        version = "0.16.1";
+        edition = "2021";
+        sha256 = "004i3njw38ji3bzdp9z178ba9x3k0c1pgy8x69pj7yfppv4iq7c4";
         authors = [
           "Amanieu d'Antras <amanieu@gmail.com>"
         ];
@@ -3456,10 +3396,10 @@ rec {
           "default" = [ "default-hasher" "inline-more" "allocator-api2" "equivalent" "raw-entry" ];
           "default-hasher" = [ "dep:foldhash" ];
           "equivalent" = [ "dep:equivalent" ];
-          "nightly" = [ "bumpalo/allocator_api" ];
+          "nightly" = [ "foldhash?/nightly" "bumpalo/allocator_api" ];
           "rayon" = [ "dep:rayon" ];
           "rustc-dep-of-std" = [ "nightly" "core" "alloc" "rustc-internal-api" ];
-          "serde" = [ "dep:serde" ];
+          "serde" = [ "dep:serde_core" "dep:serde" ];
         };
         resolvedDefaultFeatures = [ "allocator-api2" "default" "default-hasher" "equivalent" "inline-more" "raw-entry" ];
       };
@@ -3496,24 +3436,6 @@ rec {
           "std" = [ "digest/std" ];
         };
         resolvedDefaultFeatures = [ "reset" ];
-      };
-      "home" = rec {
-        crateName = "home";
-        version = "0.5.11";
-        edition = "2021";
-        sha256 = "1kxb4k87a9sayr8jipr7nq9wpgmjk4hk4047hmf9kc24692k75aq";
-        authors = [
-          "Brian Anderson <andersrb@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "windows-sys";
-            packageId = "windows-sys 0.59.0";
-            target = { target, features }: (target."windows" or false);
-            features = [ "Win32_Foundation" "Win32_UI_Shell" "Win32_System_Com" ];
-          }
-        ];
-
       };
       "hostname" = rec {
         crateName = "hostname";
@@ -4492,7 +4414,7 @@ rec {
           }
           {
             name = "hashbrown";
-            packageId = "hashbrown";
+            packageId = "hashbrown 0.15.5";
             usesDefaultFeatures = false;
           }
         ];
@@ -4666,6 +4588,147 @@ rec {
         ];
 
       };
+      "jiff" = rec {
+        crateName = "jiff";
+        version = "0.2.20";
+        edition = "2021";
+        sha256 = "0hv59kcqj5sc0jgk4q7yrq5dp8yb3qlan98qk3s36sq9ribc6ry8";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "jiff-static";
+            packageId = "jiff-static";
+            optional = true;
+          }
+          {
+            name = "jiff-static";
+            packageId = "jiff-static";
+            target = { target, features }: false;
+          }
+          {
+            name = "jiff-tzdb-platform";
+            packageId = "jiff-tzdb-platform";
+            optional = true;
+            target = { target, features }: ((target."windows" or false) || (builtins.elem "wasm" target."family"));
+          }
+          {
+            name = "log";
+            packageId = "log";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "portable-atomic";
+            packageId = "portable-atomic";
+            usesDefaultFeatures = false;
+            target = { target, features }: (!("ptr" == target."has_atomic" or null));
+          }
+          {
+            name = "portable-atomic-util";
+            packageId = "portable-atomic-util";
+            usesDefaultFeatures = false;
+            target = { target, features }: (!("ptr" == target."has_atomic" or null));
+          }
+          {
+            name = "serde_core";
+            packageId = "serde_core";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "windows-sys";
+            packageId = "windows-sys 0.52.0";
+            optional = true;
+            usesDefaultFeatures = false;
+            target = { target, features }: (target."windows" or false);
+            features = [ "Win32_Foundation" "Win32_System_Time" ];
+          }
+        ];
+        devDependencies = [
+          {
+            name = "log";
+            packageId = "log";
+          }
+        ];
+        features = {
+          "alloc" = [ "serde_core?/alloc" "portable-atomic-util/alloc" ];
+          "default" = [ "std" "tz-system" "tz-fat" "tzdb-bundle-platform" "tzdb-zoneinfo" "tzdb-concatenated" "perf-inline" ];
+          "js" = [ "dep:wasm-bindgen" "dep:js-sys" ];
+          "logging" = [ "dep:log" ];
+          "serde" = [ "dep:serde_core" ];
+          "static" = [ "static-tz" "jiff-static?/tzdb" ];
+          "static-tz" = [ "dep:jiff-static" ];
+          "std" = [ "alloc" "log?/std" "serde_core?/std" ];
+          "tz-fat" = [ "jiff-static?/tz-fat" ];
+          "tz-system" = [ "std" "dep:windows-sys" ];
+          "tzdb-bundle-always" = [ "dep:jiff-tzdb" "alloc" ];
+          "tzdb-bundle-platform" = [ "dep:jiff-tzdb-platform" "alloc" ];
+          "tzdb-concatenated" = [ "std" ];
+          "tzdb-zoneinfo" = [ "std" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "default" "perf-inline" "serde" "std" "tz-fat" "tz-system" "tzdb-bundle-platform" "tzdb-concatenated" "tzdb-zoneinfo" ];
+      };
+      "jiff-static" = rec {
+        crateName = "jiff-static";
+        version = "0.2.20";
+        edition = "2021";
+        sha256 = "1rcvbp9aj8ll4ljxcgzq4l2h9idmkb0v6mdvf3r3i5r64m1np57p";
+        procMacro = true;
+        libName = "jiff_static";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.106";
+          }
+        ];
+        features = {
+          "tzdb" = [ "dep:jiff-tzdb" ];
+        };
+        resolvedDefaultFeatures = [ "default" "tz-fat" ];
+      };
+      "jiff-tzdb" = rec {
+        crateName = "jiff-tzdb";
+        version = "0.1.5";
+        edition = "2021";
+        sha256 = "1hm5xn3q092zac6apjy4492ddid473mwa0d64z5f5f95yyzix5v8";
+        libName = "jiff_tzdb";
+        libPath = "lib.rs";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+
+      };
+      "jiff-tzdb-platform" = rec {
+        crateName = "jiff-tzdb-platform";
+        version = "0.1.3";
+        edition = "2021";
+        sha256 = "1s1ja692wyhbv7f60mc0x90h7kn1pv65xkqi2y4imarbmilmlnl7";
+        libName = "jiff_tzdb_platform";
+        libPath = "lib.rs";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "jiff-tzdb";
+            packageId = "jiff-tzdb";
+          }
+        ];
+
+      };
       "jobserver" = rec {
         crateName = "jobserver";
         version = "0.1.33";
@@ -4759,9 +4822,9 @@ rec {
       };
       "jsonpath-rust" = rec {
         crateName = "jsonpath-rust";
-        version = "0.7.5";
+        version = "1.0.4";
         edition = "2021";
-        sha256 = "12qjqd6rnr1ywky7k38dhbhgj3f6h6iqrac2kz8d53wziwsaw00c";
+        sha256 = "1ymdpqawc3nxrlr6izwpw22h5msa16wqjbkqldijhrxvqhh76fk3";
         libName = "jsonpath_rust";
         authors = [
           "BorisZhguchev <zhguchev@gmail.com>"
@@ -4828,10 +4891,10 @@ rec {
       };
       "k8s-openapi" = rec {
         crateName = "k8s-openapi";
-        version = "0.26.0";
+        version = "0.27.0";
         edition = "2021";
-        links = "k8s-openapi-0.26.0";
-        sha256 = "14m6i7g6w8lh1rnc19f2c31cvf2ia2vzmggsmzn5p4ba6bahcgyi";
+        links = "k8s-openapi-0.27.0";
+        sha256 = "038zxrklpni04rpaww9dr7v8ln8zj8p7mgdd68bx5l8sc7rxd9h5";
         libName = "k8s_openapi";
         authors = [
           "Arnav Singh <me@arnavion.dev>"
@@ -4844,8 +4907,8 @@ rec {
             features = [ "alloc" ];
           }
           {
-            name = "chrono";
-            packageId = "chrono";
+            name = "jiff";
+            packageId = "jiff";
             usesDefaultFeatures = false;
             features = [ "alloc" "serde" ];
           }
@@ -4869,11 +4932,11 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
-          "earliest" = [ "v1_30" ];
-          "latest" = [ "v1_34" ];
+          "earliest" = [ "v1_31" ];
+          "latest" = [ "v1_35" ];
           "schemars" = [ "dep:schemars" ];
         };
-        resolvedDefaultFeatures = [ "schemars" "v1_34" ];
+        resolvedDefaultFeatures = [ "schemars" "v1_35" ];
       };
       "k8s-version" = rec {
         crateName = "k8s-version";
@@ -4882,8 +4945,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa";
-          sha256 = "02z7c2kjhcwg153j74n52wwcr5x0z70hc21hlsrxyclmc8ps1lmd";
+          rev = "2ba637e9d72e8b82adc6b5f370211ba9563c136d";
+          sha256 = "0yxp9d7x3xzlc7i67mjkizf587hvx8kwjly9p10x320hvp91qf17";
         };
         libName = "k8s_version";
         authors = [
@@ -4892,7 +4955,7 @@ rec {
         dependencies = [
           {
             name = "darling";
-            packageId = "darling 0.23.0";
+            packageId = "darling";
             optional = true;
           }
           {
@@ -4912,13 +4975,13 @@ rec {
       };
       "kube" = rec {
         crateName = "kube";
-        version = "2.0.1";
+        version = "3.0.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/kube-rs";
-          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
-          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+          url = "https://github.com/kube-rs/kube-rs";
+          rev = "fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5";
+          sha256 = "1irm4g79crlxjm3iqrgvx0f6wxdcj394ky84q89pk9i36y2mlw3n";
         };
         authors = [
           "clux <sszynrae@gmail.com>"
@@ -4990,13 +5053,13 @@ rec {
       };
       "kube-client" = rec {
         crateName = "kube-client";
-        version = "2.0.1";
+        version = "3.0.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/kube-rs";
-          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
-          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+          url = "https://github.com/kube-rs/kube-rs";
+          rev = "fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5";
+          sha256 = "1irm4g79crlxjm3iqrgvx0f6wxdcj394ky84q89pk9i36y2mlw3n";
         };
         libName = "kube_client";
         authors = [
@@ -5016,12 +5079,6 @@ rec {
             optional = true;
           }
           {
-            name = "chrono";
-            packageId = "chrono";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
             name = "either";
             packageId = "either";
             optional = true;
@@ -5032,11 +5089,6 @@ rec {
             optional = true;
             usesDefaultFeatures = false;
             features = [ "std" ];
-          }
-          {
-            name = "home";
-            packageId = "home";
-            optional = true;
           }
           {
             name = "http";
@@ -5075,6 +5127,13 @@ rec {
             packageId = "hyper-util";
             optional = true;
             features = [ "client" "client-legacy" "http1" "tokio" "tracing" ];
+          }
+          {
+            name = "jiff";
+            packageId = "jiff";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "std" "serde" ];
           }
           {
             name = "jsonpath-rust";
@@ -5139,13 +5198,13 @@ rec {
             name = "tower";
             packageId = "tower";
             optional = true;
-            features = [ "buffer" "filter" "util" ];
+            features = [ "buffer" "filter" "util" "retry" ];
           }
           {
             name = "tower-http";
             packageId = "tower-http";
             optional = true;
-            features = [ "auth" "map-response-body" "trace" ];
+            features = [ "auth" "map-response-body" "trace" "util" ];
           }
           {
             name = "tracing";
@@ -5184,15 +5243,13 @@ rec {
           "aws-lc-rs" = [ "hyper-rustls?/aws-lc-rs" ];
           "base64" = [ "dep:base64" ];
           "bytes" = [ "dep:bytes" ];
-          "chrono" = [ "dep:chrono" ];
-          "client" = [ "config" "__non_core" "hyper" "hyper-util" "http-body" "http-body-util" "tower" "tower-http" "hyper-timeout" "chrono" "jsonpath-rust" "bytes" "futures" "tokio" "tokio-util" "either" ];
-          "config" = [ "__non_core" "pem" "home" ];
+          "client" = [ "config" "__non_core" "hyper" "hyper-util" "http-body" "http-body-util" "tower" "tower-http" "hyper-timeout" "jiff" "jsonpath-rust" "bytes" "futures" "tokio" "tokio-util" "either" ];
+          "config" = [ "__non_core" "pem" ];
           "default" = [ "client" "ring" ];
           "either" = [ "dep:either" ];
           "form_urlencoded" = [ "dep:form_urlencoded" ];
           "futures" = [ "dep:futures" ];
           "gzip" = [ "client" "tower-http/decompression-gzip" ];
-          "home" = [ "dep:home" ];
           "http-body" = [ "dep:http-body" ];
           "http-body-util" = [ "dep:http-body-util" ];
           "http-proxy" = [ "hyper-util/client-proxy" ];
@@ -5201,6 +5258,7 @@ rec {
           "hyper-rustls" = [ "dep:hyper-rustls" ];
           "hyper-timeout" = [ "dep:hyper-timeout" ];
           "hyper-util" = [ "dep:hyper-util" ];
+          "jiff" = [ "dep:jiff" ];
           "jsonpatch" = [ "kube-core/jsonpatch" ];
           "jsonpath-rust" = [ "dep:jsonpath-rust" ];
           "kubelet-debug" = [ "ws" "kube-core/kubelet-debug" ];
@@ -5224,17 +5282,17 @@ rec {
           "webpki-roots" = [ "hyper-rustls/webpki-roots" ];
           "ws" = [ "client" "tokio-tungstenite" "kube-core/ws" "tokio/macros" ];
         };
-        resolvedDefaultFeatures = [ "__non_core" "base64" "bytes" "chrono" "client" "config" "either" "futures" "home" "http-body" "http-body-util" "hyper" "hyper-rustls" "hyper-timeout" "hyper-util" "jsonpatch" "jsonpath-rust" "pem" "ring" "rustls" "rustls-tls" "serde_yaml" "tokio" "tokio-util" "tower" "tower-http" "tracing" ];
+        resolvedDefaultFeatures = [ "__non_core" "base64" "bytes" "client" "config" "either" "futures" "http-body" "http-body-util" "hyper" "hyper-rustls" "hyper-timeout" "hyper-util" "jiff" "jsonpatch" "jsonpath-rust" "pem" "ring" "rustls" "rustls-tls" "serde_yaml" "tokio" "tokio-util" "tower" "tower-http" "tracing" ];
       };
       "kube-core" = rec {
         crateName = "kube-core";
-        version = "2.0.1";
+        version = "3.0.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/kube-rs";
-          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
-          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+          url = "https://github.com/kube-rs/kube-rs";
+          rev = "fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5";
+          sha256 = "1irm4g79crlxjm3iqrgvx0f6wxdcj394ky84q89pk9i36y2mlw3n";
         };
         libName = "kube_core";
         authors = [
@@ -5243,12 +5301,6 @@ rec {
           "kazk <kazk.dev@gmail.com>"
         ];
         dependencies = [
-          {
-            name = "chrono";
-            packageId = "chrono";
-            usesDefaultFeatures = false;
-            features = [ "now" ];
-          }
           {
             name = "derive_more";
             packageId = "derive_more";
@@ -5261,6 +5313,12 @@ rec {
           {
             name = "http";
             packageId = "http";
+          }
+          {
+            name = "jiff";
+            packageId = "jiff";
+            usesDefaultFeatures = false;
+            features = [ "std" ];
           }
           {
             name = "json-patch";
@@ -5315,13 +5373,13 @@ rec {
       };
       "kube-derive" = rec {
         crateName = "kube-derive";
-        version = "2.0.1";
+        version = "3.0.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/kube-rs";
-          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
-          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+          url = "https://github.com/kube-rs/kube-rs";
+          rev = "fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5";
+          sha256 = "1irm4g79crlxjm3iqrgvx0f6wxdcj394ky84q89pk9i36y2mlw3n";
         };
         procMacro = true;
         libName = "kube_derive";
@@ -5333,7 +5391,7 @@ rec {
         dependencies = [
           {
             name = "darling";
-            packageId = "darling 0.21.2";
+            packageId = "darling";
           }
           {
             name = "proc-macro2";
@@ -5369,13 +5427,13 @@ rec {
       };
       "kube-runtime" = rec {
         crateName = "kube-runtime";
-        version = "2.0.1";
+        version = "3.0.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/stackabletech/kube-rs";
-          rev = "26543e85dc7daaf82d8f7dbd902b26775798879e";
-          sha256 = "1a7bcl0w1jg71jc4iml0vjp8dpzy71mhxl012grxcy2xp5i6xvgf";
+          url = "https://github.com/kube-rs/kube-rs";
+          rev = "fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5";
+          sha256 = "1irm4g79crlxjm3iqrgvx0f6wxdcj394ky84q89pk9i36y2mlw3n";
         };
         libName = "kube_runtime";
         authors = [
@@ -5414,7 +5472,7 @@ rec {
           }
           {
             name = "hashbrown";
-            packageId = "hashbrown";
+            packageId = "hashbrown 0.16.1";
           }
           {
             name = "hostname";
@@ -7059,6 +7117,38 @@ rec {
           "Alex Crichton <alex@alexcrichton.com>"
         ];
 
+      };
+      "portable-atomic" = rec {
+        crateName = "portable-atomic";
+        version = "1.13.1";
+        edition = "2018";
+        sha256 = "0j8vlar3n5acyigq8q6f4wjx3k3s5yz0rlpqrv76j73gi5qr8fn3";
+        libName = "portable_atomic";
+        features = {
+          "critical-section" = [ "dep:critical-section" ];
+          "default" = [ "fallback" ];
+          "serde" = [ "dep:serde" ];
+        };
+        resolvedDefaultFeatures = [ "require-cas" ];
+      };
+      "portable-atomic-util" = rec {
+        crateName = "portable-atomic-util";
+        version = "0.2.5";
+        edition = "2018";
+        sha256 = "1xcm0ia8756k6hdgafx4g3lx3fw0hvz2zqswq7c2sy58gxnvk7bs";
+        libName = "portable_atomic_util";
+        dependencies = [
+          {
+            name = "portable-atomic";
+            packageId = "portable-atomic";
+            usesDefaultFeatures = false;
+            features = [ "require-cas" ];
+          }
+        ];
+        features = {
+          "std" = [ "alloc" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" ];
       };
       "potential_utf" = rec {
         crateName = "potential_utf";
@@ -9486,8 +9576,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa";
-          sha256 = "02z7c2kjhcwg153j74n52wwcr5x0z70hc21hlsrxyclmc8ps1lmd";
+          rev = "2ba637e9d72e8b82adc6b5f370211ba9563c136d";
+          sha256 = "0yxp9d7x3xzlc7i67mjkizf587hvx8kwjly9p10x320hvp91qf17";
         };
         libName = "stackable_certs";
         authors = [
@@ -9508,7 +9598,7 @@ rec {
             name = "k8s-openapi";
             packageId = "k8s-openapi";
             usesDefaultFeatures = false;
-            features = [ "schemars" "v1_34" ];
+            features = [ "schemars" "v1_35" ];
           }
           {
             name = "kube";
@@ -9584,24 +9674,19 @@ rec {
       };
       "stackable-operator" = rec {
         crateName = "stackable-operator";
-        version = "0.105.0";
+        version = "0.106.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa";
-          sha256 = "02z7c2kjhcwg153j74n52wwcr5x0z70hc21hlsrxyclmc8ps1lmd";
+          rev = "2ba637e9d72e8b82adc6b5f370211ba9563c136d";
+          sha256 = "0yxp9d7x3xzlc7i67mjkizf587hvx8kwjly9p10x320hvp91qf17";
         };
         libName = "stackable_operator";
         authors = [
           "Stackable GmbH <info@stackable.de>"
         ];
         dependencies = [
-          {
-            name = "chrono";
-            packageId = "chrono";
-            usesDefaultFeatures = false;
-          }
           {
             name = "clap";
             packageId = "clap";
@@ -9642,6 +9727,10 @@ rec {
             packageId = "indexmap";
           }
           {
+            name = "jiff";
+            packageId = "jiff";
+          }
+          {
             name = "json-patch";
             packageId = "json-patch";
           }
@@ -9649,7 +9738,7 @@ rec {
             name = "k8s-openapi";
             packageId = "k8s-openapi";
             usesDefaultFeatures = false;
-            features = [ "schemars" "v1_34" ];
+            features = [ "schemars" "v1_35" ];
           }
           {
             name = "kube";
@@ -9698,7 +9787,7 @@ rec {
           {
             name = "stackable-shared";
             packageId = "stackable-shared";
-            features = [ "chrono" "time" ];
+            features = [ "time" "jiff" ];
           }
           {
             name = "stackable-telemetry";
@@ -9763,8 +9852,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa";
-          sha256 = "02z7c2kjhcwg153j74n52wwcr5x0z70hc21hlsrxyclmc8ps1lmd";
+          rev = "2ba637e9d72e8b82adc6b5f370211ba9563c136d";
+          sha256 = "0yxp9d7x3xzlc7i67mjkizf587hvx8kwjly9p10x320hvp91qf17";
         };
         procMacro = true;
         libName = "stackable_operator_derive";
@@ -9774,7 +9863,7 @@ rec {
         dependencies = [
           {
             name = "darling";
-            packageId = "darling 0.23.0";
+            packageId = "darling";
           }
           {
             name = "proc-macro2";
@@ -9793,13 +9882,13 @@ rec {
       };
       "stackable-shared" = rec {
         crateName = "stackable-shared";
-        version = "0.0.3";
+        version = "0.1.0";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa";
-          sha256 = "02z7c2kjhcwg153j74n52wwcr5x0z70hc21hlsrxyclmc8ps1lmd";
+          rev = "2ba637e9d72e8b82adc6b5f370211ba9563c136d";
+          sha256 = "0yxp9d7x3xzlc7i67mjkizf587hvx8kwjly9p10x320hvp91qf17";
         };
         libName = "stackable_shared";
         authors = [
@@ -9807,16 +9896,15 @@ rec {
         ];
         dependencies = [
           {
-            name = "chrono";
-            packageId = "chrono";
+            name = "jiff";
+            packageId = "jiff";
             optional = true;
-            usesDefaultFeatures = false;
           }
           {
             name = "k8s-openapi";
             packageId = "k8s-openapi";
             usesDefaultFeatures = false;
-            features = [ "schemars" "v1_34" ];
+            features = [ "schemars" "v1_35" ];
           }
           {
             name = "kube";
@@ -9862,16 +9950,16 @@ rec {
             name = "k8s-openapi";
             packageId = "k8s-openapi";
             usesDefaultFeatures = false;
-            features = [ "schemars" "v1_34" ];
+            features = [ "schemars" "v1_35" ];
           }
         ];
         features = {
-          "chrono" = [ "dep:chrono" ];
           "default" = [ "time" ];
-          "full" = [ "chrono" "time" ];
+          "full" = [ "jiff" "time" ];
+          "jiff" = [ "dep:jiff" ];
           "time" = [ "dep:time" ];
         };
-        resolvedDefaultFeatures = [ "chrono" "default" "time" ];
+        resolvedDefaultFeatures = [ "default" "jiff" "time" ];
       };
       "stackable-spark-k8s-operator" = rec {
         crateName = "stackable-spark-k8s-operator";
@@ -9982,8 +10070,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa";
-          sha256 = "02z7c2kjhcwg153j74n52wwcr5x0z70hc21hlsrxyclmc8ps1lmd";
+          rev = "2ba637e9d72e8b82adc6b5f370211ba9563c136d";
+          sha256 = "0yxp9d7x3xzlc7i67mjkizf587hvx8kwjly9p10x320hvp91qf17";
         };
         libName = "stackable_telemetry";
         authors = [
@@ -10092,8 +10180,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa";
-          sha256 = "02z7c2kjhcwg153j74n52wwcr5x0z70hc21hlsrxyclmc8ps1lmd";
+          rev = "2ba637e9d72e8b82adc6b5f370211ba9563c136d";
+          sha256 = "0yxp9d7x3xzlc7i67mjkizf587hvx8kwjly9p10x320hvp91qf17";
         };
         libName = "stackable_versioned";
         authors = [
@@ -10136,8 +10224,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa";
-          sha256 = "02z7c2kjhcwg153j74n52wwcr5x0z70hc21hlsrxyclmc8ps1lmd";
+          rev = "2ba637e9d72e8b82adc6b5f370211ba9563c136d";
+          sha256 = "0yxp9d7x3xzlc7i67mjkizf587hvx8kwjly9p10x320hvp91qf17";
         };
         procMacro = true;
         libName = "stackable_versioned_macros";
@@ -10150,8 +10238,12 @@ rec {
             packageId = "convert_case";
           }
           {
+            name = "convert_case_extras";
+            packageId = "convert_case_extras";
+          }
+          {
             name = "darling";
-            packageId = "darling 0.23.0";
+            packageId = "darling";
           }
           {
             name = "indoc";
@@ -10165,7 +10257,7 @@ rec {
             name = "k8s-openapi";
             packageId = "k8s-openapi";
             usesDefaultFeatures = false;
-            features = [ "schemars" "v1_34" ];
+            features = [ "schemars" "v1_35" ];
           }
           {
             name = "k8s-version";
@@ -10200,8 +10292,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/stackabletech/operator-rs.git";
-          rev = "7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa";
-          sha256 = "02z7c2kjhcwg153j74n52wwcr5x0z70hc21hlsrxyclmc8ps1lmd";
+          rev = "2ba637e9d72e8b82adc6b5f370211ba9563c136d";
+          sha256 = "0yxp9d7x3xzlc7i67mjkizf587hvx8kwjly9p10x320hvp91qf17";
         };
         libName = "stackable_webhook";
         authors = [
@@ -10238,7 +10330,7 @@ rec {
             name = "k8s-openapi";
             packageId = "k8s-openapi";
             usesDefaultFeatures = false;
-            features = [ "schemars" "v1_34" ];
+            features = [ "schemars" "v1_35" ];
           }
           {
             name = "kube";
@@ -11568,7 +11660,7 @@ rec {
           "uuid" = [ "dep:uuid" ];
           "validate-request" = [ "mime" ];
         };
-        resolvedDefaultFeatures = [ "auth" "base64" "default" "follow-redirect" "futures-util" "iri-string" "map-response-body" "mime" "tower" "trace" "tracing" "validate-request" ];
+        resolvedDefaultFeatures = [ "auth" "base64" "default" "follow-redirect" "futures-util" "iri-string" "map-response-body" "mime" "tower" "trace" "tracing" "util" "validate-request" ];
       };
       "tower-layer" = rec {
         crateName = "tower-layer";
@@ -13440,7 +13532,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_Threading" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_Threading" "Win32_System_Time" "default" ];
       };
       "windows-sys 0.59.0" = rec {
         crateName = "windows-sys";
@@ -13699,7 +13791,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Authentication" "Win32_Security_Authentication_Identity" "Win32_Security_Credentials" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_IO" "Win32_System_LibraryLoader" "Win32_System_Memory" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Shell" "default" ];
+        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Authentication" "Win32_Security_Authentication_Identity" "Win32_Security_Credentials" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_IO" "Win32_System_LibraryLoader" "Win32_System_Memory" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
       };
       "windows-sys 0.60.2" = rec {
         crateName = "windows-sys";

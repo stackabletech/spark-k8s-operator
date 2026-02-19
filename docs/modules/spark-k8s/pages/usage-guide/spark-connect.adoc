@@ -72,7 +72,7 @@ spec:
     productVersion: 4.1.1
   connectors:
     s3connection:
-      - reference: s3-connection
+      reference: s3-connection
 ...
 ```
 
@@ -93,7 +93,7 @@ spec:
       - reference: aws-cust-1-ingest
       - reference: aws-cust-2-ingest
     s3connection:
-      - reference: corporate-s3-connection
+      reference: corporate-s3-connection
 ...
 ```
 

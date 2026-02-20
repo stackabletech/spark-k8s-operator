@@ -186,9 +186,9 @@ impl ResolvedS3 {
         }
 
         // Add any extra properties needed for TLS configuration.
-        if let Some(extra_tls_properties) = self.extra_java_options() {
-            result.extend(extra_tls_properties);
-        }
+        self.extra_java_options().into_iter().for_each(|opts| {
+            result.extend(opts);
+        });
 
         Ok(result)
     }
@@ -325,7 +325,7 @@ impl ResolvedS3 {
     }
 
     fn extra_java_options(&self) -> Option<BTreeMap<String, Option<String>>> {
-        if self.truststore_init_container_command().is_some() {
+        if self.is_truststore_needed() {
             let mut ssl_options = BTreeMap::new();
             ssl_options.insert(
                 "-Djavax.net.ssl.trustStore".to_string(),
@@ -359,6 +359,17 @@ impl ResolvedS3 {
         } else {
             None
         }
+    }
+
+    fn is_truststore_needed(&self) -> bool {
+        self.s3_buckets
+            .iter()
+            .any(|bucket| bucket.connection.tls.tls_ca_cert_mount_path().is_some())
+            || self
+                .s3_connection
+                .as_ref()
+                .map(|conn| conn.tls.tls_ca_cert_mount_path().is_some())
+                .unwrap_or(false)
     }
 }
 

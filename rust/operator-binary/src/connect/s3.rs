@@ -217,13 +217,11 @@ impl ResolvedS3 {
                 .volumes_and_mounts()
                 .context(ConnectionVolumesAndMountsSnafu)?;
 
-            for volume in conn_volumes.iter() {
-                let volume_name = volume.name.clone();
-                volumes_by_name.entry(volume_name).or_insert(volume.clone());
+            for volume in conn_volumes.into_iter() {
+                volumes_by_name.entry(volume.name.clone()).or_insert(volume);
             }
-            for mount in conn_mounts.iter() {
-                let mount_name = mount.name.clone();
-                mounts_by_name.entry(mount_name).or_insert(mount.clone());
+            for mount in conn_mounts.into_iter() {
+                mounts_by_name.entry(mount.name.clone()).or_insert(mount);
             }
         }
 
@@ -236,13 +234,11 @@ impl ResolvedS3 {
                 .volumes_and_mounts()
                 .context(ConnectionVolumesAndMountsSnafu)?;
 
-            for volume in bucket_volumes.iter() {
-                let volume_name = volume.name.clone();
-                volumes_by_name.entry(volume_name).or_insert(volume.clone());
+            for volume in bucket_volumes.into_iter() {
+                volumes_by_name.entry(volume.name.clone()).or_insert(volume);
             }
-            for mount in bucket_mounts.iter() {
-                let mount_name = mount.name.clone();
-                mounts_by_name.entry(mount_name).or_insert(mount.clone());
+            for mount in bucket_mounts.into_iter() {
+                mounts_by_name.entry(mount.name.clone()).or_insert(mount);
             }
         }
 
@@ -280,7 +276,7 @@ impl ResolvedS3 {
             Ok(Some(
                 stackable_operator::k8s_openapi::api::core::v1::Container {
                     name: "tls-truststore-init".to_string(),
-                    image: Some(image.image.clone()),
+                    image: Some(image.image),
                     command: Some(vec![
                         "/bin/bash".to_string(),
                         "-x".to_string(),

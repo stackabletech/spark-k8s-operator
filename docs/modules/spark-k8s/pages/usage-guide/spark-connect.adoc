@@ -53,7 +53,7 @@ There are multiple ways to connect a Spark Connect server to S3:
 
 1. Configure a S3 connection using the `s3connections.stackable.tech` resource.
    Use this method when you are sure all clients are equally allowed to access all buckets on the given connection.
-2. Configure a list of S3 buckers using the `s3buckets.stackable.tech` resources.
+2. Configure a list of S3 buckets using the `s3buckets.stackable.tech` resources.
    Use this when you want to restrict access to specific buckets but don't need to set up different permissions for different clients.
 3. A combination of both.
 

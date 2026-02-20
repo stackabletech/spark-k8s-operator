@@ -46,18 +46,23 @@ use stackable_operator::{
 
 use crate::{
     config::jvm::construct_extra_java_options,
-    crd::roles::{
-        RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
-        SubmitConfig, SubmitConfigFragment, VolumeMounts,
+    crd::{
+        job_dependencies::JobDependencies,
+        roles::{
+            RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
+            SubmitConfig, SubmitConfigFragment, VolumeMounts,
+        },
     },
 };
 
 pub mod affinity;
 pub mod constants;
 pub mod history;
+pub mod job_dependencies;
 pub mod listener_ext;
 pub mod logdir;
 pub mod roles;
+pub mod template_spec;
 pub mod tlscerts;
 
 #[derive(Snafu, Debug)]
@@ -237,27 +242,6 @@ pub mod versioned {
         /// The log file directory definition used by the Spark history server.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub log_file_directory: Option<LogFileDirectorySpec>,
-    }
-
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct JobDependencies {
-        /// Under the `requirements` you can specify Python dependencies that will be installed with `pip`.
-        /// Example: `tabulate==0.8.9`
-        #[serde(default)]
-        pub requirements: Vec<String>,
-
-        /// A list of packages that is passed directly to `spark-submit`.
-        #[serde(default)]
-        pub packages: Vec<String>,
-
-        /// A list of repositories that is passed directly to `spark-submit`.
-        #[serde(default)]
-        pub repositories: Vec<String>,
-
-        /// A list of excluded packages that is passed directly to `spark-submit`.
-        #[serde(default)]
-        pub exclude_packages: Vec<String>,
     }
 }
 

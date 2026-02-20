@@ -44,14 +44,6 @@ pub enum Error {
         source: s3::v1alpha1::ConnectionError,
     },
 
-    #[snafu(display(
-        "failed to create secret volume for S3 bucket with secret class {secret_class:?}"
-    ))]
-    S3SecretVolume {
-        secret_class: String,
-        source: SecretClassVolumeError,
-    },
-
     #[snafu(display("failed to get volumes and mounts for S3 connection"))]
     ConnectionVolumesAndMounts {
         source: s3::v1alpha1::ConnectionError,

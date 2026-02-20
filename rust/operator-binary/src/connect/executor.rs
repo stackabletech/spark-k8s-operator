@@ -86,8 +86,8 @@ pub enum Error {
         cm_name: String,
     },
 
-    #[snafu(display("failed to add S3 secret or tls volume mounts to executors"))]
-    AddS3VolumeMount { source: s3::Error },
+    #[snafu(display("failed to build S3 volumes and mounts for executors"))]
+    BuildS3VolumesAndMounts { source: s3::Error },
 
     #[snafu(display("failed to add S3 secret volumes to executors"))]
     AddS3Volume { source: s3::Error },
@@ -121,6 +121,10 @@ pub fn executor_pod_template(
             .as_ref(),
     )?;
 
+    let (s3_volumes, s3_volume_mounts) = resolved_s3
+        .volumes_and_mounts()
+        .context(BuildS3VolumesAndMountsSnafu)?;
+
     let mut container = ContainerBuilder::new(&SparkConnectContainer::Spark.to_string())
         .context(InvalidContainerNameSnafu)?;
     container
@@ -129,12 +133,7 @@ pub fn executor_pod_template(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mounts(
-            resolved_s3
-                .volumes_and_mounts()
-                .context(AddS3VolumeMountSnafu)?
-                .1,
-        )
+        .add_volume_mounts(s3_volume_mounts)
         .context(AddVolumeMountSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
@@ -166,12 +165,7 @@ pub fn executor_pod_template(
                 .build(),
         )
         .context(AddVolumeSnafu)?
-        .add_volumes(
-            resolved_s3
-                .volumes_and_mounts()
-                .context(AddS3VolumeSnafu)?
-                .0,
-        )
+        .add_volumes(s3_volumes)
         .context(AddVolumeSnafu)?
         // This is needed for shared enpryDir volumes with other containers like the truststore
         // init container.

@@ -127,8 +127,8 @@ pub enum Error {
     #[snafu(display("failed build connect server jvm args for {name}"))]
     ServerJvmArgs { source: common::Error, name: String },
 
-    #[snafu(display("failed to add S3 secret or tls volume mounts to stateful set"))]
-    AddS3VolumeMount { source: s3::Error },
+    #[snafu(display("failed to build S3 volumes and mounts for the server"))]
+    BuildS3VolumesAndMounts { source: s3::Error },
 
     #[snafu(display("failed to add S3 secret volumes to stateful set"))]
     AddS3Volume { source: s3::Error },
@@ -277,6 +277,10 @@ pub(crate) fn build_stateful_set(
         .map(|s| s.env_overrides.clone())
         .as_ref())?;
 
+    let (s3_volumes, s3_volume_mounts) = resolved_s3
+        .volumes_and_mounts()
+        .context(BuildS3VolumesAndMountsSnafu)?;
+
     let mut container = ContainerBuilder::new(&SparkConnectContainer::Spark.to_string())
         .context(InvalidContainerNameSnafu)?;
     container
@@ -299,12 +303,7 @@ pub(crate) fn build_stateful_set(
         .context(AddVolumeMountSnafu)?
         .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mounts(
-            resolved_s3
-                .volumes_and_mounts()
-                .context(AddS3VolumeMountSnafu)?
-                .1,
-        )
+        .add_volume_mounts(s3_volume_mounts)
         .context(AddVolumeMountSnafu)?
         .readiness_probe(probe())
         .liveness_probe(probe());
@@ -368,14 +367,8 @@ pub(crate) fn build_stateful_set(
         .context(BuildListenerVolumeSnafu)?,
     ]);
 
-    // S3: Add secret volumes needed for accessing S3 buckets.
-    pb.add_volumes(
-        resolved_s3
-            .volumes_and_mounts()
-            .context(AddS3VolumeSnafu)?
-            .0,
-    )
-    .context(AddVolumeSnafu)?;
+    // S3: Add volumes (credentials and certificates) needed for accessing S3 buckets.
+    pb.add_volumes(s3_volumes).context(AddVolumeSnafu)?;
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.
     if let Some(truststore_init_container) = resolved_s3

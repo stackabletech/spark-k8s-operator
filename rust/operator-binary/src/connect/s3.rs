@@ -2,9 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    commons::{
-        product_image_selection::ResolvedProductImage, secret_class::SecretClassVolumeError,
-    },
+    commons::product_image_selection::ResolvedProductImage,
     crd::s3::{self, v1alpha1::S3AccessStyle},
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
 };

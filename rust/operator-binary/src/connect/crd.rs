@@ -15,6 +15,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::PodAntiAffinity, apimachinery::pkg::api::resource::Quantity},
     kube::{CustomResource, ResourceExt},
@@ -67,7 +68,6 @@ pub enum Error {
     )
 )]
 pub mod versioned {
-
     /// An Apache Spark Connect server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/connect-server).
@@ -86,6 +86,10 @@ pub mod versioned {
         // no doc string - See ClusterOperation struct
         #[serde(default)]
         pub cluster_operation: ClusterOperation,
+
+        /// One or more S3 connections to be used by the Spark Connect server.
+        #[serde(default)]
+        connectors: Connectors,
 
         // Docs are on the ObjectOverrides struct
         #[serde(default)]
@@ -183,6 +187,14 @@ pub mod versioned {
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
         #[fragment_attrs(serde(default))]
         pub requested_secret_lifetime: Option<Duration>,
+    }
+
+    #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Deserialize, Serialize)]
+    struct Connectors {
+        #[serde(default)]
+        pub s3buckets: Vec<s3::v1alpha1::InlineBucketOrReference>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub s3connection: Option<s3::v1alpha1::InlineConnectionOrReference>,
     }
 }
 
@@ -389,5 +401,82 @@ impl v1alpha1::ExecutorConfig {
             node_affinity: None,
             node_selector: None,
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+
+    use super::*;
+
+    #[test]
+    fn test_cr_minimal_deserialization() {
+        let _spark_connect_cr = serde_yaml::from_str::<v1alpha1::SparkConnectServer>(indoc! { r#"
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkConnectServer
+        metadata:
+          name: spark-connect
+        spec:
+          image:
+            productVersion: 4.1.1
+        "# })
+        .expect("Failed to deserialize minimal SparkConnectServer CR");
+    }
+
+    #[test]
+    fn test_cr_s3_ref_deserialization() {
+        let input = indoc! { r#"
+          ---
+          apiVersion: spark.stackable.tech/v1alpha1
+          kind: SparkConnectServer
+          metadata:
+            name: spark-connect
+          spec:
+            image:
+              productVersion: 4.1.1
+            connectors:
+              s3:
+                - reference: my-s3-bucket
+        "# };
+
+        let deserializer = serde_yaml::Deserializer::from_str(input);
+        let _spark_connect_cr: v1alpha1::SparkConnectServer =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("Failed to deserialize SparkConnectServer with S3 connectors CR");
+    }
+
+    #[test]
+    fn test_cr_s3_inline_deserialization() {
+        let input = indoc! { r#"
+          ---
+          apiVersion: spark.stackable.tech/v1alpha1
+          kind: SparkConnectServer
+          metadata:
+            name: spark-connect
+          spec:
+            image:
+              productVersion: 4.1.1
+            connectors:
+              s3:
+                - inline:
+                    bucketName: mybucket
+                    connection:
+                      inline:
+                        host: minio
+                        port: 9000
+                        accessStyle: Path
+                        credentials:
+                          secretClass: minio-credentials-class
+                        tls:
+                          verification:
+                            server:
+                              caCert:
+                                secretClass: minio-tls-ca
+        "# };
+
+        let deserializer = serde_yaml::Deserializer::from_str(input);
+        let _spark_connect_cr: v1alpha1::SparkConnectServer =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("Failed to deserialize SparkConnectServer with S3 connectors CR");
     }
 }

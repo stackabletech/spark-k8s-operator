@@ -2,6 +2,7 @@ mod common;
 pub mod controller;
 pub mod crd;
 mod executor;
+mod s3;
 pub mod server;
 mod service;
 

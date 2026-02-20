@@ -27,7 +27,8 @@ extraEnvVars:
 provisioning:
   enabled: true
   buckets:
-    - name: mybucket
+    - name: ingest-bucket
+    - name: stats-bucket
   usersExistingSecrets:
     - minio-users
   resources:
@@ -67,3 +68,8 @@ resources:
 
 service:
   type: NodePort
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+tls:
+  enabled: true
+  existingSecret: minio-tls-ca
+{% endif %}

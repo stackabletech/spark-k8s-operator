@@ -47,6 +47,56 @@ spec:
 
 The example above adds a new endpoint for application metrics.
 
+== Connect to S3
+
+There are multiple ways to connect a Spark Connect server to S3:
+
+1. Configure a S3 connection using the `s3connections.stackable.tech` resource.
+   Use this method when you are sure all clients are equally allowed to access all buckets on the given connection.
+2. Configure a list of S3 buckets using the `s3buckets.stackable.tech` resources.
+   Use this when you want to restrict access to specific buckets but don't need to set up different permissions for different clients.
+3. A combination of both.
+
+For more details on how the Stackable Data Platform manages S3 resources see the xref:concepts:s3.adoc[S3 resources] page.
+
+In the simplest case, you can just set up a S3 connection and the Spark Connect server will automatically make it available to clients. The example below demonstrates how to set up a Spark Connect server with a S3 connection.
+
+```yaml
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkConnectServer
+metadata:
+  name: spark-connect
+spec:
+  image:
+    productVersion: 4.1.1
+  connectors:
+    s3connection:
+      reference: s3-connection
+...
+```
+
+In a more complex use case, clients can read data from the two buckets on AWS, transform it and write to a local corporate S3 instance.
+The example below demonstrates how to set up a Spark Connect server with with two S3 buckets and a connection.
+
+```yaml
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkConnectServer
+metadata:
+  name: spark-connect
+spec:
+  image:
+    productVersion: 4.1.1
+  connectors:
+    s3buckets:
+      - reference: aws-cust-1-ingest
+      - reference: aws-cust-2-ingest
+    s3connection:
+      reference: corporate-s3-connection
+...
+```
+
 == Spark History Server
 
 Unfortunately integration with the Spark History Server is not supported yet.
@@ -57,7 +107,6 @@ The connect server seems to ignore the `spark.eventLog` properties while also pr
 The following features are not supported by the Stackable Spark operator yet
 
 * Authorization and authentication. Currently, anyone with access to the Spark Connect service can run jobs.
-* S3Connection references are not supported yet
 * Volumes and volume mounts can be added only with pod overrides.
 * Job dependencies must be provisioned as custom images or via `--packages` or `--jars` arguments.
 

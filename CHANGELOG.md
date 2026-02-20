@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
   This has the effect that applications where the `spark-submit` Pod fails are not resubmitted.
   Previously, Jobs were retried at most 6 times by default ([#647]).
 - Support for Spark `3.5.8` ([#650]).
+- First class support for S3 on Spark connect clusters ([#652]).
 
 ### Fixed
 
@@ -41,6 +42,7 @@ All notable changes to this project will be documented in this file.
 [#649]: https://github.com/stackabletech/spark-k8s-operator/pull/649
 [#650]: https://github.com/stackabletech/spark-k8s-operator/pull/650
 [#651]: https://github.com/stackabletech/spark-k8s-operator/pull/651
+[#652]: https://github.com/stackabletech/spark-k8s-operator/pull/652
 [#655]: https://github.com/stackabletech/spark-k8s-operator/pull/655
 [#656]: https://github.com/stackabletech/spark-k8s-operator/pull/656
 

@@ -11,15 +11,13 @@ repository = "https://github.com/stackabletech/spark-k8s-operator"
 
 [workspace.dependencies]
 product-config = { git = "https://github.com/stackabletech/product-config.git", tag = "0.8.0" }
-stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "stackable-operator-0.105.0", features = ["telemetry", "versioned", "webhook"] }
+stackable-operator = { git = "https://github.com/stackabletech/operator-rs.git", tag = "stackable-operator-0.106.1", features = ["telemetry", "versioned", "webhook"] }
 
 anyhow = "1.0"
 built = { version = "0.8", features = ["chrono", "git2"] }
 clap = "4.5"
 const_format = "0.2"
 futures = { version = "0.3", features = ["compat"] }
-# We pin the kube version, as we use a patch for 2.0.1 below
-kube = "=2.0.1"
 rstest = "0.26"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -32,9 +30,6 @@ tracing = "0.1"
 tracing-futures = { version = "0.2", features = ["futures-03"] }
 indoc = "2"
 
-# [patch."https://github.com/stackabletech/operator-rs.git"]
+[patch."https://github.com/stackabletech/operator-rs.git"]
 # stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch = "main" }
 # stackable-operator = { path = "../operator-rs/crates/stackable-operator" }
-
-[patch.crates-io]
-kube = { git = "https://github.com/stackabletech/kube-rs", branch = "2.0.1-fix-schema-hoisting" }

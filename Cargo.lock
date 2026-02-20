@@ -358,7 +358,6 @@ dependencies = [
  "android-tzdata",
  "iana-time-zone",
  "num-traits",
- "serde",
  "windows-link",
 ]
 
@@ -445,11 +444,20 @@ dependencies = [
 
 [[package]]
 name = "convert_case"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "633458d4ef8c78b72454de2d54fd6ab2e60f9e02be22f3c6104cdc8a4e0fceb9"
+checksum = "affbf0190ed2caf063e3def54ff444b449371d55c58e513a95ab98eca50adb49"
 dependencies = [
  "unicode-segmentation",
+]
+
+[[package]]
+name = "convert_case_extras"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "589c70f0faf8aa9d17787557d5eae854d7755cac50f5c3d12c81d3d57661cebb"
+dependencies = [
+ "convert_case",
 ]
 
 [[package]]
@@ -525,36 +533,12 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.21.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08440b3dd222c3d0433e63e097463969485f112baff337dfdaca043a0d760570"
-dependencies = [
- "darling_core 0.21.2",
- "darling_macro 0.21.2",
-]
-
-[[package]]
-name = "darling"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25ae13da2f202d56bd7f91c25fba009e7717a1e4a1cc98a76d844b65ae912e9d"
 dependencies = [
- "darling_core 0.23.0",
- "darling_macro 0.23.0",
-]
-
-[[package]]
-name = "darling_core"
-version = "0.21.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d25b7912bc28a04ab1b7715a68ea03aaa15662b43a1a4b2c480531fd19f8bf7e"
-dependencies = [
- "fnv",
- "ident_case",
- "proc-macro2",
- "quote",
- "strsim",
- "syn 2.0.106",
+ "darling_core",
+ "darling_macro",
 ]
 
 [[package]]
@@ -572,22 +556,11 @@ dependencies = [
 
 [[package]]
 name = "darling_macro"
-version = "0.21.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce154b9bea7fb0c8e8326e62d00354000c36e79770ff21b8c84e3aa267d9d531"
-dependencies = [
- "darling_core 0.21.2",
- "quote",
- "syn 2.0.106",
-]
-
-[[package]]
-name = "darling_macro"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d"
 dependencies = [
- "darling_core 0.23.0",
+ "darling_core",
  "quote",
  "syn 2.0.106",
 ]
@@ -873,9 +846,9 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "foldhash"
-version = "0.1.5"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "form_urlencoded"
@@ -1094,6 +1067,12 @@ name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
+
+[[package]]
+name = "hashbrown"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 dependencies = [
  "allocator-api2",
  "equivalent",
@@ -1113,15 +1092,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest",
-]
-
-[[package]]
-name = "home"
-version = "0.5.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "589533453244b0995c858700322199b2becb13b627df2851f64a2775d024abcf"
-dependencies = [
- "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1403,7 +1373,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe4cd85333e22411419a0bcae1297d25e58c9443848b11dc6a86fefe8c78a661"
 dependencies = [
  "equivalent",
- "hashbrown",
+ "hashbrown 0.15.5",
 ]
 
 [[package]]
@@ -1472,6 +1442,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "jiff"
+version = "0.2.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c867c356cc096b33f4981825ab281ecba3db0acefe60329f044c1789d94c6543"
+dependencies = [
+ "jiff-static",
+ "jiff-tzdb-platform",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "jiff-static"
+version = "0.2.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7946b4325269738f270bb55b3c19ab5c5040525f83fd625259422a9d25d9be5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
+name = "jiff-tzdb"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68971ebff725b9e2ca27a601c5eb38a4c5d64422c4cbab0c535f248087eda5c2"
+
+[[package]]
+name = "jiff-tzdb-platform"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "875a5a69ac2bab1a891711cf5eccbec1ce0341ea805560dcd90b7a2e925132e8"
+dependencies = [
+ "jiff-tzdb",
+]
+
+[[package]]
 name = "jobserver"
 version = "0.1.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1505,9 +1516,9 @@ dependencies = [
 
 [[package]]
 name = "jsonpath-rust"
-version = "0.7.5"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c00ae348f9f8fd2d09f82a98ca381c60df9e0820d8d79fce43e649b4dc3128b"
+checksum = "633a7320c4bb672863a3782e89b9094ad70285e097ff6832cddd0ec615beadfa"
 dependencies = [
  "pest",
  "pest_derive",
@@ -1528,12 +1539,12 @@ dependencies = [
 
 [[package]]
 name = "k8s-openapi"
-version = "0.26.0"
+version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d13f06d5326a915becaffabdfab75051b8cdc260c2a5c06c0e90226ede89a692"
+checksum = "05a6d6f3611ad1d21732adbd7a2e921f598af6c92d71ae6e2620da4b67ee1f0d"
 dependencies = [
  "base64",
- "chrono",
+ "jiff",
  "schemars",
  "serde",
  "serde_json",
@@ -1542,17 +1553,17 @@ dependencies = [
 [[package]]
 name = "k8s-version"
 version = "0.1.3"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.105.0#7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.106.1#2ba637e9d72e8b82adc6b5f370211ba9563c136d"
 dependencies = [
- "darling 0.23.0",
+ "darling",
  "regex",
  "snafu 0.8.7",
 ]
 
 [[package]]
 name = "kube"
-version = "2.0.1"
-source = "git+https://github.com/stackabletech/kube-rs?branch=2.0.1-fix-schema-hoisting#26543e85dc7daaf82d8f7dbd902b26775798879e"
+version = "3.0.1"
+source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
 dependencies = [
  "k8s-openapi",
  "kube-client",
@@ -1563,15 +1574,13 @@ dependencies = [
 
 [[package]]
 name = "kube-client"
-version = "2.0.1"
-source = "git+https://github.com/stackabletech/kube-rs?branch=2.0.1-fix-schema-hoisting#26543e85dc7daaf82d8f7dbd902b26775798879e"
+version = "3.0.1"
+source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
 dependencies = [
  "base64",
  "bytes",
- "chrono",
  "either",
  "futures 0.3.31",
- "home",
  "http",
  "http-body",
  "http-body-util",
@@ -1579,6 +1588,7 @@ dependencies = [
  "hyper-rustls",
  "hyper-timeout",
  "hyper-util",
+ "jiff",
  "jsonpath-rust",
  "k8s-openapi",
  "kube-core",
@@ -1598,13 +1608,13 @@ dependencies = [
 
 [[package]]
 name = "kube-core"
-version = "2.0.1"
-source = "git+https://github.com/stackabletech/kube-rs?branch=2.0.1-fix-schema-hoisting#26543e85dc7daaf82d8f7dbd902b26775798879e"
+version = "3.0.1"
+source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
 dependencies = [
- "chrono",
  "derive_more",
  "form_urlencoded",
  "http",
+ "jiff",
  "json-patch",
  "k8s-openapi",
  "schemars",
@@ -1616,10 +1626,10 @@ dependencies = [
 
 [[package]]
 name = "kube-derive"
-version = "2.0.1"
-source = "git+https://github.com/stackabletech/kube-rs?branch=2.0.1-fix-schema-hoisting#26543e85dc7daaf82d8f7dbd902b26775798879e"
+version = "3.0.1"
+source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
 dependencies = [
- "darling 0.21.2",
+ "darling",
  "proc-macro2",
  "quote",
  "serde",
@@ -1629,8 +1639,8 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "2.0.1"
-source = "git+https://github.com/stackabletech/kube-rs?branch=2.0.1-fix-schema-hoisting#26543e85dc7daaf82d8f7dbd902b26775798879e"
+version = "3.0.1"
+source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
 dependencies = [
  "ahash",
  "async-broadcast",
@@ -1638,7 +1648,7 @@ dependencies = [
  "backon",
  "educe",
  "futures 0.3.31",
- "hashbrown",
+ "hashbrown 0.16.1",
  "hostname",
  "json-patch",
  "k8s-openapi",
@@ -2126,6 +2136,21 @@ name = "pkg-config"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
+
+[[package]]
+name = "portable-atomic"
+version = "1.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a9db96d7fa8782dd8c15ce32ffe8680bbd1e978a43bf51a34d39483540495f5"
+dependencies = [
+ "portable-atomic",
+]
 
 [[package]]
 name = "potential_utf"
@@ -2872,7 +2897,7 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 [[package]]
 name = "stackable-certs"
 version = "0.4.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.105.0#7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.106.1#2ba637e9d72e8b82adc6b5f370211ba9563c136d"
 dependencies = [
  "const-oid",
  "ecdsa",
@@ -2895,10 +2920,9 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.105.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.105.0#7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa"
+version = "0.106.1"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.106.1#2ba637e9d72e8b82adc6b5f370211ba9563c136d"
 dependencies = [
- "chrono",
  "clap",
  "const_format",
  "delegate",
@@ -2908,6 +2932,7 @@ dependencies = [
  "futures 0.3.31",
  "http",
  "indexmap",
+ "jiff",
  "json-patch",
  "k8s-openapi",
  "kube",
@@ -2935,9 +2960,9 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.3.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.105.0#7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.106.1#2ba637e9d72e8b82adc6b5f370211ba9563c136d"
 dependencies = [
- "darling 0.23.0",
+ "darling",
  "proc-macro2",
  "quote",
  "syn 2.0.106",
@@ -2945,10 +2970,10 @@ dependencies = [
 
 [[package]]
 name = "stackable-shared"
-version = "0.0.3"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.105.0#7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa"
+version = "0.1.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.106.1#2ba637e9d72e8b82adc6b5f370211ba9563c136d"
 dependencies = [
- "chrono",
+ "jiff",
  "k8s-openapi",
  "kube",
  "schemars",
@@ -2987,7 +3012,7 @@ dependencies = [
 [[package]]
 name = "stackable-telemetry"
 version = "0.6.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.105.0#7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.106.1#2ba637e9d72e8b82adc6b5f370211ba9563c136d"
 dependencies = [
  "axum",
  "clap",
@@ -3011,7 +3036,7 @@ dependencies = [
 [[package]]
 name = "stackable-versioned"
 version = "0.8.3"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.105.0#7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.106.1#2ba637e9d72e8b82adc6b5f370211ba9563c136d"
 dependencies = [
  "schemars",
  "serde",
@@ -3024,10 +3049,11 @@ dependencies = [
 [[package]]
 name = "stackable-versioned-macros"
 version = "0.8.3"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.105.0#7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.106.1#2ba637e9d72e8b82adc6b5f370211ba9563c136d"
 dependencies = [
  "convert_case",
- "darling 0.23.0",
+ "convert_case_extras",
+ "darling",
  "indoc",
  "itertools",
  "k8s-openapi",
@@ -3041,7 +3067,7 @@ dependencies = [
 [[package]]
 name = "stackable-webhook"
 version = "0.9.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.105.0#7bfcac5f6515c8b4c8cf8def2edfde5ed8621aaa"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.106.1#2ba637e9d72e8b82adc6b5f370211ba9563c136d"
 dependencies = [
  "arc-swap",
  "async-trait",

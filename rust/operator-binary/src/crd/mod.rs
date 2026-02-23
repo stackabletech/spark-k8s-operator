@@ -61,6 +61,7 @@ pub mod history;
 pub mod job_dependencies;
 pub mod listener_ext;
 pub mod logdir;
+pub mod merger;
 pub mod roles;
 pub mod template_spec;
 pub mod tlscerts;

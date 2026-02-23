@@ -131,3 +131,35 @@ pub mod versioned {
         pub log_file_directory: Option<LogFileDirectorySpec>,
     }
 }
+
+impl From<&v1alpha1::SparkApplicationTemplate> for super::v1alpha1::SparkApplication {
+    fn from(template: &v1alpha1::SparkApplicationTemplate) -> super::v1alpha1::SparkApplication {
+        let spec = super::v1alpha1::SparkApplicationSpec {
+            mode: template.spec.mode.clone(),
+            main_class: template.spec.main_class.clone(),
+            main_application_file: template.spec.main_application_file.clone(),
+            image: template.spec.image.clone(),
+            spark_image: template.spec.spark_image.clone(),
+            vector_aggregator_config_map_name: template
+                .spec
+                .vector_aggregator_config_map_name
+                .clone(),
+            job: template.spec.job.clone(),
+            driver: template.spec.driver.clone(),
+            executor: template.spec.executor.clone(),
+            spark_conf: template.spec.spark_conf.clone(),
+            deps: template.spec.deps.clone(),
+            s3connection: template.spec.s3connection.clone(),
+            args: template.spec.args.clone(),
+            volumes: template.spec.volumes.clone(),
+            env: template.spec.env.clone(),
+            log_file_directory: template.spec.log_file_directory.clone(),
+        };
+
+        super::v1alpha1::SparkApplication {
+            metadata: template.metadata.clone(),
+            spec,
+            status: None,
+        }
+    }
+}

@@ -29,7 +29,10 @@ use stackable_operator::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
         apimachinery::pkg::api::resource::Quantity,
     },
-    kube::{CustomResource, ResourceExt},
+    kube::{
+        CustomResource, Resource, ResourceExt,
+        core::{DynamicObject, TypeMeta},
+    },
     kvp::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
     product_config_utils::{
@@ -127,6 +130,9 @@ pub enum Error {
 
     #[snafu(display("failed to construct JVM arguments"))]
     ConstructJvmArguments { source: crate::config::jvm::Error },
+
+    #[snafu(display("failed to serialize SparkApplication to JSON"))]
+    SerializeToJson { source: serde_json::Error },
 }
 
 #[versioned(
@@ -989,6 +995,46 @@ impl v1alpha1::SparkApplication {
             .and_then(|config| config.retry_on_failure_count)
             .unwrap_or(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT);
         effective_retry_on_failure_count as i32
+    }
+}
+
+impl TryFrom<v1alpha1::SparkApplication> for DynamicObject {
+    type Error = Error;
+
+    fn try_from(spark_app: v1alpha1::SparkApplication) -> Result<Self, Self::Error> {
+        let api_version = v1alpha1::SparkApplication::api_version(&()).to_string();
+        let kind = v1alpha1::SparkApplication::kind(&()).to_string();
+
+        let types = Some(TypeMeta { api_version, kind });
+
+        let metadata = spark_app.metadata;
+        let data = serde_json::to_value(&spark_app.spec).context(SerializeToJsonSnafu)?;
+
+        Ok(DynamicObject {
+            types,
+            metadata,
+            data,
+        })
+    }
+}
+
+impl TryFrom<&v1alpha1::SparkApplication> for DynamicObject {
+    type Error = Error;
+
+    fn try_from(spark_app: &v1alpha1::SparkApplication) -> Result<Self, Self::Error> {
+        let api_version = v1alpha1::SparkApplication::api_version(&()).to_string();
+        let kind = v1alpha1::SparkApplication::kind(&()).to_string();
+
+        let types = Some(TypeMeta { api_version, kind });
+
+        let metadata = spark_app.metadata.clone();
+        let data = serde_json::to_value(&spark_app.spec).context(SerializeToJsonSnafu)?;
+
+        Ok(DynamicObject {
+            types,
+            metadata,
+            data,
+        })
     }
 }
 

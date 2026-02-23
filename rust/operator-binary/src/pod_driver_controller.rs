@@ -19,7 +19,7 @@ const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
-#[allow(clippy::enum_variant_names)]
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub enum Error {
     #[snafu(display("Label [{LABEL_NAME_INSTANCE}] not found for pod name [{pod_name}]"))]
     LabelInstanceNotFound { pod_name: String },

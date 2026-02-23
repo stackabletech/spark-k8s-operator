@@ -5,44 +5,76 @@ metadata:
   name: spark-connect-client
 data:
   example.py: |-
+    #
+    # Simple PySpark example that:
+    # 1. Generates some random data and writes it to S3.
+    # 2. Reads it back and computes some statistics.
+    # 3. Writes the statistics back to S3.
+    #
+    # It uses two S3 buckets:
+    # 1. `ingest-bucket`: configured as `spec.connectors.s3buckets` in the Spark connect server manifest.
+    # 2. `stats-bucket`: not configured in the Connect server directly but accessible because of the `spec.connectors.s3connection` property.
+    #
     import sys
-
+    import random
+    import string
+    from datetime import datetime, timedelta
     from pyspark.sql import SparkSession
     import pyspark.sql.functions as fn
+    import pandas as pd
+
+    def random_string(length=8):
+      return ''.join(random.choices(string.ascii_letters, k=length))
+
+    def generate_data(num_records=1000):
+      start_date = datetime(2021, 1, 1)
+      data = []
+      for i in range(num_records):
+        int_field = random.randint(1, 1000)
+        text_field = random_string(10)
+        # Distribute dates over 12 months
+        month_offset = i % 12
+        date_field = (start_date + timedelta(days=month_offset*30 + random.randint(0,29))).strftime('%Y-%m-%d')
+        data.append((int_field, text_field, date_field))
+      return pd.DataFrame(data, columns=["int_field", "text_field", "date_field"])
 
     if __name__ == "__main__":
-        remote: str = sys.argv[1]
+      remote: str = sys.argv[1]
 
-        print(f"Connecting to Spark Connect server at {remote}")
+      print(f"Connecting to Spark Connect server at {remote}")
+      spark = (
+        SparkSession.builder.appName("S3BucketsExample")
+        .remote(remote)
+        .getOrCreate()
+      )
 
-        # Adding s3a configuration properties here has no effect unfortunately.
-        # They need to be set in the SparkConnectServer.
-        spark = (
-            SparkSession.builder.appName("SimpleSparkConnectApp")
-            .remote(remote)
-            .getOrCreate()
-        )
+      ingest_bucket = "s3a://ingest-bucket/data"
+      stats_bucket = "s3a://stats-bucket/results"
 
-        logFile = "/stackable/spark/README.md"
+      print("Generating data...")
+      df = generate_data(1000)
+      sdf = spark.createDataFrame(df)
 
-        print(f"Reading log file: {logFile}")
-        logData = spark.read.text(logFile).cache()
+      print(f"Writing generated data to {ingest_bucket}")
+      sdf.write.mode("overwrite").parquet(ingest_bucket)
 
-        print("Counting words in log file")
-        wc = (
-          logData.select(
-            fn.explode(fn.split(logData["value"], r"\s+"))
-          .alias("words"))
-          .groupBy("words").count()
-        )
+      print(f"Reading data back from {ingest_bucket}")
+      data = spark.read.parquet(ingest_bucket)
 
-        wc.show()
+      print("Computing statistics...")
+      stats = data.groupBy(fn.month(fn.col("date_field")).alias("month")).agg(
+        fn.count("*").alias("count"),
+        fn.avg("int_field").alias("avg_int_field"),
+        fn.min("int_field").alias("min_int_field"),
+        fn.max("int_field").alias("max_int_field")
+      ).orderBy("month")
 
-        dest = "s3a://mybucket/wordcount"
-        print(f"Writing word count to S3 {dest}")
-        wc.write.mode("overwrite").parquet(dest)
+      stats.show()
 
-        spark.stop()
+      print(f"Writing statistics to {stats_bucket}")
+      stats.write.mode("overwrite").parquet(stats_bucket)
+
+      spark.stop()
 ---
 apiVersion: batch/v1
 kind: Job
@@ -76,17 +108,6 @@ spec:
             requests:
               cpu: 200m
               memory: 128Mi
-          env:
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: s3-credentials
-                  key: accessKey
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: s3-credentials
-                  key: secretKey
           volumeMounts:
             - name: spark-connect-client
               mountPath: /app

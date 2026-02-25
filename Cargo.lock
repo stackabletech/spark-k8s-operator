@@ -2996,6 +2996,7 @@ dependencies = [
  "futures 0.3.31",
  "indoc",
  "product-config",
+ "regex",
  "rstest",
  "semver",
  "serde",

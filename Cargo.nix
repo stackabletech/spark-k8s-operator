@@ -9999,6 +9999,10 @@ rec {
             packageId = "product-config";
           }
           {
+            name = "regex";
+            packageId = "regex";
+          }
+          {
             name = "semver";
             packageId = "semver";
           }

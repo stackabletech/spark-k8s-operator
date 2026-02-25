@@ -21,7 +21,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use super::crd::{CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, v1alpha1};
 use crate::{
     Ctx,
-    connect::{common, crd::SparkConnectServerStatus, executor, server, service},
+    connect::{common, crd::SparkConnectServerStatus, executor, s3, server, service},
     crd::constants::{OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
 };
 
@@ -142,6 +142,12 @@ pub enum Error {
     ResolveProductImage {
         source: product_image_selection::Error,
     },
+
+    #[snafu(display("failed to resolve S3 connections for SparkConnectServer {name:?}"))]
+    ResolveS3Connections { source: s3::Error, name: String },
+
+    #[snafu(display("failed to build connect server S3 properties"))]
+    S3SparkProperties { source: crate::connect::s3::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -186,6 +192,13 @@ pub async fn reconcile(
         .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
         .context(ResolveProductImageSnafu)?;
 
+    // Resolve any S3 connections early to fail fast if there are issues.
+    let resolved_s3 = s3::ResolvedS3::resolve(client, scs)
+        .await
+        .with_context(|_| ResolveS3ConnectionsSnafu {
+            name: scs.name_unchecked(),
+        })?;
+
     // Use a dedicated service account for connect server pods.
     let (service_account, role_binding) = build_rbac_resources(
         scs,
@@ -229,6 +242,9 @@ pub async fn reconcile(
     // Server config map
 
     let spark_props = common::spark_properties(&[
+        resolved_s3
+            .spark_properties()
+            .context(S3SparkPropertiesSnafu)?,
         server::server_properties(
             scs,
             &server_config,
@@ -263,6 +279,7 @@ pub async fn reconcile(
             &executor_config,
             &resolved_product_image,
             &executor_config_map,
+            &resolved_s3,
         )
         .context(ExecutorPodTemplateSnafu)?,
     )
@@ -308,6 +325,7 @@ pub async fn reconcile(
         &server_config_map,
         &applied_listener.name_any(),
         args,
+        &resolved_s3,
     )
     .context(BuildServerStatefulSetSnafu)?;
 

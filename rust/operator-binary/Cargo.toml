@@ -26,6 +26,7 @@ clap.workspace = true
 futures.workspace = true
 tokio.workspace = true
 regex.workspace = true
+indoc.workspace = true
 
 [dev-dependencies]
 indoc.workspace = true

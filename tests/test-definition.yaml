@@ -134,6 +134,7 @@ tests:
     dimensions:
       - spark-connect
       - openshift
+      - s3-use-tls
 
 suites:
   - name: nightly

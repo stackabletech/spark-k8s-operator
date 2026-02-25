@@ -1,4 +1,31 @@
 ---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: s3-connection
+spec:
+  host: minio
+  port: 9000
+  accessStyle: Path
+  credentials:
+    secretClass: minio-credentials-class
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+  tls:
+    verification:
+      server:
+        caCert:
+          secretClass: minio-tls-ca
+{% endif %}
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Bucket
+metadata:
+  name: ingest-bucket
+spec:
+  bucketName: ingest-bucket
+  connection:
+    reference: s3-connection
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -35,30 +62,12 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
-  args:
-    # These are unfortunately required to make the S3A connector work with MinIO
-    # I had expected the clients to be able to set these, but that is not the case.
-    - --conf spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
-    - --conf spark.hadoop.fs.s3a.path.style.access=true
-    - --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-    - --conf spark.hadoop.fs.s3a.region=us-east-1
+  connectors:
+    s3buckets:
+      - reference: ingest-bucket
+    s3connection:
+      reference: s3-connection
   server:
-    podOverrides:
-      spec:
-        containers:
-          - name: spark
-            env:
-              - name: AWS_ACCESS_KEY_ID
-                valueFrom:
-                  secretKeyRef:
-                    name: s3-credentials
-                    key: accessKey
-              - name: AWS_SECRET_ACCESS_KEY
-                valueFrom:
-                  secretKeyRef:
-                    name: s3-credentials
-                    key: secretKey
-
     jvmArgumentOverrides:
       add:
         - -Dmy.custom.jvm.arg=customValue

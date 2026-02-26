@@ -42,6 +42,7 @@ use crate::{
             SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
         },
         history::SparkHistoryServer,
+        template_spec::{SparkApplicationTemplate, SparkApplicationTemplateVersion},
     },
     webhooks::conversion::create_webhook_server,
 };
@@ -85,6 +86,8 @@ async fn main() -> anyhow::Result<()> {
             SparkHistoryServer::merged_crd(crd::history::SparkHistoryServerVersion::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
             SparkConnectServer::merged_crd(SparkConnectServerVersion::V1Alpha1)?
+                .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
+            SparkApplicationTemplate::merged_crd(SparkApplicationTemplateVersion::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, SerializeOptions::default())?;
         }
         Command::Run(RunArguments {

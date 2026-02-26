@@ -95,6 +95,8 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
 }
 
 /// Merge ObjectMeta, with overlay taking precedence for most fields
+// TODO: figure out if it is the right thing to copy all metadata from templates into apps
+// or if this might also be made configurable via annotations
 fn merge_metadata(base: &ObjectMeta, overlay: &ObjectMeta) -> ObjectMeta {
     ObjectMeta {
         name: overlay.name.clone().or_else(|| base.name.clone()),
@@ -109,6 +111,7 @@ fn merge_metadata(base: &ObjectMeta, overlay: &ObjectMeta) -> ObjectMeta {
             .finalizers
             .clone()
             .or_else(|| base.finalizers.clone()),
+        uid: overlay.uid.clone().or_else(|| base.uid.clone()),
         ..Default::default()
     }
 }
@@ -241,6 +244,7 @@ mod tests {
             kind: SparkApplication
             metadata:
               name: overlay-app
+              uid: e8990dae-3f4c-417c-8b08-b2770e347d07
             spec:
               mode: cluster
               mainApplicationFile: overlay.py
@@ -257,6 +261,11 @@ mod tests {
         assert_eq!(merged.metadata.name, Some("overlay-app".to_string()));
         // namespace from base should be preserved
         assert_eq!(merged.metadata.namespace, Some("default".to_string()));
+        // metadata uid should be preserved
+        assert_eq!(
+            merged.metadata.uid,
+            Some("e8990dae-3f4c-417c-8b08-b2770e347d07".to_string())
+        );
         // overlay main_application_file should win
         assert_eq!(merged.spec.main_application_file, "overlay.py");
         // base main_class should be preserved since overlay is None

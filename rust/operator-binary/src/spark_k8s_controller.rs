@@ -256,6 +256,10 @@ pub async fn reconcile(
         None => spark_application,
     };
 
+    // This is the final version of the spark app to reconcile.
+    // No more mutating operations after this point (except for status).
+    tracing::debug!("reconciling spark application [{spark_application:?}]");
+
     let opt_s3conn = match spark_application.spec.s3connection.as_ref() {
         Some(s3bd) => Some(
             s3bd.clone()

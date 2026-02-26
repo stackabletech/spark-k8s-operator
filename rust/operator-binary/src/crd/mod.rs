@@ -118,7 +118,7 @@ pub enum Error {
     #[snafu(display("failed to configure S3 bucket"))]
     ConfigureS3Bucket { source: s3::v1alpha1::BucketError },
 
-    #[snafu(display("failed to configure S3 copnnection"))]
+    #[snafu(display("failed to configure S3 connection"))]
     ConfigureS3Connection {
         source: s3::v1alpha1::ConnectionError,
     },
@@ -143,10 +143,19 @@ pub enum Error {
 pub mod versioned {
 
     #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
+    #[serde(rename_all = "camelCase")]
+    pub(crate) struct ResolvedSparkApplicationTemplate {
+        pub name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub uid: Option<String>,
+    }
+    #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[serde(rename_all = "camelCase")]
     pub struct SparkApplicationStatus {
         pub phase: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub resolved_template_ref: Vec<ResolvedSparkApplicationTemplate>,
     }
 
     /// A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark.

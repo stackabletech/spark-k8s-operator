@@ -67,13 +67,6 @@ pub enum Error {
 )]
 pub mod versioned {
 
-    #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[serde(rename_all = "camelCase")]
-    pub struct SparkApplicationTemplateStatus {
-        pub phase: String,
-    }
-
     /// A Spark application template. This resource is managed by the Stackable operator for Apache Spark.
     /// Find more information on how to use it and the resources that the operator generates in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/).
@@ -163,6 +156,17 @@ pub mod versioned {
     }
 }
 
+impl From<&v1alpha1::SparkApplicationTemplate>
+    for super::v1alpha1::ResolvedSparkApplicationTemplate
+{
+    fn from(value: &v1alpha1::SparkApplicationTemplate) -> Self {
+        Self {
+            name: value.name_any(),
+            uid: value.metadata.uid.clone(),
+        }
+    }
+}
+
 impl From<&v1alpha1::SparkApplicationTemplate> for super::v1alpha1::SparkApplication {
     fn from(template: &v1alpha1::SparkApplicationTemplate) -> super::v1alpha1::SparkApplication {
         let spec = super::v1alpha1::SparkApplicationSpec {
@@ -206,7 +210,7 @@ struct MergeTemplateOptions {
     apply_strategy: TemplateApplyStrategy,
 }
 
-#[derive(Default, Debug, strum::EnumString)]
+#[derive(Default, Debug, PartialEq, strum::EnumString)]
 #[strum(serialize_all = "camelCase")]
 enum TemplateUpdateStrategy {
     #[default]
@@ -292,23 +296,36 @@ impl TryFrom<&super::v1alpha1::SparkApplication> for MergeTemplateOptions {
     }
 }
 
-// TODO: remove this
-#[allow(dead_code)]
-pub(crate) struct MergedAppResult {
-    merged: bool,
-    app: Option<super::v1alpha1::SparkApplication>,
-    template_names: Vec<String>,
+pub(crate) struct MergeTemplateResult {
+    pub app: Option<super::v1alpha1::SparkApplication>,
+    pub resolved_template_ref: Vec<super::v1alpha1::ResolvedSparkApplicationTemplate>,
 }
 
 pub(crate) async fn merge_application_templates(
     client: &stackable_operator::client::Client,
     spark_application: &super::v1alpha1::SparkApplication,
-) -> Result<MergedAppResult, Error> {
+) -> Result<MergeTemplateResult, Error> {
+    let default_result = MergeTemplateResult {
+        app: None,
+        resolved_template_ref: vec![],
+    };
+
     let merge_template_options = MergeTemplateOptions::try_from(spark_application)?;
 
-    // TODO: extract previous merge status and check the updateStrategy
-
     if merge_template_options.merge {
+        let have_resolved_template_refs = spark_application
+            .status
+            .as_ref()
+            .map(|s| s.resolved_template_ref.is_empty())
+            .unwrap_or(false);
+        if have_resolved_template_refs
+            && merge_template_options.update_strategy == TemplateUpdateStrategy::OnCreate
+        {
+            // Templates have already been applied and the update strategy (OnCreate) only allows
+            // to apply them once (on creation).
+            return Ok(default_result);
+        }
+
         // Retrieve the template objects from the kube api.
         // In the future if we support additional strategies in addition to "enforce",
         // this list might not be identical to the one in `merge_template_options`
@@ -339,20 +356,15 @@ pub(crate) async fn merge_application_templates(
             // list might differ from what is in the app annotations so make sure we return the correct one.
             let effective_template_list = templates
                 .iter()
-                .map(|t| t.name_any())
-                .collect::<Vec<String>>();
-            return Ok(MergedAppResult {
-                merged: true,
+                .map(super::v1alpha1::ResolvedSparkApplicationTemplate::from)
+                .collect::<Vec<super::v1alpha1::ResolvedSparkApplicationTemplate>>();
+            return Ok(MergeTemplateResult {
                 app: merged_app,
-                template_names: effective_template_list,
+                resolved_template_ref: effective_template_list,
             });
         }
     }
-    Ok(MergedAppResult {
-        merged: false,
-        app: None,
-        template_names: vec![],
-    })
+    Ok(default_result)
 }
 
 async fn resolve(

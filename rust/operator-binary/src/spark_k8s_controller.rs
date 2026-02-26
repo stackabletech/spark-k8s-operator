@@ -247,10 +247,14 @@ pub async fn reconcile(
 
     // It is important to do this at the top of the reconciliation function to ensure
     // all referenced resources and configuration are merged before any of them are created.
-    let _merged_app_result =
+    let merged_template_result =
         &crate::crd::template_spec::merge_application_templates(client, spark_application)
             .await
             .context(MergeApplicationTemplatesSnafu)?;
+    let spark_application = match &merged_template_result.app {
+        Some(app) => app,
+        None => spark_application,
+    };
 
     let opt_s3conn = match spark_application.spec.s3connection.as_ref() {
         Some(s3bd) => Some(
@@ -427,6 +431,7 @@ pub async fn reconcile(
             spark_application,
             &v1alpha1::SparkApplicationStatus {
                 phase: "Unknown".to_string(),
+                resolved_template_ref: merged_template_result.resolved_template_ref.clone(),
             },
         )
         .await

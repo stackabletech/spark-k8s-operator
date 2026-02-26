@@ -2139,6 +2139,18 @@ spec:
             properties:
               phase:
                 type: string
+              resolvedTemplateRef:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    uid:
+                      nullable: true
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
             required:
             - phase
             type: object

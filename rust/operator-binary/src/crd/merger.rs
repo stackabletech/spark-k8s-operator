@@ -367,4 +367,137 @@ mod tests {
             Some(2u16)
         );
     }
+
+    #[test]
+    fn test_merge_two_templates_into_spark_application() {
+        let template_a = serde_yaml::from_str::<
+            crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
+        >(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplicationTemplate
+            metadata:
+              name: template-a
+            spec:
+              mode: cluster
+              mainApplicationFile: local:///placeholder.jar
+              mainClass: com.example.Job
+              sparkImage:
+                productVersion: "3.5.8"
+              sparkConf:
+                "spark.executor.memory": "4g"
+              args:
+                - "--verbose"
+              deps:
+                requirements:
+                  - "numpy==1.21"
+        "#})
+        .unwrap();
+
+        let template_b = serde_yaml::from_str::<
+            crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
+        >(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplicationTemplate
+            metadata:
+              name: template-b
+            spec:
+              mode: cluster
+              mainApplicationFile: local:///placeholder.jar
+              sparkImage:
+                productVersion: "3.5.8"
+              sparkConf:
+                "spark.executor.memory": "8g"
+                "spark.executor.cores": "4"
+              args:
+                - "--output"
+                - "/tmp/out"
+              deps:
+                requirements:
+                  - "pandas==2.0"
+        "#})
+        .unwrap();
+
+        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: my-spark-app
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: local:///app.jar
+              sparkImage:
+                productVersion: "3.5.8"
+              sparkConf:
+                "spark.driver.memory": "2g"
+              args:
+                - "--app-arg"
+              deps:
+                requirements:
+                  - "scipy==1.9"
+        "#})
+        .unwrap();
+
+        // Convert templates to SparkApplication and merge left-to-right:
+        // template-a has the lowest priority, the spark application has the highest.
+        let app_from_a = crate::crd::v1alpha1::SparkApplication::from(&template_a);
+        let app_from_b = crate::crd::v1alpha1::SparkApplication::from(&template_b);
+        // This how `merge_application_templates()` does it
+        let template_apps = [app_from_a, app_from_b, spark_app];
+        let merged = template_apps
+            .into_iter()
+            .reduce(|merge_app, app| deep_merge(&merge_app, &app))
+            .expect("bad dev");
+
+        // mainClass set only in template-a; neither template-b nor the app overrides it
+        assert_eq!(
+            merged.spec.main_class,
+            Some("com.example.Job".to_string()),
+            "mainClass should come from template-a"
+        );
+
+        // The app's mainApplicationFile wins
+        assert_eq!(
+            merged.spec.main_application_file, "local:///app.jar",
+            "mainApplicationFile should come from the spark application"
+        );
+
+        // template-b overrides template-a's executor memory value
+        assert_eq!(
+            merged.spec.spark_conf.get("spark.executor.memory"),
+            Some(&"8g".to_string()),
+            "spark.executor.memory should be overridden by template-b"
+        );
+
+        // template-b contributes executor cores (not present in template-a or the app)
+        assert_eq!(
+            merged.spec.spark_conf.get("spark.executor.cores"),
+            Some(&"4".to_string()),
+            "spark.executor.cores should come from template-b"
+        );
+
+        // driver memory is set only by the spark application
+        assert_eq!(
+            merged.spec.spark_conf.get("spark.driver.memory"),
+            Some(&"2g".to_string()),
+            "spark.driver.memory should come from the spark application"
+        );
+
+        // args are concatenated in priority order
+        assert_eq!(
+            merged.spec.args,
+            vec!["--verbose", "--output", "/tmp/out", "--app-arg"],
+            "args should be concatenated from all sources in order"
+        );
+
+        // deps.requirements are concatenated in priority order
+        assert_eq!(
+            merged.spec.deps.requirements,
+            vec!["numpy==1.21", "pandas==2.0", "scipy==1.9"],
+            "deps.requirements should be concatenated from all sources in order"
+        );
+    }
 }

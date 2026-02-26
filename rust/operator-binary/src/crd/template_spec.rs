@@ -49,8 +49,9 @@ pub enum Error {
         value: String,
     },
 
-    #[snafu(display("failed to list SparkApplicationTemplate resources"))]
+    #[snafu(display("failed to list SparkApplicationTemplate named [{template_name}]"))]
     ListSparkApplicationTemplates {
+        template_name: String,
         source: stackable_operator::kube::Error,
     },
 }
@@ -301,10 +302,44 @@ pub(crate) struct MergeTemplateResult {
     pub resolved_template_ref: Vec<super::v1alpha1::ResolvedSparkApplicationTemplate>,
 }
 
+// Merges one or more [`SparkApplicationTemplate`](v1alpha1::SparkApplicationTemplate) resources
+// into the given [`SparkApplication`](super::v1alpha1::SparkApplication).
+//
+// Template merging is controlled by annotations on the `SparkApplication`.
+//
+// The function returns an empty [`MergeTemplateResult`] immediately if:
+//
+// 1. `spark-application.template.merge` annotation is `"false"`.
+// 2. `spark-application.template.merge` annotation is `"true"`
+//    and `spark-application.template.updateStrategy` annotation is `"onCreate"`
+//    and `spark_application.status.resolved_template_ref` is not empty.
+//
+// When merging is enabled, the function:
+//
+// 1. Parses the merge options (template names, update strategy, apply strategy) from the
+//    application's annotations.
+// 2. Checks whether templates have already been applied and, if the update strategy is
+//    [`TemplateUpdateStrategy::OnCreate`], skips re-applying them.
+// 3. Resolves the named templates from the Kubernetes API in the order defined by their index
+//    annotations.
+// 4. Performs a deep merge of all resolved templates followed by the `SparkApplication` itself
+//    (left-to-right, with the application having the highest priority).
+//
+// # Returns
+//
+// - `Ok(MergeTemplateResult { app: Some(...), resolved_template_ref: [...] })` when at least one
+//   template was found and merged.
+// - `Ok(MergeTemplateResult { app: None, resolved_template_ref: [] })` when merging is disabled,
+//   the update strategy prevents re-applying, or no templates were resolved.
+// - `Err(Error)` if annotation parsing fails or a Kubernetes API call returns an error.
 pub(crate) async fn merge_application_templates(
     client: &stackable_operator::client::Client,
     spark_application: &super::v1alpha1::SparkApplication,
 ) -> Result<MergeTemplateResult, Error> {
+    let app_name = spark_application.name_any();
+
+    tracing::info!("app [{app_name}] : begin template merging");
+
     let default_result = MergeTemplateResult {
         app: None,
         resolved_template_ref: vec![],
@@ -321,6 +356,7 @@ pub(crate) async fn merge_application_templates(
         if have_resolved_template_refs
             && merge_template_options.update_strategy == TemplateUpdateStrategy::OnCreate
         {
+            tracing::info!("app [{app_name}] : templates already merged.");
             // Templates have already been applied and the update strategy (OnCreate) only allows
             // to apply them once (on creation).
             return Ok(default_result);
@@ -347,7 +383,7 @@ pub(crate) async fn merge_application_templates(
                 .collect::<Vec<super::v1alpha1::SparkApplication>>();
             template_apps.push(spark_application.clone());
 
-            // Deep merge apps from left to right
+            // Deep merge app templates from left to right
             let merged_app = template_apps
                 .into_iter()
                 .reduce(|merge_app, app| deep_merge(&merge_app, &app));
@@ -358,12 +394,28 @@ pub(crate) async fn merge_application_templates(
                 .iter()
                 .map(super::v1alpha1::ResolvedSparkApplicationTemplate::from)
                 .collect::<Vec<super::v1alpha1::ResolvedSparkApplicationTemplate>>();
+
+            tracing::info!(
+                "app [{app_name}] : successfully merged templates [{tnames}]",
+                tnames = effective_template_list
+                    .iter()
+                    .map(|rsat| rsat.name.clone())
+                    .collect::<Vec<String>>()
+                    .join(",")
+            );
             return Ok(MergeTemplateResult {
                 app: merged_app,
                 resolved_template_ref: effective_template_list,
             });
+        } else {
+            tracing::warn!("app [{app_name}]: template merging enabled but no templates resolved")
         }
+    } else {
+        tracing::info!("app [{app_name}]: no templates to merge")
     }
+
+    tracing::info!("app [{app_name}] : done template merging");
+
     Ok(default_result)
 }
 
@@ -382,7 +434,7 @@ async fn resolve(
         let template_res = templates_api
             .list(&ListParams::default().fields(&format!("metadata.name={template_name}")))
             .await
-            .context(ListSparkApplicationTemplatesSnafu)
+            .with_context(|_| ListSparkApplicationTemplatesSnafu { template_name })
             .map(|object_list| object_list.items.into_iter().next());
 
         let template = if apply_strategy == TemplateApplyStrategy::Enforce {

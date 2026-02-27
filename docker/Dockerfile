@@ -13,12 +13,12 @@
 
 # We want to automatically use the latest. We also don't tag our images with a version.
 # hadolint ignore=DL3007
-FROM oci.stackable.tech/sdp/ubi9-rust-builder:latest AS builder
+FROM oci.stackable.tech/sdp/ubi10-rust-builder:latest AS builder
 
 
 # We want to automatically use the latest.
 # hadolint ignore=DL3007
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS operator
+FROM registry.access.redhat.com/ubi10/ubi-minimal:latest AS operator
 
 ARG VERSION
 # NOTE (@Techassi): This is required for OpenShift/Red Hat certification
@@ -74,7 +74,7 @@ LABEL org.opencontainers.image.description="Deploy and manage Apache Spark-on-Ku
 
 # https://docs.openshift.com/container-platform/4.16/openshift_images/create-images.html#defining-image-metadata
 # https://github.com/projectatomic/ContainerApplicationGenericLabels/blob/master/vendor/redhat/labels.md
-LABEL io.openshift.tags="ubi9,stackable,sdp,spark-k8s"
+LABEL io.openshift.tags="ubi10,stackable,sdp,spark-k8s"
 LABEL io.k8s.description="Deploy and manage Apache Spark-on-Kubernetes clusters."
 LABEL io.k8s.display-name="Stackable Operator for Apache Spark-on-Kubernetes"
 

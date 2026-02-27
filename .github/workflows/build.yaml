@@ -23,9 +23,9 @@ on:
 
 env:
   OPERATOR_NAME: "spark-k8s-operator"
-  RUST_NIGHTLY_TOOLCHAIN_VERSION: "nightly-2025-10-23"
-  NIX_PKG_MANAGER_VERSION: "2.30.0"
-  RUST_TOOLCHAIN_VERSION: "1.89.0"
+  RUST_NIGHTLY_TOOLCHAIN_VERSION: "nightly-2026-02-24"
+  NIX_PKG_MANAGER_VERSION: "2.33.3"
+  RUST_TOOLCHAIN_VERSION: "1.93.0"
   HADOLINT_VERSION: "v2.14.0"
   PYTHON_VERSION: "3.14"
   CARGO_TERM_COLOR: always
@@ -139,7 +139,7 @@ jobs:
           set -euo pipefail
           [ -n "$GITHUB_DEBUG" ] && set -x
 
-          CURRENT_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
+          CURRENT_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[] | select(.name == "stackable-spark-k8s-operator") | .version')
 
           if [ "$GITHUB_EVENT_NAME" == 'pull_request' ]; then
             # Include a PR suffix if this workflow is triggered by a PR

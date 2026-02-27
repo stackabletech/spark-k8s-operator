@@ -204,8 +204,6 @@ impl From<&v1alpha1::SparkApplicationTemplate> for super::v1alpha1::SparkApplica
     }
 }
 
-// TODO: remove this
-#[allow(dead_code)]
 // Values of this type are built from the metadata.annotations of the spark application objects.
 #[derive(Default)]
 struct MergeTemplateOptions {

@@ -22,7 +22,7 @@ use super::{
     job_dependencies::JobDependencies,
     roles::{RoleConfigFragment, SparkMode, SubmitConfigFragment},
 };
-use crate::crd::merger::deep_merge;
+use crate::crd::template_merger::deep_merge;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]

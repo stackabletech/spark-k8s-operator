@@ -880,39 +880,32 @@ impl v1alpha1::SparkApplication {
         resolved_product_image: &ResolvedProductImage,
         product_config: &ProductConfigManager,
     ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        let submit_conf = if self.spec.job.is_some() {
-            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-            self.spec.job.as_ref().unwrap().clone()
-        } else {
-            CommonConfiguration {
+        let submit_conf = match self.spec.job.as_ref() {
+            Some(job) => job.clone(),
+            None => CommonConfiguration {
                 config: SubmitConfig::default_config(),
                 ..CommonConfiguration::default()
-            }
+            },
         };
 
-        let driver_conf = if self.spec.driver.is_some() {
-            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-            self.spec.driver.as_ref().unwrap().clone()
-        } else {
-            CommonConfiguration {
+        let driver_conf = match self.spec.driver.as_ref() {
+            Some(driver) => driver.clone(),
+            None => CommonConfiguration {
                 config: RoleConfig::default_config(),
                 ..CommonConfiguration::default()
-            }
+            },
         };
 
-        let executor_conf: RoleGroup<RoleConfigFragment, JavaCommonConfig> =
-            if self.spec.executor.is_some() {
-                // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-                self.spec.executor.as_ref().unwrap().clone()
-            } else {
-                RoleGroup {
-                    replicas: Some(1),
-                    config: CommonConfiguration {
-                        config: RoleConfig::default_config(),
-                        ..CommonConfiguration::default()
-                    },
-                }
-            };
+        let executor_conf = match self.spec.executor.as_ref() {
+            Some(executor) => executor.clone(),
+            None => RoleGroup {
+                replicas: Some(1),
+                config: CommonConfiguration {
+                    config: RoleConfig::default_config(),
+                    ..CommonConfiguration::default()
+                },
+            },
+        };
 
         let mut roles_to_validate = HashMap::new();
         roles_to_validate.insert(

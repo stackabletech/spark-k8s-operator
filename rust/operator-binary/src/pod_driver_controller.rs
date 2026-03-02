@@ -113,6 +113,11 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
             &app,
             &v1alpha1::SparkApplicationStatus {
                 phase: phase.clone(),
+                resolved_template_ref: app
+                    .status
+                    .as_ref()
+                    .map(|s| s.resolved_template_ref.clone())
+                    .unwrap_or_default(),
             },
         )
         .await

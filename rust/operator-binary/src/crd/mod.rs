@@ -46,18 +46,24 @@ use stackable_operator::{
 
 use crate::{
     config::jvm::construct_extra_java_options,
-    crd::roles::{
-        RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
-        SubmitConfig, SubmitConfigFragment, VolumeMounts,
+    crd::{
+        job_dependencies::JobDependencies,
+        roles::{
+            RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
+            SubmitConfig, SubmitConfigFragment, VolumeMounts,
+        },
     },
 };
 
 pub mod affinity;
 pub mod constants;
 pub mod history;
+pub mod job_dependencies;
 pub mod listener_ext;
 pub mod logdir;
 pub mod roles;
+pub mod template_merger;
+pub mod template_spec;
 pub mod tlscerts;
 
 #[derive(Snafu, Debug)]
@@ -112,7 +118,7 @@ pub enum Error {
     #[snafu(display("failed to configure S3 bucket"))]
     ConfigureS3Bucket { source: s3::v1alpha1::BucketError },
 
-    #[snafu(display("failed to configure S3 copnnection"))]
+    #[snafu(display("failed to configure S3 connection"))]
     ConfigureS3Connection {
         source: s3::v1alpha1::ConnectionError,
     },
@@ -137,10 +143,19 @@ pub enum Error {
 pub mod versioned {
 
     #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
+    #[serde(rename_all = "camelCase")]
+    pub(crate) struct ResolvedSparkApplicationTemplate {
+        pub name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub uid: Option<String>,
+    }
+    #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[serde(rename_all = "camelCase")]
     pub struct SparkApplicationStatus {
         pub phase: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub resolved_template_ref: Vec<ResolvedSparkApplicationTemplate>,
     }
 
     /// A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark.
@@ -237,27 +252,6 @@ pub mod versioned {
         /// The log file directory definition used by the Spark history server.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub log_file_directory: Option<LogFileDirectorySpec>,
-    }
-
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct JobDependencies {
-        /// Under the `requirements` you can specify Python dependencies that will be installed with `pip`.
-        /// Example: `tabulate==0.8.9`
-        #[serde(default)]
-        pub requirements: Vec<String>,
-
-        /// A list of packages that is passed directly to `spark-submit`.
-        #[serde(default)]
-        pub packages: Vec<String>,
-
-        /// A list of repositories that is passed directly to `spark-submit`.
-        #[serde(default)]
-        pub repositories: Vec<String>,
-
-        /// A list of excluded packages that is passed directly to `spark-submit`.
-        #[serde(default)]
-        pub exclude_packages: Vec<String>,
     }
 }
 
@@ -886,39 +880,32 @@ impl v1alpha1::SparkApplication {
         resolved_product_image: &ResolvedProductImage,
         product_config: &ProductConfigManager,
     ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        let submit_conf = if self.spec.job.is_some() {
-            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-            self.spec.job.as_ref().unwrap().clone()
-        } else {
-            CommonConfiguration {
+        let submit_conf = match self.spec.job.as_ref() {
+            Some(job) => job.clone(),
+            None => CommonConfiguration {
                 config: SubmitConfig::default_config(),
                 ..CommonConfiguration::default()
-            }
+            },
         };
 
-        let driver_conf = if self.spec.driver.is_some() {
-            // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-            self.spec.driver.as_ref().unwrap().clone()
-        } else {
-            CommonConfiguration {
+        let driver_conf = match self.spec.driver.as_ref() {
+            Some(driver) => driver.clone(),
+            None => CommonConfiguration {
                 config: RoleConfig::default_config(),
                 ..CommonConfiguration::default()
-            }
+            },
         };
 
-        let executor_conf: RoleGroup<RoleConfigFragment, JavaCommonConfig> =
-            if self.spec.executor.is_some() {
-                // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-                self.spec.executor.as_ref().unwrap().clone()
-            } else {
-                RoleGroup {
-                    replicas: Some(1),
-                    config: CommonConfiguration {
-                        config: RoleConfig::default_config(),
-                        ..CommonConfiguration::default()
-                    },
-                }
-            };
+        let executor_conf = match self.spec.executor.as_ref() {
+            Some(executor) => executor.clone(),
+            None => RoleGroup {
+                replicas: Some(1),
+                config: CommonConfiguration {
+                    config: RoleConfig::default_config(),
+                    ..CommonConfiguration::default()
+                },
+            },
+        };
 
         let mut roles_to_validate = HashMap::new();
         roles_to_validate.insert(

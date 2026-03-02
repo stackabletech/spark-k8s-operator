@@ -124,6 +124,7 @@ rules:
       - sparkapplications
       - sparkhistoryservers
       - sparkconnectservers
+      - sparkapptemplates
     verbs:
       - get
       - list

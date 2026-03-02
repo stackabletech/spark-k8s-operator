@@ -10,6 +10,7 @@ Application templates are available for the `v1alpha1` version of the SparkAppli
 2. Application templates are not reconciled by the operator, but must be referenced from a SparkApplication resource to be applied. This means that changes to an application template will not automatically trigger updates to SparkApplication resources that reference it.
 3. An application can reference multiple application templates, and the settings from these templates will be merged together. The merging order of the templates is indicated by their index in the reference list. The application fields have the highest precedence and will override any conflicting settings from the templates. This allows you to have a base template with common settings and then override specific settings in the application resource as needed.
 4. Application template references are immutable in the sense that once applied to an application they cannot be changed again. Currently templates are applied upon the creation of the application, and any changes to the template references after that will be ignored.
+5. Application and template CRDs must have the exact same versions. Currently only `v1alpha1` is supported.
 
 == Examples
 
@@ -25,7 +26,9 @@ metadata:
   annotations:
     spark-application.template.merge: "true" # <1>
     spark-application.template.0.name: "app-template" # <2>
-spec: # <3>
+    spark-application.template.upgradeStrategy: "onCreate" # <3>
+    spark-application.template.applyStrategy: "enforce" # <4>
+spec: # <5>
   sparkImage:
     productVersion: "4.1.1"
   mode: cluster
@@ -34,7 +37,9 @@ spec: # <3>
 ----
 <1> Enable application template merging for this application.
 <2> Name of the application template to reference.
-<3> Application specification. The fields `sparkImage`, `mode`, `mainClass`, and `mainApplicationFile` are required for the application to be valid, but the rest of the fields are optional and can be defined in the application template.
+<3> Optional. The upgrade strategy for the application template. Currently only `onCreate` is supported. This means that the application template will only be applied when the application is created, and any changes to the template after that will be ignored.
+<4> Optional. The apply strategy for the application template. Currently only `enforce` is supported. This means that any errors that appear during the application of the template will be treated as errors for the application resource, and the application will not be created or updated until the errors are resolved.
+<5> Application specification. The fields `sparkImage`, `mode`, `mainClass`, and `mainApplicationFile` are required for the application to be valid, but the rest of the fields are optional and can be defined in the application template.
 
 The application template referenced in the example above is defined as follows:
 

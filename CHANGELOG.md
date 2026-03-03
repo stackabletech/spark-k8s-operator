@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
   Previously, Jobs were retried at most 6 times by default ([#647]).
 - Support for Spark `3.5.8` ([#650]).
 - First class support for S3 on Spark connect clusters ([#652]).
+- Spark applications can now have templates that are merged into the application manifest before reconciliation. This allows users with many applications to source out common configuration in a central place and reduce duplication ([#660]).
 
 ### Fixed
 
@@ -45,6 +46,7 @@ All notable changes to this project will be documented in this file.
 [#652]: https://github.com/stackabletech/spark-k8s-operator/pull/652
 [#655]: https://github.com/stackabletech/spark-k8s-operator/pull/655
 [#656]: https://github.com/stackabletech/spark-k8s-operator/pull/656
+[#660]: https://github.com/stackabletech/spark-k8s-operator/pull/660
 
 ## [25.11.0] - 2025-11-07
 

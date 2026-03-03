@@ -14,6 +14,7 @@ use crate::{
         SparkApplication, SparkApplicationVersion,
         constants::FIELD_MANAGER,
         history::{SparkHistoryServer, SparkHistoryServerVersion},
+        template_spec::{SparkApplicationTemplate, SparkApplicationTemplateVersion},
     },
 };
 
@@ -49,6 +50,11 @@ pub async fn create_webhook_server(
             SparkApplication::merged_crd(SparkApplicationVersion::V1Alpha1)
                 .context(MergeCrdSnafu)?,
             SparkApplication::try_convert as fn(_) -> _,
+        ),
+        (
+            SparkApplicationTemplate::merged_crd(SparkApplicationTemplateVersion::V1Alpha1)
+                .context(MergeCrdSnafu)?,
+            SparkApplicationTemplate::try_convert as fn(_) -> _,
         ),
     ];
 

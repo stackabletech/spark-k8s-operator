@@ -1,0 +1,105 @@
+= Spark Application Templates
+:description: Learn how to configure application templates for Spark applications on the Stackable Data Platform.
+
+Spark application templates are used to define reusable configurations for Spark applications.
+When you have many applications with similar configurations, templates can help you avoid duplication by grouping common settings together.
+Application templates are available for the `v1alpha1` version of the SparkApplication custom resource and share the exact same structure as the SparkApplication resource, but with some differences in the way the operator handles them:
+
+1. Application templates are cluster wide resources, while Spark application resources are namespace-scoped.
+  This means that application templates can be used across multiple namespaces, while Spark application resources are limited to the namespace they are created in.
+2. Application templates are not reconciled by the operator, but must be referenced from a SparkApplication resource to be applied. This means that changes to an application template will not automatically trigger updates to SparkApplication resources that reference it.
+3. An application can reference multiple application templates, and the settings from these templates will be merged together. The merging order of the templates is indicated by their index in the reference list. The application fields have the highest precedence and will override any conflicting settings from the templates. This allows you to have a base template with common settings and then override specific settings in the application resource as needed.
+4. Application template references are immutable in the sense that once applied to an application they cannot be changed again. Currently templates are applied upon the creation of the application, and any changes to the template references after that will be ignored.
+5. Application and template CRDs must have the exact same versions. Currently only `v1alpha1` is supported.
+
+== Examples
+
+Applications use `metadata.annotations` to reference application templates as shown below:
+
+[source,yaml]
+----
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: app
+  annotations:
+    spark-application.template.merge: "true" # <1>
+    spark-application.template.0.name: "app-template" # <2>
+    spark-application.template.upgradeStrategy: "onCreate" # <3>
+    spark-application.template.applyStrategy: "enforce" # <4>
+spec: # <5>
+  sparkImage:
+    productVersion: "4.1.1"
+  mode: cluster
+  mainClass: com.example.Main
+  mainApplicationFile: "/examples.jar"
+----
+<1> Enable application template merging for this application.
+<2> Name of the application template to reference.
+<3> Optional. The upgrade strategy for the application template. Currently only `onCreate` is supported. This means that the application template will only be applied when the application is created, and any changes to the template after that will be ignored.
+<4> Optional. The apply strategy for the application template. Currently only `enforce` is supported. This means that any errors that appear during the application of the template will be treated as errors for the application resource, and the application will not be created or updated until the errors are resolved.
+<5> Application specification. The fields `sparkImage`, `mode`, `mainClass`, and `mainApplicationFile` are required for the application to be valid, but the rest of the fields are optional and can be defined in the application template.
+
+The application template referenced in the example above is defined as follows:
+
+[source,yaml]
+----
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplicationTemplate # <1>
+metadata:
+  name: app-template # <2>
+spec:
+  sparkImage:
+    productVersion: "4.1.1"
+    pullPolicy: IfNotPresent
+  mode: cluster
+  mainClass: com.example.Main
+  mainApplicationFile: "placeholder" # <3>
+  sparkConf:
+    spark.kubernetes.file.upload.path: "s3a://my-bucket"
+  s3connection:
+    reference: spark-history-s3-connection
+  logFileDirectory:
+    s3:
+      prefix: eventlogs/
+      bucket:
+        reference: spark-history-s3-bucket
+  driver:
+    config:
+      logging:
+        enableVectorAgent: False
+  executor:
+    replicas: 1
+    config:
+      logging:
+        enableVectorAgent: False
+----
+<1> The kind of the resource is `SparkApplicationTemplate` to indicate that this is an application template.
+<2> Name of the application template.
+<3> The value of `mainApplicationFile` is set to a placeholder value, which will be overridden by the application resource. Similarly to the application, The fields `sparkImage`, `mode`, `mainClass`, and `mainApplicationFile` are required for the template to be valid.
+
+An application can reference multiple application templates as shown below:
+
+[source,yaml]
+----
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: app
+  annotations:
+    spark-application.template.merge: "true" # <1>
+    spark-application.template.0.name: "app-template-0" # <2>
+    spark-application.template.1.name: "app-template-1"
+    spark-application.template.2.name: "app-template-2"
+spec: # <3>
+  sparkImage:
+    productVersion: "4.1.1"
+  mode: cluster
+  mainClass: com.example.Main
+  mainApplicationFile: "/examples.jar"
+----
+<1> Enable application template merging for this application.
+<2> The name of the application templates to reference. The settings from these templates will be merged together in the order they are referenced, with `app-template-0` having the lowest precedence and `app-template-2` having the highest precedence. The application fields have the highest overall precedence and will override any conflicting settings from the templates.

@@ -70,6 +70,11 @@ use crate::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to merge application templates"))]
+    MergeApplicationTemplates {
+        source: crate::crd::template_spec::Error,
+    },
+
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
 
@@ -239,6 +244,21 @@ pub async fn reconcile(
         );
         return Ok(Action::await_change());
     }
+
+    // It is important to do this at the top of the reconciliation function to ensure
+    // all referenced resources and configuration are merged before any of them are created.
+    let merged_template_result =
+        &crate::crd::template_spec::merge_application_templates(client, spark_application)
+            .await
+            .context(MergeApplicationTemplatesSnafu)?;
+    let spark_application = match &merged_template_result.app {
+        Some(app) => app,
+        None => spark_application,
+    };
+
+    // This is the final version of the spark app to reconcile.
+    // No more mutating operations after this point (except for status).
+    tracing::debug!("reconciling spark application [{spark_application:?}]");
 
     let opt_s3conn = match spark_application.spec.s3connection.as_ref() {
         Some(s3bd) => Some(
@@ -415,6 +435,7 @@ pub async fn reconcile(
             spark_application,
             &v1alpha1::SparkApplicationStatus {
                 phase: "Unknown".to_string(),
+                resolved_template_ref: merged_template_result.resolved_template_ref.clone(),
             },
         )
         .await

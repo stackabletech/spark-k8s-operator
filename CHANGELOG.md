@@ -25,6 +25,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Bump stackable-operator to 0.106.2, snafu to 0.9, strum to 0.28 ([#663]).
 - Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#651]).
 - Remove the Spark application owner reference from the executor pods.
   This allows Kubernetes to garbage collect them early when the driver or the submit job fail ([#648]).
@@ -47,6 +48,7 @@ All notable changes to this project will be documented in this file.
 [#655]: https://github.com/stackabletech/spark-k8s-operator/pull/655
 [#656]: https://github.com/stackabletech/spark-k8s-operator/pull/656
 [#660]: https://github.com/stackabletech/spark-k8s-operator/pull/660
+[#663]: https://github.com/stackabletech/spark-k8s-operator/pull/663
 
 ## [25.11.0] - 2025-11-07
 

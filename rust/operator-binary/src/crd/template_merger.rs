@@ -509,4 +509,261 @@ mod tests {
             "deps.requirements should be concatenated from all sources in order"
         );
     }
+
+    #[test]
+    fn test_merge_template_role_affinities_into_spark_application() {
+        let template = serde_yaml::from_str::<
+            crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
+        >(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplicationTemplate
+            metadata:
+              name: template-with-affinity
+            spec:
+              mode: cluster
+              mainApplicationFile: local:///template.jar
+              sparkImage:
+                productVersion: "3.5.8"
+              job:
+                config:
+                  affinity:
+                    nodeSelector:
+                      affinity-role: template-job
+                    nodeAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 11
+                          preference:
+                            matchExpressions:
+                              - key: topology.kubernetes.io/zone
+                                operator: In
+                                values:
+                                  - fictional-zone-job
+                    podAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 21
+                          podAffinityTerm:
+                            topologyKey: kubernetes.io/hostname
+                            labelSelector:
+                              matchLabels:
+                                app.kubernetes.io/component: fictional-job
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 31
+                          podAffinityTerm:
+                            topologyKey: kubernetes.io/hostname
+                            labelSelector:
+                              matchLabels:
+                                app.kubernetes.io/component: fictional-job
+              driver:
+                config:
+                  affinity:
+                    nodeSelector:
+                      affinity-role: template-driver
+                    nodeAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 12
+                          preference:
+                            matchExpressions:
+                              - key: topology.kubernetes.io/zone
+                                operator: In
+                                values:
+                                  - fictional-zone-driver
+                    podAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 22
+                          podAffinityTerm:
+                            topologyKey: kubernetes.io/hostname
+                            labelSelector:
+                              matchLabels:
+                                app.kubernetes.io/component: fictional-driver
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 32
+                          podAffinityTerm:
+                            topologyKey: kubernetes.io/hostname
+                            labelSelector:
+                              matchLabels:
+                                app.kubernetes.io/component: fictional-driver
+              executor:
+                replicas: 1
+                config:
+                  affinity:
+                    nodeSelector:
+                      affinity-role: template-executor
+                    nodeAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 13
+                          preference:
+                            matchExpressions:
+                              - key: topology.kubernetes.io/zone
+                                operator: In
+                                values:
+                                  - fictional-zone-executor
+                    podAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 23
+                          podAffinityTerm:
+                            topologyKey: kubernetes.io/hostname
+                            labelSelector:
+                              matchLabels:
+                                app.kubernetes.io/component: fictional-executor
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 33
+                          podAffinityTerm:
+                            topologyKey: kubernetes.io/hostname
+                            labelSelector:
+                              matchLabels:
+                                app.kubernetes.io/component: fictional-executor
+        "#})
+        .unwrap();
+
+        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: my-spark-app
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: local:///app.jar
+              sparkImage:
+                productVersion: "3.5.8"
+        "#})
+        .unwrap();
+
+        let app_from_template = crate::crd::v1alpha1::SparkApplication::from(&template);
+        let merged = deep_merge(&app_from_template, &spark_app);
+
+        let submit_affinity = merged.submit_config().unwrap().affinity;
+        assert_eq!(
+            Some("template-job"),
+            submit_affinity
+                .node_selector
+                .as_ref()
+                .and_then(|selectors| selectors.node_selector.get("affinity-role"))
+                .map(String::as_str)
+        );
+        assert_eq!(
+            Some(11),
+            submit_affinity
+                .node_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(21),
+            submit_affinity
+                .pod_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(31),
+            submit_affinity
+                .pod_anti_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+
+        let driver_affinity = merged.driver_config().unwrap().affinity;
+        assert_eq!(
+            Some("template-driver"),
+            driver_affinity
+                .node_selector
+                .as_ref()
+                .and_then(|selectors| selectors.node_selector.get("affinity-role"))
+                .map(String::as_str)
+        );
+        assert_eq!(
+            Some(12),
+            driver_affinity
+                .node_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(22),
+            driver_affinity
+                .pod_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(32),
+            driver_affinity
+                .pod_anti_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+
+        let executor_affinity = merged.executor_config().unwrap().affinity;
+        assert_eq!(
+            Some("template-executor"),
+            executor_affinity
+                .node_selector
+                .as_ref()
+                .and_then(|selectors| selectors.node_selector.get("affinity-role"))
+                .map(String::as_str)
+        );
+        assert_eq!(
+            Some(13),
+            executor_affinity
+                .node_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(23),
+            executor_affinity
+                .pod_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(33),
+            executor_affinity
+                .pod_anti_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+    }
 }

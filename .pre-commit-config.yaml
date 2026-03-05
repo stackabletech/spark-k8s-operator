@@ -94,13 +94,13 @@ repos:
         pass_filenames: false
         files: .readme
 
-      # - id: cargo-doc
-      #   name: cargo-doc
-      #   language: system
-      #   entry: cargo doc --document-private-items
-      #   stages: [pre-commit, pre-merge-commit]
-      #   pass_filenames: false
-      #   files: \.rs$|Cargo\.(toml|lock)
+      - id: cargo-doc
+        name: cargo-doc
+        language: system
+        entry: cargo doc --document-private-items
+        stages: [pre-commit, pre-merge-commit]
+        pass_filenames: false
+        files: \.rs$|Cargo\.(toml|lock)
 
       - id: cargo-test
         name: cargo-test

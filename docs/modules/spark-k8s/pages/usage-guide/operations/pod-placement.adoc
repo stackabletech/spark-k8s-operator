@@ -2,7 +2,7 @@
 
 == Spark Applications
 
-You can configure pod placement of application drivers and executors by adding an `affinity` property to the corresponding configuration section.
+You can configure pod placement of the submit job, application driver and executors by adding an `affinity` property to the corresponding configuration section.
 
 By default, the operator doesn't configure any affinity.
 

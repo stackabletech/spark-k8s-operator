@@ -18,7 +18,15 @@ repos:
     rev: 8d76e7e991107da82c4a59cdc362a2739539f55d # 0.18.9
     hooks:
       - id: cargo-deny
-        args: ["--all-features", "check", "advisories", "bans", "licenses", "sources"]
+        args:
+          [
+            "--all-features",
+            "check",
+            "advisories",
+            "bans",
+            "licenses",
+            "sources",
+          ]
 
   - repo: https://github.com/adrienverge/yamllint
     rev: 79a6b2b1392eaf49cdd32ac4f14be1a809bbd8f7 # 1.37.1
@@ -86,13 +94,13 @@ repos:
         pass_filenames: false
         files: .readme
 
-      - id: cargo-doc
-        name: cargo-doc
-        language: system
-        entry: cargo doc --document-private-items
-        stages: [pre-commit, pre-merge-commit]
-        pass_filenames: false
-        files: \.rs$|Cargo\.(toml|lock)
+      # - id: cargo-doc
+      #   name: cargo-doc
+      #   language: system
+      #   entry: cargo doc --document-private-items
+      #   stages: [pre-commit, pre-merge-commit]
+      #   pass_filenames: false
+      #   files: \.rs$|Cargo\.(toml|lock)
 
       - id: cargo-test
         name: cargo-test

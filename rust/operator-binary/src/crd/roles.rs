@@ -214,6 +214,10 @@ impl Configuration for RoleConfigFragment {
 pub struct SubmitConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
+
+    #[fragment_attrs(serde(default))]
+    pub affinity: StackableAffinity,
+
     #[fragment_attrs(serde(default, flatten))]
     pub volume_mounts: Option<VolumeMounts>,
 
@@ -244,6 +248,7 @@ impl SubmitConfig {
                 },
                 storage: SparkStorageConfigFragment {},
             },
+            affinity: Default::default(),
             volume_mounts: Some(VolumeMounts::default()),
             requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
             retry_on_failure_count: Some(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT),

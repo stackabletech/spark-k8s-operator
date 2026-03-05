@@ -10,3 +10,22 @@ metadata:
   name: spark-examples
 status:
   phase: Succeeded
+---
+# Test that job affinities have been correctly added to the Job template
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spark-examples
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: disktype
+                operator: In
+                values:
+                - ssd
+            weight: 1

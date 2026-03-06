@@ -1288,6 +1288,243 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_role_affinities() {
+        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-examples
+spec:
+  mode: cluster
+  mainApplicationFile: test.py
+  sparkImage:
+    productVersion: 1.2.3
+  job:
+    config:
+      affinity:
+        nodeSelector:
+          affinity-role: job
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 11
+              preference:
+                matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - fictional-zone-job
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 21
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: fictional-job
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 31
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: fictional-job
+  driver:
+    config:
+      affinity:
+        nodeSelector:
+          affinity-role: driver
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 12
+              preference:
+                matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - fictional-zone-driver
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 22
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: fictional-driver
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 32
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: fictional-driver
+  executor:
+    replicas: 1
+    config:
+      affinity:
+        nodeSelector:
+          affinity-role: executor
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 13
+              preference:
+                matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - fictional-zone-executor
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 23
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: fictional-executor
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 33
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: fictional-executor
+
+                "#})
+        .unwrap();
+
+        let job_affinity = spark_application.submit_config().unwrap().affinity;
+        assert_eq!(
+            Some("job"),
+            job_affinity
+                .node_selector
+                .as_ref()
+                .and_then(|selectors| selectors.node_selector.get("affinity-role"))
+                .map(String::as_str)
+        );
+        assert_eq!(
+            Some(11),
+            job_affinity
+                .node_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(21),
+            job_affinity
+                .pod_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(31),
+            job_affinity
+                .pod_anti_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+
+        let driver_affinity = spark_application.driver_config().unwrap().affinity;
+        assert_eq!(
+            Some("driver"),
+            driver_affinity
+                .node_selector
+                .as_ref()
+                .and_then(|selectors| selectors.node_selector.get("affinity-role"))
+                .map(String::as_str)
+        );
+        assert_eq!(
+            Some(12),
+            driver_affinity
+                .node_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(22),
+            driver_affinity
+                .pod_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(32),
+            driver_affinity
+                .pod_anti_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+
+        let executor_affinity = spark_application.executor_config().unwrap().affinity;
+        assert_eq!(
+            Some("executor"),
+            executor_affinity
+                .node_selector
+                .as_ref()
+                .and_then(|selectors| selectors.node_selector.get("affinity-role"))
+                .map(String::as_str)
+        );
+        assert_eq!(
+            Some(13),
+            executor_affinity
+                .node_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(23),
+            executor_affinity
+                .pod_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+        assert_eq!(
+            Some(33),
+            executor_affinity
+                .pod_anti_affinity
+                .as_ref()
+                .and_then(|a| a
+                    .preferred_during_scheduling_ignored_during_execution
+                    .as_ref())
+                .and_then(|terms| terms.first())
+                .map(|term| term.weight)
+        );
+    }
+
     #[rstest]
     #[case("1800m", "2")]
     #[case("100m", "1")]

@@ -1,10 +1,63 @@
 = Pod Placement
+:description: Learn how to configure pod placement for Spark applications and Spark History Server on the Stackable Data Platform.
 
 == Spark Applications
 
-You can configure pod placement of application drivers and executors by adding an `affinity` property to the corresponding configuration section.
+You can configure pod placement of the submit job, application driver and executors by adding an `affinity` property to the corresponding configuration section.
+
+Refer to the https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/[Kubernetes documentation] for more information about affinity.
 
 By default, the operator doesn't configure any affinity.
+
+The following example shows how to use the `spec.job.config.affinity` property to configure the pod placement of the submit job.
+In a similar way, you can configure the pod placement of the driver and executors by using the `spec.driver.config.affinity` and `spec.executor.config.affinity` properties respectively.
+
+[source,yaml]
+----
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: examples # <1>
+spec:
+  mode: cluster
+  mainApplicationFile: app.jar
+  sparkImage:
+    productVersion: 4.1.1
+  job:
+    config:
+      affinity: # <2>
+        nodeSelector: # <3>
+          affinity-role: job
+        nodeAffinity: # <4>
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 11
+              preference:
+                matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - fictional-zone-job
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: topology.kubernetes.io/zone
+                  operator: In
+                  values:
+                    - antarctica-east1
+                    - antarctica-west1
+        podAffinity: # <5>
+        # ...
+        podAntiAffinity: # <6>
+        # ...
+----
+<1> The name of the SparkApplication.
+<2> The affinity configuration for the submit job.
+<3> A node selector that matches nodes with the label `affinity-role=job`.
+<4> A node affinity with both preferred and required rules.
+<5> A pod affinity configuration.
+<6> A pod anti-affinity configuration.
+
+Pod placement policies can also be configured in xref:usage-guide/app_templates.adoc[Spark Application Templates].
 
 == Spark History Server
 

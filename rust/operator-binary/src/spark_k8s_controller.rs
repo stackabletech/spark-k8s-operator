@@ -26,8 +26,8 @@ use stackable_operator::{
         api::{
             batch::v1::{Job, JobSpec},
             core::v1::{
-                ConfigMap, Container, EnvVar, PodSecurityContext, PodSpec, PodTemplateSpec,
-                ServiceAccount, Volume,
+                Affinity, ConfigMap, Container, EnvVar, PodSecurityContext, PodSpec,
+                PodTemplateSpec, ServiceAccount, Volume,
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
@@ -991,6 +991,11 @@ fn spark_job(
             restart_policy: Some("Never".to_string()),
             service_account_name: serviceaccount.metadata.name.clone(),
             volumes: Some(volumes),
+            affinity: Some(Affinity {
+                node_affinity: job_config.affinity.node_affinity.clone(),
+                pod_affinity: job_config.affinity.pod_affinity.clone(),
+                pod_anti_affinity: job_config.affinity.pod_anti_affinity.clone(),
+            }),
             image_pull_secrets: spark_image.pull_secrets.clone(),
             security_context: Some(security_context()),
             ..PodSpec::default()

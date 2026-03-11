@@ -18,6 +18,7 @@ use stackable_operator::{
         core::v1::{ConfigMap, Pod, Service},
     },
     kube::{
+        CustomResourceExt as _,
         core::DeserializeGuard,
         runtime::{
             Controller,
@@ -28,7 +29,7 @@ use stackable_operator::{
     logging::controller::report_controller_reconciled,
     shared::yaml::SerializeOptions,
     telemetry::Tracing,
-    utils::signal::SignalWatcher,
+    utils::signal::{self, SignalWatcher},
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -356,13 +357,39 @@ async fn main() -> anyhow::Result<()> {
             )
             .map(anyhow::Ok);
 
+            let delayed_history_controller = async {
+                signal::crd_established(
+                    &client,
+                    crd::history::v1alpha1::SparkHistoryServer::crd_name(),
+                    None,
+                )
+                .await?;
+                history_controller.await
+            };
+
+            let delayed_connect_controller = async {
+                signal::crd_established(
+                    &client,
+                    connect::crd::v1alpha1::SparkConnectServer::crd_name(),
+                    None,
+                )
+                .await?;
+                connect_controller.await
+            };
+
+            let delayed_app_controller = async {
+                signal::crd_established(&client, crd::v1alpha1::SparkApplication::crd_name(), None)
+                    .await?;
+                app_controller.await
+            };
+
             // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
             futures::try_join!(
                 pod_driver_controller,
-                history_controller,
-                connect_controller,
+                delayed_history_controller,
+                delayed_connect_controller,
+                delayed_app_controller,
                 webhook_server,
-                app_controller,
                 eos_checker,
             )?;
         }

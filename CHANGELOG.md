@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file.
   Previously, the Spark application pods contained the same TLS volume twice, which could not be applied to the API server.
 - The spark-submit job now sets the correct `-Djavax.net.ssl.trustStore` properties ([#655]).
 - Spark application jobs can now have pod/node affinities. This was an omission as the application driver and executors already had this field for a long time. ([#664]).
+- Fix "404 page not found" error for the initial object list ([#666]).
 
 ### Changed
 

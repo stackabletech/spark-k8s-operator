@@ -23,10 +23,11 @@ All notable changes to this project will be documented in this file.
   Previously, the Spark application pods contained the same TLS volume twice, which could not be applied to the API server.
 - The spark-submit job now sets the correct `-Djavax.net.ssl.trustStore` properties ([#655]).
 - Spark application jobs can now have pod/node affinities. This was an omission as the application driver and executors already had this field for a long time. ([#664]).
+- Fix "404 page not found" error for the initial object list ([#666]).
 
 ### Changed
 
-- Bump stackable-operator to 0.106.2, snafu to 0.9, strum to 0.28 ([#663]).
+- Bump stackable-operator to 0.108.0, snafu to 0.9, strum to 0.28 ([#663], [#666]).
 - Gracefully shutdown all concurrent tasks by forwarding the SIGTERM signal ([#651]).
 - Remove the Spark application owner reference from the executor pods.
   This allows Kubernetes to garbage collect them early when the driver or the submit job fail ([#648]).
@@ -51,6 +52,7 @@ All notable changes to this project will be documented in this file.
 [#660]: https://github.com/stackabletech/spark-k8s-operator/pull/660
 [#663]: https://github.com/stackabletech/spark-k8s-operator/pull/663
 [#664]: https://github.com/stackabletech/spark-k8s-operator/pull/664
+[#666]: https://github.com/stackabletech/spark-k8s-operator/pull/666
 
 ## [25.11.0] - 2025-11-07
 

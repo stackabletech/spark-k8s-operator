@@ -45,6 +45,25 @@ exit 1
 ;;
 esac
 
+# TODO: Remove once https://github.com/stackabletech/issues/issues/828 has been
+# implemented (see that issue for details).
+until kubectl get crd sparkapplications.spark.stackable.tech >/dev/null 2>&1; do
+  echo "Waiting for CRDs to be installed"
+  sleep 1
+done
+until kubectl get crd sparkhistoryservers.spark.stackable.tech >/dev/null 2>&1; do
+  echo "Waiting for CRDs to be installed"
+  sleep 1
+done
+until kubectl get crd sparkconnectservers.spark.stackable.tech >/dev/null 2>&1; do
+  echo "Waiting for CRDs to be installed"
+  sleep 1
+done
+until kubectl get crd sparkapptemplates.spark.stackable.tech >/dev/null 2>&1; do
+  echo "Waiting for CRDs to be installed"
+  sleep 1
+done
+
 echo "Creating a Spark Application..."
 # tag::install-sparkapp[]
 kubectl apply -f application.yaml

@@ -56,8 +56,3 @@ The initial job is persisted for several minutes before being removed.
 The completed state looks like this:
 
 image::getting_started/spark_complete.png[Completed job]
-
-The driver logs can be inspected for more information about the results of the job.
-In this case the result of our (approximate!) pi calculation can be found:
-
-image::getting_started/spark_log.png[Driver log]

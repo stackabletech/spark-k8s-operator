@@ -45,6 +45,25 @@ exit 1
 ;;
 esac
 
+# TODO: Remove once https://github.com/stackabletech/issues/issues/828 has been
+# implemented (see that issue for details).
+until kubectl get crd sparkapplications.spark.stackable.tech >/dev/null 2>&1; do
+  echo "Waiting for CRDs to be installed"
+  sleep 1
+done
+until kubectl get crd sparkhistoryservers.spark.stackable.tech >/dev/null 2>&1; do
+  echo "Waiting for CRDs to be installed"
+  sleep 1
+done
+until kubectl get crd sparkconnectservers.spark.stackable.tech >/dev/null 2>&1; do
+  echo "Waiting for CRDs to be installed"
+  sleep 1
+done
+until kubectl get crd sparkapptemplates.spark.stackable.tech >/dev/null 2>&1; do
+  echo "Waiting for CRDs to be installed"
+  sleep 1
+done
+
 echo "Creating a Spark Application..."
 # tag::install-sparkapp[]
 kubectl apply -f application.yaml
@@ -54,16 +73,12 @@ sleep 15
 
 echo "Waiting for job to complete ..."
 # tag::wait-for-job[]
-kubectl wait pods -l 'job-name=pyspark-pi' \
+if kubectl wait pods -l 'job-name=pyspark-pi' \
   --for jsonpath='{.status.phase}'=Succeeded \
-  --timeout 300s
-# end::wait-for-job[]
-
-result=$(kubectl logs -l 'spark-role=driver' --tail=-1 | grep "Pi is roughly")
-
-if [ "$result" == "" ]; then
-  echo "Log result was not found!"
-  exit 1
+  --timeout 300s; then
+  echo "job succeeded"
 else
-  echo "Job result:" "$result"
+  echo "job failed"
+  exit 1
 fi
+# end::wait-for-job[]

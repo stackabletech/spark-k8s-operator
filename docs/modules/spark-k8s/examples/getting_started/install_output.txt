@@ -1,4 +1,4 @@
-Installed commons=26.3.0-rc1 operator
-Installed secret=26.3.0-rc1 operator
-Installed listener=26.3.0-rc1 operator
-Installed spark-k8s=26.3.0-rc1 operator
+Installed commons=26.3.0 operator
+Installed secret=26.3.0 operator
+Installed listener=26.3.0 operator
+Installed spark-k8s=26.3.0 operator

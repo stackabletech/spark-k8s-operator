@@ -6,6 +6,12 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
+  # These permissions are for the Spark History Server pod at runtime, not the operator.
+  # The History Server is a read-only web UI that reads completed Spark event logs from
+  # a shared log directory (typically S3 or HDFS). It does not create pods, services,
+  # or other Kubernetes resources at runtime — this ClusterRole is significantly
+  # over-permissioned and should be tightened in a future audit once the minimal
+  # runtime requirements are confirmed against a live deployment.
   - apiGroups:
       - ""
     resources:
@@ -24,6 +30,7 @@ rules:
       - patch
       - update
       - watch
+  # Spark History Server may emit Kubernetes events.
   - apiGroups:
       - events.k8s.io
     resources:

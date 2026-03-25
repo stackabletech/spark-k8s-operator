@@ -6,6 +6,13 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
+  # These permissions are for the Spark Connect Server pod at runtime, not the operator.
+  # The Spark Connect Server acts as a long-running Spark driver that creates and manages
+  # executor pods via Kubernetes-native scheduling. It requires access to pods (executor
+  # lifecycle), configmaps (executor config), services (driver-executor communication),
+  # secrets (credentials), and persistentvolumeclaims (PVC-based dynamic allocation).
+  # serviceaccounts is included from the upstream template but Spark Connect does not
+  # create service accounts at runtime; it could be removed in a future cleanup.
   - apiGroups:
       - ""
     resources:
@@ -24,6 +31,7 @@ rules:
       - patch
       - update
       - watch
+  # Spark Connect Server may emit Kubernetes events for executor lifecycle transitions.
   - apiGroups:
       - events.k8s.io
     resources:

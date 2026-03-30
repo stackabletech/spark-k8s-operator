@@ -48,7 +48,7 @@ jobs:
 
       - name: Check for changed files
         id: check
-        uses: stackabletech/actions/detect-changes@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
+        uses: stackabletech/actions/detect-changes@9848c5593dff4793aacba240116a648c02f20fa4 # v0.13.1
         with:
           patterns: |
             - '.github/workflows/build.yaml'
@@ -166,7 +166,7 @@ jobs:
 
       - name: Build Container Image
         id: build
-        uses: stackabletech/actions/build-container-image@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
+        uses: stackabletech/actions/build-container-image@9848c5593dff4793aacba240116a648c02f20fa4 # v0.13.1
         with:
           image-name: ${{ env.OPERATOR_NAME }}
           image-index-manifest-tag: ${{ steps.version.outputs.OPERATOR_VERSION }}
@@ -174,7 +174,8 @@ jobs:
           container-file: docker/Dockerfile
 
       - name: Publish Container Image
-        uses: stackabletech/actions/publish-image@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        uses: stackabletech/actions/publish-image@9848c5593dff4793aacba240116a648c02f20fa4 # v0.13.1
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -185,7 +186,10 @@ jobs:
 
   publish-index-manifest:
     name: Publish/Sign ${{ needs.build-container-image.outputs.operator-version }} Index
-    if: (github.event_name != 'merge_group') && needs.detect-changes.outputs.detected == 'true'
+    if: |
+      (github.event_name != 'merge_group')
+      && needs.detect-changes.outputs.detected == 'true'
+      && !github.event.pull_request.head.repo.fork
     needs:
       - detect-changes
       - build-container-image
@@ -199,7 +203,7 @@ jobs:
           persist-credentials: false
 
       - name: Publish and Sign Image Index
-        uses: stackabletech/actions/publish-image-index-manifest@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
+        uses: stackabletech/actions/publish-image-index-manifest@9848c5593dff4793aacba240116a648c02f20fa4 # v0.13.1
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -209,7 +213,9 @@ jobs:
 
   publish-helm-chart:
     name: Package/Publish ${{ needs.build-container-image.outputs.operator-version }} Helm Chart
-    if: (github.event_name != 'merge_group') && needs.detect-changes.outputs.detected == 'true'
+    if: |
+      (github.event_name != 'merge_group')
+      && needs.detect-changes.outputs.detected == 'true'
     needs:
       - detect-changes
       - build-container-image
@@ -224,7 +230,7 @@ jobs:
           submodules: recursive
 
       - name: Package, Publish, and Sign Helm Chart
-        uses: stackabletech/actions/publish-helm-chart@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
+        uses: stackabletech/actions/publish-helm-chart@9848c5593dff4793aacba240116a648c02f20fa4 # v0.13.1
         with:
           chart-registry-uri: oci.stackable.tech
           chart-registry-username: robot$sdp-charts+github-action-build
@@ -233,10 +239,14 @@ jobs:
           chart-directory: deploy/helm/${{ env.OPERATOR_NAME }}
           chart-version: ${{ needs.build-container-image.outputs.operator-version }}
           app-version: ${{ needs.build-container-image.outputs.operator-version }}
+          publish-and-sign: ${{ !github.event.pull_request.head.repo.fork }}
 
   openshift-preflight-check:
     name: Run OpenShift Preflight Check for ${{ needs.build-container-image.outputs.operator-version }}-${{ matrix.arch }}
-    if: (github.event_name != 'merge_group') && needs.detect-changes.outputs.detected == 'true'
+    if: |
+      (github.event_name != 'merge_group')
+      && needs.detect-changes.outputs.detected == 'true'
+      && !github.event.pull_request.head.repo.fork
     needs:
       - detect-changes
       - build-container-image
@@ -250,7 +260,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run OpenShift Preflight Check
-        uses: stackabletech/actions/run-openshift-preflight@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
+        uses: stackabletech/actions/run-openshift-preflight@9848c5593dff4793aacba240116a648c02f20fa4 # v0.13.1
         with:
           image-index-uri: oci.stackable.tech/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
@@ -272,7 +282,11 @@ jobs:
 
   notify:
     name: Failure Notification
-    if: (failure() || github.run_attempt > 1) && github.event_name != 'merge_group' && needs.detect-changes.outputs.detected == 'true'
+    if: |
+      (failure() || github.run_attempt > 1)
+      && github.event_name != 'merge_group'
+      && needs.detect-changes.outputs.detected == 'true'
+      && !github.event.pull_request.head.repo.fork
     needs:
       - detect-changes
       - build-container-image
@@ -286,7 +300,7 @@ jobs:
           persist-credentials: false
 
       - name: Send Notification
-        uses: stackabletech/actions/send-slack-notification@babe44d7b1db87f8e7731c011151d22a8a374191 # v0.12.0
+        uses: stackabletech/actions/send-slack-notification@9848c5593dff4793aacba240116a648c02f20fa4 # v0.13.1
         with:
           publish-helm-chart-result: ${{ needs.publish-helm-chart.result }}
           publish-manifests-result: ${{ needs.publish-index-manifest.result }}

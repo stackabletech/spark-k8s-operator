@@ -89,6 +89,17 @@ rules:
       - get
       - list
       - patch
+  # Required to create RoleBindings that reference these ClusterRoles.
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+    verbs:
+      - bind
+    resourceNames:
+      - {{ include "operator.name" . }}-clusterrole
+      - spark-history-clusterrole
+      - spark-connect-clusterrole
   # StatefulSets run the Spark History Server and Spark Connect Server. Applied via
   # Server-Side Apply (create + patch), tracked for orphan cleanup (list + delete),
   # and watched by the history and connect controllers via .owns(StatefulSet).
@@ -182,17 +193,6 @@ rules:
       - get
       - list
       - watch
-  # Required to create RoleBindings that reference these ClusterRoles.
-  - apiGroups:
-      - rbac.authorization.k8s.io
-    resources:
-      - clusterroles
-    verbs:
-      - bind
-    resourceNames:
-      - {{ include "operator.name" . }}-clusterrole
-      - spark-history-clusterrole
-      - spark-connect-clusterrole
   # Required for managing how the History Server and Connect Server are exposed
   # outside of the cluster.
   - apiGroups:

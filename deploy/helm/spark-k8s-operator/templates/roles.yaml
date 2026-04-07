@@ -6,16 +6,7 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  # For automatic cluster domain detection: the operator lists and watches nodes to
-  # determine the Kubernetes cluster domain (e.g. cluster.local), and reads kubelet
-  # information via the nodes/proxy subresource.
-  - apiGroups:
-      - ""
-    resources:
-      - nodes
-    verbs:
-      - list
-      - watch
+  # For automatic cluster domain detection.
   - apiGroups:
       - ""
     resources:

@@ -13,9 +13,10 @@ rules:
       - nodes/proxy
     verbs:
       - get
-  # The pod-driver controller (Controller::new(Pod)) watches Spark driver pods
-  # (labelled spark-role=driver) to track SparkApplication completion. It also deletes
-  # driver pods once the application reaches a terminal phase (Succeeded or Failed).
+  # The pod-driver controller watches Spark driver pods
+  # (labelled spark-role=driver) to track SparkApplication completion. It also
+  # deletes driver pods once the application reaches a terminal phase (Succeeded
+  # or Failed).
   - apiGroups:
       - ""
     resources:
@@ -128,6 +129,7 @@ rules:
       - get
       - list
       - patch
+  # The operator can maintain its own CRDs, e.g. to update conversion webhook certificates.
   - apiGroups:
       - apiextensions.k8s.io
     resources:
@@ -142,8 +144,7 @@ rules:
       # Required for startup condition
       - list
       - watch
-  # The operator emits Kubernetes events for controller reconciliation outcomes
-  # (create for new events, patch to aggregate/update existing events).
+  # The operator emits Kubernetes events.
   - apiGroups:
       - events.k8s.io
     resources:
@@ -151,11 +152,7 @@ rules:
     verbs:
       - create
       - patch
-  # The operator reconciles SparkApplication, SparkHistoryServer, SparkConnectServer,
-  # and SparkApplicationTemplate objects as the primary resources for their respective
-  # controllers. get + list + watch are required for Controller::new() and .owns().
-  # The main resource objects are never patched directly; only the /status subresources
-  # are patched (see the separate rule below).
+  # The custom resources reconciled by this operator.
   - apiGroups:
       - spark.stackable.tech
     resources:
@@ -167,11 +164,7 @@ rules:
       - get
       - list
       - watch
-  # The app controller patches SparkApplication status after creating the Job (to prevent
-  # duplicate job creation on restart). The pod-driver controller also patches it when the
-  # driver pod transitions to a terminal phase. The connect controller patches
-  # SparkConnectServer status each reconciliation with readiness conditions.
-  # The history controller does not update SparkHistoryServer status.
+  # Status updates for SparkApplication and SparkConnectServer.
   - apiGroups:
       - spark.stackable.tech
     resources:
@@ -179,9 +172,7 @@ rules:
       - sparkconnectservers/status
     verbs:
       - patch
-  # S3Connection and S3Bucket objects provide S3 configuration for Spark (event log
-  # storage, data access). The operator reads them during reconciliation and watches them
-  # so that S3 configuration changes trigger re-reconciliation.
+  # S3 configuration for event log storage and data access.
   - apiGroups:
       - s3.stackable.tech
     resources:
@@ -191,12 +182,7 @@ rules:
       - get
       - list
       - watch
-  # The operator creates per-application/per-server RoleBindings that reference the
-  # product ClusterRoles, granting workload pods the permissions they need at runtime.
-  # The bind verb is required to create RoleBindings that reference a ClusterRole.
-  # - {{ include "operator.name" . }}-clusterrole: bound per SparkApplication
-  # - spark-history-clusterrole: bound per SparkHistoryServer
-  # - spark-connect-clusterrole: bound per SparkConnectServer
+  # Required to create RoleBindings that reference these ClusterRoles.
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -207,11 +193,8 @@ rules:
       - {{ include "operator.name" . }}-clusterrole
       - spark-history-clusterrole
       - spark-connect-clusterrole
-  # Listeners expose the Spark History Server and Spark Connect Server to the network.
-  # Applied via Server-Side Apply (create + patch) and tracked for orphan cleanup
-  # (list + delete) by the history and connect controllers.
-  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
-  # No controller watches Listeners via .owns(), so the watch verb is not required.
+  # Required for managing how the History Server and Connect Server are exposed
+  # outside of the cluster.
   - apiGroups:
       - listeners.stackable.tech
     resources:

@@ -30,13 +30,7 @@ rules:
       - patch
       - update
       - watch
-  # Spark History Server may emit Kubernetes events.
-  - apiGroups:
-      - events.k8s.io
-    resources:
-      - events
-    verbs:
-      - create
+
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:
       - security.openshift.io

@@ -1,4 +1,7 @@
 ---
+# The Spark History Server is a read-only web UI that reads completed Spark event logs
+# from a storage backend (S3 or HDFS). It receives all configuration via mounted volumes
+# and does not call the Kubernetes API at runtime, so no additional rules are needed here.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -6,31 +9,6 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  # These permissions are for the Spark History Server pod at runtime, not the operator.
-  # The History Server is a read-only web UI that reads completed Spark event logs from
-  # a shared log directory (typically S3 or HDFS). It does not create pods, services,
-  # or other Kubernetes resources at runtime — this ClusterRole is significantly
-  # over-permissioned and should be tightened in a future audit once the minimal
-  # runtime requirements are confirmed against a live deployment.
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-      - persistentvolumeclaims
-      - pods
-      - secrets
-      - serviceaccounts
-      - services
-    verbs:
-      - create
-      - delete
-      - deletecollection
-      - get
-      - list
-      - patch
-      - update
-      - watch
-
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:
       - security.openshift.io

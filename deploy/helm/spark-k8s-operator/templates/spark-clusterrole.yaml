@@ -1,4 +1,7 @@
 ---
+# The Spark driver uses Kubernetes-native scheduling to launch and manage executor pods.
+# It interacts directly with the Kubernetes API at runtime to create executor pods and
+# the supporting resources they need.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -6,13 +9,7 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  # These permissions are for the Spark driver pod at runtime, not the operator itself.
-  # The driver uses Kubernetes-native scheduling to create and manage executor pods,
-  # and needs access to configmaps (executor config), services (driver-executor
-  # communication), secrets (credentials), persistentvolumeclaims (PVC-based dynamic
-  # allocation scratch space), and pods (executor lifecycle management).
-  # serviceaccounts is included from the upstream template but Spark does not create
-  # service accounts at runtime; it could be removed in a future cleanup.
+  # The Spark driver manages executor pods and their supporting resources at runtime.
   - apiGroups:
       - ""
     resources:

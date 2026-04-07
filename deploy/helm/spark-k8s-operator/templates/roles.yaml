@@ -133,15 +133,15 @@ rules:
     resources:
       - customresourcedefinitions
     verbs:
-      # Required to maintain the CRD. The operator needs to do this, as it needs to enter e.g. it's
+      # Required to maintain the CRD. The operator needs to do this, as it needs to enter e.g. its
       # generated certificate in the conversion webhook.
       {{- if .Values.maintenance.customResourceDefinitions.maintain }}
       - create
       - patch
+      {{- end }}
       # Required for startup condition
       - list
       - watch
-      {{- end }}
   # The operator emits Kubernetes events for controller reconciliation outcomes
   # (create for new events, patch to aggregate/update existing events).
   - apiGroups:

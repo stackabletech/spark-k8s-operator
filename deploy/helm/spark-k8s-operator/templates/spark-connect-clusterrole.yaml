@@ -27,13 +27,6 @@ rules:
       - patch
       - update
       - watch
-  # The Spark Connect Server may emit Kubernetes events, e.g. for executor lifecycle transitions.
-  - apiGroups:
-      - events.k8s.io
-    resources:
-      - events
-    verbs:
-      - create
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:
       - security.openshift.io

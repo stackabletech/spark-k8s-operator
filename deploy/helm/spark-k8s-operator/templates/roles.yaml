@@ -6,51 +6,79 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - nodes
-    verbs:
-      - list
-      - watch
-  # For automatic cluster domain detection
+  # For automatic cluster domain detection.
   - apiGroups:
       - ""
     resources:
       - nodes/proxy
     verbs:
       - get
-  - apiGroups:
-      - ""
-    resources:
-      - persistentvolumeclaims
-    verbs:
-      - create
-      - delete
-      - deletecollection
-      - get
-      - list
-      - patch
-      - update
-      - watch
+  # The pod-driver controller watches Spark driver pods
+  # (labelled spark-role=driver) to track SparkApplication completion. It also
+  # deletes driver pods once the application reaches a terminal phase (Succeeded
+  # or Failed).
   - apiGroups:
       - ""
     resources:
       - pods
+    verbs:
+      - delete
+      - get
+      - list
+      - watch
+  # ConfigMaps hold pod templates and Spark configuration. All three controllers apply
+  # them via Server-Side Apply (create + patch). The history and connect controllers
+  # track them for orphan cleanup (list + delete). All controllers watch ConfigMaps via
+  # .owns(ConfigMap) so that changes trigger re-reconciliation.
+  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
+  - apiGroups:
+      - ""
+    resources:
       - configmaps
-      - secrets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - watch
+  # Services expose Spark History Server and Spark Connect Server for metrics and
+  # inter-component communication. Applied via Server-Side Apply and tracked for orphan
+  # cleanup by the history and connect controllers. The history and connect controllers
+  # watch Services via .owns(Service) to trigger re-reconciliation on change.
+  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
+  - apiGroups:
+      - ""
+    resources:
       - services
-      - endpoints
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - watch
+  # ServiceAccounts are created per SparkApplication (directly via client.apply_patch,
+  # referencing spark-k8s-clusterrole) and per SparkHistoryServer/SparkConnectServer
+  # (via cluster_resources.add). The history and connect controllers track them for
+  # orphan cleanup (list + delete). No controller watches ServiceAccounts via .owns().
+  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
+  - apiGroups:
+      - ""
+    resources:
       - serviceaccounts
     verbs:
       - create
       - delete
-      - deletecollection
       - get
       - list
       - patch
-      - update
-      - watch
+  # RoleBindings are created per SparkApplication (directly via client.apply_patch,
+  # binding to spark-k8s-clusterrole) and per SparkHistoryServer/SparkConnectServer
+  # (via cluster_resources.add, binding to their respective ClusterRoles). The history
+  # and connect controllers track them for orphan cleanup (list + delete).
+  # No controller watches RoleBindings via .owns().
+  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -61,32 +89,47 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # Required to create RoleBindings that reference these ClusterRoles.
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+    verbs:
+      - bind
+    resourceNames:
+      - {{ include "operator.name" . }}-clusterrole
+      - spark-history-clusterrole
+      - spark-connect-clusterrole
+  # StatefulSets run the Spark History Server and Spark Connect Server. Applied via
+  # Server-Side Apply (create + patch), tracked for orphan cleanup (list + delete),
+  # and watched by the history and connect controllers via .owns(StatefulSet).
+  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
   - apiGroups:
       - apps
     resources:
       - statefulsets
-      - deployments
-    verbs:
-      - create
-      - delete
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - batch
-    resources:
-      - jobs
     verbs:
       - create
       - delete
       - get
       - list
       - patch
-      - update
       - watch
+  # A Kubernetes Job is created per SparkApplication via Server-Side Apply to run
+  # spark-submit. The app controller applies Jobs directly (not via cluster_resources),
+  # so only create + patch (SSA) are needed. Jobs are not watched and not tracked for
+  # orphan cleanup by any controller.
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+    verbs:
+      - create
+      - patch
+  # PodDisruptionBudgets limit voluntary disruptions to Spark History Server pods.
+  # Applied via Server-Side Apply and tracked for orphan cleanup by the history
+  # controller. No controller watches PDBs via .owns().
+  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
   - apiGroups:
       - policy
     resources:
@@ -97,23 +140,22 @@ rules:
       - get
       - list
       - patch
-      - update
-      - watch
+  # The operator can maintain its own CRDs, e.g. to update conversion webhook certificates.
   - apiGroups:
       - apiextensions.k8s.io
     resources:
       - customresourcedefinitions
     verbs:
-      - get
-      # Required to maintain the CRD. The operator needs to do this, as it needs to enter e.g. it's
+      # Required to maintain the CRD. The operator needs to do this, as it needs to enter e.g. its
       # generated certificate in the conversion webhook.
       {{- if .Values.maintenance.customResourceDefinitions.maintain }}
       - create
       - patch
+      {{- end }}
       # Required for startup condition
       - list
       - watch
-      {{- end }}
+  # The operator emits Kubernetes events.
   - apiGroups:
       - events.k8s.io
     resources:
@@ -121,6 +163,7 @@ rules:
     verbs:
       - create
       - patch
+  # The custom resources reconciled by this operator.
   - apiGroups:
       - spark.stackable.tech
     resources:
@@ -131,8 +174,8 @@ rules:
     verbs:
       - get
       - list
-      - patch
       - watch
+  # Status updates for SparkApplication and SparkConnectServer.
   - apiGroups:
       - spark.stackable.tech
     resources:
@@ -140,6 +183,7 @@ rules:
       - sparkconnectservers/status
     verbs:
       - patch
+  # S3 configuration for event log storage and data access.
   - apiGroups:
       - s3.stackable.tech
     resources:
@@ -149,32 +193,15 @@ rules:
       - get
       - list
       - watch
-  - apiGroups:
-      - rbac.authorization.k8s.io
-    resources:
-      - clusterroles
-    verbs:
-      - bind
-    resourceNames:
-      - {{ include "operator.name" . }}-clusterrole
+  # Required for managing how the History Server and Connect Server are exposed
+  # outside of the cluster.
   - apiGroups:
       - listeners.stackable.tech
     resources:
       - listeners
     verbs:
-      - get
-      - list
-      - watch
-      - patch
       - create
       - delete
-{{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
-  - apiGroups:
-      - security.openshift.io
-    resources:
-      - securitycontextconstraints
-    resourceNames:
-      - nonroot-v2
-    verbs:
-      - use
-{{ end }}
+      - get
+      - list
+      - patch

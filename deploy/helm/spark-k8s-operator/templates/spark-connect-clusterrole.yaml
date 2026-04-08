@@ -1,4 +1,7 @@
 ---
+# The Spark Connect Server acts as a long-running Spark driver that uses Kubernetes-native
+# scheduling to launch and manage executor pods. It interacts directly with the Kubernetes
+# API at runtime to create executor pods and the supporting resources they need.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -6,6 +9,7 @@ metadata:
   labels:
   {{- include "operator.labels" . | nindent 4 }}
 rules:
+  # The Spark Connect Server manages executor pods and their supporting resources at runtime.
   - apiGroups:
       - ""
     resources:
@@ -13,7 +17,6 @@ rules:
       - persistentvolumeclaims
       - pods
       - secrets
-      - serviceaccounts
       - services
     verbs:
       - create
@@ -24,12 +27,6 @@ rules:
       - patch
       - update
       - watch
-  - apiGroups:
-      - events.k8s.io
-    resources:
-      - events
-    verbs:
-      - create
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:
       - security.openshift.io

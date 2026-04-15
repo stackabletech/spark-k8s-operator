@@ -38,6 +38,13 @@ ignore = [
     #
     # This can only be removed again if we decide to use a different crate.
     "RUSTSEC-2024-0436",
+
+    # https://rustsec.org/advisories/RUSTSEC-2026-0097
+    # rand 0.8.5 is unsound when log+thread_rng features are enabled and a custom logger calls rand::rng().
+    #
+    # This version is pulled in transitively via num-bigint-dig -> rsa -> stackable-certs and cannot be
+    # updated until the upstream rsa crate bumps its rand dependency.
+    "RUSTSEC-2026-0097",
 ]
 
 [bans]

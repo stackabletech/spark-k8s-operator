@@ -1,16 +1,19 @@
-# If tilt_options.json exists read it and load the default_registry value from it
-settings = read_json('tilt_options.json', default={})
-registry = settings.get('default_registry', 'oci.stackable.tech/sandbox')
-
-# Configure default registry either read from config file above, or with default value of "oci.stackable.tech/sandbox"
-default_registry(registry)
-
+# Load the metadata first, so that we immediately get access to the operator name
 meta = read_json('nix/meta.json')
 operator_name = meta['operator']['name']
 
+# If tilt_options.json exists read it and load the default_registry and default_repository value from it
+settings = read_json('tilt_options.json', default={})
+registry = settings.get('default_registry', 'oci.stackable.tech')
+repository = settings.get('default_repository', registry + '/' + 'sdp')
+operator_image_name = repository + '/' + operator_name
+
+# Configure default registry either read from config file above, or with default value of "oci.stackable.tech"
+default_registry(registry)
+
 custom_build(
-    registry + '/' + operator_name,
-    'make regenerate-nix && nix-build . -A docker --argstr dockerName "${EXPECTED_REGISTRY}/' + operator_name + '" && ./result/load-image | docker load',
+    operator_image_name,
+    'make regenerate-nix && nix-build . -A docker --argstr dockerName "' + operator_image_name + '" && ./result/load-image | docker load',
     deps=['rust', 'Cargo.toml', 'Cargo.lock', 'default.nix', "nix", 'build.rs', 'vendor'],
     ignore=['*.~undo-tree~'],
     # ignore=['result*', 'Cargo.nix', 'target', *.yaml],
@@ -28,7 +31,7 @@ k8s_kind('DaemonSet', image_json_path='{.spec.template.metadata.annotations.inte
 # supported by helm(set).
 helm_values = settings.get('helm_values', None)
 
-helm_override_image_repository = 'image.repository=' + registry + '/' + operator_name
+helm_override_image_repository = 'image.repository=' + repository
 
 k8s_yaml(helm(
    'deploy/helm/' + operator_name,

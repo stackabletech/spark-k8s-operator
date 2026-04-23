@@ -1,0 +1,4 @@
+---
+# Values overlay for chart packages published to oci.stackable.tech.
+image:
+  repository: oci.stackable.tech/sdp

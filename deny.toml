@@ -18,9 +18,9 @@ ignore = [
     # https://rustsec.org/advisories/RUSTSEC-2023-0071
     # "rsa" crate: Marvin Attack: potential key recovery through timing sidechannel
     #
-    # No patch is yet available, however work is underway to migrate to a fully constant-time implementation
-    # So we need to accept this, as of SDP 25.3 we are not using the rsa crate to create certificates used in production
-    # setups.
+    # No patch is yet available, however work is underway to migrate to a fully constant-time implementation.
+    # So we need to accept this, as of SDP 26.3 we are "only" using the crate to create private +
+    # public key pairs used by webhooks, such as conversion or mutating webhooks.
     #
     # https://github.com/RustCrypto/RSA/issues/19 is the tracking issue
     "RUSTSEC-2023-0071",

@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       annotations:
-        internal.stackable.tech/image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        internal.stackable.tech/image: {{ include "operator.image" . }}
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -37,7 +37,7 @@ spec:
         - name: {{ include "operator.appname" . }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "operator.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -69,6 +69,10 @@ spec:
             # construct the conversion webhook endpoint.
             - name: OPERATOR_SERVICE_NAME
               value: {{ include "operator.fullname" . }}
+
+            # The image repository, like "oci.stackable.tech/sdp"
+            - name: IMAGE_REPOSITORY
+              value: {{ .Values.image.repository }}
 
             # Operators need to know the node name they are running on, to e.g. discover the
             # Kubernetes domain name from the kubelet API.

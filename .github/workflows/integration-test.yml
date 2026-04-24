@@ -41,7 +41,7 @@ jobs:
       # TODO: Enable the scheduled runs which hard-code what profile to use
       - name: Run Integration Test
         id: test
-        uses: stackabletech/actions/run-integration-test@ac6f1d3b87f68826b9a5838d13864ef8e88dcf40 # v0.14.0
+        uses: stackabletech/actions/run-integration-test@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           replicated-api-token: ${{ secrets.REPLICATED_API_TOKEN }}
           test-mode-input: ${{ inputs.test-mode-input }}
@@ -51,7 +51,7 @@ jobs:
 
       - name: Send Notification
         if: ${{ failure() || github.run_attempt > 1 }}
-        uses: stackabletech/actions/send-slack-notification@ac6f1d3b87f68826b9a5838d13864ef8e88dcf40 # v0.14.0
+        uses: stackabletech/actions/send-slack-notification@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           slack-token: ${{ secrets.SLACK_INTEGRATION_TEST_TOKEN }}
           failed-tests: ${{ steps.test.outputs.failed-tests }}

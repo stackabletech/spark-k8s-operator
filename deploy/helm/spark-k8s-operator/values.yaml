@@ -1,7 +1,6 @@
 # Default values for spark-k8s-operator.
 ---
 image:
-  repository: oci.stackable.tech/sdp/spark-k8s-operator
   pullPolicy: IfNotPresent
   pullSecrets: []
 

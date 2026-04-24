@@ -48,7 +48,7 @@ jobs:
 
       - name: Check for changed files
         id: check
-        uses: stackabletech/actions/detect-changes@ac6f1d3b87f68826b9a5838d13864ef8e88dcf40 # v0.14.0
+        uses: stackabletech/actions/detect-changes@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           patterns: |
             - '.github/workflows/build.yaml'
@@ -166,7 +166,7 @@ jobs:
 
       - name: Build Container Image
         id: build
-        uses: stackabletech/actions/build-container-image@ac6f1d3b87f68826b9a5838d13864ef8e88dcf40 # v0.14.0
+        uses: stackabletech/actions/build-container-image@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           image-name: ${{ env.OPERATOR_NAME }}
           image-index-manifest-tag: ${{ steps.version.outputs.OPERATOR_VERSION }}
@@ -175,7 +175,7 @@ jobs:
 
       - name: Publish Container Image
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: stackabletech/actions/publish-image@ac6f1d3b87f68826b9a5838d13864ef8e88dcf40 # v0.14.0
+        uses: stackabletech/actions/publish-image@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -203,7 +203,7 @@ jobs:
           persist-credentials: false
 
       - name: Publish and Sign Image Index
-        uses: stackabletech/actions/publish-image-index-manifest@ac6f1d3b87f68826b9a5838d13864ef8e88dcf40 # v0.14.0
+        uses: stackabletech/actions/publish-image-index-manifest@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -230,7 +230,7 @@ jobs:
           submodules: recursive
 
       - name: Package, Publish, and Sign Helm Chart
-        uses: stackabletech/actions/publish-helm-chart@ac6f1d3b87f68826b9a5838d13864ef8e88dcf40 # v0.14.0
+        uses: stackabletech/actions/publish-helm-chart@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           chart-registry-uri: oci.stackable.tech
           chart-registry-username: robot$sdp-charts+github-action-build
@@ -260,7 +260,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run OpenShift Preflight Check
-        uses: stackabletech/actions/run-openshift-preflight@ac6f1d3b87f68826b9a5838d13864ef8e88dcf40 # v0.14.0
+        uses: stackabletech/actions/run-openshift-preflight@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           image-index-uri: oci.stackable.tech/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
@@ -300,7 +300,7 @@ jobs:
           persist-credentials: false
 
       - name: Send Notification
-        uses: stackabletech/actions/send-slack-notification@ac6f1d3b87f68826b9a5838d13864ef8e88dcf40 # v0.14.0
+        uses: stackabletech/actions/send-slack-notification@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           publish-helm-chart-result: ${{ needs.publish-helm-chart.result }}
           publish-manifests-result: ${{ needs.publish-index-manifest.result }}

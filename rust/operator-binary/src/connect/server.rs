@@ -159,7 +159,7 @@ pub(crate) fn server_config_map(
             .server
             .config
             .as_ref()
-            .and_then(|s| s.config_overrides.get(JVM_SECURITY_PROPERTIES_FILE)),
+            .and_then(|s| s.config_overrides.files.get(JVM_SECURITY_PROPERTIES_FILE)),
     )
     .context(ServerJvmSecurityPropertiesSnafu {
         name: scs.name_unchecked(),
@@ -170,7 +170,7 @@ pub(crate) fn server_config_map(
             .server
             .config
             .as_ref()
-            .and_then(|s| s.config_overrides.get(METRICS_PROPERTIES_FILE)),
+            .and_then(|s| s.config_overrides.files.get(METRICS_PROPERTIES_FILE)),
     )
     .context(MetricsPropertiesSnafu {
         name: scs.name_unchecked(),
@@ -185,7 +185,7 @@ pub(crate) fn server_config_map(
                 .name(&cm_name)
                 .ownerreference_from_resource(scs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(common::labels(
+                .with_recommended_labels(&common::labels(
                     scs,
                     &resolved_product_image.app_version_label_value,
                     &SparkConnectRole::Server.to_string(),
@@ -234,10 +234,10 @@ pub(crate) fn build_stateful_set(
     );
 
     let recommended_labels =
-        Labels::recommended(recommended_object_labels.clone()).context(LabelBuildSnafu)?;
+        Labels::recommended(&recommended_object_labels).context(LabelBuildSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(recommended_object_labels)
+        .with_recommended_labels(&recommended_object_labels)
         .context(MetadataBuildSnafu)?
         .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
         .build();
@@ -396,7 +396,7 @@ pub(crate) fn build_stateful_set(
             .name(object_name(&scs.name_any(), SparkConnectRole::Server))
             .ownerreference_from_resource(scs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(common::labels(
+            .with_recommended_labels(&common::labels(
                 scs,
                 &resolved_product_image.app_version_label_value,
                 &SparkConnectRole::Server.to_string(),
@@ -497,7 +497,7 @@ pub(crate) fn server_properties(
         .server
         .config
         .as_ref()
-        .and_then(|s| s.config_overrides.get(SPARK_DEFAULTS_FILE_NAME));
+        .and_then(|s| s.config_overrides.files.get(SPARK_DEFAULTS_FILE_NAME));
 
     let mut result: BTreeMap<String, Option<String>> = [
         // This needs to match the name of the headless service for the executors to be able

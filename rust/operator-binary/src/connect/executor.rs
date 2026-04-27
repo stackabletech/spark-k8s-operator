@@ -137,7 +137,7 @@ pub fn executor_pod_template(
         .context(AddVolumeMountSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(common::labels(
+        .with_recommended_labels(&common::labels(
             scs,
             &resolved_product_image.app_version_label_value,
             &SparkConnectRole::Executor.to_string(),
@@ -296,7 +296,7 @@ pub(crate) fn executor_properties(
         .spec
         .executor
         .as_ref()
-        .and_then(|s| s.config_overrides.get(SPARK_DEFAULTS_FILE_NAME));
+        .and_then(|s| s.config_overrides.files.get(SPARK_DEFAULTS_FILE_NAME));
 
     if let Some(user_config) = config_overrides {
         result.extend(
@@ -350,7 +350,7 @@ pub(crate) fn executor_config_map(
         scs.spec
             .executor
             .as_ref()
-            .and_then(|s| s.config_overrides.get(JVM_SECURITY_PROPERTIES_FILE)),
+            .and_then(|s| s.config_overrides.files.get(JVM_SECURITY_PROPERTIES_FILE)),
     )
     .context(ExecutorJvmSecurityPropertiesSnafu)?;
 
@@ -358,7 +358,7 @@ pub(crate) fn executor_config_map(
         scs.spec
             .executor
             .as_ref()
-            .and_then(|s| s.config_overrides.get(METRICS_PROPERTIES_FILE)),
+            .and_then(|s| s.config_overrides.files.get(METRICS_PROPERTIES_FILE)),
     )
     .context(MetricsPropertiesSnafu {
         name: scs.name_unchecked(),
@@ -373,7 +373,7 @@ pub(crate) fn executor_config_map(
                 .name(&cm_name)
                 .ownerreference_from_resource(scs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(common::labels(
+                .with_recommended_labels(&common::labels(
                     scs,
                     &resolved_product_image.app_version_label_value,
                     &SparkConnectRole::Executor.to_string(),

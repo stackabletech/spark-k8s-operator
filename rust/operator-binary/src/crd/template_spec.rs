@@ -112,19 +112,33 @@ pub mod versioned {
         // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
         // However, due to product-config things I wasn't able to remove them.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub job: Option<CommonConfiguration<SubmitConfigFragment, JavaCommonConfig>>,
+        pub job: Option<
+            CommonConfiguration<
+                SubmitConfigFragment,
+                JavaCommonConfig,
+                crate::crd::SparkConfigOverrides,
+            >,
+        >,
 
         /// The driver role specifies the configuration that, together with the driver pod template, is used by
         /// Spark to create driver pods.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub driver: Option<CommonConfiguration<RoleConfigFragment, JavaCommonConfig>>,
+        pub driver: Option<
+            CommonConfiguration<
+                RoleConfigFragment,
+                JavaCommonConfig,
+                crate::crd::SparkConfigOverrides,
+            >,
+        >,
 
         /// The executor role specifies the configuration that, together with the driver pod template, is used by
         /// Spark to create the executor pods.
         /// This is RoleGroup instead of plain CommonConfiguration because it needs to allow for the number of replicas.
         /// to be specified.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub executor: Option<RoleGroup<RoleConfigFragment, JavaCommonConfig>>,
+        pub executor: Option<
+            RoleGroup<RoleConfigFragment, JavaCommonConfig, crate::crd::SparkConfigOverrides>,
+        >,
 
         /// A map of key/value strings that will be passed directly to spark-submit.
         #[serde(default)]

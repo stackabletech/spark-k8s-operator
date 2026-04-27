@@ -40,6 +40,13 @@ use crate::{
     history::config::jvm::construct_history_jvm_args,
 };
 
+pub type SparkHistoryRole = Role<
+    HistoryConfigFragment,
+    crate::crd::SparkConfigOverrides,
+    SparkHistoryServerRoleConfig,
+    JavaCommonConfig,
+>;
+
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("failed to transform configs"))]
@@ -107,7 +114,7 @@ pub mod versioned {
         pub object_overrides: ObjectOverrides,
 
         /// A history server node role definition.
-        pub nodes: Role<HistoryConfigFragment, SparkHistoryServerRoleConfig, JavaCommonConfig>,
+        pub nodes: SparkHistoryRole,
     }
 
     // TODO: move generic version to op-rs?
@@ -126,9 +133,7 @@ pub mod versioned {
 
 impl v1alpha1::SparkHistoryServer {
     /// Returns a reference to the role. Raises an error if the role is not defined.
-    pub fn role(
-        &self,
-    ) -> &Role<HistoryConfigFragment, SparkHistoryServerRoleConfig, JavaCommonConfig> {
+    pub fn role(&self) -> &SparkHistoryRole {
         &self.spec.nodes
     }
 
@@ -136,7 +141,10 @@ impl v1alpha1::SparkHistoryServer {
     pub fn rolegroup(
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<RoleGroup<HistoryConfigFragment, JavaCommonConfig>, Error> {
+    ) -> Result<
+        RoleGroup<HistoryConfigFragment, JavaCommonConfig, crate::crd::SparkConfigOverrides>,
+        Error,
+    > {
         self.spec
             .nodes
             .role_groups
@@ -205,14 +213,7 @@ impl v1alpha1::SparkHistoryServer {
         resolved_product_image: &ResolvedProductImage,
         product_config: &ProductConfigManager,
     ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        #[allow(clippy::type_complexity)]
-        let roles_to_validate: HashMap<
-            String,
-            (
-                Vec<PropertyNameKind>,
-                Role<HistoryConfigFragment, SparkHistoryServerRoleConfig, JavaCommonConfig>,
-            ),
-        > = vec![(
+        let roles_to_validate: HashMap<String, (Vec<PropertyNameKind>, SparkHistoryRole)> = vec![(
             HISTORY_ROLE_NAME.to_string(),
             (
                 vec![
@@ -226,7 +227,7 @@ impl v1alpha1::SparkHistoryServer {
         .into_iter()
         .collect();
 
-        let role_config = transform_all_roles_to_config(self, roles_to_validate);
+        let role_config = transform_all_roles_to_config(self, &roles_to_validate);
 
         validate_all_roles_and_groups_config(
             &resolved_product_image.product_version,

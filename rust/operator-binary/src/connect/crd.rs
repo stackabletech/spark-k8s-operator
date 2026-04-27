@@ -110,7 +110,13 @@ pub mod versioned {
 
         /// Spark Connect executor properties.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub executor: Option<CommonConfiguration<ExecutorConfigFragment, JavaCommonConfig>>,
+        pub executor: Option<
+            CommonConfiguration<
+                ExecutorConfigFragment,
+                JavaCommonConfig,
+                crate::crd::SparkConfigOverrides,
+            >,
+        >,
     }
 
     /// This struct is a wrapper for the `ServerConfig` in order to keep the `spec.server.roleConfig` setting consistent.
@@ -119,7 +125,13 @@ pub mod versioned {
     #[serde(rename_all = "camelCase")]
     pub struct SparkConnectServerConfigWrapper {
         #[serde(flatten)]
-        pub config: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
+        pub config: Option<
+            CommonConfiguration<
+                ServerConfigFragment,
+                JavaCommonConfig,
+                crate::crd::SparkConfigOverrides,
+            >,
+        >,
         #[serde(default)]
         pub role_config: SparkConnectServerRoleConfig,
     }

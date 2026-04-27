@@ -152,13 +152,14 @@ fn merge_vec<T: Clone>(base: &[T], overlay: &[T]) -> Vec<T> {
 }
 
 /// Merge CommonConfiguration using the Merge trait
-fn merge_common_config<C, R>(
-    base: Option<&stackable_operator::role_utils::CommonConfiguration<C, R>>,
-    overlay: Option<&stackable_operator::role_utils::CommonConfiguration<C, R>>,
-) -> Option<stackable_operator::role_utils::CommonConfiguration<C, R>>
+fn merge_common_config<C, R, O>(
+    base: Option<&stackable_operator::role_utils::CommonConfiguration<C, R, O>>,
+    overlay: Option<&stackable_operator::role_utils::CommonConfiguration<C, R, O>>,
+) -> Option<stackable_operator::role_utils::CommonConfiguration<C, R, O>>
 where
     C: Clone + Merge,
     R: Clone,
+    O: Clone,
 {
     match (base, overlay) {
         (None, None) => None,
@@ -174,13 +175,14 @@ where
 }
 
 /// Merge RoleGroup
-fn merge_role_group<C, R>(
-    base: Option<&stackable_operator::role_utils::RoleGroup<C, R>>,
-    overlay: Option<&stackable_operator::role_utils::RoleGroup<C, R>>,
-) -> Option<stackable_operator::role_utils::RoleGroup<C, R>>
+fn merge_role_group<C, R, O>(
+    base: Option<&stackable_operator::role_utils::RoleGroup<C, R, O>>,
+    overlay: Option<&stackable_operator::role_utils::RoleGroup<C, R, O>>,
+) -> Option<stackable_operator::role_utils::RoleGroup<C, R, O>>
 where
     C: Clone + Merge,
     R: Clone,
+    O: Clone,
 {
     match (base, overlay) {
         (None, None) => None,

@@ -19,11 +19,13 @@ use stackable_operator::{
     commons::{
         product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{CpuLimits, MemoryLimits, Resources},
+        secret_class::SecretClassVolumeProvisionParts,
     },
     config::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
+    config_overrides::KeyValueOverridesProvider,
     crd::s3,
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
@@ -54,6 +56,31 @@ use crate::{
         },
     },
 };
+
+/// Config overrides type for SparkApplication CRDs, maintaining backwards compatibility
+/// with the old `HashMap<String, HashMap<String, String>>` format.
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+pub struct SparkConfigOverrides {
+    #[serde(flatten)]
+    pub files: HashMap<String, HashMap<String, String>>,
+}
+
+impl KeyValueOverridesProvider for SparkConfigOverrides {
+    fn get_key_value_overrides(
+        &self,
+        file: &str,
+    ) -> std::collections::BTreeMap<String, Option<String>> {
+        self.files
+            .get(file)
+            .map(|overrides| {
+                overrides
+                    .iter()
+                    .map(|(k, v)| (k.clone(), Some(v.clone())))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+}
 
 pub mod affinity;
 pub mod constants;
@@ -206,19 +233,22 @@ pub mod versioned {
         // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
         // However, due to product-config things I wasn't able to remove them.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub job: Option<CommonConfiguration<SubmitConfigFragment, JavaCommonConfig>>,
+        pub job: Option<
+            CommonConfiguration<SubmitConfigFragment, JavaCommonConfig, SparkConfigOverrides>,
+        >,
 
         /// The driver role specifies the configuration that, together with the driver pod template, is used by
         /// Spark to create driver pods.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub driver: Option<CommonConfiguration<RoleConfigFragment, JavaCommonConfig>>,
+        pub driver:
+            Option<CommonConfiguration<RoleConfigFragment, JavaCommonConfig, SparkConfigOverrides>>,
 
         /// The executor role specifies the configuration that, together with the driver pod template, is used by
         /// Spark to create the executor pods.
         /// This is RoleGroup instead of plain CommonConfiguration because it needs to allow for the number of replicas.
         /// to be specified.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub executor: Option<RoleGroup<RoleConfigFragment, JavaCommonConfig>>,
+        pub executor: Option<RoleGroup<RoleConfigFragment, JavaCommonConfig, SparkConfigOverrides>>,
 
         /// A map of key/value strings that will be passed directly to spark-submit.
         #[serde(default)]
@@ -333,7 +363,7 @@ impl v1alpha1::SparkApplication {
             result.insert(
                 volume_name.clone(),
                 secret_class_volume
-                    .to_volume(volume_name)
+                    .to_volume(volume_name, SecretClassVolumeProvisionParts::PublicPrivate)
                     .context(S3CredentialsVolumeBuildSnafu)?,
             );
         }
@@ -385,11 +415,14 @@ impl v1alpha1::SparkApplication {
                     cert_secret.to_string(),
                     VolumeBuilder::new(cert_secret)
                         .ephemeral(
-                            SecretOperatorVolumeSourceBuilder::new(cert_secret)
-                                .with_format(SecretFormat::TlsPkcs12)
-                                .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
-                                .build()
-                                .context(TlsCertSecretClassVolumeBuildSnafu)?,
+                            SecretOperatorVolumeSourceBuilder::new(
+                                cert_secret,
+                                SecretClassVolumeProvisionParts::PublicPrivate,
+                            )
+                            .with_format(SecretFormat::TlsPkcs12)
+                            .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
+                            .build()
+                            .context(TlsCertSecretClassVolumeBuildSnafu)?,
                         )
                         .build(),
                 );
@@ -971,7 +1004,7 @@ impl v1alpha1::SparkApplication {
             ),
         );
 
-        let role_config = transform_all_roles_to_config(self, roles_to_validate);
+        let role_config = transform_all_roles_to_config(self, &roles_to_validate);
 
         validate_all_roles_and_groups_config(
             &resolved_product_image.product_version,

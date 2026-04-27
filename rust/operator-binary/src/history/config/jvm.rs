@@ -1,5 +1,5 @@
 use snafu::{ResultExt, Snafu};
-use stackable_operator::role_utils::{self, JavaCommonConfig, JvmArgumentOverrides, Role};
+use stackable_operator::role_utils::{self, JvmArgumentOverrides};
 
 use crate::crd::{
     constants::{
@@ -7,7 +7,7 @@ use crate::crd::{
         STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_CONFIG,
         VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
-    history::{HistoryConfigFragment, v1alpha1::SparkHistoryServerRoleConfig},
+    history::SparkHistoryRole,
     logdir::ResolvedLogDir,
 };
 
@@ -19,7 +19,7 @@ pub enum Error {
 
 /// JVM arguments that go into `SPARK_HISTORY_OPTS`
 pub fn construct_history_jvm_args(
-    role: &Role<HistoryConfigFragment, SparkHistoryServerRoleConfig, JavaCommonConfig>,
+    role: &SparkHistoryRole,
     role_group: &str,
     logdir: &ResolvedLogDir,
 ) -> Result<String, Error> {

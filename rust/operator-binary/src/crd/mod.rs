@@ -25,7 +25,7 @@ use stackable_operator::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
-    config_overrides::KeyValueOverridesProvider,
+    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::s3,
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
@@ -56,31 +56,6 @@ use crate::{
         },
     },
 };
-
-/// Config overrides type for SparkApplication CRDs, maintaining backwards compatibility
-/// with the old `HashMap<String, HashMap<String, String>>` format.
-#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-pub struct SparkConfigOverrides {
-    #[serde(flatten)]
-    pub files: HashMap<String, HashMap<String, String>>,
-}
-
-impl KeyValueOverridesProvider for SparkConfigOverrides {
-    fn get_key_value_overrides(
-        &self,
-        file: &str,
-    ) -> std::collections::BTreeMap<String, Option<String>> {
-        self.files
-            .get(file)
-            .map(|overrides| {
-                overrides
-                    .iter()
-                    .map(|(k, v)| (k.clone(), Some(v.clone())))
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-}
 
 pub mod affinity;
 pub mod constants;
@@ -156,6 +131,15 @@ pub enum Error {
     #[snafu(display("failed to construct JVM arguments"))]
     ConstructJvmArguments { source: crate::config::jvm::Error },
 }
+
+pub type SparkApplicationJobRoleType =
+    CommonConfiguration<SubmitConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
+
+pub type SparkApplicationDriverRoleType =
+    CommonConfiguration<RoleConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
+
+pub type SparkApplicationExecutorRoleType =
+    RoleGroup<RoleConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
 
 #[versioned(
     version(name = "v1alpha1"),
@@ -233,22 +217,19 @@ pub mod versioned {
         // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
         // However, due to product-config things I wasn't able to remove them.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub job: Option<
-            CommonConfiguration<SubmitConfigFragment, JavaCommonConfig, SparkConfigOverrides>,
-        >,
+        pub job: Option<SparkApplicationJobRoleType>,
 
         /// The driver role specifies the configuration that, together with the driver pod template, is used by
         /// Spark to create driver pods.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub driver:
-            Option<CommonConfiguration<RoleConfigFragment, JavaCommonConfig, SparkConfigOverrides>>,
+        pub driver: Option<SparkApplicationDriverRoleType>,
 
         /// The executor role specifies the configuration that, together with the driver pod template, is used by
         /// Spark to create the executor pods.
         /// This is RoleGroup instead of plain CommonConfiguration because it needs to allow for the number of replicas.
         /// to be specified.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub executor: Option<RoleGroup<RoleConfigFragment, JavaCommonConfig, SparkConfigOverrides>>,
+        pub executor: Option<SparkApplicationExecutorRoleType>,
 
         /// A map of key/value strings that will be passed directly to spark-submit.
         #[serde(default)]
@@ -282,6 +263,36 @@ pub mod versioned {
         /// The log file directory definition used by the Spark history server.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub log_file_directory: Option<LogFileDirectorySpec>,
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    pub struct ConfigOverrides {
+        #[serde(
+            default,
+            rename = "spark-env.sh",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub spark_env_sh: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub security_properties: Option<KeyValueConfigOverrides>,
+    }
+}
+
+impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
+    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
+        let field = match file {
+            SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.as_ref(),
+            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
+            _ => None,
+        };
+        field
+            .map(KeyValueConfigOverrides::as_product_config_overrides)
+            .unwrap_or_default()
     }
 }
 

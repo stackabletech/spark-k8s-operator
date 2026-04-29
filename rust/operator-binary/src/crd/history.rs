@@ -16,6 +16,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
@@ -39,13 +40,6 @@ use crate::{
     },
     history::config::jvm::construct_history_jvm_args,
 };
-
-pub type SparkHistoryRole = Role<
-    HistoryConfigFragment,
-    crate::crd::SparkConfigOverrides,
-    SparkHistoryServerRoleConfig,
-    JavaCommonConfig,
->;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -71,6 +65,13 @@ pub enum Error {
     },
 }
 
+pub type SparkHistoryRoleType = Role<
+    HistoryConfigFragment,
+    v1alpha1::ConfigOverrides,
+    SparkHistoryServerRoleConfig,
+    JavaCommonConfig,
+>;
+
 #[versioned(
     version(name = "v1alpha1"),
     crates(
@@ -82,6 +83,7 @@ pub enum Error {
     )
 )]
 pub mod versioned {
+
     /// A Spark cluster history server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
@@ -114,7 +116,7 @@ pub mod versioned {
         pub object_overrides: ObjectOverrides,
 
         /// A history server node role definition.
-        pub nodes: SparkHistoryRole,
+        pub nodes: SparkHistoryRoleType,
     }
 
     // TODO: move generic version to op-rs?
@@ -129,11 +131,49 @@ pub mod versioned {
         #[serde(default = "default_listener_class")]
         pub listener_class: String,
     }
+
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    pub struct ConfigOverrides {
+        #[serde(
+            default,
+            rename = "spark-defaults.conf",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub spark_defaults_conf: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "spark-env.sh",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub spark_env_sh: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub security_properties: Option<KeyValueConfigOverrides>,
+    }
+}
+
+impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
+    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
+        let field = match file {
+            SPARK_DEFAULTS_FILE_NAME => self.spark_defaults_conf.as_ref(),
+            SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.as_ref(),
+            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
+            _ => None,
+        };
+        field
+            .map(KeyValueConfigOverrides::as_product_config_overrides)
+            .unwrap_or_default()
+    }
 }
 
 impl v1alpha1::SparkHistoryServer {
     /// Returns a reference to the role. Raises an error if the role is not defined.
-    pub fn role(&self) -> &SparkHistoryRole {
+    pub fn role(&self) -> &SparkHistoryRoleType {
         &self.spec.nodes
     }
 
@@ -141,10 +181,8 @@ impl v1alpha1::SparkHistoryServer {
     pub fn rolegroup(
         &self,
         rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<
-        RoleGroup<HistoryConfigFragment, JavaCommonConfig, crate::crd::SparkConfigOverrides>,
-        Error,
-    > {
+    ) -> Result<RoleGroup<HistoryConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>, Error>
+    {
         self.spec
             .nodes
             .role_groups
@@ -213,19 +251,20 @@ impl v1alpha1::SparkHistoryServer {
         resolved_product_image: &ResolvedProductImage,
         product_config: &ProductConfigManager,
     ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        let roles_to_validate: HashMap<String, (Vec<PropertyNameKind>, SparkHistoryRole)> = vec![(
-            HISTORY_ROLE_NAME.to_string(),
-            (
-                vec![
-                    PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                self.spec.nodes.clone(),
-            ),
-        )]
-        .into_iter()
-        .collect();
+        let roles_to_validate: HashMap<String, (Vec<PropertyNameKind>, SparkHistoryRoleType)> =
+            vec![(
+                HISTORY_ROLE_NAME.to_string(),
+                (
+                    vec![
+                        PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
+                        PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
+                        PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
+                    ],
+                    self.spec.nodes.clone(),
+                ),
+            )]
+            .into_iter()
+            .collect();
 
         let role_config = transform_all_roles_to_config(self, &roles_to_validate);
 

@@ -7,7 +7,7 @@ use crate::crd::{
         STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_CONFIG,
         VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
-    history::SparkHistoryRole,
+    history::SparkHistoryRoleType,
     logdir::ResolvedLogDir,
 };
 
@@ -19,7 +19,7 @@ pub enum Error {
 
 /// JVM arguments that go into `SPARK_HISTORY_OPTS`
 pub fn construct_history_jvm_args(
-    role: &SparkHistoryRole,
+    role: &SparkHistoryRoleType,
     role_group: &str,
     logdir: &ResolvedLogDir,
 ) -> Result<String, Error> {

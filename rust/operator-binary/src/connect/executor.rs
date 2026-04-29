@@ -12,6 +12,7 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         resources::{CpuLimits, MemoryLimits, Resources},
     },
+    config_overrides::KeyValueConfigOverrides,
     k8s_openapi::{
         DeepMerge,
         api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
@@ -29,9 +30,9 @@ use crate::{
     connect::{common, crd::v1alpha1, s3},
     crd::constants::{
         JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-        METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME,
-        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, VOLUME_MOUNT_NAME_CONFIG,
+        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     product_logging,
 };
@@ -296,15 +297,11 @@ pub(crate) fn executor_properties(
         .spec
         .executor
         .as_ref()
-        .and_then(|s| s.config_overrides.files.get(SPARK_DEFAULTS_FILE_NAME));
+        .and_then(|s| s.config_overrides.spark_defaults_conf.as_ref())
+        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .unwrap_or_default();
 
-    if let Some(user_config) = config_overrides {
-        result.extend(
-            user_config
-                .iter()
-                .map(|(k, v)| (k.clone(), Some(v.clone()))),
-        );
-    }
+    result.extend(config_overrides);
 
     Ok(result)
 }
@@ -346,23 +343,33 @@ pub(crate) fn executor_config_map(
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<ConfigMap, Error> {
     let cm_name = object_name(&scs.name_any(), SparkConnectRole::Executor);
-    let jvm_sec_props = common::security_properties(
-        scs.spec
-            .executor
-            .as_ref()
-            .and_then(|s| s.config_overrides.files.get(JVM_SECURITY_PROPERTIES_FILE)),
-    )
-    .context(ExecutorJvmSecurityPropertiesSnafu)?;
 
-    let metrics_props = common::metrics_properties(
-        scs.spec
-            .executor
-            .as_ref()
-            .and_then(|s| s.config_overrides.files.get(METRICS_PROPERTIES_FILE)),
-    )
-    .context(MetricsPropertiesSnafu {
-        name: scs.name_unchecked(),
-    })?;
+    let security_properties_overrides = scs
+        .spec
+        .executor
+        .as_ref()
+        .map(|s| &s.config_overrides)
+        .and_then(|config_overrides| config_overrides.security_properties.as_ref())
+        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .unwrap_or_default();
+
+    let jvm_sec_props = common::security_properties(security_properties_overrides)
+        .context(ExecutorJvmSecurityPropertiesSnafu)?;
+
+    let metrics_properties_overrides = scs
+        .spec
+        .executor
+        .as_ref()
+        .map(|s| &s.config_overrides)
+        .and_then(|config_overrides| config_overrides.metrics_properties.as_ref())
+        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .unwrap_or_default();
+
+    let metrics_props = common::metrics_properties(metrics_properties_overrides).context(
+        MetricsPropertiesSnafu {
+            name: scs.name_unchecked(),
+        },
+    )?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 

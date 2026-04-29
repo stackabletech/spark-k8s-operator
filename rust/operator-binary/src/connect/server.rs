@@ -18,6 +18,7 @@ use stackable_operator::{
         },
     },
     commons::product_image_selection::ResolvedProductImage,
+    config_overrides::KeyValueConfigOverrides,
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -154,27 +155,37 @@ pub(crate) fn server_config_map(
     executor_pod_template_spec: &str,
 ) -> Result<ConfigMap, Error> {
     let cm_name = object_name(&scs.name_any(), SparkConnectRole::Server);
-    let jvm_sec_props = common::security_properties(
-        scs.spec
-            .server
-            .config
-            .as_ref()
-            .and_then(|s| s.config_overrides.files.get(JVM_SECURITY_PROPERTIES_FILE)),
-    )
-    .context(ServerJvmSecurityPropertiesSnafu {
-        name: scs.name_unchecked(),
-    })?;
 
-    let metrics_props = common::metrics_properties(
-        scs.spec
-            .server
-            .config
-            .as_ref()
-            .and_then(|s| s.config_overrides.files.get(METRICS_PROPERTIES_FILE)),
-    )
-    .context(MetricsPropertiesSnafu {
-        name: scs.name_unchecked(),
-    })?;
+    let security_properties_overrides = scs
+        .spec
+        .server
+        .config
+        .as_ref()
+        .map(|s| &s.config_overrides)
+        .and_then(|config_overrides| config_overrides.security_properties.as_ref())
+        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .unwrap_or_default();
+
+    let jvm_sec_props = common::security_properties(security_properties_overrides).context(
+        ServerJvmSecurityPropertiesSnafu {
+            name: scs.name_unchecked(),
+        },
+    )?;
+
+    let metrics_properties_overrides = scs
+        .spec
+        .server
+        .config
+        .as_ref()
+        .and_then(|s| s.config_overrides.metrics_properties.as_ref())
+        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .unwrap_or_default();
+
+    let metrics_props = common::metrics_properties(metrics_properties_overrides).context(
+        MetricsPropertiesSnafu {
+            name: scs.name_unchecked(),
+        },
+    )?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -497,7 +508,9 @@ pub(crate) fn server_properties(
         .server
         .config
         .as_ref()
-        .and_then(|s| s.config_overrides.files.get(SPARK_DEFAULTS_FILE_NAME));
+        .and_then(|s| s.config_overrides.spark_defaults_conf.as_ref())
+        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .unwrap_or_default();
 
     let mut result: BTreeMap<String, Option<String>> = [
         // This needs to match the name of the headless service for the executors to be able
@@ -543,13 +556,8 @@ pub(crate) fn server_properties(
     ]
     .into();
 
-    if let Some(user_config) = config_overrides {
-        result.extend(
-            user_config
-                .iter()
-                .map(|(k, v)| (k.clone(), Some(v.clone()))),
-        );
-    }
+    result.extend(config_overrides);
+
     Ok(result)
 }
 

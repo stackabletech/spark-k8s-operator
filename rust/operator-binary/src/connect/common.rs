@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use product_config::writer::to_java_properties_string;
 use snafu::{ResultExt, Snafu};
@@ -106,7 +106,7 @@ pub(crate) fn spark_properties(
 }
 
 pub(crate) fn security_properties(
-    config_overrides: Option<&HashMap<String, String>>,
+    config_overrides: BTreeMap<String, Option<String>>,
 ) -> Result<String, Error> {
     let mut result: BTreeMap<String, Option<String>> = [
         (
@@ -120,19 +120,13 @@ pub(crate) fn security_properties(
     ]
     .into();
 
-    if let Some(user_config) = config_overrides {
-        result.extend(
-            user_config
-                .iter()
-                .map(|(k, v)| (k.clone(), Some(v.clone()))),
-        );
-    }
+    result.extend(config_overrides);
 
     to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
 }
 
 pub(crate) fn metrics_properties(
-    config_overrides: Option<&HashMap<String, String>>,
+    config_overrides: BTreeMap<String, Option<String>>,
 ) -> Result<String, Error> {
     let mut result: BTreeMap<String, Option<String>> = [
         (
@@ -146,13 +140,7 @@ pub(crate) fn metrics_properties(
     ]
     .into();
 
-    if let Some(user_config) = config_overrides {
-        result.extend(
-            user_config
-                .iter()
-                .map(|(k, v)| (k.clone(), Some(v.clone()))),
-        );
-    }
+    result.extend(config_overrides);
 
     to_java_properties_string(result.iter()).context(MetricsPropertiesSnafu)
 }

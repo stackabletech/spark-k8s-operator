@@ -44,7 +44,7 @@ pub fn build_rolegroup_metrics_service(
             .name(rolegroup_ref.rolegroup_metrics_service_name())
             .ownerreference_from_resource(shs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(recommended_labels(
+            .with_recommended_labels(&recommended_labels(
                 shs,
                 &resolved_product_image.app_version_label_value,
                 &rolegroup_ref.role_group,

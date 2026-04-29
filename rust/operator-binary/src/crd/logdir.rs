@@ -6,7 +6,7 @@ use stackable_operator::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
         VolumeBuilder,
     },
-    commons::secret_class::SecretClassVolume,
+    commons::secret_class::{SecretClassVolume, SecretClassVolumeProvisionParts},
     crd::s3,
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
     shared::time::Duration,
@@ -272,11 +272,14 @@ impl S3LogDir {
             volumes.push(
                 VolumeBuilder::new(secret_name)
                     .ephemeral(
-                        SecretOperatorVolumeSourceBuilder::new(secret_name)
-                            .with_format(SecretFormat::TlsPkcs12)
-                            .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
-                            .build()
-                            .context(TlsCertSecretClassVolumeBuildSnafu)?,
+                        SecretOperatorVolumeSourceBuilder::new(
+                            secret_name,
+                            SecretClassVolumeProvisionParts::PublicPrivate,
+                        )
+                        .with_format(SecretFormat::TlsPkcs12)
+                        .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
+                        .build()
+                        .context(TlsCertSecretClassVolumeBuildSnafu)?,
                     )
                     .build(),
             );
@@ -304,7 +307,10 @@ impl S3LogDir {
         self.credentials()
             .map(|credentials| {
                 credentials
-                    .to_volume(credentials.secret_class.as_ref())
+                    .to_volume(
+                        credentials.secret_class.as_ref(),
+                        SecretClassVolumeProvisionParts::PublicPrivate,
+                    )
                     .context(CredentialsVolumeBuildSnafu)
             })
             .transpose()

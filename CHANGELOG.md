@@ -5,8 +5,16 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#674]).
+- BREAKING: Each custom resource accepts now only the known config files in `configOverrides`:
+  - `SparkApplication`: `spark-env.sh` and `security.properties`
+  - `SparkHistoryServer`: `spark-defaults.conf`, `spark-env.sh` and `security.properties`
+  - `SparkConnectServer`: `spark-defaults.conf`, `metrics.properties` and `security.properties`
+
+  Previously, arbitrary file names were silently accepted and ignored ([#679]).
+- Bump `stackable-operator` to 0.110.1 ([#679]).
 
 [#674]: https://github.com/stackabletech/spark-k8s-operator/pull/674
+[#679]: https://github.com/stackabletech/hbase-operator/pull/679
 
 ## [26.3.0] - 2026-03-16
 

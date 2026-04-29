@@ -19,11 +19,13 @@ use stackable_operator::{
     commons::{
         product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{CpuLimits, MemoryLimits, Resources},
+        secret_class::SecretClassVolumeProvisionParts,
     },
     config::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
+    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::s3,
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
@@ -130,6 +132,15 @@ pub enum Error {
     ConstructJvmArguments { source: crate::config::jvm::Error },
 }
 
+pub type SparkApplicationJobRoleType =
+    CommonConfiguration<SubmitConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
+
+pub type SparkApplicationDriverRoleType =
+    CommonConfiguration<RoleConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
+
+pub type SparkApplicationExecutorRoleType =
+    RoleGroup<RoleConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
+
 #[versioned(
     version(name = "v1alpha1"),
     crates(
@@ -206,19 +217,19 @@ pub mod versioned {
         // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
         // However, due to product-config things I wasn't able to remove them.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub job: Option<CommonConfiguration<SubmitConfigFragment, JavaCommonConfig>>,
+        pub job: Option<SparkApplicationJobRoleType>,
 
         /// The driver role specifies the configuration that, together with the driver pod template, is used by
         /// Spark to create driver pods.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub driver: Option<CommonConfiguration<RoleConfigFragment, JavaCommonConfig>>,
+        pub driver: Option<SparkApplicationDriverRoleType>,
 
         /// The executor role specifies the configuration that, together with the driver pod template, is used by
         /// Spark to create the executor pods.
         /// This is RoleGroup instead of plain CommonConfiguration because it needs to allow for the number of replicas.
         /// to be specified.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub executor: Option<RoleGroup<RoleConfigFragment, JavaCommonConfig>>,
+        pub executor: Option<SparkApplicationExecutorRoleType>,
 
         /// A map of key/value strings that will be passed directly to spark-submit.
         #[serde(default)]
@@ -252,6 +263,36 @@ pub mod versioned {
         /// The log file directory definition used by the Spark history server.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub log_file_directory: Option<LogFileDirectorySpec>,
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    pub struct ConfigOverrides {
+        #[serde(
+            default,
+            rename = "spark-env.sh",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub spark_env_sh: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub security_properties: Option<KeyValueConfigOverrides>,
+    }
+}
+
+impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
+    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
+        let field = match file {
+            SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.as_ref(),
+            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
+            _ => None,
+        };
+        field
+            .map(KeyValueConfigOverrides::as_product_config_overrides)
+            .unwrap_or_default()
     }
 }
 
@@ -333,7 +374,7 @@ impl v1alpha1::SparkApplication {
             result.insert(
                 volume_name.clone(),
                 secret_class_volume
-                    .to_volume(volume_name)
+                    .to_volume(volume_name, SecretClassVolumeProvisionParts::PublicPrivate)
                     .context(S3CredentialsVolumeBuildSnafu)?,
             );
         }
@@ -385,11 +426,14 @@ impl v1alpha1::SparkApplication {
                     cert_secret.to_string(),
                     VolumeBuilder::new(cert_secret)
                         .ephemeral(
-                            SecretOperatorVolumeSourceBuilder::new(cert_secret)
-                                .with_format(SecretFormat::TlsPkcs12)
-                                .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
-                                .build()
-                                .context(TlsCertSecretClassVolumeBuildSnafu)?,
+                            SecretOperatorVolumeSourceBuilder::new(
+                                cert_secret,
+                                SecretClassVolumeProvisionParts::PublicPrivate,
+                            )
+                            .with_format(SecretFormat::TlsPkcs12)
+                            .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
+                            .build()
+                            .context(TlsCertSecretClassVolumeBuildSnafu)?,
                         )
                         .build(),
                 );
@@ -971,7 +1015,7 @@ impl v1alpha1::SparkApplication {
             ),
         );
 
-        let role_config = transform_all_roles_to_config(self, roles_to_validate);
+        let role_config = transform_all_roles_to_config(self, &roles_to_validate);
 
         validate_all_roles_and_groups_config(
             &resolved_product_image.product_version,

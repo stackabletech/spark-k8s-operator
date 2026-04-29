@@ -83,7 +83,6 @@ pub type SparkHistoryRoleType = Role<
     )
 )]
 pub mod versioned {
-
     /// A Spark cluster history server component. This resource is managed by the Stackable operator
     /// for Apache Spark. Find more information on how to use it in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/history-server).
@@ -251,20 +250,19 @@ impl v1alpha1::SparkHistoryServer {
         resolved_product_image: &ResolvedProductImage,
         product_config: &ProductConfigManager,
     ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        let roles_to_validate: HashMap<String, (Vec<PropertyNameKind>, SparkHistoryRoleType)> =
-            vec![(
-                HISTORY_ROLE_NAME.to_string(),
-                (
-                    vec![
-                        PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
-                        PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                        PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                    ],
-                    self.spec.nodes.clone(),
-                ),
-            )]
-            .into_iter()
-            .collect();
+        let roles_to_validate = vec![(
+            HISTORY_ROLE_NAME.to_string(),
+            (
+                vec![
+                    PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
+                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
+                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
+                ],
+                self.spec.nodes.clone(),
+            ),
+        )]
+        .into_iter()
+        .collect::<HashMap<_, _>>();
 
         let role_config = transform_all_roles_to_config(self, &roles_to_validate);
 

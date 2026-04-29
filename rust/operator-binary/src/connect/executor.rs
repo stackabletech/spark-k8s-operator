@@ -344,11 +344,9 @@ pub(crate) fn executor_config_map(
 ) -> Result<ConfigMap, Error> {
     let cm_name = object_name(&scs.name_any(), SparkConnectRole::Executor);
 
-    let security_properties_overrides = scs
-        .spec
-        .executor
-        .as_ref()
-        .map(|s| &s.config_overrides)
+    let config_overrides = scs.spec.executor.as_ref().map(|s| &s.config_overrides);
+
+    let security_properties_overrides = config_overrides
         .and_then(|config_overrides| config_overrides.security_properties.as_ref())
         .map(KeyValueConfigOverrides::as_product_config_overrides)
         .unwrap_or_default();
@@ -356,11 +354,7 @@ pub(crate) fn executor_config_map(
     let jvm_sec_props = common::security_properties(security_properties_overrides)
         .context(ExecutorJvmSecurityPropertiesSnafu)?;
 
-    let metrics_properties_overrides = scs
-        .spec
-        .executor
-        .as_ref()
-        .map(|s| &s.config_overrides)
+    let metrics_properties_overrides = config_overrides
         .and_then(|config_overrides| config_overrides.metrics_properties.as_ref())
         .map(KeyValueConfigOverrides::as_product_config_overrides)
         .unwrap_or_default();

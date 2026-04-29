@@ -16,11 +16,11 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use super::{history::LogFileDirectorySpec, job_dependencies::JobDependencies};
-use crate::crd::{
+use super::{
     SparkApplicationDriverRoleType, SparkApplicationExecutorRoleType, SparkApplicationJobRoleType,
-    roles::SparkMode, template_merger::deep_merge,
+    history::LogFileDirectorySpec, job_dependencies::JobDependencies, roles::SparkMode,
 };
+use crate::crd::template_merger::deep_merge;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]

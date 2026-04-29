@@ -3,7 +3,9 @@
 use std::collections::HashMap;
 
 use stackable_operator::{
-    config::merge::Merge, k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    config::merge::Merge,
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    role_utils::{CommonConfiguration, RoleGroup},
 };
 
 use super::v1alpha1::SparkApplication;
@@ -152,14 +154,14 @@ fn merge_vec<T: Clone>(base: &[T], overlay: &[T]) -> Vec<T> {
 }
 
 /// Merge CommonConfiguration using the Merge trait
-fn merge_common_config<C, R, O>(
-    base: Option<&stackable_operator::role_utils::CommonConfiguration<C, R, O>>,
-    overlay: Option<&stackable_operator::role_utils::CommonConfiguration<C, R, O>>,
-) -> Option<stackable_operator::role_utils::CommonConfiguration<C, R, O>>
+fn merge_common_config<Config, CommonConfig, ConfigOverrides>(
+    base: Option<&CommonConfiguration<Config, CommonConfig, ConfigOverrides>>,
+    overlay: Option<&CommonConfiguration<Config, CommonConfig, ConfigOverrides>>,
+) -> Option<CommonConfiguration<Config, CommonConfig, ConfigOverrides>>
 where
-    C: Clone + Merge,
-    R: Clone,
-    O: Clone,
+    Config: Clone + Merge,
+    CommonConfig: Clone,
+    ConfigOverrides: Clone,
 {
     match (base, overlay) {
         (None, None) => None,
@@ -175,14 +177,14 @@ where
 }
 
 /// Merge RoleGroup
-fn merge_role_group<C, R, O>(
-    base: Option<&stackable_operator::role_utils::RoleGroup<C, R, O>>,
-    overlay: Option<&stackable_operator::role_utils::RoleGroup<C, R, O>>,
-) -> Option<stackable_operator::role_utils::RoleGroup<C, R, O>>
+fn merge_role_group<Config, CommonConfig, ConfigOverrides>(
+    base: Option<&RoleGroup<Config, CommonConfig, ConfigOverrides>>,
+    overlay: Option<&RoleGroup<Config, CommonConfig, ConfigOverrides>>,
+) -> Option<RoleGroup<Config, CommonConfig, ConfigOverrides>>
 where
-    C: Clone + Merge,
-    R: Clone,
-    O: Clone,
+    Config: Clone + Merge,
+    CommonConfig: Clone,
+    ConfigOverrides: Clone,
 {
     match (base, overlay) {
         (None, None) => None,

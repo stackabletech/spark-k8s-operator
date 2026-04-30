@@ -555,6 +555,112 @@ mod tests {
     }
 
     #[test]
+    fn test_deep_merge_config_overrides_base_only() {
+        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: base-app
+            spec:
+              mode: cluster
+              mainApplicationFile: base.py
+              sparkImage:
+                productVersion: "3.5.8"
+              job:
+                configOverrides:
+                  security.properties:
+                    test.base.only: base
+                config:
+                  retryOnFailureCount: 1
+        "#})
+        .unwrap();
+
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: overlay-app
+            spec:
+              mode: cluster
+              mainApplicationFile: overlay.py
+              sparkImage:
+                productVersion: "4.1.0"
+              job:
+                config:
+                  retryOnFailureCount: 2
+        "#})
+        .unwrap();
+
+        let merged = deep_merge(&base, &overlay);
+        let submit_security_props = merged
+            .spec
+            .job
+            .as_ref()
+            .and_then(|j| j.config_overrides.get("security.properties"))
+            .unwrap();
+
+        assert_eq!(
+            submit_security_props.get("test.base.only"),
+            Some(&"base".to_string())
+        );
+    }
+
+    #[test]
+    fn test_deep_merge_config_overrides_overlay_only() {
+        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: base-app
+            spec:
+              mode: cluster
+              mainApplicationFile: base.py
+              sparkImage:
+                productVersion: "3.5.8"
+              job:
+                config:
+                  retryOnFailureCount: 1
+        "#})
+        .unwrap();
+
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: overlay-app
+            spec:
+              mode: cluster
+              mainApplicationFile: overlay.py
+              sparkImage:
+                productVersion: "4.1.0"
+              job:
+                configOverrides:
+                  security.properties:
+                    test.overlay.only: overlay
+                config:
+                  retryOnFailureCount: 2
+        "#})
+        .unwrap();
+
+        let merged = deep_merge(&base, &overlay);
+        let submit_security_props = merged
+            .spec
+            .job
+            .as_ref()
+            .and_then(|j| j.config_overrides.get("security.properties"))
+            .unwrap();
+
+        assert_eq!(
+            submit_security_props.get("test.overlay.only"),
+            Some(&"overlay".to_string())
+        );
+    }
+
+    #[test]
     fn test_deep_merge_env_overrides() {
         let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
@@ -912,6 +1018,135 @@ mod tests {
                 .get("memory")
                 .map(|quantity| quantity.0.as_str()),
             Some("2Gi")
+        );
+    }
+
+    #[test]
+    fn test_deep_merge_pod_overrides_base_only() {
+        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: base-app
+            spec:
+              mode: cluster
+              mainApplicationFile: base.py
+              sparkImage:
+                productVersion: "3.5.8"
+              job:
+                podOverrides:
+                  spec:
+                    serviceAccountName: base-sa
+                    nodeSelector:
+                      test.base.only: base
+                config:
+                  retryOnFailureCount: 1
+        "#})
+        .unwrap();
+
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: overlay-app
+            spec:
+              mode: cluster
+              mainApplicationFile: overlay.py
+              sparkImage:
+                productVersion: "4.1.0"
+              job:
+                config:
+                  retryOnFailureCount: 2
+        "#})
+        .unwrap();
+
+        let merged = deep_merge(&base, &overlay);
+        let submit_spec = merged
+            .spec
+            .job
+            .as_ref()
+            .unwrap()
+            .pod_overrides
+            .spec
+            .as_ref()
+            .unwrap();
+
+        assert_eq!(submit_spec.service_account_name.as_deref(), Some("base-sa"));
+        assert_eq!(
+            submit_spec
+                .node_selector
+                .as_ref()
+                .and_then(|selector| selector.get("test.base.only"))
+                .map(String::as_str),
+            Some("base")
+        );
+    }
+
+    #[test]
+    fn test_deep_merge_pod_overrides_overlay_only() {
+        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: base-app
+            spec:
+              mode: cluster
+              mainApplicationFile: base.py
+              sparkImage:
+                productVersion: "3.5.8"
+              job:
+                config:
+                  retryOnFailureCount: 1
+        "#})
+        .unwrap();
+
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: overlay-app
+            spec:
+              mode: cluster
+              mainApplicationFile: overlay.py
+              sparkImage:
+                productVersion: "4.1.0"
+              job:
+                podOverrides:
+                  spec:
+                    serviceAccountName: overlay-sa
+                    nodeSelector:
+                      test.overlay.only: overlay
+                config:
+                  retryOnFailureCount: 2
+        "#})
+        .unwrap();
+
+        let merged = deep_merge(&base, &overlay);
+        let submit_spec = merged
+            .spec
+            .job
+            .as_ref()
+            .unwrap()
+            .pod_overrides
+            .spec
+            .as_ref()
+            .unwrap();
+
+        assert_eq!(
+            submit_spec.service_account_name.as_deref(),
+            Some("overlay-sa")
+        );
+        assert_eq!(
+            submit_spec
+                .node_selector
+                .as_ref()
+                .and_then(|selector| selector.get("test.overlay.only"))
+                .map(String::as_str),
+            Some("overlay")
         );
     }
 

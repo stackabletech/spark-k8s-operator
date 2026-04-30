@@ -4,9 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Application template merging should not ignore "*Overrides" fields ([#680]).
+
+### Changed
+
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#674]).
 
 [#674]: https://github.com/stackabletech/spark-k8s-operator/pull/674
+[#680]: https://github.com/stackabletech/spark-k8s-operator/pull/680
 
 ## [26.3.0] - 2026-03-16
 

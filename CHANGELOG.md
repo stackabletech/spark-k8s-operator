@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Application template merging should not ignore "*Overrides" fields ([#680]).
+
+### Changed
+
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#674]).
 - BREAKING: Each custom resource accepts now only the known config files in `configOverrides`:
   - `SparkApplication`: `spark-env.sh` and `security.properties`
@@ -14,7 +20,8 @@ All notable changes to this project will be documented in this file.
 - Bump `stackable-operator` to 0.110.1 ([#679]).
 
 [#674]: https://github.com/stackabletech/spark-k8s-operator/pull/674
-[#679]: https://github.com/stackabletech/hbase-operator/pull/679
+[#679]: https://github.com/stackabletech/spark-k8s-operator/pull/679
+[#680]: https://github.com/stackabletech/spark-k8s-operator/pull/680
 
 ## [26.3.0] - 2026-03-16
 

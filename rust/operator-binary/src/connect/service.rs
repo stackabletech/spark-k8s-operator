@@ -51,7 +51,7 @@ pub(crate) fn build_headless_service(
             .name(service_name)
             .ownerreference_from_resource(scs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(common::labels(
+            .with_recommended_labels(&common::labels(
                 scs,
                 app_version_label,
                 &SparkConnectRole::Server.to_string(),
@@ -106,7 +106,7 @@ pub(crate) fn build_metrics_service(
             .name(service_name)
             .ownerreference_from_resource(scs, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(common::labels(
+            .with_recommended_labels(&common::labels(
                 scs,
                 app_version_label,
                 &SparkConnectRole::Server.to_string(),

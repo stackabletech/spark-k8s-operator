@@ -21,6 +21,7 @@
 * xref:spark-k8s:reference/index.adoc[]
 ** xref:spark-k8s:reference/crds.adoc[]
 *** {crd-docs}/spark.stackable.tech/sparkapplication/v1alpha1/[SparkApplication {external-link-icon}^]
+*** {crd-docs}/spark.stackable.tech/sparkconnectserver/v1alpha1/[SparkConnectServer {external-link-icon}^]
 *** {crd-docs}/spark.stackable.tech/sparkhistoryserver/v1alpha1/[SparkHistoryServer {external-link-icon}^]
 ** xref:spark-k8s:reference/commandline-parameters.adoc[]
 ** xref:spark-k8s:reference/environment-variables.adoc[]

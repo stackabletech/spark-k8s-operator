@@ -464,7 +464,7 @@ fn build_config_map(
                 .name(&cm_name)
                 .ownerreference_from_resource(shs, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(recommended_labels(
+                .with_recommended_labels(&recommended_labels(
                     shs,
                     app_version_label_value,
                     &rolegroupref.role_group,
@@ -536,10 +536,10 @@ fn build_stateful_set(
         rolegroupref.role_group.as_ref(),
     );
     let recommended_labels =
-        Labels::recommended(recommended_object_labels.clone()).context(LabelBuildSnafu)?;
+        Labels::recommended(&recommended_object_labels).context(LabelBuildSnafu)?;
 
     let pb_metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(recommended_object_labels.clone())
+        .with_recommended_labels(&recommended_object_labels)
         .context(MetadataBuildSnafu)?
         .build();
 
@@ -677,7 +677,7 @@ fn build_stateful_set(
         .name(rolegroupref.object_name())
         .ownerreference_from_resource(shs, None, Some(true))
         .context(ObjectMissingMetadataForOwnerRefSnafu)?
-        .with_recommended_labels(recommended_object_labels)
+        .with_recommended_labels(&recommended_object_labels)
         .context(MetadataBuildSnafu)?
         .build();
 

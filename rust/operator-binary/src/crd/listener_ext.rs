@@ -33,7 +33,7 @@ pub fn build_listener<T: Resource<DynamicType = ()>>(
             .name(listener_name)
             .ownerreference_from_resource(resource, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
-            .with_recommended_labels(listener_labels)
+            .with_recommended_labels(&listener_labels)
             .context(ObjectMetaSnafu)?
             .build(),
         spec: listener::v1alpha1::ListenerSpec {

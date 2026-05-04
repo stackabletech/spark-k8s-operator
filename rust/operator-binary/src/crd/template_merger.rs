@@ -7,6 +7,7 @@ use stackable_operator::{
     k8s_openapi::{
         DeepMerge, api::core::v1::PodTemplateSpec, apimachinery::pkg::apis::meta::v1::ObjectMeta,
     },
+    role_utils::{CommonConfiguration, RoleGroup},
 };
 
 use super::v1alpha1::SparkApplication;
@@ -147,26 +148,6 @@ where
     merged
 }
 
-/// Merge two nested HashMaps with overlay precedence for inner keys.
-fn merge_nested_hashmap<K1, K2, V>(
-    base: &HashMap<K1, HashMap<K2, V>>,
-    overlay: &HashMap<K1, HashMap<K2, V>>,
-) -> HashMap<K1, HashMap<K2, V>>
-where
-    K1: Eq + std::hash::Hash + Clone,
-    K2: Eq + std::hash::Hash + Clone,
-    V: Clone,
-{
-    let mut merged = base.clone();
-    for (outer_key, overlay_inner) in overlay {
-        merged
-            .entry(outer_key.clone())
-            .and_modify(|base_inner| base_inner.extend(overlay_inner.clone()))
-            .or_insert_with(|| overlay_inner.clone());
-    }
-    merged
-}
-
 /// Merge two PodTemplateSpecs using Kubernetes deep merge semantics.
 fn merge_pod_template_spec(base: &PodTemplateSpec, overlay: &PodTemplateSpec) -> PodTemplateSpec {
     let mut merged = base.clone();
@@ -195,13 +176,14 @@ fn merge_vec<T: Clone>(base: &[T], overlay: &[T]) -> Vec<T> {
 }
 
 /// Merge CommonConfiguration using the Merge trait
-fn merge_common_config<C, R>(
-    base: Option<&stackable_operator::role_utils::CommonConfiguration<C, R>>,
-    overlay: Option<&stackable_operator::role_utils::CommonConfiguration<C, R>>,
-) -> Option<stackable_operator::role_utils::CommonConfiguration<C, R>>
+fn merge_common_config<Config, CommonConfig, ConfigOverrides>(
+    base: Option<&CommonConfiguration<Config, CommonConfig, ConfigOverrides>>,
+    overlay: Option<&CommonConfiguration<Config, CommonConfig, ConfigOverrides>>,
+) -> Option<CommonConfiguration<Config, CommonConfig, ConfigOverrides>>
 where
-    C: Clone + Merge,
-    R: Clone,
+    Config: Clone + Merge,
+    CommonConfig: Clone,
+    ConfigOverrides: Clone + Merge,
 {
     match (base, overlay) {
         (None, None) => None,
@@ -211,8 +193,7 @@ where
             // Clone the base and merge the overlay config into it
             let mut merged = b.clone();
             merged.config.merge(&o.config);
-            merged.config_overrides =
-                merge_nested_hashmap(&b.config_overrides, &o.config_overrides);
+            merged.config_overrides.merge(&o.config_overrides);
             merged.env_overrides = merge_hashmap(&b.env_overrides, &o.env_overrides);
             merged.pod_overrides = merge_pod_template_spec(&b.pod_overrides, &o.pod_overrides);
             Some(merged)
@@ -221,13 +202,14 @@ where
 }
 
 /// Merge RoleGroup
-fn merge_role_group<C, R>(
-    base: Option<&stackable_operator::role_utils::RoleGroup<C, R>>,
-    overlay: Option<&stackable_operator::role_utils::RoleGroup<C, R>>,
-) -> Option<stackable_operator::role_utils::RoleGroup<C, R>>
+fn merge_role_group<Config, CommonConfig, ConfigOverrides>(
+    base: Option<&RoleGroup<Config, CommonConfig, ConfigOverrides>>,
+    overlay: Option<&RoleGroup<Config, CommonConfig, ConfigOverrides>>,
+) -> Option<RoleGroup<Config, CommonConfig, ConfigOverrides>>
 where
-    C: Clone + Merge,
-    R: Clone,
+    Config: Clone + Merge,
+    CommonConfig: Clone,
+    ConfigOverrides: Clone + Merge,
 {
     match (base, overlay) {
         (None, None) => None,
@@ -237,8 +219,10 @@ where
             // Clone the base and merge overlay
             let mut merged = b.clone();
             merged.config.config.merge(&o.config.config);
-            merged.config.config_overrides =
-                merge_nested_hashmap(&b.config.config_overrides, &o.config.config_overrides);
+            merged
+                .config
+                .config_overrides
+                .merge(&o.config.config_overrides);
             merged.config.env_overrides =
                 merge_hashmap(&b.config.env_overrides, &o.config.env_overrides);
             merged.config.pod_overrides =
@@ -499,8 +483,8 @@ mod tests {
         let submit_security_props = merged
             .spec
             .job
-            .as_ref()
-            .and_then(|j| j.config_overrides.get("security.properties"))
+            .and_then(|config| config.config_overrides.security_properties)
+            .map(|security_properties| security_properties.overrides)
             .unwrap();
         assert_eq!(
             submit_security_props.get("test.base.only"),
@@ -518,8 +502,8 @@ mod tests {
         let driver_security_props = merged
             .spec
             .driver
-            .as_ref()
-            .and_then(|d| d.config_overrides.get("security.properties"))
+            .and_then(|config| config.config_overrides.security_properties)
+            .map(|security_properties| security_properties.overrides)
             .unwrap();
         assert_eq!(
             driver_security_props.get("test.base.only"),
@@ -537,8 +521,8 @@ mod tests {
         let executor_security_props = merged
             .spec
             .executor
-            .as_ref()
-            .and_then(|e| e.config.config_overrides.get("security.properties"))
+            .and_then(|role_group| role_group.config.config_overrides.security_properties)
+            .map(|security_properties| security_properties.overrides)
             .unwrap();
         assert_eq!(
             executor_security_props.get("test.base.only"),
@@ -597,8 +581,8 @@ mod tests {
         let submit_security_props = merged
             .spec
             .job
-            .as_ref()
-            .and_then(|j| j.config_overrides.get("security.properties"))
+            .and_then(|config| config.config_overrides.security_properties)
+            .map(|security_properties| security_properties.overrides)
             .unwrap();
 
         assert_eq!(
@@ -650,8 +634,8 @@ mod tests {
         let submit_security_props = merged
             .spec
             .job
-            .as_ref()
-            .and_then(|j| j.config_overrides.get("security.properties"))
+            .and_then(|config| config.config_overrides.security_properties)
+            .map(|security_properties| security_properties.overrides)
             .unwrap();
 
         assert_eq!(

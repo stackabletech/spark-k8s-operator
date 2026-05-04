@@ -1124,6 +1124,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
+name = "humantime"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "135b12329e5e3ce057a9f972339ea52bc954fe1e9358ef27f95e89716fbc5424"
+
+[[package]]
 name = "hyper"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1511,17 +1517,18 @@ dependencies = [
 [[package]]
 name = "k8s-version"
 version = "0.1.3"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.108.0#7486017f60827d1d769d7bf17bf56adb21f8bb02"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.110.1#96f42571ea185a3cd76fedde351fcabbeefcae16"
 dependencies = [
  "darling",
  "regex",
- "snafu 0.8.9",
+ "snafu 0.9.0",
 ]
 
 [[package]]
 name = "kube"
-version = "3.0.1"
-source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acc5a6a69da2975ed9925d56b5dcfc9cc739b66f37add06785b7c9f6d1e88741"
 dependencies = [
  "k8s-openapi",
  "kube-client",
@@ -1532,8 +1539,9 @@ dependencies = [
 
 [[package]]
 name = "kube-client"
-version = "3.0.1"
-source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fcaf2d1f1a91e1805d4cd82e8333c022767ae8ffd65909bbef6802733a7dd40"
 dependencies = [
  "base64",
  "bytes",
@@ -1566,8 +1574,9 @@ dependencies = [
 
 [[package]]
 name = "kube-core"
-version = "3.0.1"
-source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f126d2db7a8b532ec1d839ece2a71e2485dc3bbca6cc3c3f929becaa810e719e"
 dependencies = [
  "derive_more",
  "form_urlencoded",
@@ -1584,8 +1593,9 @@ dependencies = [
 
 [[package]]
 name = "kube-derive"
-version = "3.0.1"
-source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6b9b97e121fce957f9cafc6da534abc4276983ab03190b76c09361e2df849fa"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -1597,8 +1607,9 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "3.0.1"
-source = "git+https://github.com/kube-rs/kube-rs?rev=fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5#fe69cc486ff8e62a7da61d64ec3ebbd9e64c43b5"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c072737075826ee74d3e615e80334e41e617ca3d14fb46ef7cdfda822d6f15f2"
 dependencies = [
  "ahash",
  "async-broadcast",
@@ -2482,9 +2493,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.9"
+version = "0.103.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7df23109aa6c1567d1c575b9952556388da57401e4ace1d15f79eedad0d8f53"
+checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -2869,7 +2880,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 [[package]]
 name = "stackable-certs"
 version = "0.4.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.108.0#7486017f60827d1d769d7bf17bf56adb21f8bb02"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.110.1#96f42571ea185a3cd76fedde351fcabbeefcae16"
 dependencies = [
  "const-oid",
  "ecdsa",
@@ -2881,7 +2892,7 @@ dependencies = [
  "rsa",
  "sha2",
  "signature",
- "snafu 0.8.9",
+ "snafu 0.9.0",
  "stackable-shared",
  "tokio",
  "tokio-rustls",
@@ -2892,9 +2903,10 @@ dependencies = [
 
 [[package]]
 name = "stackable-operator"
-version = "0.108.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.108.0#7486017f60827d1d769d7bf17bf56adb21f8bb02"
+version = "0.110.1"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.110.1#96f42571ea185a3cd76fedde351fcabbeefcae16"
 dependencies = [
+ "base64",
  "clap",
  "const_format",
  "delegate",
@@ -2909,13 +2921,14 @@ dependencies = [
  "k8s-openapi",
  "kube",
  "product-config",
+ "rand 0.9.2",
  "regex",
  "schemars",
  "semver",
  "serde",
  "serde_json",
  "serde_yaml",
- "snafu 0.8.9",
+ "snafu 0.9.0",
  "stackable-operator-derive",
  "stackable-shared",
  "stackable-telemetry",
@@ -2932,7 +2945,7 @@ dependencies = [
 [[package]]
 name = "stackable-operator-derive"
 version = "0.3.1"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.108.0#7486017f60827d1d769d7bf17bf56adb21f8bb02"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.110.1#96f42571ea185a3cd76fedde351fcabbeefcae16"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2943,7 +2956,7 @@ dependencies = [
 [[package]]
 name = "stackable-shared"
 version = "0.1.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.108.0#7486017f60827d1d769d7bf17bf56adb21f8bb02"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.110.1#96f42571ea185a3cd76fedde351fcabbeefcae16"
 dependencies = [
  "jiff",
  "k8s-openapi",
@@ -2952,7 +2965,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_yaml",
- "snafu 0.8.9",
+ "snafu 0.9.0",
  "strum",
  "time",
 ]
@@ -2984,8 +2997,8 @@ dependencies = [
 
 [[package]]
 name = "stackable-telemetry"
-version = "0.6.2"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.108.0#7486017f60827d1d769d7bf17bf56adb21f8bb02"
+version = "0.6.3"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.110.1#96f42571ea185a3cd76fedde351fcabbeefcae16"
 dependencies = [
  "axum",
  "clap",
@@ -2996,7 +3009,7 @@ dependencies = [
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",
  "pin-project",
- "snafu 0.8.9",
+ "snafu 0.9.0",
  "strum",
  "tokio",
  "tower",
@@ -3008,21 +3021,21 @@ dependencies = [
 
 [[package]]
 name = "stackable-versioned"
-version = "0.8.3"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.108.0#7486017f60827d1d769d7bf17bf56adb21f8bb02"
+version = "0.9.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.110.1#96f42571ea185a3cd76fedde351fcabbeefcae16"
 dependencies = [
  "schemars",
  "serde",
  "serde_json",
  "serde_yaml",
- "snafu 0.8.9",
+ "snafu 0.9.0",
  "stackable-versioned-macros",
 ]
 
 [[package]]
 name = "stackable-versioned-macros"
-version = "0.8.3"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.108.0#7486017f60827d1d769d7bf17bf56adb21f8bb02"
+version = "0.9.0"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.110.1#96f42571ea185a3cd76fedde351fcabbeefcae16"
 dependencies = [
  "convert_case",
  "convert_case_extras",
@@ -3039,13 +3052,14 @@ dependencies = [
 
 [[package]]
 name = "stackable-webhook"
-version = "0.9.0"
-source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.108.0#7486017f60827d1d769d7bf17bf56adb21f8bb02"
+version = "0.9.1"
+source = "git+https://github.com/stackabletech/operator-rs.git?tag=stackable-operator-0.110.1#96f42571ea185a3cd76fedde351fcabbeefcae16"
 dependencies = [
  "arc-swap",
  "async-trait",
  "axum",
  "futures-util",
+ "humantime",
  "hyper",
  "hyper-util",
  "k8s-openapi",
@@ -3055,7 +3069,7 @@ dependencies = [
  "rand 0.9.2",
  "serde",
  "serde_json",
- "snafu 0.8.9",
+ "snafu 0.9.0",
  "stackable-certs",
  "stackable-shared",
  "stackable-telemetry",

@@ -15,6 +15,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
+    config_overrides::KeyValueConfigOverrides,
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::PodAntiAffinity, apimachinery::pkg::api::resource::Quantity},
@@ -56,6 +57,18 @@ pub enum Error {
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 }
+
+type SparkConnectServerRoleType = CommonConfiguration<
+    v1alpha1::ServerConfigFragment,
+    JavaCommonConfig,
+    v1alpha1::ConfigOverrides,
+>;
+
+type SparkConnectExecutorRoleType = CommonConfiguration<
+    v1alpha1::ExecutorConfigFragment,
+    JavaCommonConfig,
+    v1alpha1::ConfigOverrides,
+>;
 
 #[versioned(
     version(name = "v1alpha1"),
@@ -110,7 +123,7 @@ pub mod versioned {
 
         /// Spark Connect executor properties.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub executor: Option<CommonConfiguration<ExecutorConfigFragment, JavaCommonConfig>>,
+        pub executor: Option<SparkConnectExecutorRoleType>,
     }
 
     /// This struct is a wrapper for the `ServerConfig` in order to keep the `spec.server.roleConfig` setting consistent.
@@ -119,7 +132,8 @@ pub mod versioned {
     #[serde(rename_all = "camelCase")]
     pub struct SparkConnectServerConfigWrapper {
         #[serde(flatten)]
-        pub config: Option<CommonConfiguration<ServerConfigFragment, JavaCommonConfig>>,
+        pub config: Option<SparkConnectServerRoleType>,
+
         #[serde(default)]
         pub role_config: SparkConnectServerRoleConfig,
     }
@@ -195,6 +209,30 @@ pub mod versioned {
         pub s3buckets: Vec<s3::v1alpha1::InlineBucketOrReference>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub s3connection: Option<s3::v1alpha1::InlineConnectionOrReference>,
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    pub struct ConfigOverrides {
+        #[serde(
+            default,
+            rename = "spark-defaults.conf",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub spark_defaults_conf: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "metrics.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub metrics_properties: Option<KeyValueConfigOverrides>,
+
+        #[serde(
+            default,
+            rename = "security.properties",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub security_properties: Option<KeyValueConfigOverrides>,
     }
 }
 

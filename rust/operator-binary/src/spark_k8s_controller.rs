@@ -641,7 +641,7 @@ fn pod_template(
         .ownerreference_from_resource(spark_application, None, None)
         .context(ObjectMissingMetadataForOwnerRefSnafu)?
         .with_recommended_labels(
-            spark_application
+            &spark_application
                 .build_recommended_labels(&spark_image.app_version_label_value, &container_name),
         )
         .context(MetadataBuildSnafu)?;
@@ -787,7 +787,7 @@ fn pod_template_config_map(
                 .name(&cm_name)
                 .ownerreference_from_resource(spark_application, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(spark_application.build_recommended_labels(
+                .with_recommended_labels(&spark_application.build_recommended_labels(
                     &spark_image.app_version_label_value,
                     "pod-templates",
                 ))
@@ -859,7 +859,7 @@ fn submit_job_config_map(
             .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
-                spark_application
+                &spark_application
                     .build_recommended_labels(&spark_image.app_version_label_value, "spark-submit"),
             )
             .context(MetadataBuildSnafu)?
@@ -979,7 +979,7 @@ fn spark_job(
         metadata: Some(
             ObjectMetaBuilder::new()
                 .name("spark-submit")
-                .with_recommended_labels(spark_application.build_recommended_labels(
+                .with_recommended_labels(&spark_application.build_recommended_labels(
                     &spark_image.app_version_label_value,
                     "spark-job-template",
                 ))
@@ -1014,7 +1014,7 @@ fn spark_job(
             .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
-                spark_application
+                &spark_application
                     .build_recommended_labels(&spark_image.app_version_label_value, "spark-job"),
             )
             .context(MetadataBuildSnafu)?
@@ -1048,7 +1048,7 @@ fn build_spark_role_serviceaccount(
                 .name(&sa_name)
                 .ownerreference_from_resource(spark_app, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(spark_app.build_recommended_labels(
+                .with_recommended_labels(&spark_app.build_recommended_labels(
                     &spark_image.app_version_label_value,
                     "service-account",
                 ))
@@ -1064,7 +1064,7 @@ fn build_spark_role_serviceaccount(
             .ownerreference_from_resource(spark_app, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
-                spark_app
+                &spark_app
                     .build_recommended_labels(&spark_image.app_version_label_value, "role-binding"),
             )
             .context(MetadataBuildSnafu)?

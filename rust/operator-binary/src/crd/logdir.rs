@@ -274,7 +274,8 @@ impl S3LogDir {
                     .ephemeral(
                         SecretOperatorVolumeSourceBuilder::new(
                             secret_name,
-                            SecretClassVolumeProvisionParts::PublicPrivate,
+                            // We only need the truststore to validate the S3 certificate.
+                            SecretClassVolumeProvisionParts::Public,
                         )
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
@@ -309,6 +310,11 @@ impl S3LogDir {
                 credentials
                     .to_volume(
                         credentials.secret_class.as_ref(),
+                        // We need the (private) S3 credentials.
+                        // Usually a SecretClass with the k8sSearch backend is used. This backend
+                        // does not support the annotation `secrets.stackable.tech/provision-parts`
+                        // and the value of the `provision_parts` parameter does actually not
+                        // matter.
                         SecretClassVolumeProvisionParts::PublicPrivate,
                     )
                     .context(CredentialsVolumeBuildSnafu)

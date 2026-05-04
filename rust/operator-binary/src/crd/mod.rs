@@ -374,7 +374,15 @@ impl v1alpha1::SparkApplication {
             result.insert(
                 volume_name.clone(),
                 secret_class_volume
-                    .to_volume(volume_name, SecretClassVolumeProvisionParts::PublicPrivate)
+                    .to_volume(
+                        volume_name,
+                        // We need the (private) S3 credentials.
+                        // Usually a SecretClass with the k8sSearch backend is used. This backend
+                        // does not support the annotation `secrets.stackable.tech/provision-parts`
+                        // and the value of the `provision_parts` parameter does actually not
+                        // matter.
+                        SecretClassVolumeProvisionParts::PublicPrivate,
+                    )
                     .context(S3CredentialsVolumeBuildSnafu)?,
             );
         }
@@ -428,7 +436,8 @@ impl v1alpha1::SparkApplication {
                         .ephemeral(
                             SecretOperatorVolumeSourceBuilder::new(
                                 cert_secret,
-                                SecretClassVolumeProvisionParts::PublicPrivate,
+                                // We only need the truststore to validate the S3 certificates.
+                                SecretClassVolumeProvisionParts::Public,
                             )
                             .with_format(SecretFormat::TlsPkcs12)
                             .with_auto_tls_cert_lifetime(*requested_secret_lifetime)

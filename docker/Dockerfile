@@ -37,7 +37,7 @@ ARG STACKABLE_USER_NAME="stackable"
 # "-c": Allows the execution of commands passed as a string
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
-# These labels have mostly been superceded by the OpenContainer spec annotations below but it doesn't hurt to include them
+# These labels have mostly been superseded by the OpenContainer spec annotations below but it doesn't hurt to include them
 # http://label-schema.org/rc1/
 LABEL name="Stackable Operator for Apache Spark-on-Kubernetes"
 LABEL maintainer="info@stackable.tech"

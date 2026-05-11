@@ -2,13 +2,22 @@
 meta = read_json('nix/meta.json')
 operator_name = meta['operator']['name']
 
-# If tilt_options.json exists read it and load the default_registry and default_repository value from it
+# If tilt_options.json exists read it and load the default_registry, default_operator_repository,
+# and default_product_repository value from it
 settings = read_json('tilt_options.json', default={})
 registry = settings.get('default_registry', 'oci.stackable.tech')
-repository = settings.get('default_repository', registry + '/' + 'sdp')
-operator_image_name = repository + '/' + operator_name
 
-# Configure default registry either read from config file above, or with default value of "oci.stackable.tech"
+# Construct the operator image repository. It uses the "sandbox" instead of the "sdp" namespace to
+# separate "testing/local" images from official (published) images.
+operator_repository = settings.get('default_operator_repository', registry + '/' + 'sandbox')
+operator_image_name = operator_repository + '/' + operator_name
+
+# For the product image, we wanna use the images in the "sdp" namespace, because "sandbox" doesn't
+# contain those images (by default).
+product_repository = settings.get('default_product_repository', registry + '/' + 'sdp')
+
+# Configure default registry either read from config file above, or with default value of
+# "oci.stackable.tech"
 default_registry(registry)
 
 custom_build(
@@ -31,14 +40,16 @@ k8s_kind('DaemonSet', image_json_path='{.spec.template.metadata.annotations.inte
 # supported by helm(set).
 helm_values = settings.get('helm_values', None)
 
-helm_override_image_repository = 'image.repository=' + repository
+helm_override_operator_image_repository = 'image.repository=' + operator_repository
+helm_override_product_image_repository = 'image.productRepository=' + product_repository
 
 k8s_yaml(helm(
    'deploy/helm/' + operator_name,
    name=operator_name,
    namespace="stackable-operators",
    set=[
-      helm_override_image_repository,
+      helm_override_operator_image_repository,
+      helm_override_product_image_repository,
    ],
    values=helm_values,
 ))

@@ -70,9 +70,9 @@ spec:
             - name: OPERATOR_SERVICE_NAME
               value: {{ include "operator.fullname" . }}
 
-            # The image repository, like "oci.stackable.tech/sdp"
+            # The product image repository, like "oci.stackable.tech/sdp".
             - name: IMAGE_REPOSITORY
-              value: {{ .Values.image.repository }}
+              value: {{ .Values.image.productRepository | default .Values.image.repository }}
 
             # Operators need to know the node name they are running on, to e.g. discover the
             # Kubernetes domain name from the kubelet API.

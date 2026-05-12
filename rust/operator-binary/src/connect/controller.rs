@@ -22,7 +22,7 @@ use super::crd::{CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, v1alpha1};
 use crate::{
     Ctx,
     connect::{common, crd::SparkConnectServerStatus, executor, s3, server, service},
-    crd::constants::{OPERATOR_NAME, SPARK_IMAGE_BASE_NAME},
+    crd::constants::{CONTAINER_IMAGE_BASE_NAME, OPERATOR_NAME},
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -189,7 +189,11 @@ pub async fn reconcile(
     let resolved_product_image = scs
         .spec
         .image
-        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
+        .resolve(
+            CONTAINER_IMAGE_BASE_NAME,
+            &ctx.operator_environment.image_repository,
+            crate::built_info::PKG_VERSION,
+        )
         .context(ResolveProductImageSnafu)?;
 
     // Resolve any S3 connections early to fail fast if there are issues.

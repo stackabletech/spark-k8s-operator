@@ -1718,7 +1718,7 @@ spec:
         let resolved_product_image = spark_application
             .spec
             .spark_image
-            .resolve("spark-k8s", "0.0.0-dev")
+            .resolve("spark-k8s", "oci.example.org", "0.0.0-dev")
             .expect("test: resolved product image is always valid");
 
         let product_config =

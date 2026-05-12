@@ -11,7 +11,7 @@ use history::history_controller;
 use product_config::ProductConfigManager;
 use stackable_operator::{
     YamlSchema,
-    cli::{Command, RunArguments},
+    cli::{Command, OperatorEnvironmentOptions, RunArguments},
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -75,6 +75,7 @@ const PRODUCT_CONFIG_PATHS: [&str; 2] = [
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
     pub product_config: ProductConfigManager,
+    pub operator_environment: OperatorEnvironmentOptions,
 }
 
 #[tokio::main]
@@ -144,7 +145,9 @@ async fn main() -> anyhow::Result<()> {
             let ctx = Ctx {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
+                operator_environment: operator_environment.clone(),
             };
+
             let spark_event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
                 Reporter {
@@ -232,6 +235,7 @@ async fn main() -> anyhow::Result<()> {
             let ctx = Ctx {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
+                operator_environment: operator_environment.clone(),
             };
             let history_event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
@@ -297,6 +301,7 @@ async fn main() -> anyhow::Result<()> {
             let ctx = Ctx {
                 client: client.clone(),
                 product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
+                operator_environment,
             };
             let connect_event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),

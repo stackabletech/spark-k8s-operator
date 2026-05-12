@@ -306,7 +306,11 @@ pub async fn reconcile(
     let resolved_product_image = spark_application
         .spec
         .spark_image
-        .resolve(SPARK_IMAGE_BASE_NAME, crate::built_info::PKG_VERSION)
+        .resolve(
+            CONTAINER_IMAGE_BASE_NAME,
+            &ctx.operator_environment.image_repository,
+            crate::built_info::PKG_VERSION,
+        )
         .context(ResolveProductImageSnafu)?;
 
     let validated_product_config: ValidatedRoleConfigByPropertyKind = spark_application

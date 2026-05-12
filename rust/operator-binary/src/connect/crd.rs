@@ -444,6 +444,7 @@ impl v1alpha1::ExecutorConfig {
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
+    use stackable_operator::versioned::test_utils::RoundtripTestData;
 
     use super::*;
 
@@ -516,5 +517,11 @@ mod tests {
         let _spark_connect_cr: v1alpha1::SparkConnectServer =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
                 .expect("Failed to deserialize SparkConnectServer with S3 connectors CR");
+    }
+
+    impl RoundtripTestData for v1alpha1::SparkConnectServerSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
+            vec![]
+        }
     }
 }

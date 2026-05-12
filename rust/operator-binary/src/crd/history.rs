@@ -475,7 +475,10 @@ fn default_listener_class() -> String {
 #[cfg(test)]
 mod test {
     use indoc::indoc;
-    use stackable_operator::{commons::tls_verification::TlsClientDetails, crd::s3};
+    use stackable_operator::{
+        commons::tls_verification::TlsClientDetails, crd::s3,
+        versioned::test_utils::RoundtripTestData,
+    };
 
     use super::*;
     use crate::crd::logdir::S3LogDir;
@@ -552,5 +555,11 @@ mod test {
             Some(&Some("ROLEGROUP".to_string())),
             env_map.get("TEST_SPARK_HIST_VAR")
         );
+    }
+
+    impl RoundtripTestData for v1alpha1::SparkHistoryServerSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
+            vec![]
+        }
     }
 }

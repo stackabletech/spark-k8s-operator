@@ -1251,6 +1251,7 @@ mod tests {
         },
         product_config_utils::ValidatedRoleConfigByPropertyKind,
         product_logging::spec::Logging,
+        versioned::test_utils::RoundtripTestData,
     };
 
     use super::*;
@@ -1820,5 +1821,11 @@ spec:
         ];
 
         assert_eq!(got, expected);
+    }
+
+    impl RoundtripTestData for v1alpha1::SparkApplicationSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
+            vec![]
+        }
     }
 }

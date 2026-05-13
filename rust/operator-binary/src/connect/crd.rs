@@ -521,7 +521,45 @@ mod tests {
 
     impl RoundtripTestData for v1alpha1::SparkConnectServerSpec {
         fn roundtrip_test_data() -> Vec<Self> {
-            vec![]
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc! {r#"
+              - image:
+                  productVersion: 4.1.1
+                  pullPolicy: IfNotPresent
+                connectors:
+                  s3buckets:
+                    - reference: ingest-bucket
+                  s3connection:
+                    reference: s3-connection
+                server:
+                  jvmArgumentOverrides:
+                    add:
+                      - -Dmy.custom.jvm.arg=customValue
+                  roleConfig:
+                    listenerClass: external-unstable
+                  config:
+                    logging:
+                      enableVectorAgent: false
+                      containers:
+                        spark:
+                          custom:
+                            configMap: spark-connect-log-config
+                  configOverrides:
+                    spark-defaults.conf:
+                      spark.jars.ivy: /tmp/ivy2
+                executor:
+                  configOverrides:
+                    spark-defaults.conf:
+                      spark.executor.instances: "1"
+                      spark.executor.memoryOverhead: 1m
+                  config:
+                    logging:
+                      enableVectorAgent: false
+                      containers:
+                        spark:
+                          custom:
+                            configMap: spark-connect-log-config
+            "#})
+            .expect("Failed to parse SparkConnectServerSpec YAML")
         }
     }
 }

@@ -559,7 +559,58 @@ mod test {
 
     impl RoundtripTestData for v1alpha1::SparkHistoryServerSpec {
         fn roundtrip_test_data() -> Vec<Self> {
-            vec![]
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc! {r#"
+              - image:
+                  productVersion: 3.5.8
+                  pullPolicy: IfNotPresent
+                logFileDirectory:
+                  s3:
+                    prefix: eventlogs/
+                    bucket:
+                      reference: spark-history-s3-bucket
+                sparkConf:
+                  test.sparkConf: "true"
+                nodes:
+                  roleConfig:
+                    listenerClass: external-unstable
+                  envOverrides:
+                    TEST_SPARK_HIST_VAR_ROLE: ROLE
+                    TEST_SPARK_HIST_VAR_FROM_RG: ROLE
+                  configOverrides:
+                    security.properties:
+                      test.securityProperties.role: role
+                      test.securityProperties.fromRg: role
+                    spark-env.sh:
+                      TEST_SPARK-ENV-SH_ROLE: ROLE
+                      TEST_SPARK-ENV-SH_FROM_RG: ROLE
+                  roleGroups:
+                    default:
+                      replicas: 1
+                      config:
+                        cleaner: true
+                      envOverrides:
+                        TEST_SPARK_HIST_VAR_FROM_RG: ROLEGROUP
+                        TEST_SPARK_HIST_VAR_RG: ROLEGROUP
+                      configOverrides:
+                        security.properties:
+                          test.securityProperties.fromRg: rolegroup
+                          test.securityProperties.rg: rolegroup
+                        spark-env.sh:
+                          TEST_SPARK-ENV-SH_FROM_RG: ROLEGROUP
+                          TEST_SPARK-ENV-SH_RG: ROLEGROUP
+                      podOverrides:
+                        spec:
+                          containers:
+                            - name: spark-history
+                              resources:
+                                requests:
+                                  cpu: 500m
+                                  memory: 512Mi
+                                limits:
+                                  cpu: 1500m
+                                  memory: 1024Mi
+            "#})
+            .expect("Failed to parse SparkHistoryServerSpec YAML")
         }
     }
 }

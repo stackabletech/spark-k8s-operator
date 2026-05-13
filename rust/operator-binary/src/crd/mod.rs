@@ -1825,7 +1825,87 @@ spec:
 
     impl RoundtripTestData for v1alpha1::SparkApplicationSpec {
         fn roundtrip_test_data() -> Vec<Self> {
-            vec![]
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc! {r#"
+              - sparkImage:
+                  productVersion: 3.5.8
+                  pullPolicy: IfNotPresent
+                mode: cluster
+                mainClass: org.apache.spark.examples.SparkPi
+                mainApplicationFile: /stackable/spark/examples/jars/spark-examples.jar
+                sparkConf:
+                  spark.kubernetes.file.upload.path: s3a://my-bucket
+                s3connection:
+                  reference: spark-data-s3-connection
+                logFileDirectory:
+                  s3:
+                    prefix: eventlogs/
+                    bucket:
+                      reference: spark-history-s3-bucket
+                env:
+                  - name: TEST_SPARK_VAR_0
+                    value: ORIGINAL
+                  - name: TEST_SPARK_VAR_1
+                    value: DONOTREPLACE
+                job:
+                  envOverrides:
+                    TEST_SPARK_VAR_0: REPLACED
+                  configOverrides:
+                    security.properties:
+                      test.job.securityProperties: test
+                    spark-env.sh:
+                      TEST_JOB_SPARK-ENV-SH: TEST
+                  podOverrides:
+                    spec:
+                      serviceAccountName: override-sa
+                      containers:
+                        - name: spark-submit
+                          resources:
+                            requests:
+                              cpu: 500m
+                              memory: 512Mi
+                            limits:
+                              cpu: 1500m
+                              memory: 1024Mi
+                driver:
+                  envOverrides:
+                    TEST_SPARK_VAR_0: REPLACED
+                  configOverrides:
+                    security.properties:
+                      test.driver.securityProperties: test
+                    spark-env.sh:
+                      TEST_DRIVER_SPARK-ENV-SH: TEST
+                  config:
+                    resources:
+                      cpu:
+                        min: 300m
+                        max: 1200m
+                      memory:
+                        limit: 1024Mi
+                executor:
+                  replicas: 1
+                  envOverrides:
+                    TEST_SPARK_VAR_0: REPLACED
+                  configOverrides:
+                    security.properties:
+                      test.executor.securityProperties: test
+                    spark-env.sh:
+                      TEST_EXECUTOR_SPARK-ENV-SH: TEST
+                  config:
+                    resources:
+                      cpu:
+                        min: 1250m
+                        max: 2000m
+                      memory:
+                        limit: 1024Mi
+                deps:
+                  packages:
+                    - org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.1
+                volumes:
+                  - name: script
+                    configMap:
+                      name: write-to-iceberg
+            "#})
+            .expect("Failed to parse SparkApplicationSpec YAML")
         }
     }
 }

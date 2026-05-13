@@ -435,7 +435,12 @@ mod tests {
 
     impl RoundtripTestData for v1alpha1::SparkApplicationTemplateSpec {
         fn roundtrip_test_data() -> Vec<Self> {
-            vec![]
+            // SparkApplicationTemplateSpec is just a wrapper around SparkApplicationSpec
+            let test_data = crate::crd::v1alpha1::SparkApplicationSpec::roundtrip_test_data();
+            test_data
+                .into_iter()
+                .map(|spec| v1alpha1::SparkApplicationTemplateSpec { spec })
+                .collect()
         }
     }
 }

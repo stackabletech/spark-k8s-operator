@@ -1209,8 +1209,8 @@ mod tests {
 
         // Convert templates to SparkApplication and merge left-to-right:
         // template-a has the lowest priority, the spark application has the highest.
-        let app_from_a = crate::crd::v1alpha1::SparkApplication::from(&template_a);
-        let app_from_b = crate::crd::v1alpha1::SparkApplication::from(&template_b);
+        let app_from_a = crate::crd::v1alpha1::SparkApplication::from(template_a);
+        let app_from_b = crate::crd::v1alpha1::SparkApplication::from(template_b);
         // This how `merge_application_templates()` does it
         let template_apps = [app_from_a, app_from_b, spark_app];
         let merged = template_apps
@@ -1391,7 +1391,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let app_from_template = crate::crd::v1alpha1::SparkApplication::from(&template);
+        let app_from_template = crate::crd::v1alpha1::SparkApplication::from(template);
         let merged = deep_merge(&app_from_template, &spark_app);
 
         let submit_affinity = merged.submit_config().unwrap().affinity;

@@ -1829,9 +1829,15 @@ spec:
               - sparkImage:
                   productVersion: 3.5.8
                   pullPolicy: IfNotPresent
+                image: my-registry.example.com/my-spark-deps:1.0.0
                 mode: cluster
                 mainClass: org.apache.spark.examples.SparkPi
                 mainApplicationFile: /stackable/spark/examples/jars/spark-examples.jar
+                vectorAggregatorConfigMapName: vector-aggregator-discovery
+                args:
+                  - "--verbose"
+                  - "--input"
+                  - "/data/in"
                 sparkConf:
                   spark.kubernetes.file.upload.path: s3a://my-bucket
                 s3connection:
@@ -1866,6 +1872,20 @@ spec:
                             limits:
                               cpu: 1500m
                               memory: 1024Mi
+                  jvmArgumentOverrides:
+                    add:
+                      - -Dhttps.proxyHost=proxy.my.corp
+                      - -Dhttps.proxyPort=8080
+                    remove:
+                      - -Dunwanted=true
+                    removeRegex:
+                      - -Dnoisy=.*
+                  config:
+                    retryOnFailureCount: 2
+                    requestedSecretLifetime: 7d
+                    affinity:
+                      nodeSelector:
+                        disktype: ssd
                 driver:
                   envOverrides:
                     TEST_SPARK_VAR_0: REPLACED
@@ -1874,6 +1894,12 @@ spec:
                       test.driver.securityProperties: test
                     spark-env.sh:
                       TEST_DRIVER_SPARK-ENV-SH: TEST
+                  podOverrides:
+                    spec:
+                      serviceAccountName: driver-sa
+                  jvmArgumentOverrides:
+                    add:
+                      - -XX:+UseG1GC
                   config:
                     resources:
                       cpu:
@@ -1881,6 +1907,10 @@ spec:
                         max: 1200m
                       memory:
                         limit: 1024Mi
+                    requestedSecretLifetime: 7d
+                    affinity:
+                      nodeSelector:
+                        affinity-role: driver
                 executor:
                   replicas: 1
                   envOverrides:
@@ -1890,6 +1920,12 @@ spec:
                       test.executor.securityProperties: test
                     spark-env.sh:
                       TEST_EXECUTOR_SPARK-ENV-SH: TEST
+                  podOverrides:
+                    spec:
+                      serviceAccountName: executor-sa
+                  jvmArgumentOverrides:
+                    add:
+                      - -XX:+UseG1GC
                   config:
                     resources:
                       cpu:
@@ -1897,13 +1933,41 @@ spec:
                         max: 2000m
                       memory:
                         limit: 1024Mi
+                    requestedSecretLifetime: 7d
+                    affinity:
+                      nodeSelector:
+                        affinity-role: executor
                 deps:
+                  requirements:
+                    - tabulate==0.8.9
                   packages:
                     - org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.10.1
+                  repositories:
+                    - https://repo.maven.apache.org/maven2/
+                  excludePackages:
+                    - org.slf4j:slf4j-log4j12
                 volumes:
                   - name: script
                     configMap:
                       name: write-to-iceberg
+                  - name: scratch
+                    emptyDir: {}
+              # Second entry covers the alternative enum variants:
+              # - logFileDirectory.customLogDirectory (vs s3)
+              # - s3connection.inline (vs reference)
+              - sparkImage:
+                  productVersion: 3.5.8
+                mode: cluster
+                mainApplicationFile: local:///stackable/app.jar
+                s3connection:
+                  inline:
+                    host: test-minio
+                    port: 9000
+                    accessStyle: Path
+                    credentials:
+                      secretClass: s3-credentials-class
+                logFileDirectory:
+                  customLogDirectory: /mnt/spark-events
             "#})
             .expect("Failed to parse SparkApplicationSpec YAML")
         }

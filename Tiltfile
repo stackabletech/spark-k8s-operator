@@ -12,10 +12,9 @@ registry = settings.get('default_registry', 'oci.stackable.tech')
 operator_repository = settings.get('default_operator_repository', registry + '/' + 'sandbox')
 operator_image_name = operator_repository + '/' + operator_name
 
-# For the product image, we wanna use the images in the "sdp" namespace, because "sandbox" doesn't
+# For the product image, we want to use the images in the "sdp" namespace, because "sandbox" doesn't
 # contain those images (by default).
 product_repository = settings.get('default_product_repository', registry + '/' + 'sdp')
-
 # Configure default registry either read from config file above, or with default value of
 # "oci.stackable.tech"
 default_registry(registry)

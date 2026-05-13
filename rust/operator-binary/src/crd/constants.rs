@@ -79,7 +79,7 @@ pub const HISTORY_FULL_CONTROLLER_NAME: &str =
 pub const HISTORY_APP_NAME: &str = "spark-history";
 pub const HISTORY_ROLE_NAME: &str = "node";
 
-pub const SPARK_IMAGE_BASE_NAME: &str = "spark-k8s";
+pub const CONTAINER_IMAGE_BASE_NAME: &str = "spark-k8s";
 
 pub const SPARK_DEFAULTS_FILE_NAME: &str = "spark-defaults.conf";
 pub const SPARK_ENV_SH_FILE_NAME: &str = "spark-env.sh";

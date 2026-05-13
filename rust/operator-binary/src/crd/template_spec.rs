@@ -353,6 +353,7 @@ async fn resolve(
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
+    use stackable_operator::versioned::test_utils::RoundtripTestData;
 
     use super::*;
 
@@ -430,5 +431,16 @@ mod tests {
             TemplateApplyStrategy::Enforce
         ));
         assert!(options.template_names.is_empty());
+    }
+
+    impl RoundtripTestData for v1alpha1::SparkApplicationTemplateSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
+            // SparkApplicationTemplateSpec is just a wrapper around SparkApplicationSpec
+            let test_data = crate::crd::v1alpha1::SparkApplicationSpec::roundtrip_test_data();
+            test_data
+                .into_iter()
+                .map(|spec| v1alpha1::SparkApplicationTemplateSpec { spec })
+                .collect()
+        }
     }
 }

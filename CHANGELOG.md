@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#684]).
+
 ### Fixed
 
 - Application template merging should not ignore "*Overrides" fields ([#680]).
@@ -22,6 +26,7 @@ All notable changes to this project will be documented in this file.
 [#674]: https://github.com/stackabletech/spark-k8s-operator/pull/674
 [#679]: https://github.com/stackabletech/spark-k8s-operator/pull/679
 [#680]: https://github.com/stackabletech/spark-k8s-operator/pull/680
+[#684]: https://github.com/stackabletech/spark-k8s-operator/pull/684
 
 ## [26.3.0] - 2026-03-16
 

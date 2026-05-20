@@ -16,10 +16,7 @@ use stackable_operator::{
             volume::VolumeBuilder,
         },
     },
-    commons::{
-        product_image_selection::{self, ResolvedProductImage},
-        tls_verification::{CaCert, TlsVerification},
-    },
+    commons::product_image_selection::ResolvedProductImage,
     crd::s3,
     k8s_openapi::{
         DeepMerge, Resource,
@@ -39,7 +36,6 @@ use stackable_operator::{
     },
     kvp::Label,
     logging::controller::ReconcilerError,
-    product_config_utils::ValidatedRoleConfigByPropertyKind,
     product_logging::{
         framework::{
             LoggingError, capture_shell_output, create_vector_shutdown_file_command,
@@ -73,10 +69,11 @@ pub mod validate;
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to merge application templates"))]
-    MergeApplicationTemplates {
-        source: crate::crd::template_spec::Error,
-    },
+    #[snafu(display("failed to dereference SparkApplication"))]
+    DereferenceSparkApplication { source: dereference::Error },
+
+    #[snafu(display("failed to validate SparkApplication"))]
+    ValidateSparkApplication { source: validate::Error },
 
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
@@ -120,14 +117,6 @@ pub enum Error {
         source: stackable_operator::crd::s3::v1alpha1::BucketError,
     },
 
-    #[snafu(display("failed to configure S3 connection"))]
-    ConfigureS3Connection {
-        source: stackable_operator::crd::s3::v1alpha1::ConnectionError,
-    },
-
-    #[snafu(display("tls non-verification not supported"))]
-    S3TlsNoVerificationNotSupported,
-
     #[snafu(display("ca-cert verification not supported"))]
     S3TlsCaVerificationNotSupported,
 
@@ -141,9 +130,6 @@ pub enum Error {
     IllegalContainerName {
         source: stackable_operator::builder::pod::container::Error,
     },
-
-    #[snafu(display("failed to resolve the log dir configuration"))]
-    LogDir { source: crate::crd::logdir::Error },
 
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
@@ -167,9 +153,6 @@ pub enum Error {
     GenerateProductConfig {
         source: stackable_operator::product_config_utils::Error,
     },
-
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig { source: crate::crd::Error },
 
     #[snafu(display("invalid submit config"))]
     SubmitConfig { source: crate::crd::Error },
@@ -211,11 +194,6 @@ pub enum Error {
     InvalidSparkApplication {
         source: error_boundary::InvalidObject,
     },
-
-    #[snafu(display("failed to resolve product image"))]
-    ResolveProductImage {
-        source: product_image_selection::Error,
-    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -250,78 +228,29 @@ pub async fn reconcile(
 
     // It is important to do this at the top of the reconciliation function to ensure
     // all referenced resources and configuration are merged before any of them are created.
-    let merged_template_result =
-        &crate::crd::template_spec::merge_application_templates(client, spark_application)
-            .await
-            .context(MergeApplicationTemplatesSnafu)?;
-    let spark_application = match &merged_template_result.app {
-        Some(app) => app,
-        None => spark_application,
-    };
+    let dereferenced = dereference::dereference(client, spark_application)
+        .await
+        .context(DereferenceSparkApplicationSnafu)?;
+
+    let validated = validate::validate(
+        dereferenced,
+        &ctx.operator_environment,
+        &ctx.product_config,
+    )
+    .context(ValidateSparkApplicationSnafu)?;
+
+    let spark_application = &validated.dereferenced.spark_application;
+    let opt_s3conn = &validated.dereferenced.s3_connection;
+    let logdir = &validated.dereferenced.log_dir;
+    let resolved_product_image = &validated.resolved_product_image;
+    let validated_product_config = &validated.product_config;
 
     // This is the final version of the spark app to reconcile.
     // No more mutating operations after this point (except for status).
     tracing::debug!("reconciling spark application [{spark_application:?}]");
 
-    let opt_s3conn = match spark_application.spec.s3connection.as_ref() {
-        Some(s3bd) => Some(
-            s3bd.clone()
-                .resolve(
-                    client,
-                    // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-                    spark_application.metadata.namespace.as_deref().unwrap(),
-                )
-                .await
-                .context(ConfigureS3ConnectionSnafu)?,
-        ),
-        _ => None,
-    };
-
-    // check early for valid verification options
-    if let Some(conn) = opt_s3conn.as_ref() {
-        if let Some(tls) = &conn.tls.tls {
-            match &tls.verification {
-                TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                TlsVerification::Server(server_verification) => {
-                    match &server_verification.ca_cert {
-                        CaCert::WebPki {} => {}
-                        CaCert::SecretClass(_) => {}
-                    }
-                }
-            }
-        }
-    }
-
-    let logdir = if let Some(log_file_dir) = &spark_application.spec.log_file_directory {
-        Some(
-            ResolvedLogDir::resolve(
-                log_file_dir,
-                spark_application.metadata.namespace.clone(),
-                client,
-            )
-            .await
-            .context(LogDirSnafu)?,
-        )
-    } else {
-        None
-    };
-
-    let resolved_product_image = spark_application
-        .spec
-        .spark_image
-        .resolve(
-            CONTAINER_IMAGE_BASE_NAME,
-            &ctx.operator_environment.image_repository,
-            crate::built_info::PKG_VERSION,
-        )
-        .context(ResolveProductImageSnafu)?;
-
-    let validated_product_config: ValidatedRoleConfigByPropertyKind = spark_application
-        .validated_role_config(&resolved_product_image, &ctx.product_config)
-        .context(InvalidProductConfigSnafu)?;
-
     let (serviceaccount, rolebinding) =
-        build_spark_role_serviceaccount(spark_application, &resolved_product_image)?;
+        build_spark_role_serviceaccount(spark_application, resolved_product_image)?;
     client
         .apply_patch(SPARK_CONTROLLER_NAME, &serviceaccount, &serviceaccount)
         .await
@@ -331,7 +260,7 @@ pub async fn reconcile(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let env_vars = spark_application.env(&opt_s3conn, &logdir);
+    let env_vars = spark_application.env(opt_s3conn, logdir);
 
     let driver_config = spark_application
         .driver_config()
@@ -348,9 +277,9 @@ pub async fn reconcile(
         &driver_config,
         driver_product_config,
         &env_vars,
-        &opt_s3conn,
-        &logdir,
-        &resolved_product_image,
+        opt_s3conn,
+        logdir,
+        resolved_product_image,
         &serviceaccount,
     )?;
     client
@@ -377,9 +306,9 @@ pub async fn reconcile(
         &executor_config,
         executor_product_config,
         &env_vars,
-        &opt_s3conn,
-        &logdir,
-        &resolved_product_image,
+        opt_s3conn,
+        logdir,
+        resolved_product_image,
         &serviceaccount,
     )?;
     client
@@ -392,7 +321,7 @@ pub async fn reconcile(
         .context(ApplyApplicationSnafu)?;
 
     let job_commands = spark_application
-        .build_command(&opt_s3conn, &logdir, &resolved_product_image.image)
+        .build_command(opt_s3conn, logdir, &resolved_product_image.image)
         .context(BuildCommandSnafu)?;
 
     let submit_config = spark_application
@@ -407,7 +336,7 @@ pub async fn reconcile(
     let submit_job_config_map = submit_job_config_map(
         spark_application,
         submit_product_config,
-        &resolved_product_image,
+        resolved_product_image,
     )?;
     client
         .apply_patch(
@@ -420,12 +349,12 @@ pub async fn reconcile(
 
     let job = spark_job(
         spark_application,
-        &resolved_product_image,
+        resolved_product_image,
         &serviceaccount,
         &env_vars,
         &job_commands,
-        &opt_s3conn,
-        &logdir,
+        opt_s3conn,
+        logdir,
         &submit_config,
     )?;
     client
@@ -442,7 +371,7 @@ pub async fn reconcile(
             spark_application,
             &v1alpha1::SparkApplicationStatus {
                 phase: "Unknown".to_string(),
-                resolved_template_ref: merged_template_result.resolved_template_ref.clone(),
+                resolved_template_ref: validated.dereferenced.resolved_template_refs.clone(),
             },
         )
         .await

@@ -25,6 +25,9 @@ use crate::{
     crd::constants::{CONTAINER_IMAGE_BASE_NAME, OPERATOR_NAME},
 };
 
+pub mod dereference;
+pub mod validate;
+
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]

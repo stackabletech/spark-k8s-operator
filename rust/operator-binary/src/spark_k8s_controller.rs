@@ -66,6 +66,9 @@ use crate::{
     product_logging::{self},
 };
 
+pub mod dereference;
+pub mod validate;
+
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]

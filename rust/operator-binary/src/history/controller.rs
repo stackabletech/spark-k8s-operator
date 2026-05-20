@@ -326,8 +326,9 @@ pub async fn reconcile(
                 log_dir,
             )?;
 
-            let metrics_service = build_rolegroup_metrics_service(shs, resolved_product_image, &rgr)
-                .context(BuildMetricsServiceSnafu)?;
+            let metrics_service =
+                build_rolegroup_metrics_service(shs, resolved_product_image, &rgr)
+                    .context(BuildMetricsServiceSnafu)?;
 
             let sts = build_stateful_set(
                 shs,

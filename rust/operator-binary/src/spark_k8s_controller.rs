@@ -232,12 +232,9 @@ pub async fn reconcile(
         .await
         .context(DereferenceSparkApplicationSnafu)?;
 
-    let validated = validate::validate(
-        dereferenced,
-        &ctx.operator_environment,
-        &ctx.product_config,
-    )
-    .context(ValidateSparkApplicationSnafu)?;
+    let validated =
+        validate::validate(dereferenced, &ctx.operator_environment, &ctx.product_config)
+            .context(ValidateSparkApplicationSnafu)?;
 
     let spark_application = &validated.dereferenced.spark_application;
     let opt_s3conn = &validated.dereferenced.s3_connection;

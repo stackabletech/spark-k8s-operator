@@ -86,10 +86,12 @@ pub async fn dereference(
         if let Some(tls) = &conn.tls.tls {
             match &tls.verification {
                 TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                TlsVerification::Server(server_verification) => match &server_verification.ca_cert {
-                    CaCert::WebPki {} => {}
-                    CaCert::SecretClass(_) => {}
-                },
+                TlsVerification::Server(server_verification) => {
+                    match &server_verification.ca_cert {
+                        CaCert::WebPki {} => {}
+                        CaCert::SecretClass(_) => {}
+                    }
+                }
             }
         }
     }

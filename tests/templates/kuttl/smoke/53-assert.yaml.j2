@@ -1,0 +1,405 @@
+---
+# Snapshot the full `.data` of each SparkApplication-owned ConfigMap.
+# Any code change that alters rendered config values will fail these diffs.
+#
+# Runs as its own step (after 50/51/52) so kuttl does not re-evaluate the heavy
+# heredoc on every 1-second readiness retry of the install step. By this point
+# the cluster is in steady state, so each script runs once.
+#
+# The heredoc is quoted (`<<'YAMLEOF'`) so shell substitution is disabled and
+# any property-style escapes survive verbatim. Both sides are normalized to
+# canonical JSON via `yq -o=json` before comparison.
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 60
+commands:
+  - script: |
+      expected=$(cat <<'YAMLEOF' | yq -o=json
+      log4j2.properties: |-
+        appenders = FILE, CONSOLE
+
+        appender.CONSOLE.type = Console
+        appender.CONSOLE.name = CONSOLE
+        appender.CONSOLE.target = SYSTEM_ERR
+        appender.CONSOLE.layout.type = PatternLayout
+        appender.CONSOLE.layout.pattern = %d{ISO8601} %p [%t] %c - %m%n
+        appender.CONSOLE.filter.threshold.type = ThresholdFilter
+        appender.CONSOLE.filter.threshold.level = INFO
+
+        appender.FILE.type = RollingFile
+        appender.FILE.name = FILE
+        appender.FILE.fileName = /stackable/log/spark/spark.log4j2.xml
+        appender.FILE.filePattern = /stackable/log/spark/spark.log4j2.xml.%i
+        appender.FILE.layout.type = XMLLayout
+        appender.FILE.policies.type = Policies
+        appender.FILE.policies.size.type = SizeBasedTriggeringPolicy
+        appender.FILE.policies.size.size = 5MB
+        appender.FILE.strategy.type = DefaultRolloverStrategy
+        appender.FILE.strategy.max = 1
+        appender.FILE.filter.threshold.type = ThresholdFilter
+        appender.FILE.filter.threshold.level = INFO
+
+
+        rootLogger.level=INFO
+        rootLogger.appenderRefs = CONSOLE, FILE
+        rootLogger.appenderRef.CONSOLE.ref = CONSOLE
+        rootLogger.appenderRef.FILE.ref = FILE
+      security.properties: |
+        networkaddress.cache.negative.ttl=0
+        networkaddress.cache.ttl=30
+      spark-env.sh: ""
+      template.yaml: |
+        metadata:
+          labels:
+            app.kubernetes.io/component: spark
+            app.kubernetes.io/instance: spark-pi-s3-1
+            app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
+            app.kubernetes.io/name: spark-k8s
+            app.kubernetes.io/role-group: sparkapplication
+            app.kubernetes.io/version: 4.1.1-stackable0.0.0-dev
+            prometheus.io/scrape: 'true'
+            stackable.tech/vendor: Stackable
+          name: spark
+        spec:
+          affinity: {}
+          containers:
+          - env:
+            - name: CONTAINERDEBUG_LOG_DIRECTORY
+              value: /stackable/log/containerdebug
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+            - name: STACKABLE_TLS_STORE_PASSWORD
+              value: changeit
+{% endif %}
+            - name: _STACKABLE_PRE_HOOK
+              value: containerdebug --output=/stackable/log/containerdebug-state.json --loop &
+            image: oci.stackable.tech/sdp/spark-k8s:4.1.1-stackable0.0.0-dev
+            imagePullPolicy: IfNotPresent
+            name: spark
+            resources:
+              limits:
+                cpu: '1'
+                memory: 1Gi
+              requests:
+                cpu: 250m
+                memory: 1Gi
+            volumeMounts:
+            - mountPath: /stackable/secrets/s3-credentials-class
+              name: s3-credentials-class
+            - mountPath: /stackable/secrets/history-credentials-class
+              name: history-credentials-class
+            - mountPath: /stackable/log_config
+              name: log-config
+            - mountPath: /stackable/log
+              name: log
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+            - mountPath: /stackable/truststore
+              name: stackable-truststore
+            - mountPath: /stackable/mount_server_tls/minio-tls-eventlog
+              name: minio-tls-eventlog
+{% endif %}
+          enableServiceLinks: false
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+          initContainers:
+          - args:
+            - |-
+              cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out /stackable/truststore/truststore.p12 --out-password changeit
+              cert-tools generate-pkcs12-truststore --pkcs12 /stackable/truststore/truststore.p12:changeit --pkcs12 /stackable/mount_server_tls/minio-tls-eventlog/truststore.p12 --out /stackable/truststore/truststore.p12 --out-password changeit
+            command:
+            - /bin/bash
+            - -x
+            - -euo
+            - pipefail
+            - -c
+            image: oci.stackable.tech/sdp/spark-k8s:4.1.1-stackable0.0.0-dev
+            name: tls
+            resources:
+              limits:
+                cpu: 1000m
+                memory: 1024Mi
+              requests:
+                cpu: 250m
+                memory: 1024Mi
+            volumeMounts:
+            - mountPath: /stackable/mount_server_tls/minio-tls-eventlog
+              name: minio-tls-eventlog
+            - mountPath: /stackable/truststore
+              name: stackable-truststore
+{% endif %}
+          securityContext:
+            fsGroup: 1000
+          serviceAccountName: spark-pi-s3-1
+          volumes:
+          - ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/class: history-credentials-class
+                    secrets.stackable.tech/provision-parts: public-private
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: '1'
+                  storageClassName: secrets.stackable.tech
+            name: history-credentials-class
+          - emptyDir:
+              sizeLimit: 39Mi
+            name: log
+          - configMap:
+              name: spark-pi-s3-1-driver-pod-template
+            name: log-config
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+          - ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/backend.autotls.cert.lifetime: 1d
+                    secrets.stackable.tech/class: minio-tls-eventlog
+                    secrets.stackable.tech/format: tls-pkcs12
+                    secrets.stackable.tech/provision-parts: public
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: '1'
+                  storageClassName: secrets.stackable.tech
+            name: minio-tls-eventlog
+{% endif %}
+          - ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/class: s3-credentials-class
+                    secrets.stackable.tech/provision-parts: public-private
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: '1'
+                  storageClassName: secrets.stackable.tech
+            name: s3-credentials-class
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+          - emptyDir:
+              sizeLimit: 5Mi
+            name: stackable-truststore
+{% endif %}
+          - configMap:
+              name: spark-pi-s3-1-driver-pod-template
+            name: config
+      YAMLEOF
+      )
+      actual=$(kubectl -n $NAMESPACE get cm spark-pi-s3-1-driver-pod-template -o yaml | yq -o=json '.data')
+      if [ "$expected" != "$actual" ]; then
+        echo "ERROR: ConfigMap spark-pi-s3-1-driver-pod-template data drifted from snapshot."
+        echo "=== expected ==="
+        printf '%s\n' "$expected"
+        echo "=== actual ==="
+        printf '%s\n' "$actual"
+        exit 1
+      fi
+  - script: |
+      expected=$(cat <<'YAMLEOF' | yq -o=json
+      log4j2.properties: |-
+        appenders = FILE, CONSOLE
+
+        appender.CONSOLE.type = Console
+        appender.CONSOLE.name = CONSOLE
+        appender.CONSOLE.target = SYSTEM_ERR
+        appender.CONSOLE.layout.type = PatternLayout
+        appender.CONSOLE.layout.pattern = %d{ISO8601} %p [%t] %c - %m%n
+        appender.CONSOLE.filter.threshold.type = ThresholdFilter
+        appender.CONSOLE.filter.threshold.level = INFO
+
+        appender.FILE.type = RollingFile
+        appender.FILE.name = FILE
+        appender.FILE.fileName = /stackable/log/spark/spark.log4j2.xml
+        appender.FILE.filePattern = /stackable/log/spark/spark.log4j2.xml.%i
+        appender.FILE.layout.type = XMLLayout
+        appender.FILE.policies.type = Policies
+        appender.FILE.policies.size.type = SizeBasedTriggeringPolicy
+        appender.FILE.policies.size.size = 5MB
+        appender.FILE.strategy.type = DefaultRolloverStrategy
+        appender.FILE.strategy.max = 1
+        appender.FILE.filter.threshold.type = ThresholdFilter
+        appender.FILE.filter.threshold.level = INFO
+
+
+        rootLogger.level=INFO
+        rootLogger.appenderRefs = CONSOLE, FILE
+        rootLogger.appenderRef.CONSOLE.ref = CONSOLE
+        rootLogger.appenderRef.FILE.ref = FILE
+      security.properties: |
+        networkaddress.cache.negative.ttl=0
+        networkaddress.cache.ttl=30
+      spark-env.sh: ""
+      template.yaml: |
+        metadata:
+          labels:
+            app.kubernetes.io/component: spark
+            app.kubernetes.io/instance: spark-pi-s3-1
+            app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
+            app.kubernetes.io/name: spark-k8s
+            app.kubernetes.io/role-group: sparkapplication
+            app.kubernetes.io/version: 4.1.1-stackable0.0.0-dev
+            stackable.tech/vendor: Stackable
+          name: spark
+        spec:
+          affinity: {}
+          containers:
+          - env:
+            - name: CONTAINERDEBUG_LOG_DIRECTORY
+              value: /stackable/log/containerdebug
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+            - name: STACKABLE_TLS_STORE_PASSWORD
+              value: changeit
+{% endif %}
+            - name: _STACKABLE_PRE_HOOK
+              value: containerdebug --output=/stackable/log/containerdebug-state.json --loop &
+            image: oci.stackable.tech/sdp/spark-k8s:4.1.1-stackable0.0.0-dev
+            imagePullPolicy: IfNotPresent
+            name: spark
+            resources:
+              limits:
+                cpu: '1'
+                memory: 1Gi
+              requests:
+                cpu: 250m
+                memory: 1Gi
+            volumeMounts:
+            - mountPath: /stackable/secrets/s3-credentials-class
+              name: s3-credentials-class
+            - mountPath: /stackable/secrets/history-credentials-class
+              name: history-credentials-class
+            - mountPath: /stackable/log_config
+              name: log-config
+            - mountPath: /stackable/log
+              name: log
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+            - mountPath: /stackable/truststore
+              name: stackable-truststore
+            - mountPath: /stackable/mount_server_tls/minio-tls-eventlog
+              name: minio-tls-eventlog
+{% endif %}
+          enableServiceLinks: false
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+          initContainers:
+          - args:
+            - |-
+              cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out /stackable/truststore/truststore.p12 --out-password changeit
+              cert-tools generate-pkcs12-truststore --pkcs12 /stackable/truststore/truststore.p12:changeit --pkcs12 /stackable/mount_server_tls/minio-tls-eventlog/truststore.p12 --out /stackable/truststore/truststore.p12 --out-password changeit
+            command:
+            - /bin/bash
+            - -x
+            - -euo
+            - pipefail
+            - -c
+            image: oci.stackable.tech/sdp/spark-k8s:4.1.1-stackable0.0.0-dev
+            name: tls
+            resources:
+              limits:
+                cpu: 1000m
+                memory: 1024Mi
+              requests:
+                cpu: 250m
+                memory: 1024Mi
+            volumeMounts:
+            - mountPath: /stackable/mount_server_tls/minio-tls-eventlog
+              name: minio-tls-eventlog
+            - mountPath: /stackable/truststore
+              name: stackable-truststore
+{% endif %}
+          securityContext:
+            fsGroup: 1000
+          serviceAccountName: spark-pi-s3-1
+          volumes:
+          - ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/class: history-credentials-class
+                    secrets.stackable.tech/provision-parts: public-private
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: '1'
+                  storageClassName: secrets.stackable.tech
+            name: history-credentials-class
+          - emptyDir:
+              sizeLimit: 39Mi
+            name: log
+          - configMap:
+              name: spark-pi-s3-1-executor-pod-template
+            name: log-config
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+          - ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/backend.autotls.cert.lifetime: 1d
+                    secrets.stackable.tech/class: minio-tls-eventlog
+                    secrets.stackable.tech/format: tls-pkcs12
+                    secrets.stackable.tech/provision-parts: public
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: '1'
+                  storageClassName: secrets.stackable.tech
+            name: minio-tls-eventlog
+{% endif %}
+          - ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/class: s3-credentials-class
+                    secrets.stackable.tech/provision-parts: public-private
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: '1'
+                  storageClassName: secrets.stackable.tech
+            name: s3-credentials-class
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+          - emptyDir:
+              sizeLimit: 5Mi
+            name: stackable-truststore
+{% endif %}
+          - configMap:
+              name: spark-pi-s3-1-executor-pod-template
+            name: config
+      YAMLEOF
+      )
+      actual=$(kubectl -n $NAMESPACE get cm spark-pi-s3-1-executor-pod-template -o yaml | yq -o=json '.data')
+      if [ "$expected" != "$actual" ]; then
+        echo "ERROR: ConfigMap spark-pi-s3-1-executor-pod-template data drifted from snapshot."
+        echo "=== expected ==="
+        printf '%s\n' "$expected"
+        echo "=== actual ==="
+        printf '%s\n' "$actual"
+        exit 1
+      fi
+  - script: |
+      expected=$(cat <<'YAMLEOF' | yq -o=json
+      security.properties: |
+        networkaddress.cache.negative.ttl=0
+        networkaddress.cache.ttl=30
+      spark-env.sh: ""
+      YAMLEOF
+      )
+      actual=$(kubectl -n $NAMESPACE get cm spark-pi-s3-1-submit-job -o yaml | yq -o=json '.data')
+      if [ "$expected" != "$actual" ]; then
+        echo "ERROR: ConfigMap spark-pi-s3-1-submit-job data drifted from snapshot."
+        echo "=== expected ==="
+        printf '%s\n' "$expected"
+        echo "=== actual ==="
+        printf '%s\n' "$actual"
+        exit 1
+      fi

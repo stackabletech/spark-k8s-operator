@@ -237,7 +237,7 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to resolve product image"))]
+    #[snafu(display("failed to build metrics service"))]
     BuildMetricsService { source: service::Error },
 }
 

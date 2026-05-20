@@ -1,0 +1,213 @@
+---
+# Snapshot the full `.data` of each operator-managed ConfigMap.
+# Any code change that alters rendered config values will fail these diffs.
+#
+# Runs as its own step (after 10/11/12) so kuttl does not re-evaluate the heavy
+# heredoc on every 1-second readiness retry of the install step.
+#
+# The heredoc is quoted (`<<'YAMLEOF'`) so shell substitution is disabled and
+# property-style escapes (`\:`, `\=`) survive verbatim. Only `__NAMESPACE__` is
+# substituted afterwards via `sed`, because kuttl tests run in a randomized
+# namespace per invocation. Both sides are normalized to canonical JSON via
+# `yq -o=json` before comparison.
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 60
+commands:
+  - script: |
+      expected=$(cat <<'YAMLEOF' | sed "s|__NAMESPACE__|$NAMESPACE|g" | yq -o=json
+      metrics.properties: |
+        *.sink.prometheusServlet.class=org.apache.spark.metrics.sink.PrometheusServlet
+        *.sink.prometheusServlet.path=/metrics/prometheus
+      security.properties: |
+        networkaddress.cache.negative.ttl=0
+        networkaddress.cache.ttl=30
+      spark-defaults.conf: |
+        spark.driver.defaultJavaOptions=-Djava.security.properties\=/stackable/spark/conf/security.properties\ -Dlog4j.configurationFile\=/stackable/log_config/log4j2.properties\ -Dmy.custom.jvm.arg\=customValue
+        spark.driver.extraClassPath=/stackable/spark/extra-jars/*\:/stackable/spark/connect/spark-connect-4.1.1.jar
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        spark.driver.extraJavaOptions=-Djavax.net.ssl.trustStore\=/stackable/truststore/truststore.p12\ -Djavax.net.ssl.trustStorePassword\=changeit\ -Djavax.net.ssl.trustStoreType\=pkcs12
+{% endif %}
+        spark.driver.host=spark-connect-server-headless
+        spark.executor.defaultJavaOptions=-Djava.security.properties\=/stackable/spark/conf/security.properties\ -Dlog4j.configurationFile\=/stackable/log_config/log4j2.properties
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        spark.executor.extraJavaOptions=-Djavax.net.ssl.trustStore\=/stackable/truststore/truststore.p12\ -Djavax.net.ssl.trustStorePassword\=changeit\ -Djavax.net.ssl.trustStoreType\=pkcs12
+{% endif %}
+        spark.executor.instances=1
+        spark.executor.memory=1024M
+        spark.executor.memoryOverhead=1m
+        spark.hadoop.fs.s3a.access.key=${file\:UTF-8\:/stackable/secrets/minio-credentials-class/accessKey}
+        spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+        spark.hadoop.fs.s3a.bucket.ingest-bucket.access.key=${file\:UTF-8\:/stackable/secrets/minio-credentials-class/accessKey}
+        spark.hadoop.fs.s3a.bucket.ingest-bucket.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        spark.hadoop.fs.s3a.bucket.ingest-bucket.endpoint=https\://minio\:9000/
+{% else %}
+        spark.hadoop.fs.s3a.bucket.ingest-bucket.endpoint=http\://minio\:9000/
+{% endif %}
+        spark.hadoop.fs.s3a.bucket.ingest-bucket.endpoint.region=us-east-1
+        spark.hadoop.fs.s3a.bucket.ingest-bucket.path.style.access=true
+        spark.hadoop.fs.s3a.bucket.ingest-bucket.secret.key=${file\:UTF-8\:/stackable/secrets/minio-credentials-class/secretKey}
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        spark.hadoop.fs.s3a.endpoint=https\://minio\:9000/
+{% else %}
+        spark.hadoop.fs.s3a.endpoint=http\://minio\:9000/
+{% endif %}
+        spark.hadoop.fs.s3a.endpoint.region=us-east-1
+        spark.hadoop.fs.s3a.path.style.access=true
+        spark.hadoop.fs.s3a.secret.key=${file\:UTF-8\:/stackable/secrets/minio-credentials-class/secretKey}
+        spark.jars.ivy=/tmp/ivy2
+        spark.kubernetes.authenticate.driver.serviceAccountName=spark-connect-serviceaccount
+        spark.kubernetes.driver.container.image=oci.stackable.tech/sdp/spark-k8s\:4.1.1-stackable0.0.0-dev
+        spark.kubernetes.driver.pod.name=${env\:HOSTNAME}
+        spark.kubernetes.executor.container.image=oci.stackable.tech/sdp/spark-k8s\:4.1.1-stackable0.0.0-dev
+        spark.kubernetes.executor.limit.cores=1
+        spark.kubernetes.executor.podTemplateContainerName=spark
+        spark.kubernetes.executor.podTemplateFile=/stackable/spark/conf/template.yaml
+        spark.kubernetes.executor.request.cores=1
+        spark.kubernetes.namespace=__NAMESPACE__
+        spark.metrics.conf=/stackable/spark/conf/metrics.properties
+        spark.ui.prometheus.enabled=true
+      template.yaml: |
+        metadata:
+          labels:
+            app.kubernetes.io/component: executor
+            app.kubernetes.io/instance: spark-connect
+            app.kubernetes.io/managed-by: spark.stackable.tech_connect
+            app.kubernetes.io/name: spark-connect
+            app.kubernetes.io/role-group: default
+            app.kubernetes.io/version: 4.1.1-stackable0.0.0-dev
+            stackable.tech/vendor: Stackable
+        spec:
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/component: executor
+                      app.kubernetes.io/instance: spark-connect
+                      app.kubernetes.io/name: spark-connect
+                  topologyKey: kubernetes.io/hostname
+                weight: 70
+          containers:
+          - env:
+            - name: CONTAINERDEBUG_LOG_DIRECTORY
+              value: /stackable/log/containerdebug
+            name: spark
+            volumeMounts:
+            - mountPath: /stackable/spark/conf
+              name: config
+            - mountPath: /stackable/log
+              name: log
+            - mountPath: /stackable/secrets/minio-credentials-class
+              name: minio-credentials-class-s3-credentials
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+            - mountPath: /stackable/secrets/minio-tls-ca
+              name: minio-tls-ca-ca-cert
+{% endif %}
+            - mountPath: /stackable/truststore
+              name: stackable-truststore
+            - mountPath: /stackable/log_config
+              name: log-config
+          enableServiceLinks: false
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+          initContainers:
+          - command:
+            - /bin/bash
+            - -x
+            - -euo
+            - pipefail
+            - -c
+            - cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out /stackable/truststore/truststore.p12 --out-password changeit && cert-tools generate-pkcs12-truststore --out /stackable/truststore/truststore.p12 --out-password changeit --pkcs12 /stackable/truststore/truststore.p12:changeit --pem /stackable/secrets/minio-tls-ca/ca.crt
+            image: oci.stackable.tech/sdp/spark-k8s:4.1.1-stackable0.0.0-dev
+            name: tls-truststore-init
+            resources:
+              limits:
+                cpu: 10m
+                memory: 128Mi
+              requests:
+                cpu: 10m
+                memory: 128Mi
+            volumeMounts:
+            - mountPath: /stackable/secrets/minio-credentials-class
+              name: minio-credentials-class-s3-credentials
+            - mountPath: /stackable/secrets/minio-tls-ca
+              name: minio-tls-ca-ca-cert
+            - mountPath: /stackable/truststore
+              name: stackable-truststore
+{% endif %}
+          securityContext:
+            fsGroup: 1000
+          volumes:
+          - emptyDir:
+              sizeLimit: 30Mi
+            name: log
+          - configMap:
+              name: spark-connect-executor
+            name: config
+          - ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/class: minio-credentials-class
+                    secrets.stackable.tech/provision-parts: public-private
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: '1'
+                  storageClassName: secrets.stackable.tech
+            name: minio-credentials-class-s3-credentials
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+          - ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/class: minio-tls-ca
+                    secrets.stackable.tech/provision-parts: public
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: '1'
+                  storageClassName: secrets.stackable.tech
+            name: minio-tls-ca-ca-cert
+{% endif %}
+          - emptyDir: {}
+            name: stackable-truststore
+          - configMap:
+              name: spark-connect-log-config
+            name: log-config
+      YAMLEOF
+      )
+      actual=$(kubectl -n $NAMESPACE get cm spark-connect-server -o yaml | yq -o=json '.data')
+      if [ "$expected" != "$actual" ]; then
+        echo "ERROR: ConfigMap spark-connect-server data drifted from snapshot."
+        echo "=== expected ==="
+        printf '%s\n' "$expected"
+        echo "=== actual ==="
+        printf '%s\n' "$actual"
+        exit 1
+      fi
+  - script: |
+      expected=$(cat <<'YAMLEOF' | yq -o=json
+      metrics.properties: |
+        *.sink.prometheusServlet.class=org.apache.spark.metrics.sink.PrometheusServlet
+        *.sink.prometheusServlet.path=/metrics/prometheus
+      security.properties: |
+        networkaddress.cache.negative.ttl=0
+        networkaddress.cache.ttl=30
+      YAMLEOF
+      )
+      actual=$(kubectl -n $NAMESPACE get cm spark-connect-executor -o yaml | yq -o=json '.data')
+      if [ "$expected" != "$actual" ]; then
+        echo "ERROR: ConfigMap spark-connect-executor data drifted from snapshot."
+        echo "=== expected ==="
+        printf '%s\n' "$expected"
+        echo "=== actual ==="
+        printf '%s\n' "$actual"
+        exit 1
+      fi

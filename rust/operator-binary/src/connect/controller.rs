@@ -3,7 +3,7 @@ use std::sync::Arc;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{product_image_selection, rbac::build_rbac_resources},
+    commons::rbac::build_rbac_resources,
     kube::{
         Resource, ResourceExt,
         core::{DeserializeGuard, error_boundary},
@@ -21,8 +21,8 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use super::crd::{CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, v1alpha1};
 use crate::{
     Ctx,
-    connect::{common, crd::SparkConnectServerStatus, executor, s3, server, service},
-    crd::constants::{CONTAINER_IMAGE_BASE_NAME, OPERATOR_NAME},
+    connect::{common, crd::SparkConnectServerStatus, executor, server, service},
+    crd::constants::OPERATOR_NAME,
 };
 
 pub mod dereference;
@@ -127,11 +127,6 @@ pub enum Error {
     BuildRbacResources {
         source: stackable_operator::commons::rbac::Error,
     },
-    #[snafu(display("failed to build connect server configuration"))]
-    ServerConfig { source: crate::connect::crd::Error },
-
-    #[snafu(display("failed to build connect executor configuration"))]
-    ExecutorConfig { source: crate::connect::crd::Error },
 
     #[snafu(display("failed to build connect executor pod template"))]
     ExecutorPodTemplate {
@@ -141,16 +136,14 @@ pub enum Error {
     #[snafu(display("failed to serialize executor pod template"))]
     ExecutorPodTemplateSerde { source: serde_yaml::Error },
 
-    #[snafu(display("failed to resolve product image"))]
-    ResolveProductImage {
-        source: product_image_selection::Error,
-    },
-
-    #[snafu(display("failed to resolve S3 connections for SparkConnectServer {name:?}"))]
-    ResolveS3Connections { source: s3::Error, name: String },
-
     #[snafu(display("failed to build connect server S3 properties"))]
     S3SparkProperties { source: crate::connect::s3::Error },
+
+    #[snafu(display("failed to dereference SparkConnectServer"))]
+    DereferenceSparkConnectServer { source: dereference::Error },
+
+    #[snafu(display("failed to validate SparkConnectServer"))]
+    ValidateSparkConnectServer { source: validate::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -173,11 +166,21 @@ pub async fn reconcile(
         .map_err(error_boundary::InvalidObject::clone)
         .context(InvalidSparkConnectServerSnafu)?;
 
-    let server_config = scs.server_config().context(ServerConfigSnafu)?;
-    let server_role_config = &scs.spec.server.role_config;
-    let executor_config = scs.executor_config().context(ExecutorConfigSnafu)?;
-
     let client = &ctx.client;
+
+    let dereferenced = dereference::dereference(client, scs)
+        .await
+        .context(DereferenceSparkConnectServerSnafu)?;
+
+    let validated = validate::validate(scs, dereferenced, &ctx.operator_environment)
+        .context(ValidateSparkConnectServerSnafu)?;
+
+    let server_config = &validated.server_config;
+    let executor_config = &validated.executor_config;
+    let resolved_product_image = &validated.resolved_product_image;
+    let resolved_s3 = &validated.dereferenced.resolved_s3;
+
+    let server_role_config = &scs.spec.server.role_config;
 
     let mut cluster_resources = ClusterResources::new(
         CONNECT_APP_NAME,
@@ -188,23 +191,6 @@ pub async fn reconcile(
         &scs.spec.object_overrides,
     )
     .context(CreateClusterResourcesSnafu)?;
-
-    let resolved_product_image = scs
-        .spec
-        .image
-        .resolve(
-            CONTAINER_IMAGE_BASE_NAME,
-            &ctx.operator_environment.image_repository,
-            crate::built_info::PKG_VERSION,
-        )
-        .context(ResolveProductImageSnafu)?;
-
-    // Resolve any S3 connections early to fail fast if there are issues.
-    let resolved_s3 = s3::ResolvedS3::resolve(client, scs)
-        .await
-        .with_context(|_| ResolveS3ConnectionsSnafu {
-            name: scs.name_unchecked(),
-        })?;
 
     // Use a dedicated service account for connect server pods.
     let (service_account, role_binding) = build_rbac_resources(
@@ -254,13 +240,13 @@ pub async fn reconcile(
             .context(S3SparkPropertiesSnafu)?,
         server::server_properties(
             scs,
-            &server_config,
+            server_config,
             &applied_headless_service,
             &service_account,
-            &resolved_product_image,
+            resolved_product_image,
         )
         .context(ServerPropertiesSnafu)?,
-        executor::executor_properties(scs, &executor_config, &resolved_product_image)
+        executor::executor_properties(scs, executor_config, resolved_product_image)
             .context(ExecutorPropertiesSnafu)?,
     ])
     .context(SerializePropertiesSnafu)?;
@@ -268,7 +254,7 @@ pub async fn reconcile(
     // ========================================
     // Executor config map and pod template
     let executor_config_map =
-        executor::executor_config_map(scs, &executor_config, &resolved_product_image).context(
+        executor::executor_config_map(scs, executor_config, resolved_product_image).context(
             BuildExecutorConfigMapSnafu {
                 name: scs.name_unchecked(),
             },
@@ -283,10 +269,10 @@ pub async fn reconcile(
     let executor_pod_template = serde_yaml::to_string(
         &executor::executor_pod_template(
             scs,
-            &executor_config,
-            &resolved_product_image,
+            executor_config,
+            resolved_product_image,
             &executor_config_map,
-            &resolved_s3,
+            resolved_s3,
         )
         .context(ExecutorPodTemplateSnafu)?,
     )
@@ -296,8 +282,8 @@ pub async fn reconcile(
     // Server config map
     let server_config_map = server::server_config_map(
         scs,
-        &server_config,
-        &resolved_product_image,
+        server_config,
+        resolved_product_image,
         &spark_props,
         &executor_pod_template,
     )
@@ -313,7 +299,7 @@ pub async fn reconcile(
 
     // ========================================
     // Server listener
-    let listener = server::build_listener(scs, server_role_config, &resolved_product_image)
+    let listener = server::build_listener(scs, server_role_config, resolved_product_image)
         .context(BuildListenerSnafu)?;
 
     let applied_listener = cluster_resources
@@ -326,13 +312,13 @@ pub async fn reconcile(
     let args = server::command_args(&scs.spec.args);
     let stateful_set = server::build_stateful_set(
         scs,
-        &server_config,
-        &resolved_product_image,
+        server_config,
+        resolved_product_image,
         &service_account,
         &server_config_map,
         &applied_listener.name_any(),
         args,
-        &resolved_s3,
+        resolved_s3,
     )
     .context(BuildServerStatefulSetSnafu)?;
 

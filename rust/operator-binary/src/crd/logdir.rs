@@ -26,14 +26,8 @@ use crate::crd::{
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("missing bucket name for history logs"))]
-    BucketNameMissing,
-
     #[snafu(display("tls non-verification not supported"))]
     S3TlsNoVerificationNotSupported,
-
-    #[snafu(display("ca-cert verification not supported"))]
-    S3TlsCaVerificationNotSupported,
 
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {

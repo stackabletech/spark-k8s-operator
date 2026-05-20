@@ -78,9 +78,6 @@ pub enum Error {
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
 
-    #[snafu(display("object has no namespace"))]
-    ObjectHasNoNamespace,
-
     #[snafu(display("object is missing metadata to build owner reference"))]
     ObjectMissingMetadataForOwnerRef {
         source: stackable_operator::builder::meta::Error,
@@ -112,19 +109,8 @@ pub enum Error {
     #[snafu(display("pod template serialization"))]
     PodTemplateSerde { source: serde_yaml::Error },
 
-    #[snafu(display("failed to configure S3 bucket"))]
-    ConfigureS3Bucket {
-        source: stackable_operator::crd::s3::v1alpha1::BucketError,
-    },
-
-    #[snafu(display("ca-cert verification not supported"))]
-    S3TlsCaVerificationNotSupported,
-
     #[snafu(display("failed to resolve and merge config"))]
     FailedToResolveConfig { source: crate::crd::Error },
-
-    #[snafu(display("failed to recognise the container name"))]
-    UnrecognisedContainerName,
 
     #[snafu(display("illegal container name"))]
     IllegalContainerName {
@@ -149,11 +135,6 @@ pub enum Error {
         role: SparkApplicationRole,
     },
 
-    #[snafu(display("failed to generate product config"))]
-    GenerateProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
     #[snafu(display("invalid submit config"))]
     SubmitConfig { source: crate::crd::Error },
 
@@ -165,12 +146,6 @@ pub enum Error {
     #[snafu(display("failed to build Metadata"))]
     MetadataBuild {
         source: stackable_operator::builder::meta::Error,
-    },
-
-    #[snafu(display("failed to get required Labels"))]
-    GetRequiredLabels {
-        source:
-            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
     },
 
     #[snafu(display("failed to create Volumes for SparkApplication"))]

@@ -1,0 +1,40 @@
+---
+# Snapshot the full `.data` of each operator-managed ConfigMap.
+# Any code change that alters rendered config values will fail these diffs.
+#
+# Runs as its own step (after 40/41/42) so kuttl does not re-evaluate the heavy
+# heredoc on every 1-second readiness retry of the install step. By this point
+# the cluster is in steady state, so each script runs once.
+#
+# The heredoc is quoted (`<<'YAMLEOF'`) so shell substitution is disabled and
+# any property-style escapes survive verbatim. Both sides are normalized to
+# canonical JSON via `yq -o=json` before comparison.
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 60
+commands:
+  - script: |
+      expected=$(cat <<'YAMLEOF' | yq -o=json
+      security.properties: ""
+      spark-defaults.conf: |-
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        spark.hadoop.fs.s3a.endpoint https://eventlog-minio:9000/
+{% else %}
+        spark.hadoop.fs.s3a.endpoint http://eventlog-minio:9000/
+{% endif %}
+        spark.hadoop.fs.s3a.endpoint.region us-east-1
+        spark.hadoop.fs.s3a.path.style.access true
+        spark.history.fs.cleaner.enabled true
+        spark.history.fs.logDirectory s3a://spark-logs/eventlogs/
+      spark-env.sh: ""
+      YAMLEOF
+      )
+      actual=$(kubectl -n $NAMESPACE get cm spark-history-node-default -o yaml | yq -o=json '.data')
+      if [ "$expected" != "$actual" ]; then
+        echo "ERROR: ConfigMap spark-history-node-default data drifted from snapshot."
+        echo "=== expected ==="
+        printf '%s\n' "$expected"
+        echo "=== actual ==="
+        printf '%s\n' "$actual"
+        exit 1
+      fi

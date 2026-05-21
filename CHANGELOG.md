@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
   - `SparkApplication`: `spark-env.sh` and `security.properties`
   - `SparkHistoryServer`: `spark-defaults.conf`, `spark-env.sh` and `security.properties`
   - `SparkConnectServer`: `spark-defaults.conf`, `metrics.properties` and `security.properties`
+- Internal operator refactoring: introduce dereference() and validate() steps in the reconciler for spark application, spark connect and spark history server([#687]).
 
   Previously, arbitrary file names were silently accepted and ignored ([#679]).
 - Bump `stackable-operator` to 0.110.1 ([#679]).
@@ -27,6 +28,7 @@ All notable changes to this project will be documented in this file.
 [#679]: https://github.com/stackabletech/spark-k8s-operator/pull/679
 [#680]: https://github.com/stackabletech/spark-k8s-operator/pull/680
 [#684]: https://github.com/stackabletech/spark-k8s-operator/pull/684
+[#687]: https://github.com/stackabletech/spark-k8s-operator/pull/687
 
 ## [26.3.0] - 2026-03-16
 

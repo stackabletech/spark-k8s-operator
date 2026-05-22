@@ -173,7 +173,7 @@ jobs:
           build-arguments: VERSION=${{ steps.version.outputs.OPERATOR_VERSION }}
           container-file: docker/Dockerfile
 
-      - name: Publish Container Image
+      - name: Publish Container Image to oci.stackable.tech
         if: ${{ !github.event.pull_request.head.repo.fork }}
         uses: stackabletech/actions/publish-image@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
@@ -181,6 +181,17 @@ jobs:
           image-registry-username: robot$sdp+github-action-build
           image-registry-password: ${{ secrets.HARBOR_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
           image-repository: sdp/${{ env.OPERATOR_NAME }}
+          image-manifest-tag: ${{ steps.build.outputs.image-manifest-tag }}
+          source-image-uri: ${{ steps.build.outputs.image-manifest-uri }}
+
+      - name: Publish Container Image to quay.io
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        uses: stackabletech/actions/publish-image@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
+        with:
+          image-registry-uri: quay.io
+          image-registry-username: stackable+robot_sdp_github_action_build
+          image-registry-password: ${{ secrets.QUAY_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
+          image-repository: stackable/sdp/${{ env.OPERATOR_NAME }}
           image-manifest-tag: ${{ steps.build.outputs.image-manifest-tag }}
           source-image-uri: ${{ steps.build.outputs.image-manifest-uri }}
 
@@ -202,13 +213,22 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Publish and Sign Image Index
+      - name: Publish and Sign Image Index to oci.stackable.tech
         uses: stackabletech/actions/publish-image-index-manifest@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
           image-registry-password: ${{ secrets.HARBOR_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
           image-repository: sdp/${{ env.OPERATOR_NAME }}
+          image-index-manifest-tag: ${{ needs.build-container-image.outputs.operator-version }}
+
+      - name: Publish and Sign Image Index to quay.io
+        uses: stackabletech/actions/publish-image-index-manifest@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
+        with:
+          image-registry-uri: quay.io
+          image-registry-username: stackable+robot_sdp_github_action_build
+          image-registry-password: ${{ secrets.QUAY_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
+          image-repository: stackable/sdp/${{ env.OPERATOR_NAME }}
           image-index-manifest-tag: ${{ needs.build-container-image.outputs.operator-version }}
 
   publish-helm-chart:
@@ -229,13 +249,25 @@ jobs:
           persist-credentials: false
           submodules: recursive
 
-      - name: Package, Publish, and Sign Helm Chart
+      - name: Package, Publish, and Sign Helm Chart to oci.stackable.tech
         uses: stackabletech/actions/publish-helm-chart@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           chart-registry-uri: oci.stackable.tech
           chart-registry-username: robot$sdp-charts+github-action-build
           chart-registry-password: ${{ secrets.HARBOR_ROBOT_SDP_CHARTS_GITHUB_ACTION_BUILD_SECRET }}
           chart-repository: sdp-charts
+          chart-directory: deploy/helm/${{ env.OPERATOR_NAME }}
+          chart-version: ${{ needs.build-container-image.outputs.operator-version }}
+          app-version: ${{ needs.build-container-image.outputs.operator-version }}
+          publish-and-sign: ${{ !github.event.pull_request.head.repo.fork }}
+
+      - name: Package, Publish, and Sign Helm Chart to quay.io
+        uses: stackabletech/actions/publish-helm-chart@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
+        with:
+          chart-registry-uri: quay.io
+          chart-registry-username: stackable+robot_sdp_charts_github_action_build
+          chart-registry-password: ${{ secrets.QUAY_ROBOT_SDP_CHARTS_GITHUB_ACTION_BUILD_SECRET }}
+          chart-repository: stackable/sdp-charts
           chart-directory: deploy/helm/${{ env.OPERATOR_NAME }}
           chart-version: ${{ needs.build-container-image.outputs.operator-version }}
           app-version: ${{ needs.build-container-image.outputs.operator-version }}
@@ -259,10 +291,16 @@ jobs:
           - arm64
     runs-on: ubuntu-latest
     steps:
-      - name: Run OpenShift Preflight Check
+      - name: Run OpenShift Preflight Check for oci.stackable.tech
         uses: stackabletech/actions/run-openshift-preflight@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
         with:
           image-index-uri: oci.stackable.tech/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
+          image-architecture: ${{ matrix.arch }}
+
+      - name: Run OpenShift Preflight Check for quay.io
+        uses: stackabletech/actions/run-openshift-preflight@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
+        with:
+          image-index-uri: quay.io/stackable/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
 
   # This job is a required check in GitHub Settings for this repository.

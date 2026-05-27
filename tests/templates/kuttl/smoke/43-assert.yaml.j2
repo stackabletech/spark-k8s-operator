@@ -30,11 +30,13 @@ commands:
       YAMLEOF
       )
       actual=$(kubectl -n $NAMESPACE get cm spark-history-node-default -o yaml | yq -o=json '.data')
-      if [ "$expected" != "$actual" ]; then
+      expected_file=$(mktemp) && actual_file=$(mktemp)
+      printf '%s\n' "$expected" > "$expected_file"
+      printf '%s\n' "$actual" > "$actual_file"
+      if ! diff_out=$(diff -u "$expected_file" "$actual_file"); then
         echo "ERROR: ConfigMap spark-history-node-default data drifted from snapshot."
-        echo "=== expected ==="
-        printf '%s\n' "$expected"
-        echo "=== actual ==="
-        printf '%s\n' "$actual"
+        printf '%s\n' "$diff_out"
+        rm -f "$expected_file" "$actual_file"
         exit 1
       fi
+      rm -f "$expected_file" "$actual_file"

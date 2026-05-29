@@ -22,11 +22,13 @@ All notable changes to this project will be documented in this file.
 
   Previously, arbitrary file names were silently accepted and ignored ([#679]).
 - Bump `stackable-operator` to 0.110.1 ([#679]).
+- test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#689]).
 
 [#674]: https://github.com/stackabletech/spark-k8s-operator/pull/674
 [#679]: https://github.com/stackabletech/spark-k8s-operator/pull/679
 [#680]: https://github.com/stackabletech/spark-k8s-operator/pull/680
 [#684]: https://github.com/stackabletech/spark-k8s-operator/pull/684
+[#689]: https://github.com/stackabletech/spark-k8s-operator/pull/689
 
 ## [26.3.0] - 2026-03-16
 

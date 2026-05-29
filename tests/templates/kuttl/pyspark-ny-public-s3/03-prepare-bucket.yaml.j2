@@ -2,12 +2,20 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  # give minio enough time to start
-  - command: sleep 10
-  - command: kubectl cp -n $NAMESPACE ny_tlc_report.py minio-client:/tmp
-  - command: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv minio-client:/tmp
-  - command: kubectl exec -n $NAMESPACE minio-client -- sh -c 'mc alias set test-minio http://test-minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc mb test-minio/my-bucket
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc anonymous set public test-minio/my-bucket
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc cp /tmp/ny_tlc_report.py test-minio/my-bucket
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc cp /tmp/yellow_tripdata_2021-07.csv test-minio/my-bucket
+  # Wait for Garage to be ready
+  - command: sleep 5
+  # Configure Garage cluster layout, create key, and create bucket
+  - script: |-
+      GARAGE_POD=$(kubectl get pod -n $NAMESPACE -l app=test-garage -o jsonpath='{.items[0].metadata.name}')
+      NODE_ID=$(kubectl exec -n $NAMESPACE $GARAGE_POD -- garage node id -q 2>/dev/null | cut -c1-16)
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage layout assign -z dc1 -c 1G $NODE_ID
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage layout apply --version 1
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage key import -n testkey s3AccessKey s3SecretKey
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket create my-bucket
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket allow --read --write --owner my-bucket --key testkey
+  # Copy test data into the client pod
+  - command: kubectl cp -n $NAMESPACE ny_tlc_report.py garage-client:/tmp
+  - command: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv garage-client:/tmp
+  # Upload test data to Garage via AWS CLI
+  - command: kubectl exec -n $NAMESPACE garage-client -- aws --endpoint-url http://test-garage:3900 s3 cp /tmp/ny_tlc_report.py s3://my-bucket/
+  - command: kubectl exec -n $NAMESPACE garage-client -- aws --endpoint-url http://test-garage:3900 s3 cp /tmp/yellow_tripdata_2021-07.csv s3://my-bucket/

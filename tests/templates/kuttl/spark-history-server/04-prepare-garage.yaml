@@ -4,12 +4,14 @@ kind: TestStep
 commands:
   # Wait for Garage to be ready
   - command: sleep 5
-  # Configure Garage cluster layout, create key, and create bucket
+  # Configure Garage cluster layout, create key, and create buckets
   - script: |-
       GARAGE_POD=$(kubectl get pod -n $NAMESPACE -l app=eventlog-garage -o jsonpath='{.items[0].metadata.name}')
       NODE_ID=$(kubectl exec -n $NAMESPACE $GARAGE_POD -- garage node id -q 2>/dev/null | cut -c1-16)
       kubectl exec -n $NAMESPACE $GARAGE_POD -- garage layout assign -z dc1 -c 1G $NODE_ID
       kubectl exec -n $NAMESPACE $GARAGE_POD -- garage layout apply --version 1
-      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage key import -n testkey eventLogAccessKey eventLogSecretKey
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage key import -n spark spark sparkspark
       kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket create spark-logs
-      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket allow --read --write --owner spark-logs --key testkey
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket allow --read --write --owner spark-logs --key spark
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket create my-bucket
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket allow --read --write --owner my-bucket --key spark

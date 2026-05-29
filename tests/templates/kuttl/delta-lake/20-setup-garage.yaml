@@ -1,0 +1,118 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-garage-config
+data:
+  garage.toml: |
+    metadata_dir = "/tmp/garage/meta"
+    data_dir = "/tmp/garage/data"
+    db_engine = "sqlite"
+    replication_factor = 1
+
+    [s3_api]
+    s3_region = "us-east-1"
+    api_bind_addr = "[::]:3900"
+    root_domain = ".s3.garage.localhost"
+
+    [s3_web]
+    bind_addr = "[::]:3902"
+    root_domain = ".web.garage.localhost"
+
+    [admin]
+    api_bind_addr = "[::]:3903"
+    admin_token = "s3cr3t"
+
+    [rpc]
+    bind_addr = "[::]:3901"
+    secret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-garage
+  labels:
+    app: test-garage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-garage
+  template:
+    metadata:
+      labels:
+        app: test-garage
+    spec:
+      containers:
+        - name: garage
+          image: oci.stackable.tech/stackable/dxflrs/garage:v2.3.0
+          ports:
+            - containerPort: 3900
+              name: s3
+            - containerPort: 3901
+              name: rpc
+            - containerPort: 3903
+              name: admin
+          volumeMounts:
+            - name: config
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
+            limits:
+              memory: 512Mi
+              cpu: "1"
+      volumes:
+        - name: config
+          configMap:
+            name: test-garage-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-garage
+spec:
+  selector:
+    app: test-garage
+  ports:
+    - name: s3
+      port: 3900
+      targetPort: 3900
+    - name: rpc
+      port: 3901
+      targetPort: 3901
+    - name: admin
+      port: 3903
+      targetPort: 3903
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: garage-client
+  labels:
+    app: garage-client
+spec:
+  restartPolicy: Never
+  containers:
+    - name: garage-client
+      image: docker.io/amazon/aws-cli:2.27.31
+      command: ["sh", "-c", "sleep infinity"]
+      stdin: true
+      tty: true
+      env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: s3-credentials
+              key: accessKey
+              optional: false
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: s3-credentials
+              key: secretKey
+              optional: false
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1

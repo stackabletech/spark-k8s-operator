@@ -19,8 +19,8 @@ spec:
   mainApplicationFile: "local:///stackable/spark/jobs/write-to-delta.py"
   s3connection:
     inline:
-      host: test-minio
-      port: 9000
+      host: test-garage
+      port: 3900
       accessStyle: Path
       credentials:
         secretClass: s3-credentials-class

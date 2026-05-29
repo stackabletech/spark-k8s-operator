@@ -6,13 +6,13 @@ timeout: 900
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: test-minio
+  name: test-garage
 status:
   readyReplicas: 1
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: eventlog-minio
+  name: eventlog-garage
 status:
   readyReplicas: 1

@@ -2,7 +2,14 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  # give minio enough time to start
-  - command: sleep 10
-  - command: kubectl exec -n $NAMESPACE minio-client -- sh -c 'mc alias set test-minio http://test-minio:9000 $$MINIO_SERVER_ACCESS_KEY $$MINIO_SERVER_SECRET_KEY'
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc mb test-minio/my-bucket
+  # Wait for Garage to be ready
+  - command: sleep 5
+  # Configure Garage cluster layout, create key, and create bucket
+  - script: |-
+      GARAGE_POD=$(kubectl get pod -n $NAMESPACE -l app=test-garage -o jsonpath='{.items[0].metadata.name}')
+      NODE_ID=$(kubectl exec -n $NAMESPACE $GARAGE_POD -- garage node id -q 2>/dev/null | cut -c1-16)
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage layout assign -z dc1 -c 1G $NODE_ID
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage layout apply --version 1
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage key import -n testkey s3AccessKey s3SecretKey
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket create my-bucket
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket allow --read --write --owner my-bucket --key testkey

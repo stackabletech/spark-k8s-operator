@@ -4,17 +4,17 @@ kind: S3Connection
 metadata:
   name: s3-connection
 spec:
-  host: minio
-  port: 9000
+  host: garage
+  port: 3900
   accessStyle: Path
   credentials:
-    secretClass: minio-credentials-class
+    secretClass: garage-credentials-class
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
   tls:
     verification:
       server:
         caCert:
-          secretClass: minio-tls-ca
+          secretClass: garage-tls-ca
 {% endif %}
 ---
 apiVersion: s3.stackable.tech/v1alpha1

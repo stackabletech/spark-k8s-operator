@@ -1,0 +1,104 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garage-config
+data:
+  garage.toml: |-
+    metadata_dir = "/tmp/garage/meta"
+    data_dir = "/tmp/garage/data"
+    db_engine = "lmdb"
+
+    replication_factor = 1
+
+    rpc_bind_addr = "[::]:3901"
+    rpc_public_addr = "garage:3901"
+    rpc_secret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+    [s3_api]
+    s3_region = "us-east-1"
+    api_bind_addr = "[::]:3900"
+    root_domain = ".s3.garage.localhost"
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+    tls_cert_file = "/tls/tls.crt"
+    tls_key_file = "/tls/tls.key"
+{% endif %}
+
+    [s3_web]
+    bind_addr = "[::]:3902"
+    root_domain = ".web.garage.localhost"
+    index = "index.html"
+
+    [admin]
+    api_bind_addr = "[::]:3903"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: garage
+  template:
+    metadata:
+      labels:
+        app: garage
+    spec:
+      containers:
+        - name: garage
+          image: oci.stackable.tech/stackable/dxflrs/garage:v2.3.0
+          args: ["-c", "/etc/garage/garage.toml", "server"]
+          ports:
+            - containerPort: 3900
+              name: s3
+            - containerPort: 3901
+              name: rpc
+            - containerPort: 3903
+              name: admin
+          volumeMounts:
+            - name: config
+              mountPath: /etc/garage
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+            - name: tls
+              mountPath: /tls
+{% endif %}
+      volumes:
+        - name: config
+          configMap:
+            name: garage-config
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        - name: tls
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: garage-tls-ca
+                  secrets.stackable.tech/scope: service=garage
+              spec:
+                storageClassName: secrets.stackable.tech
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "1"
+{% endif %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage
+spec:
+  selector:
+    app: garage
+  ports:
+    - name: s3
+      port: 3900
+      targetPort: s3
+    - name: rpc
+      port: 3901
+      targetPort: rpc
+    - name: admin
+      port: 3903
+      targetPort: admin

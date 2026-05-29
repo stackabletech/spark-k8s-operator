@@ -6,15 +6,15 @@ timeout: 900
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: minio
+  name: garage
 status:
   readyReplicas: 1
 ---
 apiVersion: v1
 kind: Pod
 metadata:
-  name: minio-client
+  name: garage-client
   labels:
-    app: minio-client
+    app: garage-client
 status:
   phase: Running

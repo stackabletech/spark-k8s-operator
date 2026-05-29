@@ -1,0 +1,42 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      set -euo pipefail
+      POD=$(kubectl get pod -n $NAMESPACE -l app=garage -o jsonpath='{.items[0].metadata.name}')
+
+      # Get node ID
+      NODE_ID=$(kubectl exec -n $NAMESPACE "$POD" -- \
+        /garage -c /etc/garage/garage.toml node id -q)
+
+      # Assign layout
+      kubectl exec -n $NAMESPACE "$POD" -- \
+        /garage -c /etc/garage/garage.toml layout assign \
+          -z dc1 -c 1G "$NODE_ID"
+
+      # Apply layout
+      kubectl exec -n $NAMESPACE "$POD" -- \
+        /garage -c /etc/garage/garage.toml layout apply --version 1
+
+      # Import access key
+      kubectl exec -n $NAMESPACE "$POD" -- \
+        /garage -c /etc/garage/garage.toml key import \
+          -n spark --access-key-id spark --secret-access-key sparkspark
+
+      # Create buckets
+      kubectl exec -n $NAMESPACE "$POD" -- \
+        /garage -c /etc/garage/garage.toml bucket create ingest-bucket
+
+      kubectl exec -n $NAMESPACE "$POD" -- \
+        /garage -c /etc/garage/garage.toml bucket create stats-bucket
+
+      # Allow key access to both buckets
+      kubectl exec -n $NAMESPACE "$POD" -- \
+        /garage -c /etc/garage/garage.toml bucket allow \
+          --read --write --owner ingest-bucket --key spark
+
+      kubectl exec -n $NAMESPACE "$POD" -- \
+        /garage -c /etc/garage/garage.toml bucket allow \
+          --read --write --owner stats-bucket --key spark
+    timeout: 120

@@ -4,8 +4,8 @@ kind: S3Connection
 metadata:
   name: spark-history-s3-connection
 spec:
-  host: eventlog-minio
-  port: 9000
+  host: eventlog-garage
+  port: 3900
   accessStyle: Path
   credentials:
     secretClass: history-credentials-class
@@ -14,7 +14,7 @@ spec:
     verification:
       server:
         caCert:
-          secretClass: minio-tls-eventlog
+          secretClass: garage-tls-eventlog
 {% endif %}
 ---
 apiVersion: s3.stackable.tech/v1alpha1

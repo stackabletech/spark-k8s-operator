@@ -1,0 +1,38 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # Initialize test-garage: assign layout, import key, create bucket
+  - script: |
+      set -e
+      POD=$(kubectl get pod -n $NAMESPACE -l app=test-garage -o jsonpath='{.items[0].metadata.name}')
+
+      # Get node ID and assign layout
+      NODE_ID=$(kubectl exec -n $NAMESPACE "$POD" -- garage node id -q)
+      kubectl exec -n $NAMESPACE "$POD" -- garage layout assign -z default -c 1G "$NODE_ID"
+      kubectl exec -n $NAMESPACE "$POD" -- garage layout apply --version 1
+
+      # Import access key
+      kubectl exec -n $NAMESPACE "$POD" -- garage key import -n spark-key --key-id spark --secret-key sparkspark
+
+      # Create bucket and allow key
+      kubectl exec -n $NAMESPACE "$POD" -- garage bucket create my-bucket
+      kubectl exec -n $NAMESPACE "$POD" -- garage bucket allow --read --write --owner my-bucket --key spark-key
+    timeout: 120
+  # Initialize eventlog-garage: assign layout, import key, create bucket
+  - script: |
+      set -e
+      POD=$(kubectl get pod -n $NAMESPACE -l app=eventlog-garage -o jsonpath='{.items[0].metadata.name}')
+
+      # Get node ID and assign layout
+      NODE_ID=$(kubectl exec -n $NAMESPACE "$POD" -- garage node id -q)
+      kubectl exec -n $NAMESPACE "$POD" -- garage layout assign -z default -c 1G "$NODE_ID"
+      kubectl exec -n $NAMESPACE "$POD" -- garage layout apply --version 1
+
+      # Import access key
+      kubectl exec -n $NAMESPACE "$POD" -- garage key import -n spark-key --key-id spark --secret-key sparkspark
+
+      # Create bucket and allow key
+      kubectl exec -n $NAMESPACE "$POD" -- garage bucket create spark-logs
+      kubectl exec -n $NAMESPACE "$POD" -- garage bucket allow --read --write --owner spark-logs --key spark-key
+    timeout: 120

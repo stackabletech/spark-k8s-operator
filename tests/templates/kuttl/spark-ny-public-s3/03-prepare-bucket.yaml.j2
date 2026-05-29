@@ -2,14 +2,25 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  # give minio enough time to start
-  - command: sleep 10
-  - command: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv minio-client:/tmp
-  - command: kubectl cp -n $NAMESPACE ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'].split(',')[0] }}.jar  minio-client:/tmp/ny-tlc-report.jar
+  # Configure Garage cluster layout, create key, and create bucket
+  - script: |-
+      set -e
+      GARAGE_POD=$(kubectl get pod -n $NAMESPACE -l app=garage -o jsonpath='{.items[0].metadata.name}')
+      NODE_ID=$(kubectl exec -n $NAMESPACE $GARAGE_POD -- garage node id -q 2>/dev/null | cut -c1-16)
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage layout assign -z dc1 -c 1G $NODE_ID
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage layout apply --version 1
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage key import -n spark-key --key-id spark --secret-key sparkspark
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket create my-bucket
+      kubectl exec -n $NAMESPACE $GARAGE_POD -- garage bucket allow --read --write --owner my-bucket --key spark-key
+    timeout: 120
+  # Copy test data into the client pod
+  - command: kubectl cp -n $NAMESPACE yellow_tripdata_2021-07.csv garage-client:/tmp
+  - command: kubectl cp -n $NAMESPACE ny-tlc-report-1.1.0-{{ test_scenario['values']['spark'].split(',')[0] }}.jar garage-client:/tmp/ny-tlc-report.jar
+  # Upload test data to Garage via AWS CLI
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc alias set --insecure  minio https://minio:9000 spark sparkspark
+  - command: kubectl exec -n $NAMESPACE garage-client -- aws --endpoint-url https://garage:3900 --no-verify-ssl s3 cp /tmp/yellow_tripdata_2021-07.csv s3://my-bucket/
+  - command: kubectl exec -n $NAMESPACE garage-client -- aws --endpoint-url https://garage:3900 --no-verify-ssl s3 cp /tmp/ny-tlc-report.jar s3://my-bucket/
 {% else %}
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc alias set --insecure minio http://minio:9000 spark sparkspark
+  - command: kubectl exec -n $NAMESPACE garage-client -- aws --endpoint-url http://garage:3900 s3 cp /tmp/yellow_tripdata_2021-07.csv s3://my-bucket/
+  - command: kubectl exec -n $NAMESPACE garage-client -- aws --endpoint-url http://garage:3900 s3 cp /tmp/ny-tlc-report.jar s3://my-bucket/
 {% endif %}
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure cp /tmp/yellow_tripdata_2021-07.csv minio/my-bucket
-  - command: kubectl exec -n $NAMESPACE minio-client -- mc --insecure cp /tmp/ny-tlc-report.jar minio/my-bucket

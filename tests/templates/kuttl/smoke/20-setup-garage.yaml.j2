@@ -1,0 +1,209 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-garage-config
+data:
+  garage.toml: |
+    metadata_dir = "/var/lib/garage/meta"
+    data_dir = "/var/lib/garage/data"
+    db_engine = "lmdb"
+
+    replication_factor = 1
+
+    rpc_bind_addr = "[::]:3901"
+    rpc_secret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+    [s3_api]
+    s3_region = "us-east-1"
+    api_bind_addr = "[::]:3900"
+    root_domain = ".s3.garage.localhost"
+
+    [admin]
+    api_bind_addr = "[::]:3903"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-garage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-garage
+  template:
+    metadata:
+      labels:
+        app: test-garage
+    spec:
+      containers:
+        - name: garage
+          image: oci.stackable.tech/stackable/dxflrs/garage:v2.3.0
+          ports:
+            - containerPort: 3900
+              name: s3-api
+            - containerPort: 3901
+              name: rpc
+            - containerPort: 3903
+              name: admin
+          env:
+            - name: GARAGE_ALLOW_WORLD_READABLE_SECRETS
+              value: "true"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
+            - name: data
+              mountPath: /var/lib/garage
+      volumes:
+        - name: config
+          configMap:
+            name: test-garage-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-garage
+spec:
+  selector:
+    app: test-garage
+  ports:
+    - name: s3-api
+      port: 3900
+      targetPort: s3-api
+    - name: rpc
+      port: 3901
+      targetPort: rpc
+    - name: admin
+      port: 3903
+      targetPort: admin
+---
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eventlog-garage-config
+data:
+  garage.toml: |
+    metadata_dir = "/var/lib/garage/meta"
+    data_dir = "/var/lib/garage/data"
+    db_engine = "lmdb"
+
+    replication_factor = 1
+
+    rpc_bind_addr = "[::]:3901"
+    rpc_secret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+    [s3_api]
+    s3_region = "us-east-1"
+    api_bind_addr = "[::]:3900"
+    root_domain = ".s3.garage.localhost"
+    tls_cert_file = "/etc/garage/tls/tls.crt"
+    tls_key_file = "/etc/garage/tls/tls.key"
+
+    [admin]
+    api_bind_addr = "[::]:3903"
+{% else %}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eventlog-garage-config
+data:
+  garage.toml: |
+    metadata_dir = "/var/lib/garage/meta"
+    data_dir = "/var/lib/garage/data"
+    db_engine = "lmdb"
+
+    replication_factor = 1
+
+    rpc_bind_addr = "[::]:3901"
+    rpc_secret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+    [s3_api]
+    s3_region = "us-east-1"
+    api_bind_addr = "[::]:3900"
+    root_domain = ".s3.garage.localhost"
+
+    [admin]
+    api_bind_addr = "[::]:3903"
+{% endif %}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eventlog-garage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eventlog-garage
+  template:
+    metadata:
+      labels:
+        app: eventlog-garage
+    spec:
+      containers:
+        - name: garage
+          image: oci.stackable.tech/stackable/dxflrs/garage:v2.3.0
+          ports:
+            - containerPort: 3900
+              name: s3-api
+            - containerPort: 3901
+              name: rpc
+            - containerPort: 3903
+              name: admin
+          env:
+            - name: GARAGE_ALLOW_WORLD_READABLE_SECRETS
+              value: "true"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
+            - name: data
+              mountPath: /var/lib/garage
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+            - name: tls
+              mountPath: /etc/garage/tls
+{% endif %}
+      volumes:
+        - name: config
+          configMap:
+            name: eventlog-garage-config
+        - name: data
+          emptyDir: {}
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        - name: tls
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: garage-tls-eventlog
+                  secrets.stackable.tech/scope: service=eventlog-garage
+              spec:
+                storageClassName: secrets.stackable.tech
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: "1"
+{% endif %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eventlog-garage
+spec:
+  selector:
+    app: eventlog-garage
+  ports:
+    - name: s3-api
+      port: 3900
+      targetPort: s3-api
+    - name: rpc
+      port: 3901
+      targetPort: rpc
+    - name: admin
+      port: 3903
+      targetPort: admin

@@ -6,6 +6,6 @@ timeout: 900
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: minio
+  name: garage
 status:
   readyReplicas: 1

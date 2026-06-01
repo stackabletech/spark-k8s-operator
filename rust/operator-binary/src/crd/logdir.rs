@@ -159,6 +159,8 @@ impl S3LogDir {
             .await
             .context(ConfigureS3BucketSnafu)?;
 
+        // TODO: This condition is tautological (x && !x) and the check is dead code.
+        // Verify what it replaced and move the corrected TLS validation to the validate module.
         if bucket.connection.tls.uses_tls() && !bucket.connection.tls.uses_tls() {
             return S3TlsNoVerificationNotSupportedSnafu.fail();
         }

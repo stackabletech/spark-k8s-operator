@@ -5,11 +5,7 @@
 //! Synchronous validation belongs in the sibling [`super::validate`] module.
 
 use snafu::{ResultExt, Snafu};
-use stackable_operator::{
-    client::Client,
-    commons::tls_verification::{CaCert, TlsVerification},
-    crd::s3,
-};
+use stackable_operator::{client::Client, crd::s3};
 
 use crate::crd::{
     logdir::ResolvedLogDir,
@@ -26,9 +22,6 @@ pub enum Error {
     ConfigureS3Connection {
         source: stackable_operator::crd::s3::v1alpha1::ConnectionError,
     },
-
-    #[snafu(display("S3 TLS verification with no verification is not supported"))]
-    S3TlsNoVerificationNotSupported,
 
     #[snafu(display("failed to resolve log directory"))]
     LogDir { source: crate::crd::logdir::Error },
@@ -79,22 +72,6 @@ pub async fn dereference(
         ),
         None => None,
     };
-
-    // Early "no verification" rejection — preserves today's behavior (was inline at
-    // spark_k8s_controller.rs:278–290 before this refactor).
-    if let Some(conn) = s3_connection.as_ref() {
-        if let Some(tls) = &conn.tls.tls {
-            match &tls.verification {
-                TlsVerification::None {} => return S3TlsNoVerificationNotSupportedSnafu.fail(),
-                TlsVerification::Server(server_verification) => {
-                    match &server_verification.ca_cert {
-                        CaCert::WebPki {} => {}
-                        CaCert::SecretClass(_) => {}
-                    }
-                }
-            }
-        }
-    }
 
     // 3. Log directory (also pulls S3Bucket + TLS secret internally).
     let log_dir = match merged_app.spec.log_file_directory.as_ref() {

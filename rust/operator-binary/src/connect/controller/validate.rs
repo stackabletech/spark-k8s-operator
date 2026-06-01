@@ -12,6 +12,7 @@ use crate::{
     connect::{
         controller::dereference::DereferencedSparkConnectServer,
         crd::{self, v1alpha1},
+        s3::ResolvedS3,
     },
     crd::constants::CONTAINER_IMAGE_BASE_NAME,
 };
@@ -33,7 +34,7 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct ValidatedSparkConnectServer {
-    pub dereferenced: DereferencedSparkConnectServer,
+    pub resolved_s3: ResolvedS3,
     pub resolved_product_image: ResolvedProductImage,
     pub server_config: v1alpha1::ServerConfig,
     pub executor_config: v1alpha1::ExecutorConfig,
@@ -58,7 +59,7 @@ pub fn validate(
     let executor_config = scs.executor_config().context(ExecutorConfigSnafu)?;
 
     Ok(ValidatedSparkConnectServer {
-        dereferenced,
+        resolved_s3: dereferenced.resolved_s3,
         resolved_product_image,
         server_config,
         executor_config,

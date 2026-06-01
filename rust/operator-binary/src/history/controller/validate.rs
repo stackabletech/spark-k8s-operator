@@ -12,7 +12,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{constants::CONTAINER_IMAGE_BASE_NAME, history::v1alpha1},
+    crd::{constants::CONTAINER_IMAGE_BASE_NAME, history::v1alpha1, logdir::ResolvedLogDir},
     history::controller::dereference::DereferencedSparkHistoryServer,
 };
 
@@ -30,7 +30,7 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct ValidatedSparkHistoryServer {
-    pub dereferenced: DereferencedSparkHistoryServer,
+    pub log_dir: ResolvedLogDir,
     pub resolved_product_image: ResolvedProductImage,
     pub product_config: ValidatedRoleConfigByPropertyKind,
 }
@@ -56,7 +56,7 @@ pub fn validate(
         .context(InvalidProductConfigSnafu)?;
 
     Ok(ValidatedSparkHistoryServer {
-        dereferenced,
+        log_dir: dereferenced.log_dir,
         resolved_product_image,
         product_config: product_config_validated,
     })

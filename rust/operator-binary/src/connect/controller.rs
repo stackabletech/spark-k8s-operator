@@ -178,7 +178,7 @@ pub async fn reconcile(
     let server_config = &validated.server_config;
     let executor_config = &validated.executor_config;
     let resolved_product_image = &validated.resolved_product_image;
-    let resolved_s3 = &validated.dereferenced.resolved_s3;
+    let resolved_s3 = &validated.resolved_s3;
 
     let server_role_config = &scs.spec.server.role_config;
 

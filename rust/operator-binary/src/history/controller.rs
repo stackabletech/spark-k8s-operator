@@ -284,7 +284,7 @@ pub async fn reconcile(
     .context(CreateClusterResourcesSnafu)?;
 
     let resolved_product_image = &validated.resolved_product_image;
-    let log_dir = &validated.dereferenced.log_dir;
+    let log_dir = &validated.log_dir;
 
     // Use a dedicated service account for history server pods.
     let (service_account, role_binding) = build_rbac_resources(

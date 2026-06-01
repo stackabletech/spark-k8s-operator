@@ -211,9 +211,9 @@ pub async fn reconcile(
         validate::validate(dereferenced, &ctx.operator_environment, &ctx.product_config)
             .context(ValidateSparkApplicationSnafu)?;
 
-    let spark_application = &validated.dereferenced.spark_application;
-    let opt_s3conn = &validated.dereferenced.s3_connection;
-    let logdir = &validated.dereferenced.log_dir;
+    let spark_application = &validated.spark_application;
+    let opt_s3conn = &validated.s3_connection;
+    let logdir = &validated.log_dir;
     let resolved_product_image = &validated.resolved_product_image;
     let validated_product_config = &validated.product_config;
 
@@ -343,7 +343,7 @@ pub async fn reconcile(
             spark_application,
             &v1alpha1::SparkApplicationStatus {
                 phase: "Unknown".to_string(),
-                resolved_template_ref: validated.dereferenced.resolved_template_refs.clone(),
+                resolved_template_ref: validated.resolved_template_refs.clone(),
             },
         )
         .await

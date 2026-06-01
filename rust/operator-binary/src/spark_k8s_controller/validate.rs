@@ -16,7 +16,7 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::{constants::CONTAINER_IMAGE_BASE_NAME, logdir::ResolvedLogDir},
+    crd::{constants::CONTAINER_IMAGE_BASE_NAME, logdir::ResolvedLogDir, v1alpha1},
     spark_k8s_controller::dereference::DereferencedSparkApplication,
 };
 
@@ -38,7 +38,10 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Inputs the rest of `reconcile` needs after dereferencing.
 pub struct ValidatedSparkApplication {
-    pub dereferenced: DereferencedSparkApplication,
+    pub spark_application: v1alpha1::SparkApplication,
+    pub resolved_template_refs: Vec<v1alpha1::ResolvedSparkApplicationTemplate>,
+    pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
+    pub log_dir: Option<ResolvedLogDir>,
     pub resolved_product_image: ResolvedProductImage,
     pub product_config: ValidatedRoleConfigByPropertyKind,
 }
@@ -72,7 +75,10 @@ pub fn validate(
         .context(InvalidProductConfigSnafu)?;
 
     Ok(ValidatedSparkApplication {
-        dereferenced,
+        spark_application: dereferenced.spark_application,
+        resolved_template_refs: dereferenced.resolved_template_refs,
+        s3_connection: dereferenced.s3_connection,
+        log_dir: dereferenced.log_dir,
         resolved_product_image,
         product_config,
     })

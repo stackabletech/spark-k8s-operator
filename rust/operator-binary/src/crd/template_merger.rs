@@ -157,12 +157,11 @@ fn merge_pod_template_spec(base: &PodTemplateSpec, overlay: &PodTemplateSpec) ->
         base.spec.as_ref(),
         overlay.spec.as_ref(),
         merged.spec.as_mut(),
-    ) {
-        if let Some(overlay_node_selector) = overlay_spec.node_selector.as_ref() {
-            let mut node_selector = base_spec.node_selector.clone().unwrap_or_default();
-            node_selector.extend(overlay_node_selector.clone());
-            merged_spec.node_selector = Some(node_selector);
-        }
+    ) && let Some(overlay_node_selector) = overlay_spec.node_selector.as_ref()
+    {
+        let mut node_selector = base_spec.node_selector.clone().unwrap_or_default();
+        node_selector.extend(overlay_node_selector.clone());
+        merged_spec.node_selector = Some(node_selector);
     }
 
     merged

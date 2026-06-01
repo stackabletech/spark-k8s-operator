@@ -20,7 +20,7 @@ pub fn tls_secret_name(s3conn: &s3::v1alpha1::ConnectionSpec) -> Option<&str> {
                     Some(Tls {
                         verification:
                             TlsVerification::Server(TlsServerVerification {
-                                ca_cert: CaCert::SecretClass(ref secret_name),
+                                ca_cert: CaCert::SecretClass(secret_name),
                             }),
                     }),
             },
@@ -44,10 +44,10 @@ pub fn tls_secret_names<'a>(
         names.insert(secret_name);
     }
 
-    if let Some(logdir) = logdir {
-        if let Some(secret_name) = logdir.tls_secret_name() {
-            names.insert(secret_name);
-        }
+    if let Some(logdir) = logdir
+        && let Some(secret_name) = logdir.tls_secret_name()
+    {
+        names.insert(secret_name);
     }
     if names.is_empty() {
         None

@@ -21,10 +21,7 @@ use stackable_operator::{
         },
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
-    commons::{
-        product_image_selection::{self, ResolvedProductImage},
-        rbac::build_rbac_resources,
-    },
+    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -57,13 +54,12 @@ use crate::{
     Ctx,
     crd::{
         constants::{
-            ACCESS_KEY_ID, CONTAINER_IMAGE_BASE_NAME, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME,
-            HISTORY_UI_PORT, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR,
-            LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME,
-            SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
-            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
-            VOLUME_MOUNT_PATH_LOG_CONFIG,
+            ACCESS_KEY_ID, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_UI_PORT,
+            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME, SECRET_ACCESS_KEY,
+            SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, STACKABLE_TRUST_STORE,
+            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         listener_ext,
@@ -77,6 +73,9 @@ use crate::{
     },
     product_logging::{self},
 };
+
+pub mod dereference;
+pub mod validate;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -141,8 +140,11 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("product config validation failed"))]
-    ProductConfigValidation { source: crate::crd::history::Error },
+    #[snafu(display("failed to dereference SparkHistoryServer"))]
+    DereferenceSparkHistoryServer { source: dereference::Error },
+
+    #[snafu(display("failed to validate SparkHistoryServer"))]
+    ValidateSparkHistoryServer { source: validate::Error },
 
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::history::Error },
@@ -235,12 +237,7 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to resolve product image"))]
-    ResolveProductImage {
-        source: product_image_selection::Error,
-    },
-
-    #[snafu(display("failed to resolve product image"))]
+    #[snafu(display("failed to build metrics service"))]
     BuildMetricsService { source: service::Error },
 }
 
@@ -264,6 +261,18 @@ pub async fn reconcile(
 
     let client = &ctx.client;
 
+    let dereferenced = dereference::dereference(client, shs)
+        .await
+        .context(DereferenceSparkHistoryServerSnafu)?;
+
+    let validated = validate::validate(
+        shs,
+        dereferenced,
+        &ctx.operator_environment,
+        &ctx.product_config,
+    )
+    .context(ValidateSparkHistoryServerSnafu)?;
+
     let mut cluster_resources = ClusterResources::new(
         HISTORY_APP_NAME,
         OPERATOR_NAME,
@@ -274,22 +283,8 @@ pub async fn reconcile(
     )
     .context(CreateClusterResourcesSnafu)?;
 
-    let resolved_product_image = shs
-        .spec
-        .image
-        .resolve(
-            CONTAINER_IMAGE_BASE_NAME,
-            &ctx.operator_environment.image_repository,
-            crate::built_info::PKG_VERSION,
-        )
-        .context(ResolveProductImageSnafu)?;
-    let log_dir = ResolvedLogDir::resolve(
-        &shs.spec.log_file_directory,
-        shs.metadata.namespace.clone(),
-        client,
-    )
-    .await
-    .context(LogDirSnafu)?;
+    let resolved_product_image = &validated.resolved_product_image;
+    let log_dir = &validated.log_dir;
 
     // Use a dedicated service account for history server pods.
     let (service_account, role_binding) = build_rbac_resources(
@@ -310,11 +305,7 @@ pub async fn reconcile(
         .context(ApplyRoleBindingSnafu)?;
 
     // The role_name is always HISTORY_ROLE_NAME
-    for (role_name, role_config) in shs
-        .validated_role_config(&resolved_product_image, &ctx.product_config)
-        .context(ProductConfigValidationSnafu)?
-        .iter()
-    {
+    for (role_name, role_config) in validated.product_config.iter() {
         for (rolegroup_name, rolegroup_config) in role_config.iter() {
             let rgr = RoleGroupRef {
                 cluster: ObjectRef::from_obj(shs),
@@ -332,18 +323,18 @@ pub async fn reconcile(
                 &merged_config,
                 &resolved_product_image.app_version_label_value,
                 &rgr,
-                &log_dir,
+                log_dir,
             )?;
 
             let metrics_service =
-                build_rolegroup_metrics_service(shs, &resolved_product_image, &rgr)
+                build_rolegroup_metrics_service(shs, resolved_product_image, &rgr)
                     .context(BuildMetricsServiceSnafu)?;
 
             let sts = build_stateful_set(
                 shs,
-                &resolved_product_image,
+                resolved_product_image,
                 &rgr,
-                &log_dir,
+                log_dir,
                 &merged_config,
                 &service_account,
             )?;
@@ -364,7 +355,7 @@ pub async fn reconcile(
 
         let rg_group_listener = build_group_listener(
             shs,
-            &resolved_product_image,
+            resolved_product_image,
             role_name,
             shs.node_listener_class().to_string(),
         )?;

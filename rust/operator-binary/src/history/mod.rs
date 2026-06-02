@@ -5,7 +5,7 @@ use crate::crd::constants::{
 };
 
 pub mod config;
-pub mod history_controller;
+pub mod controller;
 pub mod operations;
 pub mod service;
 

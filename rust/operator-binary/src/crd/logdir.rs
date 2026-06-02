@@ -159,10 +159,6 @@ impl S3LogDir {
             .await
             .context(ConfigureS3BucketSnafu)?;
 
-        if !bucket.connection.tls.uses_tls_verification() {
-            return S3TlsNoVerificationNotSupportedSnafu.fail();
-        }
-
         Ok(S3LogDir {
             bucket,
             prefix: log_file_dir.prefix.to_owned(),

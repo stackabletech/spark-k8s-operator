@@ -11,10 +11,12 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Application template merging should not ignore "*Overrides" fields ([#680]).
+- SparkHistoryServer security.properties now contain the correct JVM DNS settings used across all Java products in the SDP platform ([#692]).
 
 ### Changed
 
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#674]).
+- Remove runtime usage of `product-config`. Default values that previously came from `deploy/config-spec/properties.yaml` are now defined in operator code and merged with CRD `configOverrides` ([#692]).
 - BREAKING: Each custom resource accepts now only the known config files in `configOverrides`:
   - `SparkApplication`: `spark-env.sh` and `security.properties`
   - `SparkHistoryServer`: `spark-defaults.conf`, `spark-env.sh` and `security.properties`
@@ -30,6 +32,7 @@ All notable changes to this project will be documented in this file.
 [#684]: https://github.com/stackabletech/spark-k8s-operator/pull/684
 [#687]: https://github.com/stackabletech/spark-k8s-operator/pull/687
 [#689]: https://github.com/stackabletech/spark-k8s-operator/pull/689
+[#692]: https://github.com/stackabletech/spark-k8s-operator/pull/692
 
 ## [26.3.0] - 2026-03-16
 

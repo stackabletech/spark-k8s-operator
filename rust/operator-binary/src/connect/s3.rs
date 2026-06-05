@@ -375,7 +375,6 @@ impl ResolvedS3 {
 
 #[cfg(test)]
 mod tests {
-    use product_config::writer::to_java_properties_string;
     use rstest::*;
     use stackable_operator::commons::{
         secret_class::SecretClassVolume,
@@ -383,6 +382,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::config::writer::to_java_properties_string;
 
     fn connection_fixture(
         credentials_secret_class: Option<&str>,

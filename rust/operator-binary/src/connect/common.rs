@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use product_config::writer::to_java_properties_string;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     kvp::ObjectLabels,
@@ -10,11 +9,16 @@ use strum::Display;
 
 use super::crd::CONNECT_EXECUTOR_ROLE_NAME;
 use crate::{
+    config::writer::{PropertiesWriterError, to_java_properties_string},
     connect::crd::{
         CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, CONNECT_SERVER_ROLE_NAME,
         DEFAULT_SPARK_CONNECT_GROUP_NAME,
     },
-    crd::constants::OPERATOR_NAME,
+    crd::constants::{
+        DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL, DEFAULT_JVM_SECURITY_DNS_CACHE_TTL,
+        JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL, JVM_SECURITY_PROPERTY_DNS_CACHE_TTL,
+        OPERATOR_NAME,
+    },
 };
 
 #[derive(Snafu, Debug)]
@@ -26,19 +30,13 @@ pub enum Error {
     },
 
     #[snafu(display("failed to serialize spark properties"))]
-    SparkProperties {
-        source: product_config::writer::PropertiesWriterError,
-    },
+    SparkProperties { source: PropertiesWriterError },
 
     #[snafu(display("failed to serialize jvm security properties",))]
-    JvmSecurityProperties {
-        source: product_config::writer::PropertiesWriterError,
-    },
+    JvmSecurityProperties { source: PropertiesWriterError },
 
     #[snafu(display("failed to serialize metrics properties",))]
-    MetricsProperties {
-        source: product_config::writer::PropertiesWriterError,
-    },
+    MetricsProperties { source: PropertiesWriterError },
 }
 
 pub(crate) fn labels<'a, T>(
@@ -110,12 +108,12 @@ pub(crate) fn security_properties(
 ) -> Result<String, Error> {
     let mut result: BTreeMap<String, Option<String>> = [
         (
-            "networkaddress.cache.ttl".to_string(),
-            Some("30".to_string()),
+            JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
+            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string()),
         ),
         (
-            "networkaddress.cache.negative.ttl".to_string(),
-            Some("0".to_string()),
+            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
+            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string()),
         ),
     ]
     .into();

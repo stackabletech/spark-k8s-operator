@@ -1,9 +1,5 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
-use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -22,6 +18,7 @@ use stackable_operator::{
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    config_overrides::KeyValueOverridesProvider,
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -52,14 +49,18 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     Ctx,
+    config::writer::{PropertiesWriterError, to_java_properties_string},
     crd::{
         constants::{
-            ACCESS_KEY_ID, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_UI_PORT,
-            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
-            MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, OPERATOR_NAME, SECRET_ACCESS_KEY,
-            SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME, STACKABLE_TRUST_STORE,
-            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            ACCESS_KEY_ID, DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL,
+            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME,
+            HISTORY_ROLE_NAME, HISTORY_UI_PORT, JVM_SECURITY_PROPERTIES_FILE,
+            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL, JVM_SECURITY_PROPERTY_DNS_CACHE_TTL,
+            LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
+            OPERATOR_NAME, SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
+            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+            VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         listener_ext,
@@ -188,7 +189,7 @@ pub enum Error {
         rolegroup
     ))]
     JvmSecurityProperties {
-        source: product_config::writer::PropertiesWriterError,
+        source: PropertiesWriterError,
         rolegroup: String,
     },
 
@@ -265,13 +266,8 @@ pub async fn reconcile(
         .await
         .context(DereferenceSparkHistoryServerSnafu)?;
 
-    let validated = validate::validate(
-        shs,
-        dereferenced,
-        &ctx.operator_environment,
-        &ctx.product_config,
-    )
-    .context(ValidateSparkHistoryServerSnafu)?;
+    let validated = validate::validate(shs, dereferenced, &ctx.operator_environment)
+        .context(ValidateSparkHistoryServerSnafu)?;
 
     let mut cluster_resources = ClusterResources::new(
         HISTORY_APP_NAME,
@@ -304,77 +300,75 @@ pub async fn reconcile(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    // The role_name is always HISTORY_ROLE_NAME
-    for (role_name, role_config) in validated.product_config.iter() {
-        for (rolegroup_name, rolegroup_config) in role_config.iter() {
-            let rgr = RoleGroupRef {
-                cluster: ObjectRef::from_obj(shs),
-                role: role_name.into(),
-                role_group: rolegroup_name.into(),
-            };
+    for rolegroup_name in shs.spec.nodes.role_groups.keys() {
+        let rgr = RoleGroupRef {
+            cluster: ObjectRef::from_obj(shs),
+            role: HISTORY_ROLE_NAME.to_string(),
+            role_group: rolegroup_name.to_string(),
+        };
 
-            let merged_config = shs
-                .merged_config(&rgr)
-                .context(FailedToResolveConfigSnafu)?;
+        let merged_config = shs
+            .merged_config(&rgr)
+            .context(FailedToResolveConfigSnafu)?;
 
-            let config_map = build_config_map(
-                shs,
-                rolegroup_config,
-                &merged_config,
-                &resolved_product_image.app_version_label_value,
-                &rgr,
-                log_dir,
-            )?;
+        let role_group = shs.rolegroup(&rgr).context(CannotRetrieveRoleGroupSnafu)?;
 
-            let metrics_service =
-                build_rolegroup_metrics_service(shs, resolved_product_image, &rgr)
-                    .context(BuildMetricsServiceSnafu)?;
+        let config_map = build_config_map(
+            shs,
+            &role_group.config.config_overrides,
+            &merged_config,
+            &resolved_product_image.app_version_label_value,
+            &rgr,
+            log_dir,
+        )?;
 
-            let sts = build_stateful_set(
-                shs,
-                resolved_product_image,
-                &rgr,
-                log_dir,
-                &merged_config,
-                &service_account,
-            )?;
+        let metrics_service = build_rolegroup_metrics_service(shs, resolved_product_image, &rgr)
+            .context(BuildMetricsServiceSnafu)?;
 
-            cluster_resources
-                .add(client, config_map)
-                .await
-                .context(ApplyConfigMapSnafu)?;
-            cluster_resources
-                .add(client, metrics_service)
-                .await
-                .context(ApplyMetricsServiceSnafu)?;
-            cluster_resources
-                .add(client, sts)
-                .await
-                .context(ApplyStatefulSetSnafu)?;
-        }
-
-        let rg_group_listener = build_group_listener(
+        let sts = build_stateful_set(
             shs,
             resolved_product_image,
-            role_name,
-            shs.node_listener_class().to_string(),
+            &rgr,
+            log_dir,
+            &merged_config,
+            &service_account,
         )?;
 
         cluster_resources
-            .add(client, rg_group_listener)
+            .add(client, config_map)
             .await
-            .context(ApplyGroupListenerSnafu)?;
-
-        let role_config = &shs.spec.nodes.role_config;
-        add_pdbs(
-            &role_config.common.pod_disruption_budget,
-            shs,
-            client,
-            &mut cluster_resources,
-        )
-        .await
-        .context(FailedToCreatePdbSnafu)?;
+            .context(ApplyConfigMapSnafu)?;
+        cluster_resources
+            .add(client, metrics_service)
+            .await
+            .context(ApplyMetricsServiceSnafu)?;
+        cluster_resources
+            .add(client, sts)
+            .await
+            .context(ApplyStatefulSetSnafu)?;
     }
+
+    let rg_group_listener = build_group_listener(
+        shs,
+        resolved_product_image,
+        HISTORY_ROLE_NAME,
+        shs.node_listener_class().to_string(),
+    )?;
+
+    cluster_resources
+        .add(client, rg_group_listener)
+        .await
+        .context(ApplyGroupListenerSnafu)?;
+
+    let role_config = &shs.spec.nodes.role_config;
+    add_pdbs(
+        &role_config.common.pod_disruption_budget,
+        shs,
+        client,
+        &mut cluster_resources,
+    )
+    .await
+    .context(FailedToCreatePdbSnafu)?;
 
     cluster_resources
         .delete_orphaned_resources(client)
@@ -430,7 +424,7 @@ pub fn error_policy(
 #[allow(clippy::result_large_err)]
 fn build_config_map(
     shs: &v1alpha1::SparkHistoryServer,
-    config: &HashMap<PropertyNameKind, BTreeMap<String, String>>,
+    config_overrides: &v1alpha1::ConfigOverrides,
     merged_config: &HistoryConfig,
     app_version_label_value: &str,
     rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
@@ -440,15 +434,8 @@ fn build_config_map(
 
     let spark_defaults = spark_defaults(shs, log_dir, rolegroupref)?;
 
-    let jvm_sec_props: BTreeMap<String, Option<String>> = config
-        .get(&PropertyNameKind::File(
-            JVM_SECURITY_PROPERTIES_FILE.to_string(),
-        ))
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(k, v)| (k, Some(v)))
-        .collect();
+    let mut jvm_sec_props = default_jvm_security_properties();
+    jvm_sec_props.extend(config_overrides.get_key_value_overrides(JVM_SECURITY_PROPERTIES_FILE));
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -471,11 +458,7 @@ fn build_config_map(
         .add_data(
             SPARK_ENV_SH_FILE_NAME,
             to_spark_env_sh_string(
-                config
-                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
-                    .cloned()
-                    .unwrap_or_default()
-                    .iter(),
+                defined_key_value_overrides(config_overrides, SPARK_ENV_SH_FILE_NAME).iter(),
             ),
         )
         .add_data(
@@ -744,6 +727,31 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
         format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
     vec![command.join("\n")]
+}
+
+fn default_jvm_security_properties() -> BTreeMap<String, Option<String>> {
+    [
+        (
+            JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
+            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string()),
+        ),
+        (
+            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
+            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string()),
+        ),
+    ]
+    .into()
+}
+
+fn defined_key_value_overrides(
+    config_overrides: &v1alpha1::ConfigOverrides,
+    file_name: &str,
+) -> BTreeMap<String, String> {
+    config_overrides
+        .get_key_value_overrides(file_name)
+        .into_iter()
+        .filter_map(|(key, value)| value.map(|value| (key, value)))
+        .collect()
 }
 
 /// Return the Spark properties for the cleaner role group (if any).

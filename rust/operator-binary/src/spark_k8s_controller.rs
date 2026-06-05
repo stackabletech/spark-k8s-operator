@@ -1,10 +1,5 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-    vec,
-};
+use std::{collections::BTreeMap, sync::Arc, vec};
 
-use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -17,6 +12,7 @@ use stackable_operator::{
         },
     },
     commons::product_image_selection::ResolvedProductImage,
+    config_overrides::KeyValueOverridesProvider,
     crd::s3,
     k8s_openapi::{
         DeepMerge, Resource,
@@ -53,6 +49,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     Ctx,
+    config::writer::{PropertiesWriterError, to_java_properties_string},
     crd::{
         constants::*,
         logdir::ResolvedLogDir,
@@ -131,7 +128,7 @@ pub enum Error {
 
     #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
     JvmSecurityProperties {
-        source: product_config::writer::PropertiesWriterError,
+        source: PropertiesWriterError,
         role: SparkApplicationRole,
     },
 
@@ -207,16 +204,13 @@ pub async fn reconcile(
         .await
         .context(DereferenceSparkApplicationSnafu)?;
 
-    let validated =
-        validate::validate(dereferenced, &ctx.operator_environment, &ctx.product_config)
-            .context(ValidateSparkApplicationSnafu)?;
+    let validated = validate::validate(dereferenced, &ctx.operator_environment)
+        .context(ValidateSparkApplicationSnafu)?;
 
     let spark_application = &validated.spark_application;
     let opt_s3conn = &validated.s3_connection;
     let logdir = &validated.log_dir;
     let resolved_product_image = &validated.resolved_product_image;
-    let validated_product_config = &validated.product_config;
-
     // This is the final version of the spark app to reconcile.
     // No more mutating operations after this point (except for status).
     tracing::debug!("reconciling spark application [{spark_application:?}]");
@@ -238,16 +232,18 @@ pub async fn reconcile(
         .driver_config()
         .context(FailedToResolveConfigSnafu)?;
 
-    let driver_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
-        validated_product_config
-            .get(&SparkApplicationRole::Driver.to_string())
-            .and_then(|r| r.get(&"default".to_string()));
+    let driver_config_overrides = spark_application
+        .spec
+        .driver
+        .as_ref()
+        .map(|driver| driver.config_overrides.clone())
+        .unwrap_or_default();
 
     let driver_pod_template_config_map = pod_template_config_map(
         spark_application,
         SparkApplicationRole::Driver,
         &driver_config,
-        driver_product_config,
+        &driver_config_overrides,
         &env_vars,
         opt_s3conn,
         logdir,
@@ -267,16 +263,18 @@ pub async fn reconcile(
         .executor_config()
         .context(FailedToResolveConfigSnafu)?;
 
-    let executor_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
-        validated_product_config
-            .get(&SparkApplicationRole::Executor.to_string())
-            .and_then(|r| r.get(&"default".to_string()));
+    let executor_config_overrides = spark_application
+        .spec
+        .executor
+        .as_ref()
+        .map(|executor| executor.config.config_overrides.clone())
+        .unwrap_or_default();
 
     let executor_pod_template_config_map = pod_template_config_map(
         spark_application,
         SparkApplicationRole::Executor,
         &executor_config,
-        executor_product_config,
+        &executor_config_overrides,
         &env_vars,
         opt_s3conn,
         logdir,
@@ -300,14 +298,16 @@ pub async fn reconcile(
         .submit_config()
         .context(SubmitConfigSnafu)?;
 
-    let submit_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
-        validated_product_config
-            .get(&SparkApplicationRole::Submit.to_string())
-            .and_then(|r| r.get(&"default".to_string()));
+    let submit_config_overrides = spark_application
+        .spec
+        .job
+        .as_ref()
+        .map(|job| job.config_overrides.clone())
+        .unwrap_or_default();
 
     let submit_job_config_map = submit_job_config_map(
         spark_application,
-        submit_product_config,
+        &submit_config_overrides,
         resolved_product_image,
     )?;
     client
@@ -636,7 +636,7 @@ fn pod_template_config_map(
     spark_application: &v1alpha1::SparkApplication,
     role: SparkApplicationRole,
     merged_config: &RoleConfig,
-    product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
+    config_overrides: &v1alpha1::ConfigOverrides,
     env: &[EnvVar],
     s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
@@ -720,40 +720,26 @@ fn pod_template_config_map(
     )
     .context(InvalidLoggingConfigSnafu { cm_name })?;
 
-    if let Some(product_config) = product_config {
-        cm_builder.add_data(
-            SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(
-                product_config
-                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
-                    .cloned()
-                    .unwrap_or_default()
-                    .iter(),
-            ),
-        );
+    cm_builder.add_data(
+        SPARK_ENV_SH_FILE_NAME,
+        to_spark_env_sh_string(defined_key_value_overrides(config_overrides).iter()),
+    );
 
-        let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
-            .get(&PropertyNameKind::File(
-                JVM_SECURITY_PROPERTIES_FILE.to_string(),
-            ))
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|(k, v)| (k, Some(v)))
-            .collect();
+    let mut jvm_sec_props = default_jvm_security_properties();
+    jvm_sec_props.extend(config_overrides.get_key_value_overrides(JVM_SECURITY_PROPERTIES_FILE));
 
-        cm_builder.add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
-            to_java_properties_string(jvm_sec_props.iter())
-                .with_context(|_| JvmSecurityPropertiesSnafu { role })?,
-        );
-    }
+    cm_builder.add_data(
+        JVM_SECURITY_PROPERTIES_FILE,
+        to_java_properties_string(jvm_sec_props.iter())
+            .with_context(|_| JvmSecurityPropertiesSnafu { role })?,
+    );
+
     cm_builder.build().context(PodTemplateConfigMapSnafu)
 }
 
 fn submit_job_config_map(
     spark_application: &v1alpha1::SparkApplication,
-    product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
+    config_overrides: &v1alpha1::ConfigOverrides,
     spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
     let cm_name = spark_application.submit_job_config_map_name();
@@ -774,39 +760,48 @@ fn submit_job_config_map(
             .build(),
     );
 
-    if let Some(product_config) = product_config {
-        cm_builder.add_data(
-            SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(
-                product_config
-                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
-                    .cloned()
-                    .unwrap_or_default()
-                    .iter(),
-            ),
-        );
+    cm_builder.add_data(
+        SPARK_ENV_SH_FILE_NAME,
+        to_spark_env_sh_string(defined_key_value_overrides(config_overrides).iter()),
+    );
 
-        let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
-            .get(&PropertyNameKind::File(
-                JVM_SECURITY_PROPERTIES_FILE.to_string(),
-            ))
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|(k, v)| (k, Some(v)))
-            .collect();
+    let mut jvm_sec_props = default_jvm_security_properties();
+    jvm_sec_props.extend(config_overrides.get_key_value_overrides(JVM_SECURITY_PROPERTIES_FILE));
 
-        cm_builder.add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
-            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
-                JvmSecurityPropertiesSnafu {
-                    role: SparkApplicationRole::Submit,
-                }
-            })?,
-        );
-    }
+    cm_builder.add_data(
+        JVM_SECURITY_PROPERTIES_FILE,
+        to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
+            JvmSecurityPropertiesSnafu {
+                role: SparkApplicationRole::Submit,
+            }
+        })?,
+    );
 
     cm_builder.build().context(PodTemplateConfigMapSnafu)
+}
+
+fn default_jvm_security_properties() -> BTreeMap<String, Option<String>> {
+    [
+        (
+            JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
+            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string()),
+        ),
+        (
+            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
+            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string()),
+        ),
+    ]
+    .into()
+}
+
+fn defined_key_value_overrides(
+    config_overrides: &v1alpha1::ConfigOverrides,
+) -> BTreeMap<String, String> {
+    config_overrides
+        .get_key_value_overrides(SPARK_ENV_SH_FILE_NAME)
+        .into_iter()
+        .filter_map(|(key, value)| value.map(|value| (key, value)))
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -8,7 +8,6 @@ use std::{
 use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
-use product_config::{ProductConfigManager, types::PropertyNameKind};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -17,7 +16,7 @@ use stackable_operator::{
         VolumeBuilder,
     },
     commons::{
-        product_image_selection::{ProductImage, ResolvedProductImage},
+        product_image_selection::ProductImage,
         resources::{CpuLimits, MemoryLimits, Resources},
         secret_class::SecretClassVolumeProvisionParts,
     },
@@ -34,12 +33,8 @@ use stackable_operator::{
     kube::{CustomResource, ResourceExt},
     kvp::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
-    product_config_utils::{
-        ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
-        validate_all_roles_and_groups_config,
-    },
     product_logging,
-    role_utils::{CommonConfiguration, GenericRoleConfig, JavaCommonConfig, Role, RoleGroup},
+    role_utils::{CommonConfiguration, JavaCommonConfig, RoleGroup},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
@@ -96,16 +91,6 @@ pub enum Error {
 
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
-
-    #[snafu(display("failed to transform configs"))]
-    ProductConfigTransform {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
 
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {
@@ -215,7 +200,7 @@ pub mod versioned {
         /// supported for spark-submit processes.
         //
         // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
-        // However, due to product-config things I wasn't able to remove them.
+        // This field is currently kept for API compatibility.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub job: Option<SparkApplicationJobRoleType>,
 
@@ -948,114 +933,6 @@ impl v1alpha1::SparkApplication {
         env.into_values().collect()
     }
 
-    pub fn validated_role_config(
-        &self,
-        resolved_product_image: &ResolvedProductImage,
-        product_config: &ProductConfigManager,
-    ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        let submit_conf = match self.spec.job.as_ref() {
-            Some(job) => job.clone(),
-            None => CommonConfiguration {
-                config: SubmitConfig::default_config(),
-                ..CommonConfiguration::default()
-            },
-        };
-
-        let driver_conf = match self.spec.driver.as_ref() {
-            Some(driver) => driver.clone(),
-            None => CommonConfiguration {
-                config: RoleConfig::default_config(),
-                ..CommonConfiguration::default()
-            },
-        };
-
-        let executor_conf = match self.spec.executor.as_ref() {
-            Some(executor) => executor.clone(),
-            None => RoleGroup {
-                replicas: Some(1),
-                config: CommonConfiguration {
-                    config: RoleConfig::default_config(),
-                    ..CommonConfiguration::default()
-                },
-            },
-        };
-
-        let mut roles_to_validate = HashMap::new();
-        roles_to_validate.insert(
-            SparkApplicationRole::Submit.to_string(),
-            (
-                vec![
-                    PropertyNameKind::Env,
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                Role {
-                    config: submit_conf.clone(),
-                    role_config: GenericRoleConfig::default(),
-                    role_groups: [(
-                        "default".to_string(),
-                        RoleGroup {
-                            config: submit_conf,
-                            replicas: Some(1),
-                        },
-                    )]
-                    .into(),
-                }
-                .erase(),
-            ),
-        );
-        roles_to_validate.insert(
-            SparkApplicationRole::Driver.to_string(),
-            (
-                vec![
-                    PropertyNameKind::Env,
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                Role {
-                    config: driver_conf.clone(),
-                    role_config: GenericRoleConfig::default(),
-                    role_groups: [(
-                        "default".to_string(),
-                        RoleGroup {
-                            config: driver_conf,
-                            replicas: Some(1),
-                        },
-                    )]
-                    .into(),
-                }
-                .erase(),
-            ),
-        );
-        roles_to_validate.insert(
-            SparkApplicationRole::Executor.to_string(),
-            (
-                vec![
-                    PropertyNameKind::Env,
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                Role {
-                    config: executor_conf.config.clone(),
-                    role_config: GenericRoleConfig::default(),
-                    role_groups: [("default".to_string(), executor_conf)].into(),
-                }
-                .erase(),
-            ),
-        );
-
-        let role_config = transform_all_roles_to_config(self, &roles_to_validate);
-
-        validate_all_roles_and_groups_config(
-            &resolved_product_image.product_version,
-            &role_config.context(ProductConfigTransformSnafu)?,
-            product_config,
-            false,
-            false,
-        )
-        .context(InvalidProductConfigSnafu)
-    }
-
     pub fn retry_on_failure_count(&self) -> i32 {
         let effective_retry_on_failure_count = self
             .spec
@@ -1239,17 +1116,15 @@ where
 #[cfg(test)]
 mod tests {
 
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::BTreeMap;
 
     use indoc::indoc;
-    use product_config::{ProductConfigManager, types::PropertyNameKind};
     use rstest::rstest;
     use stackable_operator::{
         commons::{
             affinity::StackableAffinity,
             resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, Resources},
         },
-        product_config_utils::ValidatedRoleConfigByPropertyKind,
         product_logging::spec::Logging,
         versioned::test_utils::RoundtripTestData,
     };
@@ -1698,72 +1573,6 @@ spec:
         .collect();
 
         assert_eq!(expected, props);
-    }
-
-    #[test]
-    fn test_validated_config() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
-            ---
-            apiVersion: spark.stackable.tech/v1alpha1
-            kind: SparkApplication
-            metadata:
-              name: spark-examples
-            spec:
-              mode: cluster
-              mainApplicationFile: test.py
-              sparkImage:
-                productVersion: 1.2.3
-        "#})
-        .unwrap();
-
-        let resolved_product_image = spark_application
-            .spec
-            .spark_image
-            .resolve("spark-k8s", "oci.example.org", "0.0.0-dev")
-            .expect("test: resolved product image is always valid");
-
-        let product_config =
-            ProductConfigManager::from_yaml_file("../../deploy/config-spec/properties.yaml")
-                .unwrap();
-        let validated_config = spark_application
-            .validated_role_config(&resolved_product_image, &product_config)
-            .unwrap();
-
-        let expected_role_groups: HashMap<
-            String,
-            HashMap<PropertyNameKind, BTreeMap<String, String>>,
-        > = vec![(
-            "default".into(),
-            vec![
-                (PropertyNameKind::Env, BTreeMap::new()),
-                (
-                    PropertyNameKind::File("spark-env.sh".into()),
-                    BTreeMap::new(),
-                ),
-                (
-                    PropertyNameKind::File("security.properties".into()),
-                    vec![
-                        ("networkaddress.cache.negative.ttl".into(), "0".into()),
-                        ("networkaddress.cache.ttl".into(), "30".into()),
-                    ]
-                    .into_iter()
-                    .collect(),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-        )]
-        .into_iter()
-        .collect();
-        let expected: ValidatedRoleConfigByPropertyKind = vec![
-            ("submit".into(), expected_role_groups.clone()),
-            ("driver".into(), expected_role_groups.clone()),
-            ("executor".into(), expected_role_groups),
-        ]
-        .into_iter()
-        .collect();
-
-        assert_eq!(expected, validated_config);
     }
 
     #[test]

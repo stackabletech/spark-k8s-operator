@@ -1,12 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 
-use product_config::{ProductConfigManager, types::PropertyNameKind};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
-        product_image_selection::{ProductImage, ResolvedProductImage},
+        product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             Resources, ResourcesFragment,
@@ -21,10 +20,7 @@ use stackable_operator::{
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
     kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
-    product_config_utils::{
-        Configuration, ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
-        validate_all_roles_and_groups_config,
-    },
+    product_config_utils::Configuration,
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
@@ -43,16 +39,6 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to transform configs"))]
-    ProductConfigTransform {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 
@@ -243,37 +229,6 @@ impl v1alpha1::SparkHistoryServer {
             }
         }
         rgs
-    }
-
-    pub fn validated_role_config(
-        &self,
-        resolved_product_image: &ResolvedProductImage,
-        product_config: &ProductConfigManager,
-    ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        let roles_to_validate = vec![(
-            HISTORY_ROLE_NAME.to_string(),
-            (
-                vec![
-                    PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                self.spec.nodes.clone(),
-            ),
-        )]
-        .into_iter()
-        .collect::<HashMap<_, _>>();
-
-        let role_config = transform_all_roles_to_config(self, &roles_to_validate);
-
-        validate_all_roles_and_groups_config(
-            &resolved_product_image.product_version,
-            &role_config.context(ProductConfigTransformSnafu)?,
-            product_config,
-            false,
-            false,
-        )
-        .context(InvalidProductConfigSnafu)
     }
 
     pub fn merged_env(

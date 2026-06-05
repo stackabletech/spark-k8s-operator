@@ -1,9 +1,8 @@
 //! The validate step in the SparkApplication controller.
 //!
 //! Synchronously validates the [`super::dereference::DereferencedSparkApplication`] and
-//! resolves the product image and product config. Does not touch the Kubernetes API.
+//! resolves the product image. Does not touch the Kubernetes API.
 
-use product_config::ProductConfigManager;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
@@ -12,7 +11,6 @@ use stackable_operator::{
         tls_verification::TlsVerification,
     },
     crd::s3,
-    product_config_utils::ValidatedRoleConfigByPropertyKind,
 };
 
 use crate::{
@@ -27,9 +25,6 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig { source: crate::crd::Error },
-
     #[snafu(display("S3 TLS with verification disabled is not supported ({context})"))]
     S3TlsNoVerificationNotSupported { context: String },
 }
@@ -43,13 +38,11 @@ pub struct ValidatedSparkApplication {
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
     pub log_dir: Option<ResolvedLogDir>,
     pub resolved_product_image: ResolvedProductImage,
-    pub product_config: ValidatedRoleConfigByPropertyKind,
 }
 
 pub fn validate(
     dereferenced: DereferencedSparkApplication,
     operator_environment: &OperatorEnvironmentOptions,
-    product_config: &ProductConfigManager,
 ) -> Result<ValidatedSparkApplication> {
     if let Some(conn) = &dereferenced.s3_connection {
         reject_tls_no_verification(conn, "S3 connection")?;
@@ -69,18 +62,12 @@ pub fn validate(
         )
         .context(ResolveProductImageSnafu)?;
 
-    let product_config = dereferenced
-        .spark_application
-        .validated_role_config(&resolved_product_image, product_config)
-        .context(InvalidProductConfigSnafu)?;
-
     Ok(ValidatedSparkApplication {
         spark_application: dereferenced.spark_application,
         resolved_template_refs: dereferenced.resolved_template_refs,
         s3_connection: dereferenced.s3_connection,
         log_dir: dereferenced.log_dir,
         resolved_product_image,
-        product_config,
     })
 }
 

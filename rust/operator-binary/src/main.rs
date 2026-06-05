@@ -8,7 +8,6 @@ use clap::Parser;
 use connect::crd::{CONNECT_FULL_CONTROLLER_NAME, SparkConnectServer};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use history::controller;
-use product_config::ProductConfigManager;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, OperatorEnvironmentOptions, RunArguments},
@@ -68,13 +67,8 @@ struct Opts {
     cmd: Command,
 }
 
-const PRODUCT_CONFIG_PATHS: [&str; 2] = [
-    "deploy/config-spec/properties.yaml",
-    "/etc/stackable/spark-k8s-operator/config-spec/properties.yaml",
-];
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
-    pub product_config: ProductConfigManager,
     pub operator_environment: OperatorEnvironmentOptions,
 }
 
@@ -95,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Run(RunArguments {
             operator_environment,
             watch_namespace,
-            product_config,
+            product_config: _,
             maintenance,
             common,
         }) => {
@@ -144,7 +138,6 @@ async fn main() -> anyhow::Result<()> {
 
             let ctx = Ctx {
                 client: client.clone(),
-                product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
                 operator_environment: operator_environment.clone(),
             };
 
@@ -234,7 +227,6 @@ async fn main() -> anyhow::Result<()> {
             // Create new object because Ctx cannot be cloned
             let ctx = Ctx {
                 client: client.clone(),
-                product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
                 operator_environment: operator_environment.clone(),
             };
             let history_event_recorder = Arc::new(Recorder::new(
@@ -300,7 +292,6 @@ async fn main() -> anyhow::Result<()> {
             // Create new object because Ctx cannot be cloned
             let ctx = Ctx {
                 client: client.clone(),
-                product_config: product_config.load(&PRODUCT_CONFIG_PATHS)?,
                 operator_environment,
             };
             let connect_event_recorder = Arc::new(Recorder::new(

@@ -1,0 +1,50 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 120
+commands:
+  - script: |
+      set -euo pipefail
+
+      compare_fixture() {
+        fixture_path="$1"
+        kind="$2"
+        name="$3"
+        jq_expr="$4"
+
+        expected=$(sed "s|__NAMESPACE__|$NAMESPACE|g" "$fixture_path" | jq -S .)
+        actual=$(kubectl -n "$NAMESPACE" get "$kind" "$name" -o json | jq "$jq_expr" | jq -S .)
+
+        if ! diff <(echo "$expected") <(echo "$actual"); then
+          echo "ERROR: $kind/$name drifted from baseline fixture $fixture_path"
+          exit 1
+        fi
+      }
+
+      wait_for_configmap() {
+        name="$1"
+        for _ in $(seq 1 60); do
+          if kubectl -n "$NAMESPACE" get configmap "$name" >/dev/null 2>&1; then
+            return 0
+          fi
+          sleep 2
+        done
+
+        echo "ERROR: Timed out waiting for configmap/$name"
+        exit 1
+      }
+
+      wait_for_configmap pyspark-pi-driver-pod-template
+      wait_for_configmap pyspark-pi-executor-pod-template
+      wait_for_configmap pyspark-pi-submit-job
+      wait_for_configmap spark-history-node-default
+      wait_for_configmap spark-connect-server
+      wait_for_configmap spark-connect-executor
+
+      compare_fixture fixtures/pyspark-pi-driver-pod-template-data.json configmap pyspark-pi-driver-pod-template '.data'
+      compare_fixture fixtures/pyspark-pi-executor-pod-template-data.json configmap pyspark-pi-executor-pod-template '.data'
+      compare_fixture fixtures/pyspark-pi-submit-job-data.json configmap pyspark-pi-submit-job '.data'
+      compare_fixture fixtures/pyspark-pi-job-template-spec.json job pyspark-pi '.spec.template.spec'
+      compare_fixture fixtures/spark-history-node-default-data.json configmap spark-history-node-default '.data'
+      compare_fixture fixtures/spark-connect-server-data.json configmap spark-connect-server '.data'
+      compare_fixture fixtures/spark-connect-executor-data.json configmap spark-connect-executor '.data'

@@ -1,0 +1,9 @@
+{% if test_scenario['values']['openshift'] == 'true' %}
+# see https://github.com/stackabletech/issues/issues/566
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: kubectl patch namespace $NAMESPACE -p '{"metadata":{"labels":{"pod-security.kubernetes.io/enforce":"privileged"}}}'
+    timeout: 120
+{% endif %}

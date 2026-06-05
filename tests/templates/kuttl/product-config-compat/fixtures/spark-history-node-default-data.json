@@ -1,0 +1,5 @@
+{
+  "security.properties": "networkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=30\n",
+  "spark-defaults.conf": "spark.history.fs.cleaner.enabled true\nspark.history.fs.logDirectory file:///tmp/",
+  "spark-env.sh": ""
+}

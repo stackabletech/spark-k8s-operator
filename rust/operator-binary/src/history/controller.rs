@@ -18,6 +18,7 @@ use stackable_operator::{
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    config::merge::Merge,
     config_overrides::KeyValueOverridesProvider,
     crd::listener,
     k8s_openapi::{
@@ -313,9 +314,14 @@ pub async fn reconcile(
 
         let role_group = shs.rolegroup(&rgr).context(CannotRetrieveRoleGroupSnafu)?;
 
+        // Merge config_overrides from both nodes and role group levels
+        // Role group level overrides nodes (role) level, so start with nodes and merge role group into it
+        let mut merged_config_overrides = shs.spec.nodes.config.config_overrides.clone();
+        merged_config_overrides.merge(&role_group.config.config_overrides);
+
         let config_map = build_config_map(
             shs,
-            &role_group.config.config_overrides,
+            &merged_config_overrides,
             &merged_config,
             &resolved_product_image.app_version_label_value,
             &rgr,

@@ -28,9 +28,12 @@ metadata:
   name: spark-history-node-default
 data:
   security.properties: |
+    networkaddress.cache.negative.ttl=0
+    networkaddress.cache.ttl=30
     test.securityProperties.fromRg=rolegroup
     test.securityProperties.rg=rolegroup
     test.securityProperties.role=role
+
   spark-defaults.conf: |-
     spark.hadoop.fs.s3a.endpoint https://eventlog-minio:9000/
     spark.hadoop.fs.s3a.endpoint.region us-east-1

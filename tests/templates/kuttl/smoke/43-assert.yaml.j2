@@ -17,7 +17,7 @@ timeout: 60
 commands:
   - script: |
       expected=$(cat <<'YAMLEOF' | sed "s|__NAMESPACE__|$NAMESPACE|g" | yq -o=json
-      security.properties: ""
+      security.properties: "networkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=30\n"
       spark-defaults.conf: |-
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
         spark.hadoop.fs.s3a.endpoint https://eventlog-minio:9000/

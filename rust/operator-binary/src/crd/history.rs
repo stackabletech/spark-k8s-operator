@@ -156,6 +156,30 @@ impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
     }
 }
 
+impl Merge for v1alpha1::ConfigOverrides {
+    fn merge(&mut self, defaults: &Self) {
+        merge_key_value_config_overrides(
+            &mut self.spark_defaults_conf,
+            &defaults.spark_defaults_conf,
+        );
+        merge_key_value_config_overrides(&mut self.spark_env_sh, &defaults.spark_env_sh);
+        merge_key_value_config_overrides(
+            &mut self.security_properties,
+            &defaults.security_properties,
+        );
+    }
+}
+
+fn merge_key_value_config_overrides(
+    base: &mut Option<KeyValueConfigOverrides>,
+    overlay: &Option<KeyValueConfigOverrides>,
+) {
+    let base = base.get_or_insert_default();
+    if let Some(overlay) = overlay {
+        base.overrides.extend(overlay.overrides.clone());
+    }
+}
+
 impl v1alpha1::SparkHistoryServer {
     /// Returns a reference to the role. Raises an error if the role is not defined.
     pub fn role(&self) -> &SparkHistoryRoleType {

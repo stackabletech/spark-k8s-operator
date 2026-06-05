@@ -32,5 +32,5 @@ indoc = "2"
 regex = "1"
 
 [patch."https://github.com/stackabletech/operator-rs.git"]
-# stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch="smooth-operator" }
-stackable-operator = { path = "../operator-rs/crates/stackable-operator" }
+stackable-operator = { git = "https://github.com/stackabletech//operator-rs.git", branch="smooth-operator" }
+# stackable-operator = { path = "../operator-rs/crates/stackable-operator" }

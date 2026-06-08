@@ -15,7 +15,7 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
+    config_overrides::KeyValueOverridesProvider,
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
@@ -25,6 +25,7 @@ use stackable_operator::{
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     shared::time::Duration,
+    v2::config_overrides::KeyValueConfigOverrides,
     versioned::versioned,
 };
 use strum::{Display, EnumIter};
@@ -150,33 +151,25 @@ impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
             JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
             _ => None,
         };
-        field
-            .map(KeyValueConfigOverrides::as_product_config_overrides)
-            .unwrap_or_default()
+        field.map(|f| f.overrides.clone()).unwrap_or_default()
     }
 }
 
 impl Merge for v1alpha1::ConfigOverrides {
     fn merge(&mut self, defaults: &Self) {
-        merge_key_value_config_overrides(
-            &mut self.spark_defaults_conf,
-            &defaults.spark_defaults_conf,
-        );
-        merge_key_value_config_overrides(&mut self.spark_env_sh, &defaults.spark_env_sh);
-        merge_key_value_config_overrides(
-            &mut self.security_properties,
-            &defaults.security_properties,
-        );
-    }
-}
-
-fn merge_key_value_config_overrides(
-    base: &mut Option<KeyValueConfigOverrides>,
-    overlay: &Option<KeyValueConfigOverrides>,
-) {
-    let base = base.get_or_insert_default();
-    if let Some(overlay) = overlay {
-        base.overrides.extend(overlay.overrides.clone());
+        if let Some(defaults) = &defaults.spark_defaults_conf {
+            self.spark_defaults_conf
+                .get_or_insert_default()
+                .merge(defaults);
+        }
+        if let Some(defaults) = &defaults.spark_env_sh {
+            self.spark_env_sh.get_or_insert_default().merge(defaults);
+        }
+        if let Some(defaults) = &defaults.security_properties {
+            self.security_properties
+                .get_or_insert_default()
+                .merge(defaults);
+        }
     }
 }
 

@@ -9958,10 +9958,6 @@ rec {
             packageId = "indoc";
           }
           {
-            name = "java-properties";
-            packageId = "java-properties";
-          }
-          {
             name = "regex";
             packageId = "regex";
           }

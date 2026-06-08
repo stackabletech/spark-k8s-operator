@@ -44,12 +44,12 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
     shared::time::Duration,
+    v2::config_file_writer::{PropertiesWriterError, to_java_properties_string},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     Ctx,
-    config::writer::{PropertiesWriterError, to_java_properties_string},
     crd::{
         constants::*,
         logdir::ResolvedLogDir,

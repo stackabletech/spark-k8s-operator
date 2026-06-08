@@ -2997,7 +2997,6 @@ dependencies = [
  "const_format",
  "futures 0.3.32",
  "indoc",
- "java-properties",
  "regex",
  "rstest",
  "semver",

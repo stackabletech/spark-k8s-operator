@@ -4,12 +4,12 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     kvp::ObjectLabels,
     role_utils::{JavaCommonConfig, JvmArgumentOverrides},
+    v2::config_file_writer::{PropertiesWriterError, to_java_properties_string},
 };
 use strum::Display;
 
 use super::crd::CONNECT_EXECUTOR_ROLE_NAME;
 use crate::{
-    config::writer::{PropertiesWriterError, to_java_properties_string},
     connect::crd::{
         CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, CONNECT_SERVER_ROLE_NAME,
         DEFAULT_SPARK_CONNECT_GROUP_NAME,

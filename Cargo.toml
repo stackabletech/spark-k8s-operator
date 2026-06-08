@@ -17,7 +17,6 @@ built = { version = "0.8", features = ["chrono", "git2"] }
 clap = "4.5"
 const_format = "0.2"
 futures = { version = "0.3", features = ["compat"] }
-java-properties = "2.0"
 rstest = "0.26"
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }

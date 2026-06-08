@@ -376,13 +376,17 @@ impl ResolvedS3 {
 #[cfg(test)]
 mod tests {
     use rstest::*;
-    use stackable_operator::commons::{
-        secret_class::SecretClassVolume,
-        tls_verification::{CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification},
+    use stackable_operator::{
+        commons::{
+            secret_class::SecretClassVolume,
+            tls_verification::{
+                CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification,
+            },
+        },
+        v2::config_file_writer::to_java_properties_string,
     };
 
     use super::*;
-    use crate::config::writer::to_java_properties_string;
 
     fn connection_fixture(
         credentials_secret_class: Option<&str>,

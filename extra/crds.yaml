@@ -2825,6 +2825,7 @@ spec:
                     properties:
                       security.properties:
                         additionalProperties:
+                          nullable: true
                           type: string
                         description: |-
                           Flat key-value overrides for `*.properties`, Hadoop XML, etc.
@@ -2835,6 +2836,7 @@ spec:
                         type: object
                       spark-defaults.conf:
                         additionalProperties:
+                          nullable: true
                           type: string
                         description: |-
                           Flat key-value overrides for `*.properties`, Hadoop XML, etc.
@@ -2845,6 +2847,7 @@ spec:
                         type: object
                       spark-env.sh:
                         additionalProperties:
+                          nullable: true
                           type: string
                         description: |-
                           Flat key-value overrides for `*.properties`, Hadoop XML, etc.
@@ -3244,6 +3247,7 @@ spec:
                           properties:
                             security.properties:
                               additionalProperties:
+                                nullable: true
                                 type: string
                               description: |-
                                 Flat key-value overrides for `*.properties`, Hadoop XML, etc.
@@ -3254,6 +3258,7 @@ spec:
                               type: object
                             spark-defaults.conf:
                               additionalProperties:
+                                nullable: true
                                 type: string
                               description: |-
                                 Flat key-value overrides for `*.properties`, Hadoop XML, etc.
@@ -3264,6 +3269,7 @@ spec:
                               type: object
                             spark-env.sh:
                               additionalProperties:
+                                nullable: true
                                 type: string
                               description: |-
                                 Flat key-value overrides for `*.properties`, Hadoop XML, etc.

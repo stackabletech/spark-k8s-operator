@@ -6,7 +6,7 @@ resolver = "2"
 version = "0.0.0-dev"
 authors = ["Stackable GmbH <info@stackable.tech>"]
 license = "OSL-3.0"
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/stackabletech/spark-k8s-operator"
 
 [workspace.dependencies]

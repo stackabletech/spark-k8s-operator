@@ -72,13 +72,13 @@ pub fn validate(
 }
 
 fn reject_tls_no_verification(conn: &s3::v1alpha1::ConnectionSpec, context: &str) -> Result<()> {
-    if let Some(tls) = &conn.tls.tls {
-        if matches!(&tls.verification, TlsVerification::None {}) {
-            return S3TlsNoVerificationNotSupportedSnafu {
-                context: context.to_owned(),
-            }
-            .fail();
+    if let Some(tls) = &conn.tls.tls
+        && matches!(&tls.verification, TlsVerification::None {})
+    {
+        return S3TlsNoVerificationNotSupportedSnafu {
+            context: context.to_owned(),
         }
+        .fail();
     }
     Ok(())
 }

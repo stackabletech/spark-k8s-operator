@@ -765,17 +765,17 @@ fn cleaner_config(
     }
 
     // check if cleaner is set for this rolegroup ref
-    if cleaner_rolegroups.len() == 1 && cleaner_rolegroups[0].role_group == rolegroup_ref.role_group
+    if cleaner_rolegroups.len() == 1
+        && cleaner_rolegroups[0].role_group == rolegroup_ref.role_group
+        && let Some(replicas) = shs.replicas(rolegroup_ref)
     {
-        if let Some(replicas) = shs.replicas(rolegroup_ref) {
-            if replicas > 1 {
-                return TooManyCleanerReplicasSnafu.fail();
-            } else {
-                result.insert(
-                    "spark.history.fs.cleaner.enabled".to_string(),
-                    "true".to_string(),
-                );
-            }
+        if replicas > 1 {
+            return TooManyCleanerReplicasSnafu.fail();
+        } else {
+            result.insert(
+                "spark.history.fs.cleaner.enabled".to_string(),
+                "true".to_string(),
+            );
         }
     }
 

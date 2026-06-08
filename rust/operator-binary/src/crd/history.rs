@@ -19,7 +19,7 @@ use stackable_operator::{
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
-    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
+    kube::{CustomResource, ResourceExt},
     product_config_utils::Configuration,
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
@@ -50,6 +50,12 @@ pub enum Error {
     ConstructJvmArguments {
         source: crate::history::config::jvm::Error,
     },
+
+    #[snafu(display("too many cleaner replicas"))]
+    TooManyCleanerReplicas,
+
+    #[snafu(display("too many cleaner role groups: {role_groups}"))]
+    TooManyCleanerRoleGroups { role_groups: String },
 }
 
 pub type SparkHistoryRoleType = Role<
@@ -234,18 +240,44 @@ impl v1alpha1::SparkHistoryServer {
             .map(i32::from)
     }
 
-    pub fn cleaner_rolegroups(&self) -> Vec<RoleGroupRef<Self>> {
-        let mut rgs = vec![];
-        for (rg_name, rg_config) in &self.spec.nodes.role_groups {
-            if let Some(true) = rg_config.config.config.cleaner {
-                rgs.push(RoleGroupRef {
-                    cluster: ObjectRef::from_obj(self),
-                    role: HISTORY_ROLE_NAME.into(),
-                    role_group: rg_name.into(),
-                });
+    // Returns the name of the cleaner role group if any.
+    // Raises an error when:
+    // * there are multiple cleaner role groups
+    // * the cleaner role group has more than one replica.
+    pub fn cleaner_rolegroup_name(&self) -> Result<Option<String>, Error> {
+        let rgs = self
+            .spec
+            .nodes
+            .role_groups
+            .keys()
+            .filter(|rg_name| {
+                self.spec
+                    .nodes
+                    .role_groups
+                    .get(*rg_name)
+                    .and_then(|rg| rg.config.config.cleaner)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+
+        match rgs.len() {
+            0 => Ok(None),
+            1 => match self
+                .spec
+                .nodes
+                .role_groups
+                .get(&rgs[0])
+                .and_then(|rg| rg.replicas)
+            {
+                Some(replicas) if replicas > 1 => Err(TooManyCleanerReplicasSnafu.build()),
+                _ => Ok(Some(rgs[0].clone())),
+            },
+            _ => Err(TooManyCleanerRoleGroupsSnafu {
+                role_groups: rgs.join(","),
             }
+            .build()),
         }
-        rgs
     }
 
     pub fn merged_env(

@@ -151,15 +151,6 @@ pub enum Error {
     #[snafu(display("failed to resolve and merge config for role and role group"))]
     FailedToResolveConfig { source: crate::crd::history::Error },
 
-    #[snafu(display("number of cleaner rolegroups exceeds 1"))]
-    TooManyCleanerRoleGroups,
-
-    #[snafu(display("number of cleaner replicas exceeds 1"))]
-    TooManyCleanerReplicas,
-
-    #[snafu(display("failed to resolve the log dir configuration"))]
-    LogDir { source: crate::crd::logdir::Error },
-
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
         source: stackable_operator::cluster_resources::Error,
@@ -241,6 +232,9 @@ pub enum Error {
 
     #[snafu(display("failed to build metrics service"))]
     BuildMetricsService { source: service::Error },
+
+    #[snafu(display("failed to serialize Spark default properties"))]
+    InvalidSparkDefaults { source: PropertiesWriterError },
 }
 
 impl ReconcilerError for Error {
@@ -320,12 +314,16 @@ pub async fn reconcile(
         merged_config_overrides.merge(&role_group.config.config_overrides);
 
         let config_map = build_config_map(
-            shs,
+            &validated,
             &merged_config_overrides,
             &merged_config,
-            &resolved_product_image.app_version_label_value,
             &rgr,
-            log_dir,
+            &Labels::recommended(&recommended_labels(
+                shs,
+                &resolved_product_image.app_version_label_value,
+                &rgr.role_group,
+            ))
+            .context(LabelBuildSnafu)?,
         )?;
 
         let metrics_service = build_rolegroup_metrics_service(shs, resolved_product_image, &rgr)
@@ -429,16 +427,16 @@ pub fn error_policy(
 
 #[allow(clippy::result_large_err)]
 fn build_config_map(
-    shs: &v1alpha1::SparkHistoryServer,
+    validated: &validate::ValidatedSparkHistoryServer,
     config_overrides: &v1alpha1::ConfigOverrides,
     merged_config: &HistoryConfig,
-    app_version_label_value: &str,
     rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
-    log_dir: &ResolvedLogDir,
+    recommended_labels: &Labels,
 ) -> Result<ConfigMap, Error> {
     let cm_name = rolegroupref.object_name();
 
-    let spark_defaults = spark_defaults(shs, log_dir, rolegroupref)?;
+    let spark_defaults = to_java_properties_string(spark_defaults(validated, rolegroupref).iter())
+        .context(InvalidSparkDefaultsSnafu)?;
 
     let mut jvm_sec_props = default_jvm_security_properties();
     jvm_sec_props.extend(config_overrides.get_key_value_overrides(JVM_SECURITY_PROPERTIES_FILE));
@@ -448,16 +446,10 @@ fn build_config_map(
     cm_builder
         .metadata(
             ObjectMetaBuilder::new()
-                .name_and_namespace(shs)
+                .namespace(validated.namespace.clone())
                 .name(&cm_name)
-                .ownerreference_from_resource(shs, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(&recommended_labels(
-                    shs,
-                    app_version_label_value,
-                    &rolegroupref.role_group,
-                ))
-                .context(MetadataBuildSnafu)?
+                .ownerreference(validated.owner_reference.clone())
+                .labels(recommended_labels.clone())
                 .build(),
         )
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
@@ -690,26 +682,22 @@ fn build_stateful_set(
     })
 }
 
-#[allow(clippy::result_large_err)]
 fn spark_defaults(
-    shs: &v1alpha1::SparkHistoryServer,
-    log_dir: &ResolvedLogDir,
+    validated: &validate::ValidatedSparkHistoryServer,
     rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
-) -> Result<String, Error> {
-    let mut log_dir_settings = log_dir.history_server_spark_config().context(LogDirSnafu)?;
+) -> BTreeMap<String, Option<String>> {
+    let mut default_properties = validated.log_dir_settings.clone();
 
     // add cleaner spark settings if requested
-    log_dir_settings.extend(cleaner_config(shs, rolegroupref)?);
+    default_properties.extend(cleaner_config(validated, rolegroupref));
 
     // add user provided configuration. These can overwrite everything.
-    log_dir_settings.extend(shs.spec.spark_conf.clone());
+    default_properties.extend(validated.spark_conf.clone());
 
-    // stringify the spark configuration for the ConfigMap
-    Ok(log_dir_settings
-        .iter()
-        .map(|(k, v)| format!("{k} {v}"))
-        .collect::<Vec<String>>()
-        .join("\n"))
+    default_properties
+        .into_iter()
+        .map(|(key, value)| (key, Some(value)))
+        .collect()
 }
 
 fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
@@ -761,37 +749,17 @@ fn defined_key_value_overrides(
 }
 
 /// Return the Spark properties for the cleaner role group (if any).
-/// There should be only one role group with "cleaner=true" and this
-/// group should have a replica count of 0 or 1.
-#[allow(clippy::result_large_err)]
 fn cleaner_config(
-    shs: &v1alpha1::SparkHistoryServer,
+    validated: &validate::ValidatedSparkHistoryServer,
     rolegroup_ref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
-) -> Result<BTreeMap<String, String>, Error> {
-    let mut result = BTreeMap::new();
-
-    // all role groups with "cleaner=true"
-    let cleaner_rolegroups = shs.cleaner_rolegroups();
-
-    // should have max of one
-    if cleaner_rolegroups.len() > 1 {
-        return TooManyCleanerRoleGroupsSnafu.fail();
-    }
-
-    // check if cleaner is set for this rolegroup ref
-    if cleaner_rolegroups.len() == 1 && cleaner_rolegroups[0].role_group == rolegroup_ref.role_group
-    {
-        if let Some(replicas) = shs.replicas(rolegroup_ref) {
-            if replicas > 1 {
-                return TooManyCleanerReplicasSnafu.fail();
-            } else {
-                result.insert(
-                    "spark.history.fs.cleaner.enabled".to_string(),
-                    "true".to_string(),
-                );
-            }
+) -> BTreeMap<String, String> {
+    match validated.cleaner_rolegroup_name.as_ref() {
+        Some(cleaner_rolegroup) if cleaner_rolegroup == &rolegroup_ref.role_group => {
+            BTreeMap::from([(
+                "spark.history.fs.cleaner.enabled".to_string(),
+                "true".to_string(),
+            )])
         }
+        _ => BTreeMap::new(),
     }
-
-    Ok(result)
 }

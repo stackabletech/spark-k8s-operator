@@ -124,57 +124,26 @@ pub mod versioned {
         pub listener_class: String,
     }
 
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
     pub struct ConfigOverrides {
-        #[serde(
-            default,
-            rename = "spark-defaults.conf",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub spark_defaults_conf: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "spark-defaults.conf")]
+        pub spark_defaults_conf: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "spark-env.sh",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub spark_env_sh: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "spark-env.sh")]
+        pub spark_env_sh: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "security.properties")]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
 impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
     fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        let field = match file {
-            SPARK_DEFAULTS_FILE_NAME => self.spark_defaults_conf.as_ref(),
-            SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.as_ref(),
-            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
-            _ => None,
-        };
-        field.map(|f| f.overrides.clone()).unwrap_or_default()
-    }
-}
-
-impl Merge for v1alpha1::ConfigOverrides {
-    fn merge(&mut self, defaults: &Self) {
-        if let Some(defaults) = &defaults.spark_defaults_conf {
-            self.spark_defaults_conf
-                .get_or_insert_default()
-                .merge(defaults);
-        }
-        if let Some(defaults) = &defaults.spark_env_sh {
-            self.spark_env_sh.get_or_insert_default().merge(defaults);
-        }
-        if let Some(defaults) = &defaults.security_properties {
-            self.security_properties
-                .get_or_insert_default()
-                .merge(defaults);
+        match file {
+            SPARK_DEFAULTS_FILE_NAME => self.spark_defaults_conf.overrides.clone(),
+            SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.overrides.clone(),
+            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.overrides.clone(),
+            _ => BTreeMap::new(),
         }
     }
 }

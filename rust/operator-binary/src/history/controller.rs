@@ -309,9 +309,8 @@ pub async fn reconcile(
         let role_group = shs.rolegroup(&rgr).context(CannotRetrieveRoleGroupSnafu)?;
 
         // Merge config_overrides from both nodes and role group levels
-        // Role group level overrides nodes (role) level, so start with nodes and merge role group into it
-        let mut merged_config_overrides = shs.spec.nodes.config.config_overrides.clone();
-        merged_config_overrides.merge(&role_group.config.config_overrides);
+        let mut merged_config_overrides = role_group.config.config_overrides;
+        merged_config_overrides.merge(&shs.spec.nodes.config.config_overrides);
 
         let config_map = build_config_map(
             &validated,

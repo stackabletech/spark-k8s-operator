@@ -44,6 +44,9 @@ pub enum Error {
         template_name: String,
         source: stackable_operator::kube::Error,
     },
+
+    #[snafu(display("object has no namespace"))]
+    ObjectHasNoNamespace,
 }
 
 #[versioned(
@@ -65,6 +68,7 @@ pub mod versioned {
         group = "spark.stackable.tech",
         plural = "sparkapptemplates",
         shortname = "sparkapptemplate",
+        namespaced
     ))]
     #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -262,8 +266,10 @@ pub(crate) async fn merge_application_templates(
         // In the future if we support additional strategies in addition to "enforce",
         // this list might not be identical to the one in `merge_template_options`
         // because some objects might be missing.
+        let namespace = spark_application_namespace(spark_application)?;
         let templates = resolve(
             client,
+            namespace,
             &merge_template_options.template_names,
             merge_template_options.apply_strategy,
         )
@@ -316,8 +322,19 @@ pub(crate) async fn merge_application_templates(
     Ok(default_result)
 }
 
+fn spark_application_namespace(
+    spark_application: &super::v1alpha1::SparkApplication,
+) -> Result<&str, Error> {
+    spark_application
+        .metadata
+        .namespace
+        .as_deref()
+        .ok_or(Error::ObjectHasNoNamespace)
+}
+
 async fn resolve(
     client: &stackable_operator::client::Client,
+    namespace: &str,
     template_names: &[String],
     apply_strategy: TemplateApplyStrategy,
 ) -> Result<Vec<v1alpha1::SparkApplicationTemplate>, Error> {
@@ -325,7 +342,8 @@ async fn resolve(
         return Ok(vec![]);
     }
 
-    let templates_api = Api::<v1alpha1::SparkApplicationTemplate>::all(client.as_kube_client());
+    let templates_api =
+        Api::<v1alpha1::SparkApplicationTemplate>::namespaced(client.as_kube_client(), namespace);
     let mut resolved_templates = Vec::new();
     for template_name in template_names {
         let template_res = templates_api
@@ -431,6 +449,53 @@ mod tests {
             TemplateApplyStrategy::Enforce
         ));
         assert!(options.template_names.is_empty());
+    }
+
+    #[test]
+    fn spark_application_namespace_returns_namespace() {
+        let spark_application =
+            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+                ---
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: app-with-templates
+                  namespace: default
+                spec:
+                  mode: cluster
+                  mainApplicationFile: local:///app.py
+                  sparkImage:
+                    productVersion: "3.5.8"
+            "#})
+            .unwrap();
+
+        assert_eq!(
+            spark_application_namespace(&spark_application).unwrap(),
+            "default"
+        );
+    }
+
+    #[test]
+    fn spark_application_namespace_returns_error_when_missing() {
+        let spark_application =
+            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+                ---
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: app-with-templates
+                spec:
+                  mode: cluster
+                  mainApplicationFile: local:///app.py
+                  sparkImage:
+                    productVersion: "3.5.8"
+            "#})
+            .unwrap();
+
+        assert!(matches!(
+            spark_application_namespace(&spark_application),
+            Err(Error::ObjectHasNoNamespace)
+        ));
     }
 
     impl RoundtripTestData for v1alpha1::SparkApplicationTemplateSpec {

@@ -192,7 +192,11 @@ where
             // Clone the base and merge the overlay config into it
             let mut merged = b.clone();
             merged.config.merge(&o.config);
-            merged.config_overrides.merge(&o.config_overrides);
+            // Merge with overlay precedence: keep overlay values for conflicts,
+            // fill missing keys from base.
+            let mut config_overrides = o.config_overrides.clone();
+            config_overrides.merge(&b.config_overrides);
+            merged.config_overrides = config_overrides;
             merged.env_overrides = merge_hashmap(&b.env_overrides, &o.env_overrides);
             merged.pod_overrides = merge_pod_template_spec(&b.pod_overrides, &o.pod_overrides);
             Some(merged)
@@ -218,10 +222,11 @@ where
             // Clone the base and merge overlay
             let mut merged = b.clone();
             merged.config.config.merge(&o.config.config);
-            merged
-                .config
-                .config_overrides
-                .merge(&o.config.config_overrides);
+            // Merge with overlay precedence: keep overlay values for conflicts,
+            // fill missing keys from base.
+            let mut config_overrides = o.config.config_overrides.clone();
+            config_overrides.merge(&b.config.config_overrides);
+            merged.config.config_overrides = config_overrides;
             merged.config.env_overrides =
                 merge_hashmap(&b.config.env_overrides, &o.config.env_overrides);
             merged.config.pod_overrides =
@@ -482,58 +487,61 @@ mod tests {
         let submit_security_props = merged
             .spec
             .job
-            .and_then(|config| config.config_overrides.security_properties)
-            .map(|security_properties| security_properties.overrides)
+            .map(|config| config.config_overrides.security_properties.overrides)
             .unwrap();
         assert_eq!(
             submit_security_props.get("test.base.only"),
-            Some(&"base".to_string())
+            Some(&Some("base".to_string()))
         );
         assert_eq!(
             submit_security_props.get("test.overridden"),
-            Some(&"overlay".to_string())
+            Some(&Some("overlay".to_string()))
         );
         assert_eq!(
             submit_security_props.get("test.overlay.only"),
-            Some(&"overlay".to_string())
+            Some(&Some("overlay".to_string()))
         );
 
         let driver_security_props = merged
             .spec
             .driver
-            .and_then(|config| config.config_overrides.security_properties)
-            .map(|security_properties| security_properties.overrides)
+            .map(|config| config.config_overrides.security_properties.overrides)
             .unwrap();
         assert_eq!(
             driver_security_props.get("test.base.only"),
-            Some(&"base".to_string())
+            Some(&Some("base".to_string()))
         );
         assert_eq!(
             driver_security_props.get("test.overridden"),
-            Some(&"overlay".to_string())
+            Some(&Some("overlay".to_string()))
         );
         assert_eq!(
             driver_security_props.get("test.overlay.only"),
-            Some(&"overlay".to_string())
+            Some(&Some("overlay".to_string()))
         );
 
         let executor_security_props = merged
             .spec
             .executor
-            .and_then(|role_group| role_group.config.config_overrides.security_properties)
-            .map(|security_properties| security_properties.overrides)
+            .map(|role_group| {
+                role_group
+                    .config
+                    .config_overrides
+                    .security_properties
+                    .overrides
+            })
             .unwrap();
         assert_eq!(
             executor_security_props.get("test.base.only"),
-            Some(&"base".to_string())
+            Some(&Some("base".to_string()))
         );
         assert_eq!(
             executor_security_props.get("test.overridden"),
-            Some(&"overlay".to_string())
+            Some(&Some("overlay".to_string()))
         );
         assert_eq!(
             executor_security_props.get("test.overlay.only"),
-            Some(&"overlay".to_string())
+            Some(&Some("overlay".to_string()))
         );
     }
 
@@ -580,13 +588,12 @@ mod tests {
         let submit_security_props = merged
             .spec
             .job
-            .and_then(|config| config.config_overrides.security_properties)
-            .map(|security_properties| security_properties.overrides)
+            .map(|config| config.config_overrides.security_properties.overrides)
             .unwrap();
 
         assert_eq!(
             submit_security_props.get("test.base.only"),
-            Some(&"base".to_string())
+            Some(&Some("base".to_string()))
         );
     }
 
@@ -633,13 +640,12 @@ mod tests {
         let submit_security_props = merged
             .spec
             .job
-            .and_then(|config| config.config_overrides.security_properties)
-            .map(|security_properties| security_properties.overrides)
+            .map(|config| config.config_overrides.security_properties.overrides)
             .unwrap();
 
         assert_eq!(
             submit_security_props.get("test.overlay.only"),
-            Some(&"overlay".to_string())
+            Some(&Some("overlay".to_string()))
         );
     }
 

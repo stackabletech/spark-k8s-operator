@@ -15,7 +15,6 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    config_overrides::KeyValueOverridesProvider,
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
@@ -134,17 +133,6 @@ pub mod versioned {
 
         #[serde(default, rename = "security.properties")]
         pub security_properties: KeyValueConfigOverrides,
-    }
-}
-
-impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        match file {
-            SPARK_DEFAULTS_FILE_NAME => self.spark_defaults_conf.overrides.clone(),
-            SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.overrides.clone(),
-            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.overrides.clone(),
-            _ => BTreeMap::new(),
-        }
     }
 }
 

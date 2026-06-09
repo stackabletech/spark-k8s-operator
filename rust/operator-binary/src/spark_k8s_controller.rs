@@ -12,7 +12,6 @@ use stackable_operator::{
         },
     },
     commons::product_image_selection::ResolvedProductImage,
-    config_overrides::KeyValueOverridesProvider,
     crd::s3,
     k8s_openapi::{
         DeepMerge, Resource,
@@ -722,11 +721,11 @@ fn pod_template_config_map(
 
     cm_builder.add_data(
         SPARK_ENV_SH_FILE_NAME,
-        to_spark_env_sh_string(defined_key_value_overrides(config_overrides).iter()),
+        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
     );
 
     let mut jvm_sec_props = default_jvm_security_properties();
-    jvm_sec_props.extend(config_overrides.get_key_value_overrides(JVM_SECURITY_PROPERTIES_FILE));
+    jvm_sec_props.extend(config_overrides.security_properties.overrides.clone());
 
     cm_builder.add_data(
         JVM_SECURITY_PROPERTIES_FILE,
@@ -762,11 +761,11 @@ fn submit_job_config_map(
 
     cm_builder.add_data(
         SPARK_ENV_SH_FILE_NAME,
-        to_spark_env_sh_string(defined_key_value_overrides(config_overrides).iter()),
+        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
     );
 
     let mut jvm_sec_props = default_jvm_security_properties();
-    jvm_sec_props.extend(config_overrides.get_key_value_overrides(JVM_SECURITY_PROPERTIES_FILE));
+    jvm_sec_props.extend(config_overrides.security_properties.overrides.clone());
 
     cm_builder.add_data(
         JVM_SECURITY_PROPERTIES_FILE,
@@ -792,16 +791,6 @@ fn default_jvm_security_properties() -> BTreeMap<String, Option<String>> {
         ),
     ]
     .into()
-}
-
-fn defined_key_value_overrides(
-    config_overrides: &v1alpha1::ConfigOverrides,
-) -> BTreeMap<String, String> {
-    config_overrides
-        .get_key_value_overrides(SPARK_ENV_SH_FILE_NAME)
-        .into_iter()
-        .filter_map(|(key, value)| value.map(|value| (key, value)))
-        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]

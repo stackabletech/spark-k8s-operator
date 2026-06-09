@@ -19,7 +19,6 @@ use stackable_operator::{
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     config::merge::Merge,
-    config_overrides::KeyValueOverridesProvider,
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -438,7 +437,7 @@ fn build_config_map(
         .context(InvalidSparkDefaultsSnafu)?;
 
     let mut jvm_sec_props = default_jvm_security_properties();
-    jvm_sec_props.extend(config_overrides.get_key_value_overrides(JVM_SECURITY_PROPERTIES_FILE));
+    jvm_sec_props.extend(config_overrides.security_properties.overrides.clone());
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -454,9 +453,7 @@ fn build_config_map(
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
         .add_data(
             SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(
-                defined_key_value_overrides(config_overrides, SPARK_ENV_SH_FILE_NAME).iter(),
-            ),
+            to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
         )
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
@@ -734,17 +731,6 @@ fn default_jvm_security_properties() -> BTreeMap<String, Option<String>> {
         ),
     ]
     .into()
-}
-
-fn defined_key_value_overrides(
-    config_overrides: &v1alpha1::ConfigOverrides,
-    file_name: &str,
-) -> BTreeMap<String, String> {
-    config_overrides
-        .get_key_value_overrides(file_name)
-        .into_iter()
-        .filter_map(|(key, value)| value.map(|value| (key, value)))
-        .collect()
 }
 
 /// Return the Spark properties for the cleaner role group (if any).

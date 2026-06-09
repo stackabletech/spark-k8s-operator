@@ -24,7 +24,6 @@ use stackable_operator::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
-    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::s3,
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
@@ -38,6 +37,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
+    v2::config_overrides::KeyValueConfigOverrides,
     versioned::versioned,
 };
 
@@ -250,54 +250,13 @@ pub mod versioned {
         pub log_file_directory: Option<LogFileDirectorySpec>,
     }
 
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
     pub struct ConfigOverrides {
-        #[serde(
-            default,
-            rename = "spark-env.sh",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub spark_env_sh: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "spark-env.sh")]
+        pub spark_env_sh: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
-    }
-}
-
-impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        let field = match file {
-            SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.as_ref(),
-            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
-            _ => None,
-        };
-        field
-            .map(KeyValueConfigOverrides::as_product_config_overrides)
-            .unwrap_or_default()
-    }
-}
-
-impl Merge for v1alpha1::ConfigOverrides {
-    fn merge(&mut self, defaults: &Self) {
-        merge_key_value_config_overrides(&mut self.spark_env_sh, &defaults.spark_env_sh);
-        merge_key_value_config_overrides(
-            &mut self.security_properties,
-            &defaults.security_properties,
-        );
-    }
-}
-
-fn merge_key_value_config_overrides(
-    base: &mut Option<KeyValueConfigOverrides>,
-    overlay: &Option<KeyValueConfigOverrides>,
-) {
-    let base = base.get_or_insert_default();
-    if let Some(overlay) = overlay {
-        base.overrides.extend(overlay.overrides.clone());
+        #[serde(default, rename = "security.properties")]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
@@ -1105,10 +1064,10 @@ fn resources_to_executor_props(
 /// providing escaped values.
 pub fn to_spark_env_sh_string<'a, T>(properties: T) -> String
 where
-    T: Iterator<Item = (&'a String, &'a String)>,
+    T: Iterator<Item = (&'a String, &'a Option<String>)>,
 {
     properties
-        .map(|(k, v)| format!("export {k}=\"{v}\""))
+        .filter_map(|(k, v)| v.as_ref().map(|v| format!("export {k}=\"{v}\"")))
         .collect::<Vec<String>>()
         .join("\n")
 }

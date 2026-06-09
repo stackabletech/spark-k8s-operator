@@ -3,7 +3,7 @@
 //! Resolves the product image.
 //! Does not touch the Kubernetes API.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -11,6 +11,7 @@ use stackable_operator::{
     commons::product_image_selection::{self, ResolvedProductImage},
     k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference,
     kube::{Resource, ResourceExt},
+    v2::types::kubernetes::NamespaceName,
 };
 
 use crate::{
@@ -31,6 +32,11 @@ pub enum Error {
     #[snafu(display("object is missing namespace"))]
     MissingNamespace,
 
+    #[snafu(display("failed to parse namespace"))]
+    ParseNamespace {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
     #[snafu(display("invalid cleaner configuration"))]
     InvalidCleanerConfiguration { source: crate::crd::history::Error },
 
@@ -41,7 +47,7 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct ValidatedSparkHistoryServer {
-    pub namespace: String,
+    pub namespace: NamespaceName,
     pub owner_reference: OwnerReference,
     pub cleaner_rolegroup_name: Option<String>,
     pub spark_conf: BTreeMap<String, String>,
@@ -72,7 +78,8 @@ pub fn validate(
     let owner_reference = shs
         .controller_owner_ref(&())
         .context(MissingOwnerReferenceSnafu)?;
-    let namespace = shs.namespace().context(MissingNamespaceSnafu)?;
+    let namespace = NamespaceName::from_str(&shs.namespace().context(MissingNamespaceSnafu)?)
+        .context(ParseNamespaceSnafu)?;
 
     let cleaner_rolegroup_name = shs
         .cleaner_rolegroup_name()

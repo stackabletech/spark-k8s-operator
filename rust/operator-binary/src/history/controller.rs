@@ -446,7 +446,7 @@ fn build_config_map(
             ObjectMetaBuilder::new()
                 .namespace(validated.namespace.clone())
                 .name(&cm_name)
-                .ownerreference(validated.owner_reference.clone())
+                .ownerreference(validated.owner_reference())
                 .labels(recommended_labels.clone())
                 .build(),
         )

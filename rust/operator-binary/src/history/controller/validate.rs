@@ -11,7 +11,10 @@ use stackable_operator::{
     commons::product_image_selection::{self, ResolvedProductImage},
     k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference,
     kube::{Resource, ResourceExt},
-    v2::types::kubernetes::NamespaceName,
+    v2::types::{
+        kubernetes::{NamespaceName, Uid},
+        operator::ClusterName,
+    },
 };
 
 use crate::{
@@ -26,14 +29,27 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    MissingOwnerReference,
+    #[snafu(display("object is missing name"))]
+    MissingName,
 
     #[snafu(display("object is missing namespace"))]
     MissingNamespace,
 
+    #[snafu(display("object is missing UID"))]
+    MissingUid,
+
+    #[snafu(display("failed to parse cluster name"))]
+    ParseName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
     #[snafu(display("failed to parse namespace"))]
     ParseNamespace {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
+    #[snafu(display("failed to parse UID"))]
+    ParseUid {
         source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
 
@@ -47,8 +63,9 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct ValidatedSparkHistoryServer {
+    pub name: ClusterName,
     pub namespace: NamespaceName,
-    pub owner_reference: OwnerReference,
+    pub uid: Uid,
     pub cleaner_rolegroup_name: Option<String>,
     pub spark_conf: BTreeMap<String, String>,
     pub resolved_product_image: ResolvedProductImage,
@@ -58,6 +75,19 @@ pub struct ValidatedSparkHistoryServer {
     // is needed for command args and volume mounts.
     pub log_dir: ResolvedLogDir,
     pub log_dir_settings: BTreeMap<String, String>,
+}
+
+impl ValidatedSparkHistoryServer {
+    pub fn owner_reference(&self) -> OwnerReference {
+        OwnerReference {
+            api_version: v1alpha1::SparkHistoryServer::api_version(&()).to_string(),
+            block_owner_deletion: Some(true),
+            controller: Some(true),
+            kind: v1alpha1::SparkHistoryServer::kind(&()).to_string(),
+            name: String::from(&self.name),
+            uid: String::from(&self.uid),
+        }
+    }
 }
 
 pub fn validate(
@@ -75,11 +105,12 @@ pub fn validate(
         )
         .context(ResolveProductImageSnafu)?;
 
-    let owner_reference = shs
-        .controller_owner_ref(&())
-        .context(MissingOwnerReferenceSnafu)?;
+    let name = ClusterName::from_str(&shs.meta().name.clone().context(MissingNameSnafu)?)
+        .context(ParseNameSnafu)?;
     let namespace = NamespaceName::from_str(&shs.namespace().context(MissingNamespaceSnafu)?)
         .context(ParseNamespaceSnafu)?;
+    let uid =
+        Uid::from_str(&shs.meta().uid.clone().context(MissingUidSnafu)?).context(ParseUidSnafu)?;
 
     let cleaner_rolegroup_name = shs
         .cleaner_rolegroup_name()
@@ -91,8 +122,9 @@ pub fn validate(
         .context(InvalidLogDirSettingsSnafu)?;
 
     Ok(ValidatedSparkHistoryServer {
+        name,
         namespace,
-        owner_reference,
+        uid,
         cleaner_rolegroup_name,
         spark_conf: shs.spec.spark_conf.clone(),
         log_dir: dereferenced.log_dir,

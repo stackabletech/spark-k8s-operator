@@ -42,9 +42,9 @@ spec:
   deps:
     packages:
 {% if test_scenario['values']['spark-iceberg'].startswith("4") %}
-      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.13:1.10.1
+      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.13:{{ test_scenario['values']['iceberg-latest'] }}
 {% else %}
-      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.12:1.10.1
+      - org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-iceberg'].split('.')[:2]) }}_2.12:{{ test_scenario['values']['iceberg-latest'] }}
 {% endif %}
   volumes:
     - name: script

@@ -8,7 +8,7 @@ spec:
     productVersion: "3.5.8" # <2>
     pullPolicy: IfNotPresent
   args:
-    - "--package org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.8.1" # <3>
+    - "--packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.11.0" # <3>
   server:
     podOverrides:
       spec:

@@ -45,6 +45,13 @@ data:
       spark = (
         SparkSession.builder.appName("S3BucketsExample")
         .remote(remote)
+        # Must be (and already is) set on the SparkConnectServer
+        # .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+        .config("spark.sql.catalog.iceberg", "org.apache.iceberg.spark.SparkSessionCatalog")
+        .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
+        .config("spark.sql.catalog.lakehouse.type", "hive")
+        .config("spark.sql.catalog.lakehouse.uri", "thrift://hive-metastore:9083")
+        .config("spark.sql.defaultCatalog", "lakehouse")
         .getOrCreate()
       )
 
@@ -73,6 +80,13 @@ data:
 
       print(f"Writing statistics to {stats_bucket}")
       stats.write.mode("overwrite").parquet(stats_bucket)
+
+      print(f"Writing and reading Iceberg data")
+      spark.sql("CREATE SCHEMA IF NOT EXISTS lakehouse.test LOCATION 's3a://lakehouse/test/'")
+      sdf.writeTo("lakehouse.test.test").using("iceberg").createOrReplace()
+      data = spark.read.table("lakehouse.test.test")
+
+      data.show()
 
       spark.stop()
 ---

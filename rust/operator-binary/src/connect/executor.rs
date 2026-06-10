@@ -24,6 +24,7 @@ use stackable_operator::{
 
 use super::{
     common::{SparkConnectRole, object_name},
+    controller::validate::ValidatedSparkConnectServer,
     crd::{DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer},
 };
 use crate::{
@@ -338,13 +339,12 @@ fn executor_jvm_args(
 // - log4j2.properties     : with logging configuration (if configured)
 //
 pub(crate) fn executor_config_map(
-    scs: &v1alpha1::SparkConnectServer,
+    validated: &ValidatedSparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
     resolved_product_image: &ResolvedProductImage,
+    config_overrides: Option<&v1alpha1::ConfigOverrides>,
 ) -> Result<ConfigMap, Error> {
-    let cm_name = object_name(&scs.name_any(), SparkConnectRole::Executor);
-
-    let config_overrides = scs.spec.executor.as_ref().map(|s| &s.config_overrides);
+    let cm_name = object_name(&validated.name_any(), SparkConnectRole::Executor);
 
     let security_properties_overrides = config_overrides
         .and_then(|config_overrides| config_overrides.security_properties.as_ref())
@@ -361,7 +361,7 @@ pub(crate) fn executor_config_map(
 
     let metrics_props = common::metrics_properties(metrics_properties_overrides).context(
         MetricsPropertiesSnafu {
-            name: scs.name_unchecked(),
+            name: validated.name_any(),
         },
     )?;
 
@@ -370,12 +370,12 @@ pub(crate) fn executor_config_map(
     cm_builder
         .metadata(
             ObjectMetaBuilder::new()
-                .name_and_namespace(scs)
+                .name_and_namespace(validated)
                 .name(&cm_name)
-                .ownerreference_from_resource(scs, None, Some(true))
+                .ownerreference_from_resource(validated, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(&common::labels(
-                    scs,
+                    validated,
                     &resolved_product_image.app_version_label_value,
                     &SparkConnectRole::Executor.to_string(),
                 ))
@@ -386,7 +386,7 @@ pub(crate) fn executor_config_map(
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
     let role_group_ref = RoleGroupRef {
-        cluster: ObjectRef::from_obj(scs),
+        cluster: ObjectRef::from_obj(validated),
         role: SparkConnectRole::Executor.to_string(),
         role_group: DEFAULT_SPARK_CONNECT_GROUP_NAME.to_string(),
     };

@@ -42,6 +42,7 @@ use crate::{
     connect::{
         GRPC, HTTP,
         common::{self, SparkConnectRole, object_name},
+        controller::validate::ValidatedSparkConnectServer,
         crd::{
             CONNECT_GRPC_PORT, CONNECT_UI_PORT, DEFAULT_SPARK_CONNECT_GROUP_NAME,
             SparkConnectContainer, v1alpha1,
@@ -148,15 +149,14 @@ pub enum Error {
 //                           to the container environment.
 #[allow(clippy::result_large_err)]
 pub(crate) fn server_config_map(
-    scs: &v1alpha1::SparkConnectServer,
+    validated: &ValidatedSparkConnectServer,
     config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
     spark_properties: &str,
     executor_pod_template_spec: &str,
+    config_overrides: Option<&v1alpha1::ConfigOverrides>,
 ) -> Result<ConfigMap, Error> {
-    let cm_name = object_name(&scs.name_any(), SparkConnectRole::Server);
-
-    let config_overrides = scs.spec.server.config.as_ref().map(|s| &s.config_overrides);
+    let cm_name = object_name(&validated.name_any(), SparkConnectRole::Server);
 
     let security_properties_overrides = config_overrides
         .and_then(|config_overrides| config_overrides.security_properties.as_ref())
@@ -165,7 +165,7 @@ pub(crate) fn server_config_map(
 
     let jvm_sec_props = common::security_properties(security_properties_overrides).context(
         ServerJvmSecurityPropertiesSnafu {
-            name: scs.name_unchecked(),
+            name: validated.name_any(),
         },
     )?;
 
@@ -176,7 +176,7 @@ pub(crate) fn server_config_map(
 
     let metrics_props = common::metrics_properties(metrics_properties_overrides).context(
         MetricsPropertiesSnafu {
-            name: scs.name_unchecked(),
+            name: validated.name_any(),
         },
     )?;
 
@@ -185,12 +185,12 @@ pub(crate) fn server_config_map(
     cm_builder
         .metadata(
             ObjectMetaBuilder::new()
-                .name_and_namespace(scs)
+                .name_and_namespace(validated)
                 .name(&cm_name)
-                .ownerreference_from_resource(scs, None, Some(true))
+                .ownerreference_from_resource(validated, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(&common::labels(
-                    scs,
+                    validated,
                     &resolved_product_image.app_version_label_value,
                     &SparkConnectRole::Server.to_string(),
                 ))
@@ -202,7 +202,7 @@ pub(crate) fn server_config_map(
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
-    let role_group_ref = default_role_group_ref(scs);
+    let role_group_ref = default_role_group_ref(validated);
     product_logging::extend_config_map(
         &role_group_ref,
         &config.logging,
@@ -595,10 +595,10 @@ fn probe() -> Probe {
 }
 
 fn default_role_group_ref(
-    scs: &v1alpha1::SparkConnectServer,
-) -> RoleGroupRef<v1alpha1::SparkConnectServer> {
+    validated: &ValidatedSparkConnectServer,
+) -> RoleGroupRef<ValidatedSparkConnectServer> {
     RoleGroupRef {
-        cluster: ObjectRef::from_obj(scs),
+        cluster: ObjectRef::from_obj(validated),
         role: SparkConnectRole::Server.to_string(),
         role_group: DEFAULT_SPARK_CONNECT_GROUP_NAME.to_string(),
     }

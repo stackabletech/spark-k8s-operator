@@ -407,10 +407,10 @@ impl v1alpha1::SparkApplication {
             );
         }
 
-        if let Some(log_dir) = logdir.as_ref() {
-            if let Some(volume) = log_dir.credentials_volume().context(ConfigureLogDirSnafu)? {
-                result.insert(volume.name.clone(), volume);
-            }
+        if let Some(log_dir) = logdir.as_ref()
+            && let Some(volume) = log_dir.credentials_volume().context(ConfigureLogDirSnafu)?
+        {
+            result.insert(volume.name.clone(), volume);
         }
 
         if let Some(log_config_map) = log_config_map {

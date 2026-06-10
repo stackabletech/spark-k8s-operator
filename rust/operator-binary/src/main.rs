@@ -7,7 +7,7 @@ use anyhow::anyhow;
 use clap::Parser;
 use connect::crd::{CONNECT_FULL_CONTROLLER_NAME, SparkConnectServer};
 use futures::{FutureExt, StreamExt, TryFutureExt};
-use history::history_controller;
+use history::controller;
 use product_config::ProductConfigManager;
 use stackable_operator::{
     YamlSchema,
@@ -272,8 +272,8 @@ async fn main() -> anyhow::Result<()> {
             )
             .graceful_shutdown_on(sigterm_watcher.handle())
             .run(
-                history_controller::reconcile,
-                history_controller::error_policy,
+                controller::reconcile,
+                controller::error_policy,
                 Arc::new(ctx),
             )
             .instrument(info_span!("history_controller"))

@@ -63,7 +63,7 @@ pub async fn create_webhook_server(
         field_manager: FIELD_MANAGER.to_owned(),
     };
 
-    let (conversion_webhook, _initial_reconcile_rx) =
+    let (conversion_webhook, _) =
         ConversionWebhook::new(crds_and_handlers, client, conversion_webhook_options);
 
     let webhook_server_options = WebhookServerOptions {

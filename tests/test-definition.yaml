@@ -61,7 +61,7 @@ dimensions:
       - 3.4.2
   - name: zookeeper-latest
     values:
-      - 3.9.4
+      - 3.9.5
   - name: ny-tlc-report
     values:
       - 0.3.0

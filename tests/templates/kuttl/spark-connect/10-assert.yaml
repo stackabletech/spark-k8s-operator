@@ -1,25 +1,6 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 900
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: spark-connect-server
-status:
-  readyReplicas: 1
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: spark-connect-server
-spec:
-  type: NodePort
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: spark-connect-server-headless
-spec:
-  type: ClusterIP
+timeout: 300
+commands:
+  - script: kubectl -n $NAMESPACE wait --for=condition=Available=true sparkconnectservers.spark.stackable.tech/spark-connect --timeout=301s

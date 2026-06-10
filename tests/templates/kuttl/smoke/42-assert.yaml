@@ -1,0 +1,170 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 60
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spark-history-node-default
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: spark-history
+    app.kubernetes.io/managed-by: spark.stackable.tech_history
+    app.kubernetes.io/name: spark-history
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      app.kubernetes.io/instance: spark-history
+      app.kubernetes.io/name: spark-history
+      app.kubernetes.io/role-group: default
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-history-node-default
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: spark-history
+    app.kubernetes.io/managed-by: spark.stackable.tech_history
+    app.kubernetes.io/name: spark-history
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-history-node-default-metrics
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "18081"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: spark-history
+    app.kubernetes.io/managed-by: spark.stackable.tech_history
+    app.kubernetes.io/name: spark-history
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+spec:
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 18081
+      protocol: TCP
+      targetPort: 18081
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: spark-history
+    app.kubernetes.io/name: spark-history
+    app.kubernetes.io/role-group: default
+  type: ClusterIP
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: Listener
+metadata:
+  name: spark-history-node
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: spark-history
+    app.kubernetes.io/managed-by: spark.stackable.tech_history
+    app.kubernetes.io/name: spark-history
+    app.kubernetes.io/role-group: none
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+spec:
+  className: cluster-internal
+  ports:
+    - name: http
+      port: 18080
+      protocol: TCP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark-history-serviceaccount
+  labels:
+    app.kubernetes.io/instance: spark-history
+    app.kubernetes.io/managed-by: spark.stackable.tech_history
+    app.kubernetes.io/name: spark-history
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-history-rolebinding
+  labels:
+    app.kubernetes.io/instance: spark-history
+    app.kubernetes.io/managed-by: spark.stackable.tech_history
+    app.kubernetes.io/name: spark-history
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: spark-history-clusterrole
+subjects:
+  - kind: ServiceAccount
+    name: spark-history-serviceaccount
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: spark-history-node
+  labels:
+    app.kubernetes.io/component: node
+    app.kubernetes.io/instance: spark-history
+    app.kubernetes.io/managed-by: spark.stackable.tech_history
+    app.kubernetes.io/name: spark-history
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      app.kubernetes.io/instance: spark-history
+      app.kubernetes.io/name: spark-history
+status:
+  currentHealthy: 1
+  disruptionsAllowed: 1
+  expectedPods: 1

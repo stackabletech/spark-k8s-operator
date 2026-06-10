@@ -267,7 +267,7 @@ pub async fn reconcile(
         HISTORY_APP_NAME,
         OPERATOR_NAME,
         HISTORY_CONTROLLER_NAME,
-        &shs.object_ref(&()),
+        &validated.object_ref(&()),
         ClusterResourceApplyStrategy::Default,
         &shs.spec.object_overrides,
     )

@@ -3,13 +3,13 @@
 //! Resolves the product image.
 //! Does not touch the Kubernetes API.
 
-use std::{collections::BTreeMap, str::FromStr};
+use std::{borrow::Cow, collections::BTreeMap, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
-    k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference,
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference},
     kube::{Resource, ResourceExt},
     v2::types::{
         kubernetes::{NamespaceName, Uid},
@@ -63,6 +63,7 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct ValidatedSparkHistoryServer {
+    pub metadata: ObjectMeta,
     pub name: ClusterName,
     pub namespace: NamespaceName,
     pub uid: Uid,
@@ -79,14 +80,45 @@ pub struct ValidatedSparkHistoryServer {
 
 impl ValidatedSparkHistoryServer {
     pub fn owner_reference(&self) -> OwnerReference {
-        OwnerReference {
+        let mut owner_reference = self.controller_owner_ref(&()).unwrap_or(OwnerReference {
             api_version: v1alpha1::SparkHistoryServer::api_version(&()).to_string(),
             block_owner_deletion: Some(true),
             controller: Some(true),
             kind: v1alpha1::SparkHistoryServer::kind(&()).to_string(),
             name: String::from(&self.name),
             uid: String::from(&self.uid),
-        }
+        });
+        owner_reference.block_owner_deletion = Some(true);
+        owner_reference
+    }
+}
+
+impl Resource for ValidatedSparkHistoryServer {
+    type DynamicType = ();
+    type Scope = <v1alpha1::SparkHistoryServer as Resource>::Scope;
+
+    fn kind(_: &Self::DynamicType) -> Cow<'_, str> {
+        <v1alpha1::SparkHistoryServer as Resource>::kind(&())
+    }
+
+    fn group(_: &Self::DynamicType) -> Cow<'_, str> {
+        <v1alpha1::SparkHistoryServer as Resource>::group(&())
+    }
+
+    fn version(_: &Self::DynamicType) -> Cow<'_, str> {
+        <v1alpha1::SparkHistoryServer as Resource>::version(&())
+    }
+
+    fn plural(_: &Self::DynamicType) -> Cow<'_, str> {
+        <v1alpha1::SparkHistoryServer as Resource>::plural(&())
+    }
+
+    fn meta(&self) -> &ObjectMeta {
+        &self.metadata
+    }
+
+    fn meta_mut(&mut self) -> &mut ObjectMeta {
+        &mut self.metadata
     }
 }
 
@@ -122,6 +154,7 @@ pub fn validate(
         .context(InvalidLogDirSettingsSnafu)?;
 
     Ok(ValidatedSparkHistoryServer {
+        metadata: shs.meta().clone(),
         name,
         namespace,
         uid,

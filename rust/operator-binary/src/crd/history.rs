@@ -19,7 +19,6 @@ use stackable_operator::{
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
     kube::{CustomResource, ResourceExt},
-    product_config_utils::Configuration,
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
@@ -385,38 +384,6 @@ impl HistoryConfig {
             affinity: history_affinity(cluster_name),
             requested_secret_lifetime: Some(Self::DEFAULT_HISTORY_SECRET_LIFETIME),
         }
-    }
-}
-
-impl Configuration for HistoryConfigFragment {
-    type Configurable = v1alpha1::SparkHistoryServer;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
     }
 }
 

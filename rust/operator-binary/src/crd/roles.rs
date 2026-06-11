@@ -13,7 +13,7 @@
 //! each role is named "default". These roles are transparent to the user.
 //!
 //! The history server has its own role completely unrelated to this module.
-use std::{collections::BTreeMap, slice};
+use std::slice;
 
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
@@ -30,7 +30,6 @@ use stackable_operator::{
     },
     crd::s3,
     k8s_openapi::{api::core::v1::VolumeMount, apimachinery::pkg::api::resource::Quantity},
-    product_config_utils::Configuration,
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
     shared::time::Duration,
@@ -165,38 +164,6 @@ impl RoleConfig {
     }
 }
 
-impl Configuration for RoleConfigFragment {
-    type Configurable = v1alpha1::SparkApplication;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-}
-
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -253,38 +220,6 @@ impl SubmitConfig {
             requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
             retry_on_failure_count: Some(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT),
         }
-    }
-}
-
-impl Configuration for SubmitConfigFragment {
-    type Configurable = v1alpha1::SparkApplication;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
     }
 }
 

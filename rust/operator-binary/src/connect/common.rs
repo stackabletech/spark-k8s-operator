@@ -55,9 +55,6 @@ pub(crate) fn labels<'a, T>(
     }
 }
 
-// The dead code annotation is to shut up complains about missing Executor instantiations
-// These will come in the future.
-#[allow(dead_code)]
 #[derive(Clone, Debug, Display)]
 #[strum(serialize_all = "lowercase")]
 pub(crate) enum SparkConnectRole {

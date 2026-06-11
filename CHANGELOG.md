@@ -69,6 +69,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
+- Support for Spark `3.5.7` and `4.0.1` ([#695])
 - Support for Spark `3.5.6` ([#642]).
 - Deprecated support for Spark `3.5.7` ([#650]).
 
@@ -86,6 +87,7 @@ All notable changes to this project will be documented in this file.
 [#663]: https://github.com/stackabletech/spark-k8s-operator/pull/663
 [#664]: https://github.com/stackabletech/spark-k8s-operator/pull/664
 [#666]: https://github.com/stackabletech/spark-k8s-operator/pull/666
+[#695]: https://github.com/stackabletech/spark-k8s-operator/pull/695
 
 ## [25.11.0] - 2025-11-07
 

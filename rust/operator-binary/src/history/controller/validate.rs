@@ -3,17 +3,20 @@
 //! Resolves the product image.
 //! Does not touch the Kubernetes API.
 
-use std::{borrow::Cow, collections::BTreeMap, str::FromStr};
+use std::{borrow::Cow, collections::BTreeMap};
 
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
     k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference},
-    kube::{Resource, ResourceExt},
-    v2::types::{
-        kubernetes::{NamespaceName, Uid},
-        operator::ClusterName,
+    kube::Resource,
+    v2::{
+        controller_utils::{get_cluster_name, get_namespace, get_uid},
+        types::{
+            kubernetes::{NamespaceName, Uid},
+            operator::ClusterName,
+        },
     },
 };
 
@@ -29,28 +32,19 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    #[snafu(display("object is missing name"))]
-    MissingName,
-
-    #[snafu(display("object is missing namespace"))]
-    MissingNamespace,
-
-    #[snafu(display("object is missing UID"))]
-    MissingUid,
-
-    #[snafu(display("failed to parse cluster name"))]
-    ParseName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    #[snafu(display("failed to resolve cluster name"))]
+    ResolveClusterName {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
-    #[snafu(display("failed to parse namespace"))]
-    ParseNamespace {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    #[snafu(display("failed to resolve namespace"))]
+    ResolveNamespace {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
-    #[snafu(display("failed to parse UID"))]
-    ParseUid {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    #[snafu(display("failed to resolve uid"))]
+    ResolveUid {
+        source: stackable_operator::v2::controller_utils::Error,
     },
 
     #[snafu(display("invalid cleaner configuration"))]
@@ -63,7 +57,7 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct ValidatedSparkHistoryServer {
-    pub metadata: ObjectMeta,
+    metadata: ObjectMeta,
     pub name: ClusterName,
     pub namespace: NamespaceName,
     pub uid: Uid,
@@ -137,12 +131,9 @@ pub fn validate(
         )
         .context(ResolveProductImageSnafu)?;
 
-    let name = ClusterName::from_str(&shs.meta().name.clone().context(MissingNameSnafu)?)
-        .context(ParseNameSnafu)?;
-    let namespace = NamespaceName::from_str(&shs.namespace().context(MissingNamespaceSnafu)?)
-        .context(ParseNamespaceSnafu)?;
-    let uid =
-        Uid::from_str(&shs.meta().uid.clone().context(MissingUidSnafu)?).context(ParseUidSnafu)?;
+    let name = get_cluster_name(shs).context(ResolveClusterNameSnafu)?;
+    let namespace = get_namespace(shs).context(ResolveNamespaceSnafu)?;
+    let uid = get_uid(shs).context(ResolveUidSnafu)?;
 
     let cleaner_rolegroup_name = shs
         .cleaner_rolegroup_name()

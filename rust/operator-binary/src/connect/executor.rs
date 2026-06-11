@@ -12,7 +12,6 @@ use stackable_operator::{
         product_image_selection::ResolvedProductImage,
         resources::{CpuLimits, MemoryLimits, Resources},
     },
-    config_overrides::KeyValueConfigOverrides,
     k8s_openapi::{
         DeepMerge,
         api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
@@ -298,11 +297,10 @@ pub(crate) fn executor_properties(
         .spec
         .executor
         .as_ref()
-        .and_then(|s| s.config_overrides.spark_defaults_conf.as_ref())
-        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .map(|s| s.config_overrides.spark_defaults_conf.overrides.clone())
         .unwrap_or_default();
 
-    result.extend(config_overrides);
+    result.extend(config_overrides.into_iter().map(|(k, v)| (k, Some(v))));
 
     Ok(result)
 }
@@ -347,16 +345,14 @@ pub(crate) fn executor_config_map(
     let cm_name = object_name(&validated.name_any(), SparkConnectRole::Executor);
 
     let security_properties_overrides = config_overrides
-        .and_then(|config_overrides| config_overrides.security_properties.as_ref())
-        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .map(|config_overrides| config_overrides.security_properties.overrides.clone())
         .unwrap_or_default();
 
     let jvm_sec_props = common::security_properties(security_properties_overrides)
         .context(ExecutorJvmSecurityPropertiesSnafu)?;
 
     let metrics_properties_overrides = config_overrides
-        .and_then(|config_overrides| config_overrides.metrics_properties.as_ref())
-        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .map(|config_overrides| config_overrides.metrics_properties.overrides.clone())
         .unwrap_or_default();
 
     let metrics_props = common::metrics_properties(metrics_properties_overrides).context(

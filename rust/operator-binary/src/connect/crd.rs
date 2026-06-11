@@ -213,26 +213,14 @@ pub mod versioned {
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
     pub struct ConfigOverrides {
-        #[serde(
-            default,
-            rename = "spark-defaults.conf",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub spark_defaults_conf: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "spark-defaults.conf")]
+        pub spark_defaults_conf: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "metrics.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub metrics_properties: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "metrics.properties")]
+        pub metrics_properties: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "security.properties")]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 

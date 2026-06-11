@@ -106,51 +106,41 @@ pub(crate) fn spark_properties(
 }
 
 pub(crate) fn security_properties(
-    config_overrides: BTreeMap<String, Option<String>>,
+    config_overrides: BTreeMap<String, String>,
 ) -> Result<String, Error> {
-    let mut result: BTreeMap<String, Option<String>> = [
+    let mut result: BTreeMap<String, String> = [
         (
             JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
-            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string()),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string(),
         ),
         (
             JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
-            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string()),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string(),
         ),
     ]
     .into();
 
     result.extend(config_overrides);
 
-    to_java_properties_string(
-        result
-            .iter()
-            .filter_map(|(k, v)| v.as_ref().map(|v| (k, v))),
-    )
-    .context(JvmSecurityPropertiesSnafu)
+    to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
 }
 
 pub(crate) fn metrics_properties(
-    config_overrides: BTreeMap<String, Option<String>>,
+    config_overrides: BTreeMap<String, String>,
 ) -> Result<String, Error> {
-    let mut result: BTreeMap<String, Option<String>> = [
+    let mut result: BTreeMap<String, String> = [
         (
             "*.sink.prometheusServlet.class".to_string(),
-            Some("org.apache.spark.metrics.sink.PrometheusServlet".to_string()),
+            "org.apache.spark.metrics.sink.PrometheusServlet".to_string(),
         ),
         (
             "*.sink.prometheusServlet.path".to_string(),
-            Some("/metrics/prometheus".to_string()),
+            "/metrics/prometheus".to_string(),
         ),
     ]
     .into();
 
     result.extend(config_overrides);
 
-    to_java_properties_string(
-        result
-            .iter()
-            .filter_map(|(k, v)| v.as_ref().map(|v| (k, v))),
-    )
-    .context(MetricsPropertiesSnafu)
+    to_java_properties_string(result.iter()).context(MetricsPropertiesSnafu)
 }

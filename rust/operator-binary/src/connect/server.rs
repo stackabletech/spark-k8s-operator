@@ -18,7 +18,6 @@ use stackable_operator::{
         },
     },
     commons::product_image_selection::ResolvedProductImage,
-    config_overrides::KeyValueConfigOverrides,
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -159,8 +158,7 @@ pub(crate) fn server_config_map(
     let cm_name = object_name(&validated.name_any(), SparkConnectRole::Server);
 
     let security_properties_overrides = config_overrides
-        .and_then(|config_overrides| config_overrides.security_properties.as_ref())
-        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .map(|config_overrides| config_overrides.security_properties.overrides.clone())
         .unwrap_or_default();
 
     let jvm_sec_props = common::security_properties(security_properties_overrides).context(
@@ -170,8 +168,7 @@ pub(crate) fn server_config_map(
     )?;
 
     let metrics_properties_overrides = config_overrides
-        .and_then(|config_overrides| config_overrides.metrics_properties.as_ref())
-        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .map(|config_overrides| config_overrides.metrics_properties.overrides.clone())
         .unwrap_or_default();
 
     let metrics_props = common::metrics_properties(metrics_properties_overrides).context(
@@ -501,8 +498,7 @@ pub(crate) fn server_properties(
         .server
         .config
         .as_ref()
-        .and_then(|s| s.config_overrides.spark_defaults_conf.as_ref())
-        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .map(|s| s.config_overrides.spark_defaults_conf.overrides.clone())
         .unwrap_or_default();
 
     let mut result: BTreeMap<String, Option<String>> = [
@@ -549,7 +545,7 @@ pub(crate) fn server_properties(
     ]
     .into();
 
-    result.extend(config_overrides);
+    result.extend(config_overrides.into_iter().map(|(k, v)| (k, Some(v))));
 
     Ok(result)
 }

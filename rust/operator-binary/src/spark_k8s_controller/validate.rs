@@ -3,6 +3,8 @@
 //! Synchronously validates the [`super::dereference::DereferencedSparkApplication`] and
 //! resolves the product image. Does not touch the Kubernetes API.
 
+use std::borrow::Cow;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
@@ -11,6 +13,12 @@ use stackable_operator::{
         tls_verification::TlsVerification,
     },
     crd::s3,
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    kube::Resource,
+    v2::{
+        controller_utils::{get_cluster_name, get_namespace},
+        types::{kubernetes::NamespaceName, operator::ClusterName},
+    },
 };
 
 use crate::{
@@ -25,6 +33,16 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
+    #[snafu(display("failed to resolve cluster name"))]
+    ResolveClusterName {
+        source: stackable_operator::v2::controller_utils::Error,
+    },
+
+    #[snafu(display("failed to resolve namespace"))]
+    ResolveNamespace {
+        source: stackable_operator::v2::controller_utils::Error,
+    },
+
     #[snafu(display("S3 TLS with verification disabled is not supported ({context})"))]
     S3TlsNoVerificationNotSupported { context: String },
 }
@@ -33,11 +51,46 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Inputs the rest of `reconcile` needs after dereferencing.
 pub struct ValidatedSparkApplication {
+    /// Metadata mirroring the source [`v1alpha1::SparkApplication`] (name, namespace and UID), so
+    /// this struct can be used as the owner of generated objects via its [`Resource`] impl.
+    metadata: ObjectMeta,
+    pub name: ClusterName,
+    pub namespace: NamespaceName,
+    // Still carried in full because `reconcile` builds the submit/driver pod from the whole spec.
     pub spark_application: v1alpha1::SparkApplication,
     pub resolved_template_refs: Vec<v1alpha1::ResolvedSparkApplicationTemplate>,
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
     pub log_dir: Option<ResolvedLogDir>,
     pub resolved_product_image: ResolvedProductImage,
+}
+
+impl Resource for ValidatedSparkApplication {
+    type DynamicType = ();
+    type Scope = <v1alpha1::SparkApplication as Resource>::Scope;
+
+    fn kind(_: &Self::DynamicType) -> Cow<'_, str> {
+        <v1alpha1::SparkApplication as Resource>::kind(&())
+    }
+
+    fn group(_: &Self::DynamicType) -> Cow<'_, str> {
+        <v1alpha1::SparkApplication as Resource>::group(&())
+    }
+
+    fn version(_: &Self::DynamicType) -> Cow<'_, str> {
+        <v1alpha1::SparkApplication as Resource>::version(&())
+    }
+
+    fn plural(_: &Self::DynamicType) -> Cow<'_, str> {
+        <v1alpha1::SparkApplication as Resource>::plural(&())
+    }
+
+    fn meta(&self) -> &ObjectMeta {
+        &self.metadata
+    }
+
+    fn meta_mut(&mut self) -> &mut ObjectMeta {
+        &mut self.metadata
+    }
 }
 
 pub fn validate(
@@ -62,7 +115,16 @@ pub fn validate(
         )
         .context(ResolveProductImageSnafu)?;
 
+    let name =
+        get_cluster_name(&dereferenced.spark_application).context(ResolveClusterNameSnafu)?;
+    let namespace =
+        get_namespace(&dereferenced.spark_application).context(ResolveNamespaceSnafu)?;
+    let metadata = dereferenced.spark_application.meta().clone();
+
     Ok(ValidatedSparkApplication {
+        metadata,
+        name,
+        namespace,
         spark_application: dereferenced.spark_application,
         resolved_template_refs: dereferenced.resolved_template_refs,
         s3_connection: dereferenced.s3_connection,

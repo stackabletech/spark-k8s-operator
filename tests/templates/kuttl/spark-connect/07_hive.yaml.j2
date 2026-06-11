@@ -1,0 +1,41 @@
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+spec:
+  image:
+{% if test_scenario['values']['hive-iceberg'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['hive-iceberg'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['hive-iceberg'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['hive-iceberg'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  clusterConfig:
+    metadataDatabase:
+      postgresql:
+        host: postgresql-hive
+        database: hive
+        credentialsSecretName: postgres-credentials
+    s3:
+      reference: minio
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  metastore:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+    roleGroups:
+      default:
+        replicas: 1
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+type: Opaque
+stringData:
+  username: hive
+  password: hive

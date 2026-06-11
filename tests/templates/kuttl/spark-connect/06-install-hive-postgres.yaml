@@ -1,0 +1,12 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+timeout: 300
+commands:
+  - script: >-
+      helm upgrade postgresql-hive
+      --install
+      --version=12.5.6
+      --namespace $NAMESPACE
+      -f 06_helm-bitnami-postgresql-values.yaml
+      --repo https://charts.bitnami.com/bitnami postgresql

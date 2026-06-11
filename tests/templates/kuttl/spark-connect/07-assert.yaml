@@ -1,0 +1,12 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 900
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-metastore-default
+status:
+  readyReplicas: 1
+  replicas: 1

@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Application template merging should not ignore "*Overrides" fields ([#680]).
+- Correctly propagate user arguments to the Spark Connect server ([#696]).
 
 ### Changed
 
@@ -30,6 +31,7 @@ All notable changes to this project will be documented in this file.
 [#684]: https://github.com/stackabletech/spark-k8s-operator/pull/684
 [#687]: https://github.com/stackabletech/spark-k8s-operator/pull/687
 [#689]: https://github.com/stackabletech/spark-k8s-operator/pull/689
+[#696]: https://github.com/stackabletech/spark-k8s-operator/pull/696
 
 ## [26.3.0] - 2026-03-16
 

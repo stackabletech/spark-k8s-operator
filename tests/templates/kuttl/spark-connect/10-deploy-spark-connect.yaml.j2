@@ -1,31 +1,4 @@
 ---
-apiVersion: s3.stackable.tech/v1alpha1
-kind: S3Connection
-metadata:
-  name: s3-connection
-spec:
-  host: minio
-  port: 9000
-  accessStyle: Path
-  credentials:
-    secretClass: minio-credentials-class
-{% if test_scenario['values']['s3-use-tls'] == 'true' %}
-  tls:
-    verification:
-      server:
-        caCert:
-          secretClass: minio-tls-ca
-{% endif %}
----
-apiVersion: s3.stackable.tech/v1alpha1
-kind: S3Bucket
-metadata:
-  name: ingest-bucket
-spec:
-  bucketName: ingest-bucket
-  connection:
-    reference: s3-connection
----
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -62,11 +35,17 @@ spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
+  args:
+{% if test_scenario['values']['spark-connect'].startswith("4") %}
+    - "--packages org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-connect'].split('.')[:2]) }}_2.13:{{ test_scenario['values']['iceberg-latest'] }}"
+{% else %}
+    - "--packages org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-connect'].split('.')[:2]) }}_2.12:{{ test_scenario['values']['iceberg-latest'] }}"
+{% endif %}
   connectors:
     s3buckets:
       - reference: ingest-bucket
     s3connection:
-      reference: s3-connection
+      reference: minio
   server:
     jvmArgumentOverrides:
       add:
@@ -82,12 +61,14 @@ spec:
               configMap: spark-connect-log-config
     configOverrides:
       spark-defaults.conf:
+        spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
         spark.jars.ivy: /tmp/ivy2
   executor:
     configOverrides:
       spark-defaults.conf:
         spark.executor.instances: "1"
         spark.executor.memoryOverhead: "1m"
+        spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}

@@ -1,0 +1,6 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # We need to replace $NAMESPACE (by KUTTL)
+  - script: envsubst '$NAMESPACE' < 07_hive.yaml | kubectl apply -n $NAMESPACE -f -

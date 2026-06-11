@@ -67,6 +67,7 @@ commands:
         spark.kubernetes.executor.request.cores=1
         spark.kubernetes.namespace=__NAMESPACE__
         spark.metrics.conf=/stackable/spark/conf/metrics.properties
+        spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
         spark.ui.prometheus.enabled=true
       template.yaml: |
         metadata:

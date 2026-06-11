@@ -6,8 +6,6 @@
 - 4.1.1 (Hadoop 3.4.2, Scala 2.13, Python 3.12, Java 21) (LTS)
 - 3.5.8 (Hadoop 3.4.2, Scala 2.12, Python 3.11, Java 17) (Deprecated)
 
-Apache Spark 4.1.1 has the following known issues (as of February 2026):
+Apache Spark 4.1.1 has the following known issues (as of July 2026):
 
-- Missing HBase compatibility (See: https://github.com/apache/hbase-connectors/pull/130)
-- No Iceberg Spark runtime release with support for Spark 4.1 available yet.
-- No Delta Lake release with support for Spark 4.1 available yet.
+- Missing HBase compatibility (See: https://issues.apache.org/jira/browse/HBASE-30178)

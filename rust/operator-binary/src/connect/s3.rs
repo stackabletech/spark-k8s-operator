@@ -626,7 +626,12 @@ mod tests {
         let properties = resolved_s3.spark_properties().unwrap();
 
         assert_eq!(
-            to_java_properties_string(properties.iter()).unwrap(),
+            to_java_properties_string(
+                properties
+                    .iter()
+                    .filter_map(|(k, v)| v.as_ref().map(|v| (k, v)))
+            )
+            .unwrap(),
             spark_properties_string,
             "Case failed for spark properties: {}",
             case_name

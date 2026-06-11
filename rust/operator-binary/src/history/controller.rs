@@ -433,8 +433,12 @@ fn build_config_map(
 ) -> Result<ConfigMap, Error> {
     let cm_name = rolegroupref.object_name();
 
-    let spark_defaults = to_java_properties_string(spark_defaults(validated, rolegroupref).iter())
-        .context(InvalidSparkDefaultsSnafu)?;
+    let spark_defaults = to_java_properties_string(
+        spark_defaults(validated, rolegroupref)
+            .iter()
+            .filter_map(|(k, v)| v.as_ref().map(|v| (k, v))),
+    )
+    .context(InvalidSparkDefaultsSnafu)?;
 
     let mut jvm_sec_props = default_jvm_security_properties();
     jvm_sec_props.extend(config_overrides.security_properties.overrides.clone());
@@ -719,15 +723,15 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
     vec![command.join("\n")]
 }
 
-fn default_jvm_security_properties() -> BTreeMap<String, Option<String>> {
+fn default_jvm_security_properties() -> BTreeMap<String, String> {
     [
         (
             JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
-            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string()),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string(),
         ),
         (
             JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
-            Some(DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string()),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string(),
         ),
     ]
     .into()

@@ -97,7 +97,12 @@ pub(crate) fn spark_properties(
     for p in props {
         result.extend(p);
     }
-    to_java_properties_string(result.into_iter()).context(SparkPropertiesSnafu)
+    to_java_properties_string(
+        result
+            .into_iter()
+            .filter_map(|(k, v)| v.as_ref().map(|v| (k, v))),
+    )
+    .context(SparkPropertiesSnafu)
 }
 
 pub(crate) fn security_properties(
@@ -117,7 +122,12 @@ pub(crate) fn security_properties(
 
     result.extend(config_overrides);
 
-    to_java_properties_string(result.iter()).context(JvmSecurityPropertiesSnafu)
+    to_java_properties_string(
+        result
+            .iter()
+            .filter_map(|(k, v)| v.as_ref().map(|v| (k, v))),
+    )
+    .context(JvmSecurityPropertiesSnafu)
 }
 
 pub(crate) fn metrics_properties(
@@ -137,5 +147,10 @@ pub(crate) fn metrics_properties(
 
     result.extend(config_overrides);
 
-    to_java_properties_string(result.iter()).context(MetricsPropertiesSnafu)
+    to_java_properties_string(
+        result
+            .iter()
+            .filter_map(|(k, v)| v.as_ref().map(|v| (k, v))),
+    )
+    .context(MetricsPropertiesSnafu)
 }

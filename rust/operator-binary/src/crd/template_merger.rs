@@ -491,15 +491,15 @@ mod tests {
             .unwrap();
         assert_eq!(
             submit_security_props.get("test.base.only"),
-            Some(&Some("base".to_string()))
+            Some(&"base".to_string())
         );
         assert_eq!(
             submit_security_props.get("test.overridden"),
-            Some(&Some("overlay".to_string()))
+            Some(&"overlay".to_string())
         );
         assert_eq!(
             submit_security_props.get("test.overlay.only"),
-            Some(&Some("overlay".to_string()))
+            Some(&"overlay".to_string())
         );
 
         let driver_security_props = merged
@@ -509,15 +509,15 @@ mod tests {
             .unwrap();
         assert_eq!(
             driver_security_props.get("test.base.only"),
-            Some(&Some("base".to_string()))
+            Some(&"base".to_string())
         );
         assert_eq!(
             driver_security_props.get("test.overridden"),
-            Some(&Some("overlay".to_string()))
+            Some(&"overlay".to_string())
         );
         assert_eq!(
             driver_security_props.get("test.overlay.only"),
-            Some(&Some("overlay".to_string()))
+            Some(&"overlay".to_string())
         );
 
         let executor_security_props = merged
@@ -533,15 +533,15 @@ mod tests {
             .unwrap();
         assert_eq!(
             executor_security_props.get("test.base.only"),
-            Some(&Some("base".to_string()))
+            Some(&"base".to_string())
         );
         assert_eq!(
             executor_security_props.get("test.overridden"),
-            Some(&Some("overlay".to_string()))
+            Some(&"overlay".to_string())
         );
         assert_eq!(
             executor_security_props.get("test.overlay.only"),
-            Some(&Some("overlay".to_string()))
+            Some(&"overlay".to_string())
         );
     }
 
@@ -593,7 +593,7 @@ mod tests {
 
         assert_eq!(
             submit_security_props.get("test.base.only"),
-            Some(&Some("base".to_string()))
+            Some(&"base".to_string())
         );
     }
 
@@ -645,7 +645,7 @@ mod tests {
 
         assert_eq!(
             submit_security_props.get("test.overlay.only"),
-            Some(&Some("overlay".to_string()))
+            Some(&"overlay".to_string())
         );
     }
 

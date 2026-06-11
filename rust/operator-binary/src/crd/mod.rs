@@ -1064,10 +1064,10 @@ fn resources_to_executor_props(
 /// providing escaped values.
 pub fn to_spark_env_sh_string<'a, T>(properties: T) -> String
 where
-    T: Iterator<Item = (&'a String, &'a Option<String>)>,
+    T: Iterator<Item = (&'a String, &'a String)>,
 {
     properties
-        .filter_map(|(k, v)| v.as_ref().map(|v| format!("export {k}=\"{v}\"")))
+        .map(|(k, v)| format!("export {k}=\"{v}\""))
         .collect::<Vec<String>>()
         .join("\n")
 }

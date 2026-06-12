@@ -113,14 +113,13 @@ metadata:
 spec:
   sparkConf:
     spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-    spark.sql.catalog.spark_catalog: org.apache.iceberg.spark.SparkSessionCatalog
-    spark.sql.catalog.spark_catalog.type: hive
-    spark.sql.catalog.local: org.apache.iceberg.spark.SparkCatalog
-    spark.sql.catalog.local.type: hadoop
-    spark.sql.catalog.local.warehouse: /tmp/warehouse
+    spark.sql.catalog.lakehouse: org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.lakehouse.type: hive
+    spark.sql.catalog.lakehouse.uri: thrift://hive-iceberg-metastore:9083
+    spark.sql.defaultCatalog: lakehouse
   deps:
     packages:
-      - org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.8.1 # <1>
+      - org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0 # <1>
 ...
 ----
 

@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 - Application template merging should not ignore "*Overrides" fields ([#680]).
 - SparkHistoryServer security.properties now contain the correct JVM DNS settings used across all Java products in the SDP platform ([#692]).
+- Correctly propagate user arguments to the Spark Connect server ([#696]).
 
 ### Changed
 
@@ -34,6 +35,7 @@ All notable changes to this project will be documented in this file.
 [#687]: https://github.com/stackabletech/spark-k8s-operator/pull/687
 [#689]: https://github.com/stackabletech/spark-k8s-operator/pull/689
 [#692]: https://github.com/stackabletech/spark-k8s-operator/pull/692
+[#696]: https://github.com/stackabletech/spark-k8s-operator/pull/696
 
 ## [26.3.0] - 2026-03-16
 
@@ -71,6 +73,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
+- Support for Spark `3.5.7` and `4.0.1` ([#695])
 - Support for Spark `3.5.6` ([#642]).
 - Deprecated support for Spark `3.5.7` ([#650]).
 
@@ -88,6 +91,7 @@ All notable changes to this project will be documented in this file.
 [#663]: https://github.com/stackabletech/spark-k8s-operator/pull/663
 [#664]: https://github.com/stackabletech/spark-k8s-operator/pull/664
 [#666]: https://github.com/stackabletech/spark-k8s-operator/pull/666
+[#695]: https://github.com/stackabletech/spark-k8s-operator/pull/695
 
 ## [25.11.0] - 2025-11-07
 

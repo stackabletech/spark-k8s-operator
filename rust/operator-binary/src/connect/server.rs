@@ -429,7 +429,7 @@ pub(crate) fn build_stateful_set(
 
 #[allow(clippy::result_large_err)]
 pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
-    let mut command = vec![formatdoc! { "
+    let mut command = formatdoc! { "
     containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &
 
     cp {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME} /tmp/spark.properties
@@ -438,13 +438,13 @@ pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
     /stackable/spark/sbin/start-connect-server.sh \\
     --deploy-mode client \\
     --master k8s://https://${{KUBERNETES_SERVICE_HOST}}:${{KUBERNETES_SERVICE_PORT_HTTPS}} \\
-    --properties-file /tmp/spark.properties
-    " }];
+    --properties-file /tmp/spark.properties"};
 
-    // User provided command line arguments
-    command.extend_from_slice(user_args);
-
-    vec![command.join(" ")]
+    // Append user-provided command line arguments as continuation lines.
+    for user_arg in user_args {
+        command.push_str(&format!(" \\\n{user_arg}"));
+    }
+    vec![command]
 }
 
 #[allow(clippy::result_large_err)]

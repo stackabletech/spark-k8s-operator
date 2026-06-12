@@ -1,0 +1,102 @@
+{
+  "affinity": {},
+  "containers": [
+    {
+      "args": [
+        "containerdebug --output=/stackable/log/containerdebug-state.json --loop &  /stackable/spark/bin/spark-submit --verbose --master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS} --deploy-mode cluster --name pyspark-pi --conf spark.kubernetes.driver.podTemplateFile=/stackable/spark/driver-pod-templates/template.yaml --conf spark.kubernetes.executor.podTemplateFile=/stackable/spark/executor-pod-templates/template.yaml --conf spark.kubernetes.driver.podTemplateContainerName=spark --conf spark.kubernetes.executor.podTemplateContainerName=spark --conf spark.kubernetes.namespace=__NAMESPACE__ --conf spark.kubernetes.driver.container.image=oci.stackable.tech/sdp/spark-k8s:3.5.8-stackable0.0.0-dev --conf spark.kubernetes.executor.container.image=oci.stackable.tech/sdp/spark-k8s:3.5.8-stackable0.0.0-dev --conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile=/stackable/log_config/log4j2.properties --conf spark.driver.extraClassPath=/stackable/spark/extra-jars/* --conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile=/stackable/log_config/log4j2.properties --conf spark.executor.extraClassPath=/stackable/spark/extra-jars/* --conf spark.driver.extraJavaOptions=\"-Djava.security.properties=/stackable/log_config/security.properties\" --conf spark.executor.extraJavaOptions=\"-Djava.security.properties=/stackable/log_config/security.properties\" --conf spark.metrics.conf.\\*.sink.prometheusServlet.class=org.apache.spark.metrics.sink.PrometheusServlet --conf spark.metrics.conf.\\*.sink.prometheusServlet.path=/metrics/prometheus --conf spark.ui.prometheus.enabled=true --conf spark.sql.streaming.metricsEnabled=true --conf \"spark.driver.cores=2\" --conf \"spark.driver.memory=640m\" --conf \"spark.executor.cores=2\" --conf \"spark.executor.instances=1\" --conf \"spark.executor.memory=640m\" --conf \"spark.kubernetes.driver.limit.cores=2\" --conf \"spark.kubernetes.driver.request.cores=1\" --conf \"spark.kubernetes.executor.limit.cores=2\" --conf \"spark.kubernetes.executor.request.cores=1\" --conf \"spark.kubernetes.memoryOverheadFactor=0.0\" local:///stackable/spark/examples/src/main/python/pi.py"
+      ],
+      "command": [
+        "/bin/bash",
+        "-x",
+        "-euo",
+        "pipefail",
+        "-c"
+      ],
+      "env": [
+        {
+          "name": "CONTAINERDEBUG_LOG_DIRECTORY",
+          "value": "/stackable/log/containerdebug"
+        },
+        {
+          "name": "_STACKABLE_PRE_HOOK",
+          "value": "containerdebug --output=/stackable/log/containerdebug-state.json --loop &"
+        },
+        {
+          "name": "SPARK_SUBMIT_OPTS",
+          "value": "-Dlog4j.configurationFile=/stackable/log_config/log4j2.properties"
+        },
+        {
+          "name": "SPARK_CONF_DIR",
+          "value": "/stackable/spark/conf"
+        }
+      ],
+      "image": "oci.stackable.tech/sdp/spark-k8s:3.5.8-stackable0.0.0-dev",
+      "imagePullPolicy": "Always",
+      "name": "spark-submit",
+      "resources": {
+        "limits": {
+          "cpu": "2",
+          "memory": "1Gi"
+        },
+        "requests": {
+          "cpu": "1",
+          "memory": "1Gi"
+        }
+      },
+      "terminationMessagePath": "/dev/termination-log",
+      "terminationMessagePolicy": "File",
+      "volumeMounts": [
+        {
+          "mountPath": "/stackable/spark/driver-pod-templates",
+          "name": "driver-pod-template"
+        },
+        {
+          "mountPath": "/stackable/spark/executor-pod-templates",
+          "name": "executor-pod-template"
+        },
+        {
+          "mountPath": "/stackable/log",
+          "name": "log"
+        }
+      ]
+    }
+  ],
+  "dnsPolicy": "ClusterFirst",
+  "restartPolicy": "Never",
+  "schedulerName": "default-scheduler",
+  "securityContext": {
+    "fsGroup": 1000
+  },
+  "serviceAccount": "pyspark-pi",
+  "serviceAccountName": "pyspark-pi",
+  "terminationGracePeriodSeconds": 30,
+  "volumes": [
+    {
+      "configMap": {
+        "defaultMode": 420,
+        "name": "pyspark-pi-submit-job"
+      },
+      "name": "config"
+    },
+    {
+      "configMap": {
+        "defaultMode": 420,
+        "name": "pyspark-pi-driver-pod-template"
+      },
+      "name": "driver-pod-template"
+    },
+    {
+      "configMap": {
+        "defaultMode": 420,
+        "name": "pyspark-pi-executor-pod-template"
+      },
+      "name": "executor-pod-template"
+    },
+    {
+      "emptyDir": {
+        "sizeLimit": "39Mi"
+      },
+      "name": "log"
+    }
+  ]
+}

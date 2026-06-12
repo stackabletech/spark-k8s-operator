@@ -1,12 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 
-use product_config::{ProductConfigManager, types::PropertyNameKind};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
-        product_image_selection::{ProductImage, ResolvedProductImage},
+        product_image_selection::ProductImage,
         resources::{
             CpuLimitsFragment, MemoryLimitsFragment, NoRuntimeLimits, NoRuntimeLimitsFragment,
             Resources, ResourcesFragment,
@@ -16,19 +15,15 @@ use stackable_operator::{
         fragment::{self, Fragment, ValidationError},
         merge::Merge,
     },
-    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
-    kube::{CustomResource, ResourceExt, runtime::reflector::ObjectRef},
-    product_config_utils::{
-        Configuration, ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
-        validate_all_roles_and_groups_config,
-    },
+    kube::{CustomResource, ResourceExt},
     product_logging::{self, spec::Logging},
     role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
     schemars::{self, JsonSchema},
     shared::time::Duration,
+    v2::config_overrides::KeyValueConfigOverrides,
     versioned::versioned,
 };
 use strum::{Display, EnumIter};
@@ -43,16 +38,6 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("failed to transform configs"))]
-    ProductConfigTransform {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 
@@ -63,6 +48,12 @@ pub enum Error {
     ConstructJvmArguments {
         source: crate::history::config::jvm::Error,
     },
+
+    #[snafu(display("too many cleaner replicas"))]
+    TooManyCleanerReplicas,
+
+    #[snafu(display("too many cleaner role groups: {role_groups}"))]
+    TooManyCleanerRoleGroups { role_groups: String },
 }
 
 pub type SparkHistoryRoleType = Role<
@@ -131,42 +122,16 @@ pub mod versioned {
         pub listener_class: String,
     }
 
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
     pub struct ConfigOverrides {
-        #[serde(
-            default,
-            rename = "spark-defaults.conf",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub spark_defaults_conf: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "spark-defaults.conf")]
+        pub spark_defaults_conf: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "spark-env.sh",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub spark_env_sh: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "spark-env.sh")]
+        pub spark_env_sh: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
-    }
-}
-
-impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        let field = match file {
-            SPARK_DEFAULTS_FILE_NAME => self.spark_defaults_conf.as_ref(),
-            SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.as_ref(),
-            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
-            _ => None,
-        };
-        field
-            .map(KeyValueConfigOverrides::as_product_config_overrides)
-            .unwrap_or_default()
+        #[serde(default, rename = "security.properties")]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
@@ -231,49 +196,44 @@ impl v1alpha1::SparkHistoryServer {
             .map(i32::from)
     }
 
-    pub fn cleaner_rolegroups(&self) -> Vec<RoleGroupRef<Self>> {
-        let mut rgs = vec![];
-        for (rg_name, rg_config) in &self.spec.nodes.role_groups {
-            if let Some(true) = rg_config.config.config.cleaner {
-                rgs.push(RoleGroupRef {
-                    cluster: ObjectRef::from_obj(self),
-                    role: HISTORY_ROLE_NAME.into(),
-                    role_group: rg_name.into(),
-                });
+    // Returns the name of the cleaner role group if any.
+    // Raises an error when:
+    // * there are multiple cleaner role groups
+    // * the cleaner role group has more than one replica.
+    pub fn cleaner_rolegroup_name(&self) -> Result<Option<String>, Error> {
+        let rgs = self
+            .spec
+            .nodes
+            .role_groups
+            .keys()
+            .filter(|rg_name| {
+                self.spec
+                    .nodes
+                    .role_groups
+                    .get(*rg_name)
+                    .and_then(|rg| rg.config.config.cleaner)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+
+        match rgs.len() {
+            0 => Ok(None),
+            1 => match self
+                .spec
+                .nodes
+                .role_groups
+                .get(&rgs[0])
+                .and_then(|rg| rg.replicas)
+            {
+                Some(replicas) if replicas > 1 => Err(TooManyCleanerReplicasSnafu.build()),
+                _ => Ok(Some(rgs[0].clone())),
+            },
+            _ => Err(TooManyCleanerRoleGroupsSnafu {
+                role_groups: rgs.join(","),
             }
+            .build()),
         }
-        rgs
-    }
-
-    pub fn validated_role_config(
-        &self,
-        resolved_product_image: &ResolvedProductImage,
-        product_config: &ProductConfigManager,
-    ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        let roles_to_validate = vec![(
-            HISTORY_ROLE_NAME.to_string(),
-            (
-                vec![
-                    PropertyNameKind::File(SPARK_DEFAULTS_FILE_NAME.to_string()),
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                self.spec.nodes.clone(),
-            ),
-        )]
-        .into_iter()
-        .collect::<HashMap<_, _>>();
-
-        let role_config = transform_all_roles_to_config(self, &roles_to_validate);
-
-        validate_all_roles_and_groups_config(
-            &resolved_product_image.product_version,
-            &role_config.context(ProductConfigTransformSnafu)?,
-            product_config,
-            false,
-            false,
-        )
-        .context(InvalidProductConfigSnafu)
     }
 
     pub fn merged_env(
@@ -424,38 +384,6 @@ impl HistoryConfig {
             affinity: history_affinity(cluster_name),
             requested_secret_lifetime: Some(Self::DEFAULT_HISTORY_SECRET_LIFETIME),
         }
-    }
-}
-
-impl Configuration for HistoryConfigFragment {
-    type Configurable = v1alpha1::SparkHistoryServer;
-
-    fn compute_env(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_cli(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
-    }
-
-    fn compute_files(
-        &self,
-        _resource: &Self::Configurable,
-        _role_name: &str,
-        _file: &str,
-    ) -> Result<BTreeMap<String, Option<String>>, stackable_operator::product_config_utils::Error>
-    {
-        Ok(BTreeMap::new())
     }
 }
 

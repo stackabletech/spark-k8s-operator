@@ -1,0 +1,4 @@
+{
+  "security.properties": "networkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=30\n",
+  "spark-env.sh": ""
+}

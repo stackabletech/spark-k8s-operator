@@ -175,6 +175,13 @@ pub async fn reconcile(
     let validated = validate::validate(scs, dereferenced, &ctx.operator_environment)
         .context(ValidateSparkConnectServerSnafu)?;
 
+    tracing::debug!(
+        name = %validated.name,
+        namespace = %validated.namespace,
+        uid = %validated.uid,
+        "Validated SparkConnectServer identity"
+    );
+
     let server_config = &validated.server_config;
     let executor_config = &validated.executor_config;
     let resolved_product_image = &validated.resolved_product_image;
@@ -186,7 +193,7 @@ pub async fn reconcile(
         CONNECT_APP_NAME,
         OPERATOR_NAME,
         CONNECT_CONTROLLER_NAME,
-        &scs.object_ref(&()),
+        &validated.object_ref(&()),
         ClusterResourceApplyStrategy::from(&scs.spec.cluster_operation),
         &scs.spec.object_overrides,
     )
@@ -251,19 +258,28 @@ pub async fn reconcile(
     ])
     .context(SerializePropertiesSnafu)?;
 
+    let executor_config_overrides = scs
+        .spec
+        .executor
+        .as_ref()
+        .map(|s| s.config_overrides.clone());
+
     // ========================================
     // Executor config map and pod template
-    let executor_config_map =
-        executor::executor_config_map(scs, executor_config, resolved_product_image).context(
-            BuildExecutorConfigMapSnafu {
-                name: scs.name_unchecked(),
-            },
-        )?;
+    let executor_config_map = executor::executor_config_map(
+        &validated,
+        executor_config,
+        resolved_product_image,
+        executor_config_overrides.as_ref(),
+    )
+    .context(BuildExecutorConfigMapSnafu {
+        name: validated.name_any(),
+    })?;
     cluster_resources
         .add(client, executor_config_map.clone())
         .await
         .context(ApplyExecutorConfigMapSnafu {
-            name: scs.name_unchecked(),
+            name: validated.name_any(),
         })?;
 
     let executor_pod_template = serde_yaml::to_string(
@@ -278,23 +294,31 @@ pub async fn reconcile(
     )
     .context(ExecutorPodTemplateSerdeSnafu)?;
 
+    let server_config_overrides = scs
+        .spec
+        .server
+        .config
+        .as_ref()
+        .map(|s| s.config_overrides.clone());
+
     // ========================================
     // Server config map
     let server_config_map = server::server_config_map(
-        scs,
+        &validated,
         server_config,
         resolved_product_image,
         &spark_props,
         &executor_pod_template,
+        server_config_overrides.as_ref(),
     )
     .context(BuildServerConfigMapSnafu {
-        name: scs.name_unchecked(),
+        name: validated.name_any(),
     })?;
     cluster_resources
         .add(client, server_config_map.clone())
         .await
         .context(ApplyServerConfigMapSnafu {
-            name: scs.name_unchecked(),
+            name: validated.name_any(),
         })?;
 
     // ========================================
@@ -354,7 +378,7 @@ pub async fn reconcile(
         .apply_patch_status(OPERATOR_NAME, scs, &status)
         .await
         .context(ApplyStatusSnafu {
-            name: scs.name_any(),
+            name: validated.name_any(),
         })?;
 
     Ok(Action::await_change())

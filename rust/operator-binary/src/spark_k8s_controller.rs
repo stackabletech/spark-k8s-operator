@@ -1,10 +1,5 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-    vec,
-};
+use std::{collections::BTreeMap, sync::Arc, vec};
 
-use product_config::{types::PropertyNameKind, writer::to_java_properties_string};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -48,6 +43,7 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
     shared::time::Duration,
+    v2::config_file_writer::{PropertiesWriterError, to_java_properties_string},
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -131,7 +127,7 @@ pub enum Error {
 
     #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
     JvmSecurityProperties {
-        source: product_config::writer::PropertiesWriterError,
+        source: PropertiesWriterError,
         role: SparkApplicationRole,
     },
 
@@ -207,16 +203,13 @@ pub async fn reconcile(
         .await
         .context(DereferenceSparkApplicationSnafu)?;
 
-    let validated =
-        validate::validate(dereferenced, &ctx.operator_environment, &ctx.product_config)
-            .context(ValidateSparkApplicationSnafu)?;
+    let validated = validate::validate(dereferenced, &ctx.operator_environment)
+        .context(ValidateSparkApplicationSnafu)?;
 
     let spark_application = &validated.spark_application;
     let opt_s3conn = &validated.s3_connection;
     let logdir = &validated.log_dir;
     let resolved_product_image = &validated.resolved_product_image;
-    let validated_product_config = &validated.product_config;
-
     // This is the final version of the spark app to reconcile.
     // No more mutating operations after this point (except for status).
     tracing::debug!("reconciling spark application [{spark_application:?}]");
@@ -238,16 +231,18 @@ pub async fn reconcile(
         .driver_config()
         .context(FailedToResolveConfigSnafu)?;
 
-    let driver_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
-        validated_product_config
-            .get(&SparkApplicationRole::Driver.to_string())
-            .and_then(|r| r.get(&"default".to_string()));
+    let driver_config_overrides = spark_application
+        .spec
+        .driver
+        .as_ref()
+        .map(|driver| driver.config_overrides.clone())
+        .unwrap_or_default();
 
     let driver_pod_template_config_map = pod_template_config_map(
-        spark_application,
+        &validated,
         SparkApplicationRole::Driver,
         &driver_config,
-        driver_product_config,
+        &driver_config_overrides,
         &env_vars,
         opt_s3conn,
         logdir,
@@ -267,16 +262,18 @@ pub async fn reconcile(
         .executor_config()
         .context(FailedToResolveConfigSnafu)?;
 
-    let executor_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
-        validated_product_config
-            .get(&SparkApplicationRole::Executor.to_string())
-            .and_then(|r| r.get(&"default".to_string()));
+    let executor_config_overrides = spark_application
+        .spec
+        .executor
+        .as_ref()
+        .map(|executor| executor.config.config_overrides.clone())
+        .unwrap_or_default();
 
     let executor_pod_template_config_map = pod_template_config_map(
-        spark_application,
+        &validated,
         SparkApplicationRole::Executor,
         &executor_config,
-        executor_product_config,
+        &executor_config_overrides,
         &env_vars,
         opt_s3conn,
         logdir,
@@ -300,16 +297,15 @@ pub async fn reconcile(
         .submit_config()
         .context(SubmitConfigSnafu)?;
 
-    let submit_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
-        validated_product_config
-            .get(&SparkApplicationRole::Submit.to_string())
-            .and_then(|r| r.get(&"default".to_string()));
+    let submit_config_overrides = spark_application
+        .spec
+        .job
+        .as_ref()
+        .map(|job| job.config_overrides.clone())
+        .unwrap_or_default();
 
-    let submit_job_config_map = submit_job_config_map(
-        spark_application,
-        submit_product_config,
-        resolved_product_image,
-    )?;
+    let submit_job_config_map =
+        submit_job_config_map(&validated, &submit_config_overrides, resolved_product_image)?;
     client
         .apply_patch(
             SPARK_CONTROLLER_NAME,
@@ -320,7 +316,7 @@ pub async fn reconcile(
         .context(ApplyApplicationSnafu)?;
 
     let job = spark_job(
-        spark_application,
+        &validated,
         resolved_product_image,
         &serviceaccount,
         &env_vars,
@@ -510,7 +506,7 @@ fn init_containers(
 
 #[allow(clippy::too_many_arguments)]
 fn pod_template(
-    spark_application: &v1alpha1::SparkApplication,
+    validated: &validate::ValidatedSparkApplication,
     role: SparkApplicationRole,
     config: &RoleConfig,
     volumes: &[Volume],
@@ -520,6 +516,7 @@ fn pod_template(
     spark_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
 ) -> Result<PodTemplateSpec> {
+    let spark_application = &validated.spark_application;
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
     let merged_env = spark_application.merged_env(role.clone(), env);
@@ -546,7 +543,7 @@ fn pod_template(
     omb.name(&container_name)
         // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
         // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
-        .ownerreference_from_resource(spark_application, None, None)
+        .ownerreference_from_resource(validated, None, None)
         .context(ObjectMissingMetadataForOwnerRefSnafu)?
         .with_recommended_labels(
             &spark_application
@@ -633,16 +630,17 @@ fn pod_template(
 
 #[allow(clippy::too_many_arguments)]
 fn pod_template_config_map(
-    spark_application: &v1alpha1::SparkApplication,
+    validated: &validate::ValidatedSparkApplication,
     role: SparkApplicationRole,
     merged_config: &RoleConfig,
-    product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
+    config_overrides: &v1alpha1::ConfigOverrides,
     env: &[EnvVar],
     s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
 ) -> Result<ConfigMap> {
+    let spark_application = &validated.spark_application;
     let cm_name = spark_application.pod_template_config_map_name(role.clone());
 
     let log_config_map = if let Some(ContainerLogConfig {
@@ -675,7 +673,7 @@ fn pod_template_config_map(
     );
 
     let template = pod_template(
-        spark_application,
+        validated,
         role.clone(),
         merged_config,
         volumes.as_ref(),
@@ -691,9 +689,9 @@ fn pod_template_config_map(
     cm_builder
         .metadata(
             ObjectMetaBuilder::new()
-                .name_and_namespace(spark_application)
+                .namespace(validated.namespace.clone())
                 .name(&cm_name)
-                .ownerreference_from_resource(spark_application, None, Some(true))
+                .ownerreference_from_resource(validated, None, Some(true))
                 .context(ObjectMissingMetadataForOwnerRefSnafu)?
                 .with_recommended_labels(&spark_application.build_recommended_labels(
                     &spark_image.app_version_label_value,
@@ -720,51 +718,38 @@ fn pod_template_config_map(
     )
     .context(InvalidLoggingConfigSnafu { cm_name })?;
 
-    if let Some(product_config) = product_config {
-        cm_builder.add_data(
-            SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(
-                product_config
-                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
-                    .cloned()
-                    .unwrap_or_default()
-                    .iter(),
-            ),
-        );
+    cm_builder.add_data(
+        SPARK_ENV_SH_FILE_NAME,
+        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
+    );
 
-        let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
-            .get(&PropertyNameKind::File(
-                JVM_SECURITY_PROPERTIES_FILE.to_string(),
-            ))
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|(k, v)| (k, Some(v)))
-            .collect();
+    let mut jvm_sec_props = default_jvm_security_properties();
+    jvm_sec_props.extend(config_overrides.security_properties.overrides.clone());
 
-        cm_builder.add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
-            to_java_properties_string(jvm_sec_props.iter())
-                .with_context(|_| JvmSecurityPropertiesSnafu { role })?,
-        );
-    }
+    cm_builder.add_data(
+        JVM_SECURITY_PROPERTIES_FILE,
+        to_java_properties_string(jvm_sec_props.iter())
+            .with_context(|_| JvmSecurityPropertiesSnafu { role })?,
+    );
+
     cm_builder.build().context(PodTemplateConfigMapSnafu)
 }
 
 fn submit_job_config_map(
-    spark_application: &v1alpha1::SparkApplication,
-    product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
+    validated: &validate::ValidatedSparkApplication,
+    config_overrides: &v1alpha1::ConfigOverrides,
     spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
+    let spark_application = &validated.spark_application;
     let cm_name = spark_application.submit_job_config_map_name();
 
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder.metadata(
         ObjectMetaBuilder::new()
-            .name_and_namespace(spark_application)
+            .namespace(validated.namespace.clone())
             .name(&cm_name)
-            .ownerreference_from_resource(spark_application, None, Some(true))
+            .ownerreference_from_resource(validated, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
                 &spark_application
@@ -774,44 +759,43 @@ fn submit_job_config_map(
             .build(),
     );
 
-    if let Some(product_config) = product_config {
-        cm_builder.add_data(
-            SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(
-                product_config
-                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
-                    .cloned()
-                    .unwrap_or_default()
-                    .iter(),
-            ),
-        );
+    cm_builder.add_data(
+        SPARK_ENV_SH_FILE_NAME,
+        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
+    );
 
-        let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
-            .get(&PropertyNameKind::File(
-                JVM_SECURITY_PROPERTIES_FILE.to_string(),
-            ))
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|(k, v)| (k, Some(v)))
-            .collect();
+    let mut jvm_sec_props = default_jvm_security_properties();
+    jvm_sec_props.extend(config_overrides.security_properties.overrides.clone());
 
-        cm_builder.add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
-            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
-                JvmSecurityPropertiesSnafu {
-                    role: SparkApplicationRole::Submit,
-                }
-            })?,
-        );
-    }
+    cm_builder.add_data(
+        JVM_SECURITY_PROPERTIES_FILE,
+        to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
+            JvmSecurityPropertiesSnafu {
+                role: SparkApplicationRole::Submit,
+            }
+        })?,
+    );
 
     cm_builder.build().context(PodTemplateConfigMapSnafu)
 }
 
+fn default_jvm_security_properties() -> BTreeMap<String, String> {
+    [
+        (
+            JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string(),
+        ),
+        (
+            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string(),
+        ),
+    ]
+    .into()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spark_job(
-    spark_application: &v1alpha1::SparkApplication,
+    validated: &validate::ValidatedSparkApplication,
     spark_image: &ResolvedProductImage,
     serviceaccount: &ServiceAccount,
     env: &[EnvVar],
@@ -820,6 +804,7 @@ fn spark_job(
     logdir: &Option<ResolvedLogDir>,
     job_config: &SubmitConfig,
 ) -> Result<Job> {
+    let spark_application = &validated.spark_application;
     let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
         .context(IllegalContainerNameSnafu)?;
 
@@ -918,8 +903,9 @@ fn spark_job(
 
     let job = Job {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(spark_application)
-            .ownerreference_from_resource(spark_application, None, Some(true))
+            .name(validated.name.to_string())
+            .namespace(validated.namespace.clone())
+            .ownerreference_from_resource(validated, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
                 &spark_application

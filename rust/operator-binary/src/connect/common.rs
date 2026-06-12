@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use product_config::writer::to_java_properties_string;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     kvp::ObjectLabels,
     role_utils::{JavaCommonConfig, JvmArgumentOverrides},
+    v2::config_file_writer::{PropertiesWriterError, to_java_properties_string},
 };
 use strum::Display;
 
@@ -14,7 +14,11 @@ use crate::{
         CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, CONNECT_SERVER_ROLE_NAME,
         DEFAULT_SPARK_CONNECT_GROUP_NAME,
     },
-    crd::constants::OPERATOR_NAME,
+    crd::constants::{
+        DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL, DEFAULT_JVM_SECURITY_DNS_CACHE_TTL,
+        JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL, JVM_SECURITY_PROPERTY_DNS_CACHE_TTL,
+        OPERATOR_NAME,
+    },
 };
 
 #[derive(Snafu, Debug)]
@@ -26,19 +30,13 @@ pub enum Error {
     },
 
     #[snafu(display("failed to serialize spark properties"))]
-    SparkProperties {
-        source: product_config::writer::PropertiesWriterError,
-    },
+    SparkProperties { source: PropertiesWriterError },
 
     #[snafu(display("failed to serialize jvm security properties",))]
-    JvmSecurityProperties {
-        source: product_config::writer::PropertiesWriterError,
-    },
+    JvmSecurityProperties { source: PropertiesWriterError },
 
     #[snafu(display("failed to serialize metrics properties",))]
-    MetricsProperties {
-        source: product_config::writer::PropertiesWriterError,
-    },
+    MetricsProperties { source: PropertiesWriterError },
 }
 
 pub(crate) fn labels<'a, T>(
@@ -57,9 +55,6 @@ pub(crate) fn labels<'a, T>(
     }
 }
 
-// The dead code annotation is to shut up complains about missing Executor instantiations
-// These will come in the future.
-#[allow(dead_code)]
 #[derive(Clone, Debug, Display)]
 #[strum(serialize_all = "lowercase")]
 pub(crate) enum SparkConnectRole {
@@ -102,20 +97,25 @@ pub(crate) fn spark_properties(
     for p in props {
         result.extend(p);
     }
-    to_java_properties_string(result.into_iter()).context(SparkPropertiesSnafu)
+    to_java_properties_string(
+        result
+            .into_iter()
+            .filter_map(|(k, v)| v.as_ref().map(|v| (k, v))),
+    )
+    .context(SparkPropertiesSnafu)
 }
 
 pub(crate) fn security_properties(
-    config_overrides: BTreeMap<String, Option<String>>,
+    config_overrides: BTreeMap<String, String>,
 ) -> Result<String, Error> {
-    let mut result: BTreeMap<String, Option<String>> = [
+    let mut result: BTreeMap<String, String> = [
         (
-            "networkaddress.cache.ttl".to_string(),
-            Some("30".to_string()),
+            JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string(),
         ),
         (
-            "networkaddress.cache.negative.ttl".to_string(),
-            Some("0".to_string()),
+            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string(),
         ),
     ]
     .into();
@@ -126,16 +126,16 @@ pub(crate) fn security_properties(
 }
 
 pub(crate) fn metrics_properties(
-    config_overrides: BTreeMap<String, Option<String>>,
+    config_overrides: BTreeMap<String, String>,
 ) -> Result<String, Error> {
-    let mut result: BTreeMap<String, Option<String>> = [
+    let mut result: BTreeMap<String, String> = [
         (
             "*.sink.prometheusServlet.class".to_string(),
-            Some("org.apache.spark.metrics.sink.PrometheusServlet".to_string()),
+            "org.apache.spark.metrics.sink.PrometheusServlet".to_string(),
         ),
         (
             "*.sink.prometheusServlet.path".to_string(),
-            Some("/metrics/prometheus".to_string()),
+            "/metrics/prometheus".to_string(),
         ),
     ]
     .into();

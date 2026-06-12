@@ -9,7 +9,6 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-product-config.workspace = true
 stackable-operator.workspace = true
 
 anyhow.workspace = true

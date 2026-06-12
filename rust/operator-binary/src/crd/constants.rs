@@ -33,6 +33,10 @@ pub const VOLUME_MOUNT_PATH_LOG: &str = "/stackable/log";
 pub const LOG4J2_CONFIG_FILE: &str = "log4j2.properties";
 
 pub const JVM_SECURITY_PROPERTIES_FILE: &str = "security.properties";
+pub const JVM_SECURITY_PROPERTY_DNS_CACHE_TTL: &str = "networkaddress.cache.ttl";
+pub const JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL: &str = "networkaddress.cache.negative.ttl";
+pub const DEFAULT_JVM_SECURITY_DNS_CACHE_TTL: &str = "30";
+pub const DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL: &str = "0";
 pub const METRICS_PROPERTIES_FILE: &str = "metrics.properties";
 
 pub const ACCESS_KEY_ID: &str = "accessKey";

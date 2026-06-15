@@ -114,11 +114,6 @@ pub enum Error {
         source: stackable_operator::builder::pod::container::Error,
     },
 
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to update the history server stateful set"))]
     ApplyStatefulSet {
         source: stackable_operator::cluster_resources::Error,
@@ -327,11 +322,13 @@ pub async fn reconcile(
             .context(LabelBuildSnafu)?,
         )?;
 
-        let metrics_service = build_rolegroup_metrics_service(shs, resolved_product_image, &rgr)
-            .context(BuildMetricsServiceSnafu)?;
+        let metrics_service =
+            build_rolegroup_metrics_service(shs, &validated, resolved_product_image, &rgr)
+                .context(BuildMetricsServiceSnafu)?;
 
         let sts = build_stateful_set(
             shs,
+            &validated,
             resolved_product_image,
             &rgr,
             log_dir,
@@ -492,6 +489,7 @@ fn build_config_map(
 #[allow(clippy::result_large_err)]
 fn build_stateful_set(
     shs: &v1alpha1::SparkHistoryServer,
+    validated: &validate::ValidatedSparkHistoryServer,
     resolved_product_image: &ResolvedProductImage,
     rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
     log_dir: &ResolvedLogDir,
@@ -658,8 +656,7 @@ fn build_stateful_set(
     let sts_metadata = ObjectMetaBuilder::new()
         .name_and_namespace(shs)
         .name(rolegroupref.object_name())
-        .ownerreference_from_resource(shs, None, Some(true))
-        .context(ObjectMissingMetadataForOwnerRefSnafu)?
+        .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
         .with_recommended_labels(&recommended_object_labels)
         .context(MetadataBuildSnafu)?
         .build();

@@ -5,6 +5,7 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kvp::{Annotations, Labels},
     role_utils::RoleGroupRef,
+    v2::builder::meta::ownerreference_from_resource,
 };
 
 use crate::{
@@ -12,7 +13,7 @@ use crate::{
         constants::{HISTORY_APP_NAME, METRICS_PORT},
         history::v1alpha1,
     },
-    history::recommended_labels,
+    history::{controller::validate::ValidatedSparkHistoryServer, recommended_labels},
 };
 
 #[derive(Snafu, Debug)]
@@ -26,15 +27,12 @@ pub enum Error {
     MetadataBuild {
         source: stackable_operator::builder::meta::Error,
     },
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
 }
 
 /// The rolegroup metrics [`Service`] is a service that exposes metrics and a prometheus scraping label
 pub fn build_rolegroup_metrics_service(
     shs: &v1alpha1::SparkHistoryServer,
+    validated: &ValidatedSparkHistoryServer,
     resolved_product_image: &ResolvedProductImage,
     rolegroup_ref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
 ) -> Result<Service, Error> {
@@ -42,8 +40,7 @@ pub fn build_rolegroup_metrics_service(
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(shs)
             .name(rolegroup_ref.rolegroup_metrics_service_name())
-            .ownerreference_from_resource(shs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
             .with_recommended_labels(&recommended_labels(
                 shs,
                 &resolved_product_image.app_version_label_value,

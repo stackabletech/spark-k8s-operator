@@ -1,52 +1,30 @@
-use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
-    commons::product_image_selection::ResolvedProductImage,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kvp::{Annotations, Labels},
-    role_utils::RoleGroupRef,
-    v2::builder::meta::ownerreference_from_resource,
+    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
 };
 
 use crate::{
-    crd::{
-        constants::{HISTORY_APP_NAME, METRICS_PORT},
-        history::v1alpha1,
-    },
-    history::{controller::validate::ValidatedSparkHistoryServer, recommended_labels},
+    crd::constants::METRICS_PORT, history::controller::validate::ValidatedSparkHistoryServer,
 };
-
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("failed to build Labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
-    },
-
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-}
 
 /// The rolegroup metrics [`Service`] is a service that exposes metrics and a prometheus scraping label
 pub fn build_rolegroup_metrics_service(
-    shs: &v1alpha1::SparkHistoryServer,
     validated: &ValidatedSparkHistoryServer,
-    resolved_product_image: &ResolvedProductImage,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
-) -> Result<Service, Error> {
-    Ok(Service {
+    role_group_name: &RoleGroupName,
+) -> Service {
+    Service {
         metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(shs)
-            .name(rolegroup_ref.rolegroup_metrics_service_name())
+            .name_and_namespace(validated)
+            .name(
+                validated
+                    .resource_names(role_group_name)
+                    .metrics_service_name()
+                    .to_string(),
+            )
             .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_recommended_labels(&recommended_labels(
-                shs,
-                &resolved_product_image.app_version_label_value,
-                &rolegroup_ref.role_group,
-            ))
-            .context(MetadataBuildSnafu)?
+            .with_labels(validated.recommended_labels(role_group_name))
             .with_labels(prometheus_labels())
             .with_annotations(prometheus_annotations())
             .build(),
@@ -55,21 +33,12 @@ pub fn build_rolegroup_metrics_service(
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(metrics_ports()),
-            selector: Some(
-                Labels::role_group_selector(
-                    shs,
-                    HISTORY_APP_NAME,
-                    &rolegroup_ref.role,
-                    &rolegroup_ref.role_group,
-                )
-                .context(LabelBuildSnafu)?
-                .into(),
-            ),
+            selector: Some(validated.role_group_selector(role_group_name).into()),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),
         status: None,
-    })
+    }
 }
 
 fn metrics_ports() -> Vec<ServicePort> {

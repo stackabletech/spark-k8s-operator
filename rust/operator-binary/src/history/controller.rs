@@ -18,7 +18,6 @@ use stackable_operator::{
     },
     cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
-    config::merge::Merge,
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -33,7 +32,6 @@ use stackable_operator::{
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, reflector::ObjectRef},
     },
-    kvp::Labels,
     logging::controller::ReconcilerError,
     product_logging::{
         framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
@@ -47,6 +45,7 @@ use stackable_operator::{
     v2::{
         builder::meta::ownerreference_from_resource,
         config_file_writer::{PropertiesWriterError, to_java_properties_string},
+        types::operator::RoleGroupName,
     },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
@@ -65,15 +64,14 @@ use crate::{
             VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
             VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
-        history::{self, HistoryConfig, SparkHistoryServerContainer, v1alpha1},
+        history::{SparkHistoryServerContainer, v1alpha1},
         listener_ext,
         logdir::ResolvedLogDir,
         tlscerts, to_spark_env_sh_string,
     },
     history::{
-        operations::pdb::add_pdbs,
-        recommended_labels,
-        service::{self, build_rolegroup_metrics_service},
+        controller::validate::ValidatedHistoryRoleGroup, operations::pdb::add_pdbs,
+        recommended_labels, service::build_rolegroup_metrics_service,
     },
     product_logging::{self},
 };
@@ -145,9 +143,6 @@ pub enum Error {
     #[snafu(display("failed to validate SparkHistoryServer"))]
     ValidateSparkHistoryServer { source: validate::Error },
 
-    #[snafu(display("failed to resolve and merge config for role and role group"))]
-    FailedToResolveConfig { source: crate::crd::history::Error },
-
     #[snafu(display("failed to create cluster resources"))]
     CreateClusterResources {
         source: stackable_operator::cluster_resources::Error,
@@ -170,9 +165,6 @@ pub enum Error {
     #[snafu(display("failed to configure logging"))]
     ConfigureLogging { source: LoggingError },
 
-    #[snafu(display("cannot retrieve role group"))]
-    CannotRetrieveRoleGroup { source: history::Error },
-
     #[snafu(display(
         "History server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
         rolegroup
@@ -185,16 +177,6 @@ pub enum Error {
     #[snafu(display("failed to create PodDisruptionBudget"))]
     FailedToCreatePdb {
         source: crate::history::operations::pdb::Error,
-    },
-
-    #[snafu(display("failed to build Labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
-    },
-
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
     },
 
     #[snafu(display("failed to get required Labels"))]
@@ -226,9 +208,6 @@ pub enum Error {
     ApplyGroupListener {
         source: stackable_operator::cluster_resources::Error,
     },
-
-    #[snafu(display("failed to build metrics service"))]
-    BuildMetricsService { source: service::Error },
 
     #[snafu(display("failed to serialize Spark default properties"))]
     InvalidSparkDefaults { source: PropertiesWriterError },
@@ -292,47 +271,17 @@ pub async fn reconcile(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    for rolegroup_name in shs.spec.nodes.role_groups.keys() {
-        let rgr = RoleGroupRef {
-            cluster: ObjectRef::from_obj(shs),
-            role: HISTORY_ROLE_NAME.to_string(),
-            role_group: rolegroup_name.to_string(),
-        };
+    for (role_group_name, rg) in &validated.role_groups {
+        let config_map = build_config_map(&validated, role_group_name, rg)?;
 
-        let merged_config = shs
-            .merged_config(&rgr)
-            .context(FailedToResolveConfigSnafu)?;
-
-        let role_group = shs.rolegroup(&rgr).context(CannotRetrieveRoleGroupSnafu)?;
-
-        // Merge config_overrides from both nodes and role group levels
-        let mut merged_config_overrides = role_group.config.config_overrides;
-        merged_config_overrides.merge(&shs.spec.nodes.config.config_overrides);
-
-        let config_map = build_config_map(
-            &validated,
-            &merged_config_overrides,
-            &merged_config,
-            &rgr,
-            &Labels::recommended(&recommended_labels(
-                shs,
-                &resolved_product_image.app_version_label_value,
-                &rgr.role_group,
-            ))
-            .context(LabelBuildSnafu)?,
-        )?;
-
-        let metrics_service =
-            build_rolegroup_metrics_service(shs, &validated, resolved_product_image, &rgr)
-                .context(BuildMetricsServiceSnafu)?;
+        let metrics_service = build_rolegroup_metrics_service(&validated, role_group_name);
 
         let sts = build_stateful_set(
             shs,
             &validated,
-            resolved_product_image,
-            &rgr,
+            role_group_name,
+            rg,
             log_dir,
-            &merged_config,
             &service_account,
         )?;
 
@@ -426,22 +375,23 @@ pub fn error_policy(
 #[allow(clippy::result_large_err)]
 fn build_config_map(
     validated: &validate::ValidatedSparkHistoryServer,
-    config_overrides: &v1alpha1::ConfigOverrides,
-    merged_config: &HistoryConfig,
-    rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
-    recommended_labels: &Labels,
+    role_group_name: &RoleGroupName,
+    rg: &ValidatedHistoryRoleGroup,
 ) -> Result<ConfigMap, Error> {
-    let cm_name = rolegroupref.object_name();
+    let cm_name = validated
+        .resource_names(role_group_name)
+        .role_group_config_map()
+        .to_string();
 
     let spark_defaults = to_java_properties_string(
-        spark_defaults(validated, rolegroupref)
+        spark_defaults(validated, role_group_name)
             .iter()
             .filter_map(|(k, v)| v.as_ref().map(|v| (k, v))),
     )
     .context(InvalidSparkDefaultsSnafu)?;
 
     let mut jvm_sec_props = default_jvm_security_properties();
-    jvm_sec_props.extend(config_overrides.security_properties.overrides.clone());
+    jvm_sec_props.extend(rg.config_overrides.security_properties.overrides.clone());
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -455,26 +405,35 @@ fn build_config_map(
                     Some(true),
                     Some(true),
                 ))
-                .labels(recommended_labels.clone())
+                .labels(validated.recommended_labels(role_group_name))
                 .build(),
         )
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
         .add_data(
             SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
+            to_spark_env_sh_string(rg.config_overrides.spark_env_sh.overrides.iter()),
         )
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
             to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
                 JvmSecurityPropertiesSnafu {
-                    rolegroup: rolegroupref.role_group.clone(),
+                    rolegroup: role_group_name.to_string(),
                 }
             })?,
         );
 
+    // `product_logging::extend_config_map` still expects a `RoleGroupRef`, so build a local temp
+    // one purely for that call until the logging path is migrated.
+    let rgr = RoleGroupRef {
+        cluster: ObjectRef::<v1alpha1::SparkHistoryServer>::new(validated.name.as_ref())
+            .within(validated.namespace.as_ref()),
+        role: HISTORY_ROLE_NAME.to_string(),
+        role_group: role_group_name.to_string(),
+    };
+
     product_logging::extend_config_map(
-        rolegroupref,
-        &merged_config.logging,
+        &rgr,
+        &rg.config.logging,
         SparkHistoryServerContainer::SparkHistory,
         SparkHistoryServerContainer::Vector,
         &mut cm_builder,
@@ -490,43 +449,40 @@ fn build_config_map(
 fn build_stateful_set(
     shs: &v1alpha1::SparkHistoryServer,
     validated: &validate::ValidatedSparkHistoryServer,
-    resolved_product_image: &ResolvedProductImage,
-    rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
+    role_group_name: &RoleGroupName,
+    rg: &ValidatedHistoryRoleGroup,
     log_dir: &ResolvedLogDir,
-    merged_config: &HistoryConfig,
     serviceaccount: &ServiceAccount,
 ) -> Result<StatefulSet, Error> {
+    let resolved_product_image = &validated.resolved_product_image;
+    let resource_names = validated.resource_names(role_group_name);
+
     let log_config_map = if let Some(ContainerLogConfig {
         choice:
             Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
                 custom: ConfigMapLogConfig { config_map },
             })),
-    }) = merged_config
+    }) = rg
+        .config
         .logging
         .containers
         .get(&SparkHistoryServerContainer::SparkHistory)
     {
         config_map.into()
     } else {
-        rolegroupref.object_name()
+        resource_names.role_group_config_map().to_string()
     };
 
-    let recommended_object_labels = recommended_labels(
-        shs,
-        &resolved_product_image.app_version_label_value,
-        rolegroupref.role_group.as_ref(),
-    );
-    let recommended_labels =
-        Labels::recommended(&recommended_object_labels).context(LabelBuildSnafu)?;
+    let recommended_labels = validated.recommended_labels(role_group_name);
 
     let pb_metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(&recommended_object_labels)
-        .context(MetadataBuildSnafu)?
+        .with_labels(recommended_labels.clone())
         .build();
 
     let mut pb = PodBuilder::new();
 
-    let requested_secret_lifetime = merged_config
+    let requested_secret_lifetime = rg
+        .config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
     pb.service_account_name(serviceaccount.name_unchecked())
@@ -534,7 +490,7 @@ fn build_stateful_set(
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
-                .with_config_map(rolegroupref.object_name())
+                .with_config_map(resource_names.role_group_config_map().to_string())
                 .build(),
         )
         .context(AddVolumeSnafu)?
@@ -564,23 +520,15 @@ fn build_stateful_set(
             ..PodSecurityContext::default()
         });
 
-    let role_group = shs
-        .rolegroup(rolegroupref)
-        .with_context(|_| CannotRetrieveRoleGroupSnafu)?;
-
     let merged_env = shs
-        .merged_env(
-            &rolegroupref.role_group,
-            log_dir,
-            role_group.config.env_overrides,
-        )
+        .merged_env(role_group_name.as_ref(), log_dir, rg.env_overrides.clone())
         .context(MergeEnvSnafu)?;
 
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
         .context(InvalidContainerNameSnafu)?
         .image_from_product_image(resolved_product_image)
-        .resources(merged_config.resources.clone().into())
+        .resources(rg.config.resources.clone().into())
         .command(vec![
             "/bin/bash".to_string(),
             "-x".to_string(),
@@ -611,7 +559,7 @@ fn build_stateful_set(
     // cluster-internal) as the address should still be consistent.
     let volume_claim_templates = Some(vec![
         ListenerOperatorVolumeSourceBuilder::new(
-            &ListenerReference::ListenerName(group_listener_name(shs, &rolegroupref.role)),
+            &ListenerReference::ListenerName(group_listener_name(shs, HISTORY_ROLE_NAME)),
             &recommended_labels,
         )
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
@@ -620,7 +568,7 @@ fn build_stateful_set(
 
     pb.add_container(container);
 
-    if merged_config.logging.enable_vector_agent {
+    if rg.config.logging.enable_vector_agent {
         match &shs.spec.vector_aggregator_config_map_name {
             Some(vector_aggregator_config_map_name) => {
                 pb.add_container(
@@ -628,7 +576,7 @@ fn build_stateful_set(
                         resolved_product_image,
                         VOLUME_MOUNT_NAME_CONFIG,
                         VOLUME_MOUNT_NAME_LOG,
-                        merged_config
+                        rg.config
                             .logging
                             .containers
                             .get(&SparkHistoryServerContainer::Vector),
@@ -650,15 +598,13 @@ fn build_stateful_set(
     }
 
     let mut pod_template = pb.build_template();
-    pod_template.merge_from(shs.role().config.pod_overrides.clone());
-    pod_template.merge_from(role_group.config.pod_overrides);
+    pod_template.merge_from(rg.pod_overrides.clone());
 
     let sts_metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(shs)
-        .name(rolegroupref.object_name())
+        .name_and_namespace(validated)
+        .name(resource_names.stateful_set_name().to_string())
         .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-        .with_recommended_labels(&recommended_object_labels)
-        .context(MetadataBuildSnafu)?
+        .with_labels(recommended_labels)
         .build();
 
     Ok(StatefulSet {
@@ -666,18 +612,9 @@ fn build_stateful_set(
         spec: Some(StatefulSetSpec {
             template: pod_template,
             volume_claim_templates,
-            replicas: shs.replicas(rolegroupref),
+            replicas: rg.replicas,
             selector: LabelSelector {
-                match_labels: Some(
-                    Labels::role_group_selector(
-                        shs,
-                        HISTORY_APP_NAME,
-                        &rolegroupref.role,
-                        &rolegroupref.role_group,
-                    )
-                    .context(LabelBuildSnafu)?
-                    .into(),
-                ),
+                match_labels: Some(validated.role_group_selector(role_group_name).into()),
                 ..LabelSelector::default()
             },
             ..StatefulSetSpec::default()
@@ -688,12 +625,12 @@ fn build_stateful_set(
 
 fn spark_defaults(
     validated: &validate::ValidatedSparkHistoryServer,
-    rolegroupref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
+    role_group_name: &RoleGroupName,
 ) -> BTreeMap<String, Option<String>> {
     let mut default_properties = validated.log_dir_settings.clone();
 
     // add cleaner spark settings if requested
-    default_properties.extend(cleaner_config(validated, rolegroupref));
+    default_properties.extend(cleaner_config(validated, role_group_name));
 
     // add user provided configuration. These can overwrite everything.
     default_properties.extend(validated.spark_conf.clone());
@@ -744,10 +681,10 @@ fn default_jvm_security_properties() -> BTreeMap<String, String> {
 /// Return the Spark properties for the cleaner role group (if any).
 fn cleaner_config(
     validated: &validate::ValidatedSparkHistoryServer,
-    rolegroup_ref: &RoleGroupRef<v1alpha1::SparkHistoryServer>,
+    role_group_name: &RoleGroupName,
 ) -> BTreeMap<String, String> {
     match validated.cleaner_rolegroup_name.as_ref() {
-        Some(cleaner_rolegroup) if cleaner_rolegroup == &rolegroup_ref.role_group => {
+        Some(cleaner_rolegroup) if cleaner_rolegroup == role_group_name.as_ref() => {
             BTreeMap::from([(
                 "spark.history.fs.cleaner.enabled".to_string(),
                 "true".to_string(),

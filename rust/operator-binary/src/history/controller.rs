@@ -44,7 +44,10 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
     shared::time::Duration,
-    v2::config_file_writer::{PropertiesWriterError, to_java_properties_string},
+    v2::{
+        builder::meta::ownerreference_from_resource,
+        config_file_writer::{PropertiesWriterError, to_java_properties_string},
+    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -450,7 +453,11 @@ fn build_config_map(
             ObjectMetaBuilder::new()
                 .namespace(validated.namespace.clone())
                 .name(&cm_name)
-                .ownerreference(validated.owner_reference())
+                .ownerreference(ownerreference_from_resource(
+                    validated,
+                    Some(true),
+                    Some(true),
+                ))
                 .labels(recommended_labels.clone())
                 .build(),
         )

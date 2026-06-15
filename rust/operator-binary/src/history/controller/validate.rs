@@ -9,9 +9,10 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
-    k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference},
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
     v2::{
+        HasName, HasUid,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         types::{
             kubernetes::{NamespaceName, Uid},
@@ -72,18 +73,15 @@ pub struct ValidatedSparkHistoryServer {
     pub log_dir_settings: BTreeMap<String, String>,
 }
 
-impl ValidatedSparkHistoryServer {
-    pub fn owner_reference(&self) -> OwnerReference {
-        let mut owner_reference = self.controller_owner_ref(&()).unwrap_or(OwnerReference {
-            api_version: v1alpha1::SparkHistoryServer::api_version(&()).to_string(),
-            block_owner_deletion: Some(true),
-            controller: Some(true),
-            kind: v1alpha1::SparkHistoryServer::kind(&()).to_string(),
-            name: String::from(&self.name),
-            uid: String::from(&self.uid),
-        });
-        owner_reference.block_owner_deletion = Some(true);
-        owner_reference
+impl HasName for ValidatedSparkHistoryServer {
+    fn to_name(&self) -> String {
+        String::from(&self.name)
+    }
+}
+
+impl HasUid for ValidatedSparkHistoryServer {
+    fn to_uid(&self) -> Uid {
+        self.uid.clone()
     }
 }
 

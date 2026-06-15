@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -9,7 +9,6 @@ use stackable_operator::{
         pod::{
             PodBuilder,
             container::ContainerBuilder,
-            resources::ResourceRequirementsBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
                 ListenerReference, VolumeBuilder,
@@ -34,7 +33,7 @@ use stackable_operator::{
     },
     logging::controller::ReconcilerError,
     product_logging::{
-        framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
+        framework::calculate_log_volume_size_limit,
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig,
@@ -43,12 +42,22 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
     shared::time::Duration,
     v2::{
-        builder::meta::ownerreference_from_resource,
+        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
         config_file_writer::{PropertiesWriterError, to_java_properties_string},
-        types::operator::RoleGroupName,
+        product_logging::framework::vector_container,
+        types::{
+            kubernetes::{ContainerName, VolumeName},
+            operator::RoleGroupName,
+        },
     },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+// Typed volume names required by the v2 `vector_container`; values match the `&str` volume-mount
+// name constants used elsewhere to build the same volumes.
+stackable_operator::constant!(VOLUME_MOUNT_NAME_CONFIG_TYPED: VolumeName = "config");
+stackable_operator::constant!(VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log");
 
 use crate::{
     Ctx,
@@ -153,17 +162,11 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
-    VectorAggregatorConfigMapMissing,
-
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
         source: product_logging::Error,
         cm_name: String,
     },
-
-    #[snafu(display("failed to configure logging"))]
-    ConfigureLogging { source: LoggingError },
 
     #[snafu(display(
         "History server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
@@ -568,33 +571,16 @@ fn build_stateful_set(
 
     pb.add_container(container);
 
-    if rg.config.logging.enable_vector_agent {
-        match &shs.spec.vector_aggregator_config_map_name {
-            Some(vector_aggregator_config_map_name) => {
-                pb.add_container(
-                    vector_container(
-                        resolved_product_image,
-                        VOLUME_MOUNT_NAME_CONFIG,
-                        VOLUME_MOUNT_NAME_LOG,
-                        rg.config
-                            .logging
-                            .containers
-                            .get(&SparkHistoryServerContainer::Vector),
-                        ResourceRequirementsBuilder::new()
-                            .with_cpu_request("250m")
-                            .with_cpu_limit("500m")
-                            .with_memory_request("128Mi")
-                            .with_memory_limit("128Mi")
-                            .build(),
-                        vector_aggregator_config_map_name,
-                    )
-                    .context(ConfigureLoggingSnafu)?,
-                );
-            }
-            None => {
-                VectorAggregatorConfigMapMissingSnafu.fail()?;
-            }
-        }
+    if let Some(vector_log_config) = &rg.logging.vector_container {
+        pb.add_container(vector_container(
+            &VECTOR_CONTAINER_NAME,
+            resolved_product_image,
+            vector_log_config,
+            &resource_names,
+            &VOLUME_MOUNT_NAME_CONFIG_TYPED,
+            &VOLUME_MOUNT_NAME_LOG_TYPED,
+            EnvVarSet::new(),
+        ));
     }
 
     let mut pod_template = pb.build_template();

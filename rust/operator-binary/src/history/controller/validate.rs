@@ -9,7 +9,7 @@ use std::{
     str::FromStr,
 };
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
@@ -19,14 +19,18 @@ use stackable_operator::{
     },
     kube::{Resource, runtime::reflector::ObjectRef},
     kvp::Labels,
+    product_logging::spec::Logging,
     role_utils::RoleGroupRef,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         kvp::label::{recommended_labels, role_group_selector},
+        product_logging::framework::{
+            VectorContainerLogConfig, validate_logging_configuration_for_container,
+        },
         role_group_utils::ResourceNames,
         types::{
-            kubernetes::{NamespaceName, Uid},
+            kubernetes::{ConfigMapName, NamespaceName, Uid},
             operator::{
                 ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
                 RoleGroupName, RoleName,
@@ -41,7 +45,7 @@ use crate::{
             CONTAINER_IMAGE_BASE_NAME, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME,
             HISTORY_ROLE_NAME, OPERATOR_NAME,
         },
-        history::{HistoryConfig, v1alpha1},
+        history::{HistoryConfig, SparkHistoryServerContainer, v1alpha1},
         logdir::ResolvedLogDir,
     },
     history::controller::dereference::DereferencedSparkHistoryServer,
@@ -92,6 +96,51 @@ pub enum Error {
         source: crate::crd::history::Error,
         role_group: String,
     },
+
+    #[snafu(display("failed to validate the logging configuration"))]
+    ValidateLoggingConfig {
+        source: stackable_operator::v2::product_logging::framework::Error,
+    },
+
+    #[snafu(display(
+        "the Vector aggregator discovery ConfigMap name must be set when the Vector agent is enabled"
+    ))]
+    MissingVectorAggregatorConfigMapName,
+
+    #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
+    ParseVectorAggregatorConfigMapName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+}
+
+/// Validates the logging configuration for the (optional) Vector container.
+///
+/// `vector_aggregator_config_map_name` is the discovery ConfigMap name of the Vector aggregator;
+/// it is required (and validated) only when the Vector agent is enabled.
+fn validate_logging(
+    logging: &Logging<SparkHistoryServerContainer>,
+    vector_aggregator_config_map_name: &Option<ConfigMapName>,
+) -> Result<ValidatedLogging> {
+    let vector_container = if logging.enable_vector_agent {
+        let vector_aggregator_config_map_name = vector_aggregator_config_map_name
+            .clone()
+            .context(MissingVectorAggregatorConfigMapNameSnafu)?;
+        Some(VectorContainerLogConfig {
+            log_config: validate_logging_configuration_for_container(
+                logging,
+                &SparkHistoryServerContainer::Vector,
+            )
+            .context(ValidateLoggingConfigSnafu)?,
+            vector_aggregator_config_map_name,
+        })
+    } else {
+        None
+    };
+
+    Ok(ValidatedLogging {
+        vector_container,
+        enable_vector_agent: logging.enable_vector_agent,
+    })
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -104,6 +153,18 @@ pub struct ValidatedHistoryRoleGroup {
     pub env_overrides: HashMap<String, String>,
     pub pod_overrides: PodTemplateSpec,
     pub replicas: Option<i32>,
+    pub logging: ValidatedLogging,
+}
+
+/// Validated logging configuration for the (optional) Vector container.
+///
+/// Produced up-front by [`validate_logging`] so that an
+/// invalid custom log ConfigMap name or a missing Vector aggregator discovery ConfigMap name fails
+/// reconciliation during validation rather than at resource-build time.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValidatedLogging {
+    pub vector_container: Option<VectorContainerLogConfig>,
+    pub enable_vector_agent: bool,
 }
 
 pub struct ValidatedSparkHistoryServer {
@@ -266,6 +327,16 @@ pub fn validate(
     let product_version = ProductVersion::from_str(&resolved_product_image.app_version_label_value)
         .expect("the app version label value is a valid product version");
 
+    // The Vector aggregator discovery ConfigMap name (validated here so an invalid name fails
+    // up-front). It is only required when the Vector agent is enabled for a role group.
+    let vector_aggregator_config_map_name = shs
+        .spec
+        .vector_aggregator_config_map_name
+        .as_deref()
+        .map(ConfigMapName::from_str)
+        .transpose()
+        .context(ParseVectorAggregatorConfigMapNameSnafu)?;
+
     let mut role_groups = BTreeMap::new();
     for rg_name in shs.spec.nodes.role_groups.keys() {
         let role_group_name =
@@ -300,6 +371,8 @@ pub fn validate(
         let mut pod_overrides = shs.role().config.pod_overrides.clone();
         pod_overrides.merge_from(role_group.config.pod_overrides);
 
+        let logging = validate_logging(&config.logging, &vector_aggregator_config_map_name)?;
+
         role_groups.insert(
             role_group_name,
             ValidatedHistoryRoleGroup {
@@ -308,6 +381,7 @@ pub fn validate(
                 env_overrides: role_group.config.env_overrides,
                 pod_overrides,
                 replicas: shs.replicas(&rgr),
+                logging,
             },
         );
     }

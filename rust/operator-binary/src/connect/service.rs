@@ -1,9 +1,7 @@
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kube::ResourceExt,
     kvp::{Annotations, Labels},
-    v2::builder::meta::ownerreference_from_resource,
 };
 
 use crate::connect::{
@@ -28,11 +26,8 @@ pub(crate) fn build_headless_service(
     let selector = validated.role_selector(SparkConnectRole::Server).into();
 
     Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(scs)
-            .name(service_name)
-            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_labels(validated.recommended_labels(SparkConnectRole::Server))
+        metadata: validated
+            .object_meta(service_name, SparkConnectRole::Server)
             .build(),
         spec: Some(ServiceSpec {
             type_: Some("ClusterIP".to_owned()),
@@ -74,11 +69,8 @@ pub(crate) fn build_metrics_service(
     let selector = validated.role_selector(SparkConnectRole::Server).into();
 
     Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(scs)
-            .name(service_name)
-            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_labels(validated.recommended_labels(SparkConnectRole::Server))
+        metadata: validated
+            .object_meta(service_name, SparkConnectRole::Server)
             .with_labels(prometheus_labels())
             .with_annotations(prometheus_annotations())
             .build(),

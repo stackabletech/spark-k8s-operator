@@ -7,6 +7,7 @@ use std::{borrow::Cow, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
+    builder::meta::ObjectMetaBuilder,
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
@@ -15,6 +16,7 @@ use stackable_operator::{
     product_logging::spec::Logging,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
+        builder::meta::ownerreference_from_resource,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         kvp::label::{recommended_labels, role_group_selector, role_selector},
         product_logging::framework::{
@@ -174,6 +176,22 @@ impl ValidatedSparkConnectServer {
         let role_group = RoleGroupName::from_str(DEFAULT_SPARK_CONNECT_GROUP_NAME)
             .expect("DEFAULT_SPARK_CONNECT_GROUP_NAME is a valid role group name");
         role_group_selector(self, &product_name(), &role_name(role), &role_group)
+    }
+
+    /// Object metadata for a child resource named `name`, owned by this SparkConnectServer and
+    /// carrying the recommended labels for the given role.
+    pub(crate) fn object_meta(
+        &self,
+        name: impl Into<String>,
+        role: SparkConnectRole,
+    ) -> ObjectMetaBuilder {
+        let mut builder = ObjectMetaBuilder::new();
+        builder
+            .name_and_namespace(self)
+            .name(name)
+            .ownerreference(ownerreference_from_resource(self, None, Some(true)))
+            .with_labels(self.recommended_labels(role));
+        builder
     }
 }
 

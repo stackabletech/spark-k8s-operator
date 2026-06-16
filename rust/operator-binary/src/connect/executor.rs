@@ -18,7 +18,6 @@ use stackable_operator::{
     },
     kube::ResourceExt,
     product_logging::framework::calculate_log_volume_size_limit,
-    v2::builder::meta::ownerreference_from_resource,
 };
 
 use super::{
@@ -349,11 +348,8 @@ pub(crate) fn executor_config_map(
 
     cm_builder
         .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(validated)
-                .name(&cm_name)
-                .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-                .with_labels(validated.recommended_labels(SparkConnectRole::Executor))
+            validated
+                .object_meta(&cm_name, SparkConnectRole::Executor)
                 .build(),
         )
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)

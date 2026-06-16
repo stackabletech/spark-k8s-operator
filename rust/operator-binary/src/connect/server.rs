@@ -36,7 +36,7 @@ use stackable_operator::{
     kvp::Label,
     product_logging::framework::calculate_log_volume_size_limit,
     v2::{
-        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
+        builder::pod::container::EnvVarSet,
         product_logging::framework::vector_container,
         role_group_utils::ResourceNames,
         types::operator::{RoleGroupName, RoleName},
@@ -170,11 +170,8 @@ pub(crate) fn server_config_map(
 
     cm_builder
         .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(validated)
-                .name(&cm_name)
-                .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-                .with_labels(validated.recommended_labels(SparkConnectRole::Server))
+            validated
+                .object_meta(&cm_name, SparkConnectRole::Server)
                 .build(),
         )
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_properties)
@@ -358,11 +355,11 @@ pub(crate) fn build_stateful_set(
     }
 
     Ok(StatefulSet {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(scs)
-            .name(object_name(&scs.name_any(), SparkConnectRole::Server))
-            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_labels(validated.recommended_labels(SparkConnectRole::Server))
+        metadata: validated
+            .object_meta(
+                object_name(&scs.name_any(), SparkConnectRole::Server),
+                SparkConnectRole::Server,
+            )
             .build(),
         spec: Some(StatefulSetSpec {
             template: pod_template,

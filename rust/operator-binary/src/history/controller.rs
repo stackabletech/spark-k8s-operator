@@ -22,7 +22,7 @@ use stackable_operator::{
     kube::{
         ResourceExt,
         core::{DeserializeGuard, error_boundary},
-        runtime::{controller::Action, reflector::ObjectRef},
+        runtime::controller::Action,
     },
     logging::controller::ReconcilerError,
     product_logging::{
@@ -32,7 +32,6 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    role_utils::RoleGroupRef,
     shared::time::Duration,
     v2::{
         builder::{
@@ -396,20 +395,9 @@ fn build_config_map(
             })?,
         );
 
-    // `product_logging::extend_config_map` still expects a `RoleGroupRef`, so build a local temp
-    // one purely for that call until the logging path is migrated.
-    let rgr = RoleGroupRef {
-        cluster: ObjectRef::<v1alpha1::SparkHistoryServer>::new(validated.name.as_ref())
-            .within(validated.namespace.as_ref()),
-        role: HISTORY_ROLE_NAME.to_string(),
-        role_group: role_group_name.to_string(),
-    };
-
     product_logging::extend_config_map(
-        &rgr,
         &rg.config.config.logging,
         SparkHistoryServerContainer::SparkHistory,
-        SparkHistoryServerContainer::Vector,
         &mut cm_builder,
     )
     .context(InvalidLoggingConfigSnafu { cm_name: &cm_name })?;

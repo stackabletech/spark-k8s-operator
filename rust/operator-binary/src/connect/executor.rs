@@ -16,16 +16,15 @@ use stackable_operator::{
         DeepMerge,
         api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
     },
-    kube::{ResourceExt, runtime::reflector::ObjectRef},
+    kube::ResourceExt,
     product_logging::framework::calculate_log_volume_size_limit,
-    role_utils::RoleGroupRef,
     v2::builder::meta::ownerreference_from_resource,
 };
 
 use super::{
     common::{SparkConnectRole, object_name},
     controller::validate::ValidatedSparkConnectServer,
-    crd::{DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer},
+    crd::SparkConnectContainer,
 };
 use crate::{
     connect::{common, crd::v1alpha1, s3},
@@ -360,16 +359,9 @@ pub(crate) fn executor_config_map(
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
-    let role_group_ref = RoleGroupRef {
-        cluster: ObjectRef::from_obj(validated),
-        role: SparkConnectRole::Executor.to_string(),
-        role_group: DEFAULT_SPARK_CONNECT_GROUP_NAME.to_string(),
-    };
     product_logging::extend_config_map(
-        &role_group_ref,
         &config.logging,
         SparkConnectContainer::Spark,
-        SparkConnectContainer::Vector,
         &mut cm_builder,
     )
     .context(InvalidLoggingConfigSnafu {

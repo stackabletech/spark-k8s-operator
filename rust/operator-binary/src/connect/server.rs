@@ -32,10 +32,9 @@ use stackable_operator::{
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
-    kube::{ResourceExt, runtime::reflector::ObjectRef},
+    kube::ResourceExt,
     kvp::Label,
     product_logging::framework::calculate_log_volume_size_limit,
-    role_utils::RoleGroupRef,
     v2::{
         builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
         product_logging::framework::vector_container,
@@ -183,12 +182,9 @@ pub(crate) fn server_config_map(
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
-    let role_group_ref = default_role_group_ref(validated);
     product_logging::extend_config_map(
-        &role_group_ref,
         &config.logging,
         SparkConnectContainer::Spark,
-        SparkConnectContainer::Vector,
         &mut cm_builder,
     )
     .context(InvalidLoggingConfigSnafu {
@@ -546,16 +542,6 @@ fn probe() -> Probe {
         }),
         failure_threshold: Some(10),
         ..Probe::default()
-    }
-}
-
-fn default_role_group_ref(
-    validated: &ValidatedSparkConnectServer,
-) -> RoleGroupRef<ValidatedSparkConnectServer> {
-    RoleGroupRef {
-        cluster: ObjectRef::from_obj(validated),
-        role: SparkConnectRole::Server.to_string(),
-        role_group: DEFAULT_SPARK_CONNECT_GROUP_NAME.to_string(),
     }
 }
 

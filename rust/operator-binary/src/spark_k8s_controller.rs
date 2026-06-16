@@ -27,7 +27,7 @@ use stackable_operator::{
     kube::{
         ResourceExt,
         core::{DeserializeGuard, error_boundary},
-        runtime::{controller::Action, reflector::ObjectRef},
+        runtime::controller::Action,
     },
     kvp::Label,
     logging::controller::ReconcilerError,
@@ -38,7 +38,6 @@ use stackable_operator::{
             CustomContainerLogConfig, Logging,
         },
     },
-    role_utils::RoleGroupRef,
     shared::time::Duration,
     v2::{
         builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
@@ -711,14 +710,8 @@ fn pod_template_config_map(
         );
 
     product_logging::extend_config_map(
-        &RoleGroupRef {
-            cluster: ObjectRef::from_obj(spark_application),
-            role: String::new(),
-            role_group: String::new(),
-        },
         &merged_config.logging,
         SparkContainer::Spark,
-        SparkContainer::Vector,
         &mut cm_builder,
     )
     .context(InvalidLoggingConfigSnafu { cm_name })?;

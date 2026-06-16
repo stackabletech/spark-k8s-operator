@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc, vec};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc, vec};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -32,10 +32,7 @@ use stackable_operator::{
     kvp::Label,
     logging::controller::ReconcilerError,
     product_logging::{
-        framework::{
-            LoggingError, capture_shell_output, create_vector_shutdown_file_command,
-            vector_container,
-        },
+        framework::{capture_shell_output, create_vector_shutdown_file_command},
         spec::{
             ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
             CustomContainerLogConfig, Logging,
@@ -44,11 +41,26 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
     shared::time::Duration,
     v2::{
-        builder::meta::ownerreference_from_resource,
+        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
         config_file_writer::{PropertiesWriterError, to_java_properties_string},
+        product_logging::framework::{
+            VectorContainerLogConfig, validate_logging_configuration_for_container,
+            vector_container,
+        },
+        role_group_utils::ResourceNames,
+        types::{
+            kubernetes::{ConfigMapName, ContainerName, VolumeName},
+            operator::{RoleGroupName, RoleName},
+        },
     },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
+
+stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+// Typed volume names required by the v2 `vector_container`; values match the existing `&str`
+// volume-mount consts VOLUME_MOUNT_NAME_CONFIG ("config") / VOLUME_MOUNT_NAME_LOG ("log").
+stackable_operator::constant!(VOLUME_MOUNT_NAME_CONFIG_TYPED: VolumeName = "config");
+stackable_operator::constant!(VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log");
 
 use crate::{
     Ctx,
@@ -114,14 +126,21 @@ pub enum Error {
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
 
+    #[snafu(display("failed to validate the logging configuration"))]
+    ValidateLoggingConfig {
+        source: stackable_operator::v2::product_logging::framework::Error,
+    },
+
+    #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
+    ParseVectorAggregatorConfigMapName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
         source: product_logging::Error,
         cm_name: String,
     },
-
-    #[snafu(display("failed to configure logging"))]
-    ConfigureLogging { source: LoggingError },
 
     #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
     JvmSecurityProperties {
@@ -591,29 +610,42 @@ fn pod_template(
     }
 
     if config.logging.enable_vector_agent {
-        match &spark_application.spec.vector_aggregator_config_map_name {
-            Some(vector_aggregator_config_map_name) => {
-                pb.add_container(
-                    vector_container(
-                        spark_image,
-                        VOLUME_MOUNT_NAME_CONFIG,
-                        VOLUME_MOUNT_NAME_LOG,
-                        config.logging.containers.get(&SparkContainer::Vector),
-                        ResourceRequirementsBuilder::new()
-                            .with_cpu_request("250m")
-                            .with_cpu_limit("500m")
-                            .with_memory_request("128Mi")
-                            .with_memory_limit("128Mi")
-                            .build(),
-                        vector_aggregator_config_map_name,
-                    )
-                    .context(ConfigureLoggingSnafu)?,
-                );
-            }
-            None => {
-                VectorAggregatorConfigMapMissingSnafu.fail()?;
-            }
-        }
+        let vector_aggregator_config_map_name = spark_application
+            .spec
+            .vector_aggregator_config_map_name
+            .as_ref()
+            .context(VectorAggregatorConfigMapMissingSnafu)?;
+        let vector_log_config = VectorContainerLogConfig {
+            log_config: validate_logging_configuration_for_container(
+                &config.logging,
+                &SparkContainer::Vector,
+            )
+            .context(ValidateLoggingConfigSnafu)?,
+            vector_aggregator_config_map_name: ConfigMapName::from_str(
+                vector_aggregator_config_map_name,
+            )
+            .context(ParseVectorAggregatorConfigMapNameSnafu)?,
+        };
+        // These resource names are constructed SOLELY to provide the Vector sidecar with its
+        // `CLUSTER_NAME`/`ROLE_NAME`/`ROLE_GROUP_NAME` log-metadata env vars. They do NOT affect
+        // resource naming. A SparkApplication has no Stackable role groups, so the role group name
+        // is a placeholder; the role name reflects the pod's Spark role (driver/executor).
+        let vector_resource_names = ResourceNames {
+            cluster_name: validated.name.clone(),
+            role_name: RoleName::from_str(&role.to_string())
+                .expect("a SparkApplicationRole serializes to a valid role name"),
+            role_group_name: RoleGroupName::from_str("default")
+                .expect("\"default\" is a valid role group name"),
+        };
+        pb.add_container(vector_container(
+            &VECTOR_CONTAINER_NAME,
+            spark_image,
+            &vector_log_config,
+            &vector_resource_names,
+            &VOLUME_MOUNT_NAME_CONFIG_TYPED,
+            &VOLUME_MOUNT_NAME_LOG_TYPED,
+            EnvVarSet::new(),
+        ));
     }
 
     let mut pod_template = pb.build_template();

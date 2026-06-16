@@ -175,9 +175,7 @@ pub async fn reconcile(
     let server_config = &validated.server_config;
     let executor_config = &validated.executor_config;
     let resolved_product_image = &validated.resolved_product_image;
-    let resolved_s3 = &validated.resolved_s3;
-
-    let server_role_config = &scs.spec.server.role_config;
+    let resolved_s3 = &validated.cluster_config.resolved_s3;
 
     let mut cluster_resources = cluster_resources_new(
         &validate::product_name(),
@@ -309,7 +307,7 @@ pub async fn reconcile(
 
     // ========================================
     // Server listener
-    let listener = server::build_listener(&validated, server_role_config);
+    let listener = server::build_listener(&validated);
 
     let applied_listener = cluster_resources
         .add(client, listener)

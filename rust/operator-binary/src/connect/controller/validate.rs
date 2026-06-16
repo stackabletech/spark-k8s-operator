@@ -138,11 +138,23 @@ pub struct ValidatedSparkConnectServer {
     pub name: ClusterName,
     pub namespace: NamespaceName,
     pub uid: Uid,
-    pub resolved_s3: ResolvedS3,
     pub resolved_product_image: ResolvedProductImage,
+    pub cluster_config: ValidatedClusterConfig,
+    pub role_config: ValidatedRoleConfig,
     pub server_config: v1alpha1::ServerConfig,
     pub server_logging: ValidatedLogging,
     pub executor_config: v1alpha1::ExecutorConfig,
+}
+
+/// Cluster-wide settings resolved during validation, so the resource builders never have to read
+/// the raw [`v1alpha1::SparkConnectServer`] spec.
+pub struct ValidatedClusterConfig {
+    pub resolved_s3: ResolvedS3,
+}
+
+/// Per-role configuration extracted during validation (Spark Connect exposes only the server role).
+pub struct ValidatedRoleConfig {
+    pub listener_class: String,
 }
 
 impl ValidatedSparkConnectServer {
@@ -307,8 +319,13 @@ pub fn validate(
         name,
         namespace,
         uid,
-        resolved_s3: dereferenced.resolved_s3,
         resolved_product_image,
+        cluster_config: ValidatedClusterConfig {
+            resolved_s3: dereferenced.resolved_s3,
+        },
+        role_config: ValidatedRoleConfig {
+            listener_class: scs.spec.server.role_config.listener_class.clone(),
+        },
         server_config,
         server_logging,
         executor_config,

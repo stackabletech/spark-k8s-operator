@@ -535,7 +535,6 @@ fn probe() -> Probe {
 
 pub(crate) fn build_listener(
     validated: &ValidatedSparkConnectServer,
-    role_config: &v1alpha1::SparkConnectServerRoleConfig,
 ) -> listener::v1alpha1::Listener {
     let listener_name = format!(
         "{cluster}-{role}",
@@ -543,7 +542,7 @@ pub(crate) fn build_listener(
         role = SparkConnectRole::Server
     );
 
-    let listener_class = role_config.listener_class.clone();
+    let listener_class = validated.role_config.listener_class.clone();
     let recommended_object_labels = validated.recommended_labels(SparkConnectRole::Server);
 
     let listener_ports = [

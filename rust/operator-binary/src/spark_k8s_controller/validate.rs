@@ -79,10 +79,16 @@ pub struct ValidatedSparkApplication {
     pub uid: Uid,
     // Still carried in full because `reconcile` builds the submit/driver pod from the whole spec.
     pub spark_application: v1alpha1::SparkApplication,
+    pub resolved_product_image: ResolvedProductImage,
+    pub cluster_config: ValidatedClusterConfig,
+}
+
+/// Cluster-wide settings resolved during validation and dereferencing, so the resource builders
+/// can use the resolved values rather than re-resolving from the raw spec.
+pub struct ValidatedClusterConfig {
     pub resolved_template_refs: Vec<v1alpha1::ResolvedSparkApplicationTemplate>,
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
     pub log_dir: Option<ResolvedLogDir>,
-    pub resolved_product_image: ResolvedProductImage,
 }
 
 impl NameIsValidLabelValue for ValidatedSparkApplication {
@@ -223,10 +229,12 @@ pub fn validate(
         namespace,
         uid,
         spark_application: dereferenced.spark_application,
-        resolved_template_refs: dereferenced.resolved_template_refs,
-        s3_connection: dereferenced.s3_connection,
-        log_dir: dereferenced.log_dir,
         resolved_product_image,
+        cluster_config: ValidatedClusterConfig {
+            resolved_template_refs: dereferenced.resolved_template_refs,
+            s3_connection: dereferenced.s3_connection,
+            log_dir: dereferenced.log_dir,
+        },
     })
 }
 

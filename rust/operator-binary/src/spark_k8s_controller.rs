@@ -212,8 +212,8 @@ pub async fn reconcile(
         .context(ValidateSparkApplicationSnafu)?;
 
     let spark_application = &validated.spark_application;
-    let opt_s3conn = &validated.s3_connection;
-    let logdir = &validated.log_dir;
+    let opt_s3conn = &validated.cluster_config.s3_connection;
+    let logdir = &validated.cluster_config.log_dir;
     let resolved_product_image = &validated.resolved_product_image;
     // This is the final version of the spark app to reconcile.
     // No more mutating operations after this point (except for status).
@@ -342,7 +342,7 @@ pub async fn reconcile(
             spark_application,
             &v1alpha1::SparkApplicationStatus {
                 phase: "Unknown".to_string(),
-                resolved_template_ref: validated.resolved_template_refs.clone(),
+                resolved_template_ref: validated.cluster_config.resolved_template_refs.clone(),
             },
         )
         .await

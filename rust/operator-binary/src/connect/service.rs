@@ -1,61 +1,38 @@
-use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::{self, meta::ObjectMetaBuilder},
+    builder::meta::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kube::ResourceExt,
     kvp::{Annotations, Labels},
     v2::builder::meta::ownerreference_from_resource,
 };
 
-use super::crd::CONNECT_APP_NAME;
 use crate::connect::{
     GRPC, HTTP,
-    common::{self, SparkConnectRole},
+    common::SparkConnectRole,
     controller::validate::ValidatedSparkConnectServer,
     crd::{CONNECT_GRPC_PORT, CONNECT_UI_PORT, v1alpha1},
 };
-
-#[derive(Snafu, Debug)]
-#[allow(clippy::enum_variant_names)]
-pub enum Error {
-    #[snafu(display("failed to build Labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
-    },
-
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild { source: builder::meta::Error },
-}
 
 // This is the headless driver service used for the internal
 // communication with the executors as recommended by the Spark docs.
 pub(crate) fn build_headless_service(
     validated: &ValidatedSparkConnectServer,
     scs: &v1alpha1::SparkConnectServer,
-    app_version_label: &str,
-) -> Result<Service, Error> {
+) -> Service {
     let service_name = format!(
         "{cluster}-{role}-headless",
         cluster = scs.name_any(),
         role = SparkConnectRole::Server
     );
 
-    let selector =
-        Labels::role_selector(scs, CONNECT_APP_NAME, &SparkConnectRole::Server.to_string())
-            .context(LabelBuildSnafu)?
-            .into();
+    let selector = validated.role_selector(SparkConnectRole::Server).into();
 
-    Ok(Service {
+    Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(scs)
             .name(service_name)
             .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_recommended_labels(&common::labels(
-                scs,
-                app_version_label,
-                &SparkConnectRole::Server.to_string(),
-            ))
-            .context(MetadataBuildSnafu)?
+            .with_labels(validated.recommended_labels(SparkConnectRole::Server))
             .build(),
         spec: Some(ServiceSpec {
             type_: Some("ClusterIP".to_owned()),
@@ -80,37 +57,28 @@ pub(crate) fn build_headless_service(
             ..ServiceSpec::default()
         }),
         status: None,
-    })
+    }
 }
 
 // This is the metrics service
 pub(crate) fn build_metrics_service(
     validated: &ValidatedSparkConnectServer,
     scs: &v1alpha1::SparkConnectServer,
-    app_version_label: &str,
-) -> Result<Service, Error> {
+) -> Service {
     let service_name = format!(
         "{cluster}-{role}-metrics",
         cluster = scs.name_any(),
         role = SparkConnectRole::Server
     );
 
-    let selector =
-        Labels::role_selector(scs, CONNECT_APP_NAME, &SparkConnectRole::Server.to_string())
-            .context(LabelBuildSnafu)?
-            .into();
+    let selector = validated.role_selector(SparkConnectRole::Server).into();
 
-    Ok(Service {
+    Service {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(scs)
             .name(service_name)
             .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_recommended_labels(&common::labels(
-                scs,
-                app_version_label,
-                &SparkConnectRole::Server.to_string(),
-            ))
-            .context(MetadataBuildSnafu)?
+            .with_labels(validated.recommended_labels(SparkConnectRole::Server))
             .with_labels(prometheus_labels())
             .with_annotations(prometheus_annotations())
             .build(),
@@ -126,7 +94,7 @@ pub(crate) fn build_metrics_service(
             ..ServiceSpec::default()
         }),
         status: None,
-    })
+    }
 }
 
 fn metrics_ports() -> Vec<ServicePort> {

@@ -41,9 +41,6 @@ use crate::{
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to build metadata for spark connect executor pod template"))]
-    PodTemplateMetadataBuild { source: builder::meta::Error },
-
     #[snafu(display("invalid connect container name"))]
     InvalidContainerName {
         source: builder::pod::container::Error,
@@ -65,9 +62,6 @@ pub enum Error {
 
     #[snafu(display("executor metrics properties for spark connect {name}",))]
     MetricsProperties { source: common::Error, name: String },
-
-    #[snafu(display("failed build connect executor config map metadata"))]
-    ConfigMapMetadataBuild { source: builder::meta::Error },
 
     #[snafu(display(
         "failed to add the logging configuration to connect executor config map [{cm_name}]"
@@ -104,6 +98,7 @@ pub enum Error {
 //
 #[allow(clippy::result_large_err)]
 pub fn executor_pod_template(
+    validated: &ValidatedSparkConnectServer,
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
     resolved_product_image: &ResolvedProductImage,
@@ -134,12 +129,7 @@ pub fn executor_pod_template(
         .context(AddVolumeMountSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(&common::labels(
-            scs,
-            &resolved_product_image.app_version_label_value,
-            &SparkConnectRole::Executor.to_string(),
-        ))
-        .context(PodTemplateMetadataBuildSnafu)?
+        .with_labels(validated.recommended_labels(SparkConnectRole::Executor))
         .build();
 
     let mut template = PodBuilder::new();
@@ -335,7 +325,6 @@ fn executor_jvm_args(
 pub(crate) fn executor_config_map(
     validated: &ValidatedSparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
-    resolved_product_image: &ResolvedProductImage,
     config_overrides: Option<&v1alpha1::ConfigOverrides>,
 ) -> Result<ConfigMap, Error> {
     let cm_name = object_name(&validated.name_any(), SparkConnectRole::Executor);
@@ -365,12 +354,7 @@ pub(crate) fn executor_config_map(
                 .name_and_namespace(validated)
                 .name(&cm_name)
                 .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-                .with_recommended_labels(&common::labels(
-                    validated,
-                    &resolved_product_image.app_version_label_value,
-                    &SparkConnectRole::Executor.to_string(),
-                ))
-                .context(ConfigMapMetadataBuildSnafu)?
+                .with_labels(validated.recommended_labels(SparkConnectRole::Executor))
                 .build(),
         )
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)

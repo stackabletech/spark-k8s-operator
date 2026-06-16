@@ -3,7 +3,7 @@
 //! Resolves the product image and the server/executor configs.
 //! Does not touch the Kubernetes API.
 
-use std::borrow::Cow;
+use std::{borrow::Cow, str::FromStr};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -11,23 +11,32 @@ use stackable_operator::{
     commons::product_image_selection::{self, ResolvedProductImage},
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
+    kvp::Labels,
     v2::{
-        HasName, HasUid,
+        HasName, HasUid, NameIsValidLabelValue,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
+        kvp::label::{recommended_labels, role_group_selector, role_selector},
         types::{
             kubernetes::{NamespaceName, Uid},
-            operator::ClusterName,
+            operator::{
+                ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
+                RoleGroupName, RoleName,
+            },
         },
     },
 };
 
 use crate::{
     connect::{
+        common::SparkConnectRole,
         controller::dereference::DereferencedSparkConnectServer,
-        crd::{self, v1alpha1},
+        crd::{
+            self, CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, CONNECT_EXECUTOR_ROLE_NAME,
+            CONNECT_SERVER_ROLE_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME, v1alpha1,
+        },
         s3::ResolvedS3,
     },
-    crd::constants::CONTAINER_IMAGE_BASE_NAME,
+    crd::constants::{CONTAINER_IMAGE_BASE_NAME, OPERATOR_NAME},
 };
 
 #[derive(Snafu, Debug)]
@@ -70,6 +79,72 @@ pub struct ValidatedSparkConnectServer {
     pub resolved_product_image: ResolvedProductImage,
     pub server_config: v1alpha1::ServerConfig,
     pub executor_config: v1alpha1::ExecutorConfig,
+}
+
+impl ValidatedSparkConnectServer {
+    /// Recommended labels for a resource of the given role.
+    pub(crate) fn recommended_labels(&self, role: SparkConnectRole) -> Labels {
+        // `app_version_label_value` is constructed to be a valid label value, so it is also a
+        // valid `ProductVersion`.
+        let product_version =
+            ProductVersion::from_str(&self.resolved_product_image.app_version_label_value)
+                .expect("the app version label value is a valid product version");
+        let role_group = RoleGroupName::from_str(DEFAULT_SPARK_CONNECT_GROUP_NAME)
+            .expect("DEFAULT_SPARK_CONNECT_GROUP_NAME is a valid role group name");
+        recommended_labels(
+            self,
+            &product_name(),
+            &product_version,
+            &operator_name(),
+            &controller_name(),
+            &role_name(role),
+            &role_group,
+        )
+    }
+
+    /// Selector labels matching the pods of the given role.
+    pub(crate) fn role_selector(&self, role: SparkConnectRole) -> Labels {
+        role_selector(self, &product_name(), &role_name(role))
+    }
+
+    /// Selector labels matching the pods of the given role's (single) role group.
+    pub(crate) fn role_group_selector(&self, role: SparkConnectRole) -> Labels {
+        let role_group = RoleGroupName::from_str(DEFAULT_SPARK_CONNECT_GROUP_NAME)
+            .expect("DEFAULT_SPARK_CONNECT_GROUP_NAME is a valid role group name");
+        role_group_selector(self, &product_name(), &role_name(role), &role_group)
+    }
+}
+
+/// The product name (`spark-connect`) as a type-safe label value.
+pub(crate) fn product_name() -> ProductName {
+    ProductName::from_str(CONNECT_APP_NAME).expect("CONNECT_APP_NAME is a valid product name")
+}
+
+/// The operator name as a type-safe label value.
+pub(crate) fn operator_name() -> OperatorName {
+    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
+}
+
+/// The controller name as a type-safe label value.
+pub(crate) fn controller_name() -> ControllerName {
+    ControllerName::from_str(CONNECT_CONTROLLER_NAME)
+        .expect("the controller name is a valid label value")
+}
+
+/// The role name for the given Spark Connect role as a type-safe label value.
+fn role_name(role: SparkConnectRole) -> RoleName {
+    match role {
+        SparkConnectRole::Server => RoleName::from_str(CONNECT_SERVER_ROLE_NAME)
+            .expect("CONNECT_SERVER_ROLE_NAME is a valid role name"),
+        SparkConnectRole::Executor => RoleName::from_str(CONNECT_EXECUTOR_ROLE_NAME)
+            .expect("CONNECT_EXECUTOR_ROLE_NAME is a valid role name"),
+    }
+}
+
+impl NameIsValidLabelValue for ValidatedSparkConnectServer {
+    fn to_label_value(&self) -> String {
+        self.name.to_label_value()
+    }
 }
 
 impl HasName for ValidatedSparkConnectServer {

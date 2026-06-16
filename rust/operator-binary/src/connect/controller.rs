@@ -49,9 +49,6 @@ pub enum Error {
     #[snafu(display("failed to build connect server properties"))]
     ServerProperties { source: server::Error },
 
-    #[snafu(display("failed to build spark connect service"))]
-    BuildService { source: service::Error },
-
     #[snafu(display("failed to build spark connect executor config map for {name}"))]
     BuildExecutorConfigMap {
         source: executor::Error,
@@ -219,12 +216,7 @@ pub async fn reconcile(
         .context(ApplyRoleBindingSnafu)?;
 
     // Headless service used by executors connect back to the driver
-    let headless_service = service::build_headless_service(
-        &validated,
-        scs,
-        &resolved_product_image.app_version_label_value,
-    )
-    .context(BuildServiceSnafu)?;
+    let headless_service = service::build_headless_service(&validated, scs);
 
     let applied_headless_service = cluster_resources
         .add(client, headless_service.clone())
@@ -232,12 +224,7 @@ pub async fn reconcile(
         .context(ApplyServiceSnafu)?;
 
     // Metrics service used for scraping
-    let metrics_service = service::build_metrics_service(
-        &validated,
-        scs,
-        &resolved_product_image.app_version_label_value,
-    )
-    .context(BuildServiceSnafu)?;
+    let metrics_service = service::build_metrics_service(&validated, scs);
 
     cluster_resources
         .add(client, metrics_service.clone())
@@ -275,7 +262,6 @@ pub async fn reconcile(
     let executor_config_map = executor::executor_config_map(
         &validated,
         executor_config,
-        resolved_product_image,
         executor_config_overrides.as_ref(),
     )
     .context(BuildExecutorConfigMapSnafu {
@@ -290,6 +276,7 @@ pub async fn reconcile(
 
     let executor_pod_template = serde_yaml::to_string(
         &executor::executor_pod_template(
+            &validated,
             scs,
             executor_config,
             resolved_product_image,
@@ -312,7 +299,6 @@ pub async fn reconcile(
     let server_config_map = server::server_config_map(
         &validated,
         server_config,
-        resolved_product_image,
         &spark_props,
         &executor_pod_template,
         server_config_overrides.as_ref(),

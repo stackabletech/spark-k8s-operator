@@ -31,13 +31,12 @@ use stackable_operator::{
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
     kube::{ResourceExt, runtime::reflector::ObjectRef},
-    kvp::{Label, Labels},
+    kvp::Label,
     product_logging::framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
     role_utils::RoleGroupRef,
     v2::builder::meta::ownerreference_from_resource,
 };
 
-use super::crd::CONNECT_APP_NAME;
 use crate::{
     connect::{
         GRPC, HTTP,
@@ -112,9 +111,6 @@ pub enum Error {
         source: stackable_operator::kvp::LabelError,
     },
 
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild { source: builder::meta::Error },
-
     #[snafu(display("failed to add needed volume"))]
     AddVolume { source: builder::pod::Error },
 
@@ -148,7 +144,6 @@ pub enum Error {
 pub(crate) fn server_config_map(
     validated: &ValidatedSparkConnectServer,
     config: &v1alpha1::ServerConfig,
-    resolved_product_image: &ResolvedProductImage,
     spark_properties: &str,
     executor_pod_template_spec: &str,
     config_overrides: Option<&v1alpha1::ConfigOverrides>,
@@ -183,12 +178,7 @@ pub(crate) fn server_config_map(
                 .name_and_namespace(validated)
                 .name(&cm_name)
                 .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-                .with_recommended_labels(&common::labels(
-                    validated,
-                    &resolved_product_image.app_version_label_value,
-                    &SparkConnectRole::Server.to_string(),
-                ))
-                .context(MetadataBuildSnafu)?
+                .with_labels(validated.recommended_labels(SparkConnectRole::Server))
                 .build(),
         )
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_properties)
@@ -225,19 +215,10 @@ pub(crate) fn build_stateful_set(
     args: Vec<String>,
     resolved_s3: &s3::ResolvedS3,
 ) -> Result<StatefulSet, Error> {
-    let server_role = SparkConnectRole::Server.to_string();
-    let recommended_object_labels = common::labels(
-        scs,
-        &resolved_product_image.app_version_label_value,
-        &server_role,
-    );
-
-    let recommended_labels =
-        Labels::recommended(&recommended_object_labels).context(LabelBuildSnafu)?;
+    let recommended_labels = validated.recommended_labels(SparkConnectRole::Server);
 
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(&recommended_object_labels)
-        .context(MetadataBuildSnafu)?
+        .with_labels(recommended_labels.clone())
         .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
         .build();
 
@@ -394,12 +375,7 @@ pub(crate) fn build_stateful_set(
             .name_and_namespace(scs)
             .name(object_name(&scs.name_any(), SparkConnectRole::Server))
             .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_recommended_labels(&common::labels(
-                scs,
-                &resolved_product_image.app_version_label_value,
-                &SparkConnectRole::Server.to_string(),
-            ))
-            .context(MetadataBuildSnafu)?
+            .with_labels(validated.recommended_labels(SparkConnectRole::Server))
             .build(),
         spec: Some(StatefulSetSpec {
             template: pod_template,
@@ -407,14 +383,9 @@ pub(crate) fn build_stateful_set(
             volume_claim_templates,
             selector: LabelSelector {
                 match_labels: Some(
-                    Labels::role_group_selector(
-                        scs,
-                        CONNECT_APP_NAME,
-                        &SparkConnectRole::Server.to_string(),
-                        DEFAULT_SPARK_CONNECT_GROUP_NAME,
-                    )
-                    .context(LabelBuildSnafu)?
-                    .into(),
+                    validated
+                        .role_group_selector(SparkConnectRole::Server)
+                        .into(),
                 ),
                 ..LabelSelector::default()
             },

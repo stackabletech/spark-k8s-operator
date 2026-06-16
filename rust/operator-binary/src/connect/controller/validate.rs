@@ -5,19 +5,23 @@
 
 use std::{borrow::Cow, str::FromStr};
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
     kvp::Labels,
+    product_logging::spec::Logging,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         kvp::label::{recommended_labels, role_group_selector, role_selector},
+        product_logging::framework::{
+            VectorContainerLogConfig, validate_logging_configuration_for_container,
+        },
         types::{
-            kubernetes::{NamespaceName, Uid},
+            kubernetes::{ConfigMapName, NamespaceName, Uid},
             operator::{
                 ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
                 RoleGroupName, RoleName,
@@ -32,7 +36,8 @@ use crate::{
         controller::dereference::DereferencedSparkConnectServer,
         crd::{
             self, CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, CONNECT_EXECUTOR_ROLE_NAME,
-            CONNECT_SERVER_ROLE_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME, v1alpha1,
+            CONNECT_SERVER_ROLE_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer,
+            v1alpha1,
         },
         s3::ResolvedS3,
     },
@@ -66,9 +71,65 @@ pub enum Error {
     ResolveUid {
         source: stackable_operator::v2::controller_utils::Error,
     },
+
+    #[snafu(display("failed to validate the logging configuration"))]
+    ValidateLoggingConfig {
+        source: stackable_operator::v2::product_logging::framework::Error,
+    },
+
+    #[snafu(display(
+        "the Vector aggregator discovery ConfigMap name must be set when the Vector agent is enabled"
+    ))]
+    MissingVectorAggregatorConfigMapName,
+
+    #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
+    ParseVectorAggregatorConfigMapName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
+    },
+}
+
+/// Validates the logging configuration for the (optional) Vector container.
+///
+/// `vector_aggregator_config_map_name` is the discovery ConfigMap name of the Vector aggregator;
+/// it is required (and validated) only when the Vector agent is enabled.
+fn validate_logging(
+    logging: &Logging<SparkConnectContainer>,
+    vector_aggregator_config_map_name: &Option<ConfigMapName>,
+) -> Result<ValidatedLogging> {
+    let vector_container = if logging.enable_vector_agent {
+        let vector_aggregator_config_map_name = vector_aggregator_config_map_name
+            .clone()
+            .context(MissingVectorAggregatorConfigMapNameSnafu)?;
+        Some(VectorContainerLogConfig {
+            log_config: validate_logging_configuration_for_container(
+                logging,
+                &SparkConnectContainer::Vector,
+            )
+            .context(ValidateLoggingConfigSnafu)?,
+            vector_aggregator_config_map_name,
+        })
+    } else {
+        None
+    };
+
+    Ok(ValidatedLogging {
+        vector_container,
+        enable_vector_agent: logging.enable_vector_agent,
+    })
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Validated logging configuration for the (optional) Vector container.
+///
+/// Produced up-front by [`validate_logging`] so that an
+/// invalid custom log ConfigMap name or a missing Vector aggregator discovery ConfigMap name fails
+/// reconciliation during validation rather than at resource-build time.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValidatedLogging {
+    pub vector_container: Option<VectorContainerLogConfig>,
+    pub enable_vector_agent: bool,
+}
 
 pub struct ValidatedSparkConnectServer {
     metadata: ObjectMeta,
@@ -78,6 +139,7 @@ pub struct ValidatedSparkConnectServer {
     pub resolved_s3: ResolvedS3,
     pub resolved_product_image: ResolvedProductImage,
     pub server_config: v1alpha1::ServerConfig,
+    pub server_logging: ValidatedLogging,
     pub executor_config: v1alpha1::ExecutorConfig,
 }
 
@@ -209,6 +271,19 @@ pub fn validate(
     let namespace = get_namespace(scs).context(ResolveNamespaceSnafu)?;
     let uid = get_uid(scs).context(ResolveUidSnafu)?;
 
+    // The Vector aggregator discovery ConfigMap name (validated here so an invalid name fails
+    // up-front). It is only required when the Vector agent is enabled for the server.
+    let vector_aggregator_config_map_name = scs
+        .spec
+        .vector_aggregator_config_map_name
+        .as_deref()
+        .map(ConfigMapName::from_str)
+        .transpose()
+        .context(ParseVectorAggregatorConfigMapNameSnafu)?;
+
+    let server_logging =
+        validate_logging(&server_config.logging, &vector_aggregator_config_map_name)?;
+
     Ok(ValidatedSparkConnectServer {
         metadata: scs.meta().clone(),
         name,
@@ -217,6 +292,7 @@ pub fn validate(
         resolved_s3: dereferenced.resolved_s3,
         resolved_product_image,
         server_config,
+        server_logging,
         executor_config,
     })
 }

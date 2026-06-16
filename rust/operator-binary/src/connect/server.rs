@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+};
 
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -10,7 +13,6 @@ use stackable_operator::{
         pod::{
             PodBuilder,
             container::ContainerBuilder,
-            resources::ResourceRequirementsBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
                 ListenerReference, VolumeBuilder,
@@ -32,10 +34,25 @@ use stackable_operator::{
     },
     kube::{ResourceExt, runtime::reflector::ObjectRef},
     kvp::Label,
-    product_logging::framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
+    product_logging::framework::calculate_log_volume_size_limit,
     role_utils::RoleGroupRef,
-    v2::builder::meta::ownerreference_from_resource,
+    v2::{
+        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
+        product_logging::framework::vector_container,
+        role_group_utils::ResourceNames,
+        types::{
+            kubernetes::{ContainerName, VolumeName},
+            operator::{RoleGroupName, RoleName},
+        },
+    },
 };
+
+stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+// Typed volume names required by the v2 `vector_container`; values match the `&str` volume-mount
+// name constants (`VOLUME_MOUNT_NAME_CONFIG`/`VOLUME_MOUNT_NAME_LOG`) used elsewhere to build the
+// same volumes.
+stackable_operator::constant!(VOLUME_MOUNT_NAME_CONFIG_TYPED: VolumeName = "config");
+stackable_operator::constant!(VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log");
 
 use crate::{
     connect::{
@@ -43,8 +60,8 @@ use crate::{
         common::{self, SparkConnectRole, object_name},
         controller::validate::ValidatedSparkConnectServer,
         crd::{
-            CONNECT_GRPC_PORT, CONNECT_UI_PORT, DEFAULT_SPARK_CONNECT_GROUP_NAME,
-            SparkConnectContainer, v1alpha1,
+            CONNECT_GRPC_PORT, CONNECT_SERVER_ROLE_NAME, CONNECT_UI_PORT,
+            DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer, v1alpha1,
         },
         s3,
     },
@@ -74,9 +91,6 @@ pub enum Error {
         source: ListenerOperatorVolumeSourceBuilderError,
     },
 
-    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
-    VectorAggregatorConfigMapMissing,
-
     #[snafu(display("spark connect object has no namespace"))]
     ObjectHasNoNamespace,
 
@@ -96,9 +110,6 @@ pub enum Error {
         source: product_logging::Error,
         cm_name: String,
     },
-
-    #[snafu(display("failed to configure logging"))]
-    ConfigureLogging { source: LoggingError },
 
     #[snafu(display("server jvm security properties for spark connect {name}",))]
     ServerJvmSecurityProperties { source: common::Error, name: String },
@@ -304,33 +315,27 @@ pub(crate) fn build_stateful_set(
 
     pb.add_container(container.build());
 
-    if config.logging.enable_vector_agent {
-        match scs.spec.vector_aggregator_config_map_name.to_owned() {
-            Some(vector_aggregator_config_map_name) => {
-                pb.add_container(
-                    vector_container(
-                        resolved_product_image,
-                        VOLUME_MOUNT_NAME_CONFIG,
-                        VOLUME_MOUNT_NAME_LOG,
-                        config
-                            .logging
-                            .containers
-                            .get(&SparkConnectContainer::Vector),
-                        ResourceRequirementsBuilder::new()
-                            .with_cpu_request("250m")
-                            .with_cpu_limit("500m")
-                            .with_memory_request("128Mi")
-                            .with_memory_limit("128Mi")
-                            .build(),
-                        &vector_aggregator_config_map_name,
-                    )
-                    .context(ConfigureLoggingSnafu)?,
-                );
-            }
-            None => {
-                VectorAggregatorConfigMapMissingSnafu.fail()?;
-            }
-        }
+    if let Some(vector_log_config) = &validated.server_logging.vector_container {
+        // These resource names are constructed SOLELY to provide the Vector sidecar with its
+        // `CLUSTER_NAME`/`ROLE_NAME`/`ROLE_GROUP_NAME` log-metadata env vars. They do NOT affect
+        // resource naming: Spark Connect keeps its `{cluster}-{role}` resource names.
+        let vector_resource_names = ResourceNames {
+            cluster_name: validated.name.clone(),
+            role_name: RoleName::from_str(CONNECT_SERVER_ROLE_NAME)
+                .expect("CONNECT_SERVER_ROLE_NAME is a valid role name"),
+            role_group_name: RoleGroupName::from_str(DEFAULT_SPARK_CONNECT_GROUP_NAME)
+                .expect("DEFAULT_SPARK_CONNECT_GROUP_NAME is a valid role group name"),
+        };
+
+        pb.add_container(vector_container(
+            &VECTOR_CONTAINER_NAME,
+            resolved_product_image,
+            vector_log_config,
+            &vector_resource_names,
+            &VOLUME_MOUNT_NAME_CONFIG_TYPED,
+            &VOLUME_MOUNT_NAME_LOG_TYPED,
+            EnvVarSet::new(),
+        ));
     }
 
     // Add listener volume

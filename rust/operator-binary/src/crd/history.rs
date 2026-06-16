@@ -1,7 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::Snafu;
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -11,44 +11,24 @@ use stackable_operator::{
             Resources, ResourcesFragment,
         },
     },
-    config::{
-        fragment::{self, Fragment, ValidationError},
-        merge::Merge,
-    },
+    config::{fragment::Fragment, merge::Merge},
     crd::s3,
     deep_merger::ObjectOverrides,
-    k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::api::resource::Quantity},
-    kube::{CustomResource, ResourceExt},
+    k8s_openapi::apimachinery::pkg::api::resource::Quantity,
+    kube::CustomResource,
     product_logging::{self, spec::Logging},
-    role_utils::{GenericRoleConfig, JavaCommonConfig, Role, RoleGroup, RoleGroupRef},
+    role_utils::{GenericRoleConfig, Role},
     schemars::{self, JsonSchema},
     shared::time::Duration,
-    v2::config_overrides::KeyValueConfigOverrides,
+    v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
     versioned::versioned,
 };
 use strum::{Display, EnumIter};
 
-use crate::{
-    crd::{
-        affinity::history_affinity, constants::*, history::v1alpha1::SparkHistoryServerRoleConfig,
-        logdir::ResolvedLogDir,
-    },
-    history::config::jvm::construct_history_jvm_args,
-};
+use crate::crd::{affinity::history_affinity, history::v1alpha1::SparkHistoryServerRoleConfig};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("fragment validation failure"))]
-    FragmentValidationFailure { source: ValidationError },
-
-    #[snafu(display("the role group {role_group} is not defined"))]
-    CannotRetrieveRoleGroup { role_group: String },
-
-    #[snafu(display("failed to construct JVM arguments"))]
-    ConstructJvmArguments {
-        source: crate::history::config::jvm::Error,
-    },
-
     #[snafu(display("too many cleaner replicas"))]
     TooManyCleanerReplicas,
 
@@ -141,59 +121,9 @@ impl v1alpha1::SparkHistoryServer {
         &self.spec.nodes
     }
 
-    /// Returns a reference to the role group. Raises an error if the role or role group are not defined.
-    pub fn rolegroup(
-        &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<RoleGroup<HistoryConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>, Error>
-    {
-        self.spec
-            .nodes
-            .role_groups
-            .get(&rolegroup_ref.role_group)
-            .with_context(|| CannotRetrieveRoleGroupSnafu {
-                role_group: rolegroup_ref.role_group.to_owned(),
-            })
-            .cloned()
-    }
-
     /// Return the listener class of the role config.
     pub fn node_listener_class(&self) -> &str {
         self.spec.nodes.role_config.listener_class.as_str()
-    }
-
-    pub fn merged_config(
-        &self,
-        rolegroup_ref: &RoleGroupRef<Self>,
-    ) -> Result<HistoryConfig, Error> {
-        // Initialize the result with all default values as baseline
-        let conf_defaults = HistoryConfig::default_config(&self.name_any());
-
-        let role = &self.spec.nodes;
-
-        // Retrieve role resource config
-        let mut conf_role = role.config.config.to_owned();
-
-        // Retrieve rolegroup specific resource config
-        let mut conf_rolegroup = role
-            .role_groups
-            .get(&rolegroup_ref.role_group)
-            .map(|rg| rg.config.config.clone())
-            .unwrap_or_default();
-
-        conf_role.merge(&conf_defaults);
-        conf_rolegroup.merge(&conf_role);
-
-        fragment::validate(conf_rolegroup).context(FragmentValidationFailureSnafu)
-    }
-
-    pub fn replicas(&self, rolegroup_ref: &RoleGroupRef<Self>) -> Option<i32> {
-        self.spec
-            .nodes
-            .role_groups
-            .get(&rolegroup_ref.role_group)
-            .and_then(|rg| rg.replicas)
-            .map(i32::from)
     }
 
     // Returns the name of the cleaner role group if any.
@@ -234,46 +164,6 @@ impl v1alpha1::SparkHistoryServer {
             }
             .build()),
         }
-    }
-
-    pub fn merged_env(
-        &self,
-        role_group: &str,
-        logdir: &ResolvedLogDir,
-        role_group_env_overrides: HashMap<String, String>,
-    ) -> Result<Vec<EnvVar>, Error> {
-        let role = self.role();
-        let history_jvm_args = construct_history_jvm_args(role, role_group, logdir)
-            .context(ConstructJvmArgumentsSnafu)?;
-        let mut envs = BTreeMap::from([
-            // Needed by the `containerdebug` running in the background of the history container
-            // to log it's tracing information to.
-            (
-                "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
-                format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
-            ),
-            // This env var prevents the history server from detaching itself from the
-            // start script because this leads to the Pod terminating immediately.
-            ("SPARK_NO_DAEMONIZE".to_string(), "true".to_string()),
-            (
-                "SPARK_DAEMON_CLASSPATH".to_string(),
-                "/stackable/spark/extra-jars/*".to_string(),
-            ),
-            // JVM arguments for the history server
-            ("SPARK_HISTORY_OPTS".to_string(), history_jvm_args),
-        ]);
-
-        envs.extend(role.config.env_overrides.clone());
-        envs.extend(role_group_env_overrides);
-
-        Ok(envs
-            .into_iter()
-            .map(|(name, value)| EnvVar {
-                name: name.to_owned(),
-                value: Some(value.to_owned()),
-                value_from: None,
-            })
-            .collect())
     }
 }
 
@@ -366,7 +256,7 @@ impl HistoryConfig {
     // Auto TLS certificate lifetime
     const DEFAULT_HISTORY_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
 
-    fn default_config(cluster_name: &str) -> HistoryConfigFragment {
+    pub fn default_config(cluster_name: &str) -> HistoryConfigFragment {
         HistoryConfigFragment {
             cleaner: None,
             resources: ResourcesFragment {
@@ -402,14 +292,22 @@ fn default_listener_class() -> String {
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use indoc::indoc;
     use stackable_operator::{
-        commons::tls_verification::TlsClientDetails, crd::s3,
-        versioned::test_utils::RoundtripTestData,
+        cli::OperatorEnvironmentOptions, commons::tls_verification::TlsClientDetails, crd::s3,
+        v2::builder::pod::container::EnvVarName, versioned::test_utils::RoundtripTestData,
     };
 
     use super::*;
-    use crate::crd::logdir::S3LogDir;
+    use crate::{
+        crd::logdir::{ResolvedLogDir, S3LogDir},
+        history::controller::{
+            dereference::DereferencedSparkHistoryServer,
+            validate::{ValidatedSparkHistoryServer, validate},
+        },
+    };
 
     #[test]
     pub fn test_env_overrides() {
@@ -419,6 +317,8 @@ mod test {
         kind: SparkHistoryServer
         metadata:
           name: spark-history
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
         spec:
           image:
             productVersion: 3.5.8
@@ -443,45 +343,45 @@ mod test {
         let history: v1alpha1::SparkHistoryServer =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
-        let log_dir = ResolvedLogDir::S3(S3LogDir {
-            bucket: s3::v1alpha1::ResolvedBucket {
-                bucket_name: "my-bucket".to_string(),
-                connection: s3::v1alpha1::ConnectionSpec {
-                    host: "my-s3".to_string().try_into().unwrap(),
-                    port: None,
-                    access_style: Default::default(),
-                    credentials: None,
-                    tls: TlsClientDetails { tls: None },
-                    region: Default::default(),
-                },
+        let validated: ValidatedSparkHistoryServer = validate(
+            &history,
+            DereferencedSparkHistoryServer {
+                log_dir: ResolvedLogDir::S3(S3LogDir {
+                    bucket: s3::v1alpha1::ResolvedBucket {
+                        bucket_name: "my-bucket".to_string(),
+                        connection: s3::v1alpha1::ConnectionSpec {
+                            host: "my-s3".to_string().try_into().unwrap(),
+                            port: None,
+                            access_style: Default::default(),
+                            credentials: None,
+                            tls: TlsClientDetails { tls: None },
+                            region: Default::default(),
+                        },
+                    },
+                    prefix: "prefix".to_string(),
+                }),
             },
-            prefix: "prefix".to_string(),
-        });
+            &OperatorEnvironmentOptions {
+                operator_namespace: "default".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.stackable.tech/sdp".to_string(),
+            },
+        )
+        .expect("validation should succeed");
 
-        let merged_env = history
-            .merged_env(
-                "default",
-                &log_dir,
-                history
-                    .spec
-                    .nodes
-                    .role_groups
-                    .get("default")
-                    .unwrap()
-                    .config
-                    .env_overrides
-                    .clone(),
-            )
-            .unwrap();
-
-        let env_map: BTreeMap<&str, Option<String>> = merged_env
-            .iter()
-            .map(|env_var| (env_var.name.as_str(), env_var.value.clone()))
-            .collect();
+        // The role group `envOverrides` value wins over the role-level one.
+        let env_overrides = &validated
+            .role_groups
+            .get(&"default".parse().expect("valid role group name"))
+            .expect("default role group should exist")
+            .config
+            .env_overrides;
 
         assert_eq!(
-            Some(&Some("ROLEGROUP".to_string())),
-            env_map.get("TEST_SPARK_HIST_VAR")
+            env_overrides
+                .get(&EnvVarName::from_str("TEST_SPARK_HIST_VAR").expect("valid env var name"))
+                .and_then(|env_var| env_var.value.clone()),
+            Some("ROLEGROUP".to_string())
         );
     }
 

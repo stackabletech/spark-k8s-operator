@@ -3,32 +3,27 @@
 //! Resolves the product image.
 //! Does not touch the Kubernetes API.
 
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    str::FromStr,
-};
+use std::{borrow::Cow, collections::BTreeMap, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
-    config::merge::Merge,
-    k8s_openapi::{
-        DeepMerge, api::core::v1::PodTemplateSpec, apimachinery::pkg::apis::meta::v1::ObjectMeta,
-    },
-    kube::{Resource, runtime::reflector::ObjectRef},
+    config::fragment,
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    kube::Resource,
     kvp::Labels,
     product_logging::spec::Logging,
-    role_utils::RoleGroupRef,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
+        builder::pod::container::{self, EnvVarName, EnvVarSet},
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         kvp::label::{recommended_labels, role_group_selector},
         product_logging::framework::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
         },
         role_group_utils::ResourceNames,
+        role_utils::{JavaCommonConfig, RoleGroupConfig, with_validated_config},
         types::{
             kubernetes::{ConfigMapName, NamespaceName, Uid},
             operator::{
@@ -45,7 +40,7 @@ use crate::{
             CONTAINER_IMAGE_BASE_NAME, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME,
             HISTORY_ROLE_NAME, OPERATOR_NAME,
         },
-        history::{HistoryConfig, SparkHistoryServerContainer, v1alpha1},
+        history::{HistoryConfig, HistoryConfigFragment, SparkHistoryServerContainer, v1alpha1},
         logdir::ResolvedLogDir,
     },
     history::controller::dereference::DereferencedSparkHistoryServer,
@@ -87,13 +82,13 @@ pub enum Error {
 
     #[snafu(display("failed to resolve and merge config for role group {role_group}"))]
     FailedToResolveConfig {
-        source: crate::crd::history::Error,
+        source: fragment::ValidationError,
         role_group: String,
     },
 
-    #[snafu(display("cannot retrieve role group {role_group}"))]
-    CannotRetrieveRoleGroup {
-        source: crate::crd::history::Error,
+    #[snafu(display("invalid environment variable override name in role group {role_group}"))]
+    ParseEnvVarName {
+        source: container::Error,
         role_group: String,
     },
 
@@ -145,14 +140,14 @@ fn validate_logging(
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// A validated, merged history server role-group config.
+pub type HistoryRoleGroupConfig =
+    RoleGroupConfig<HistoryConfig, JavaCommonConfig, v1alpha1::ConfigOverrides>;
+
 /// A pre-validated history server role group: the per-role-group merge products that the build
 /// steps used to recompute from the raw CRD on every reconcile.
 pub struct ValidatedHistoryRoleGroup {
-    pub config: HistoryConfig,
-    pub config_overrides: v1alpha1::ConfigOverrides,
-    pub env_overrides: HashMap<String, String>,
-    pub pod_overrides: PodTemplateSpec,
-    pub replicas: Option<i32>,
+    pub config: HistoryRoleGroupConfig,
     pub logging: ValidatedLogging,
 }
 
@@ -337,52 +332,57 @@ pub fn validate(
         .transpose()
         .context(ParseVectorAggregatorConfigMapNameSnafu)?;
 
+    let role = shs.role();
+    let default_config = HistoryConfig::default_config(name.as_ref());
+
     let mut role_groups = BTreeMap::new();
-    for rg_name in shs.spec.nodes.role_groups.keys() {
+    for (rg_name, role_group) in &shs.spec.nodes.role_groups {
         let role_group_name =
             RoleGroupName::from_str(rg_name).with_context(|_| ParseRoleGroupNameSnafu {
                 role_group: rg_name.clone(),
             })?;
 
-        // A temporary reference used purely as the merge key for the existing CRD accessors.
-        let rgr = RoleGroupRef {
-            cluster: ObjectRef::from_obj(shs),
-            role: HISTORY_ROLE_NAME.to_string(),
+        let merged = with_validated_config::<
+            HistoryConfig,
+            JavaCommonConfig,
+            HistoryConfigFragment,
+            v1alpha1::SparkHistoryServerRoleConfig,
+            v1alpha1::ConfigOverrides,
+        >(role_group, role, &default_config)
+        .with_context(|_| FailedToResolveConfigSnafu {
             role_group: rg_name.clone(),
+        })?;
+
+        let mut env_overrides = EnvVarSet::new();
+        for (env_var_name, env_var_value) in merged.config.env_overrides {
+            env_overrides = env_overrides.with_value(
+                &EnvVarName::from_str(&env_var_name).with_context(|_| ParseEnvVarNameSnafu {
+                    role_group: rg_name.clone(),
+                })?,
+                env_var_value,
+            );
+        }
+
+        let logging = validate_logging(
+            &merged.config.config.logging,
+            &vector_aggregator_config_map_name,
+        )?;
+
+        let config = HistoryRoleGroupConfig {
+            replicas: merged.replicas.unwrap_or(1),
+            config: merged.config.config,
+            config_overrides: merged.config.config_overrides,
+            env_overrides,
+            // The history server does not use CLI overrides; the field is carried (and merged
+            // upstream) but unused.
+            cli_overrides: merged.config.cli_overrides,
+            pod_overrides: merged.config.pod_overrides,
+            product_specific_common_config: merged.config.product_specific_common_config,
         };
-
-        let config = shs
-            .merged_config(&rgr)
-            .with_context(|_| FailedToResolveConfigSnafu {
-                role_group: rg_name.clone(),
-            })?;
-
-        let role_group = shs
-            .rolegroup(&rgr)
-            .with_context(|_| CannotRetrieveRoleGroupSnafu {
-                role_group: rg_name.clone(),
-            })?;
-
-        // Merge config_overrides from both nodes and role group levels.
-        let mut config_overrides = role_group.config.config_overrides;
-        config_overrides.merge(&shs.spec.nodes.config.config_overrides);
-
-        // Merge pod_overrides: role-base first, then role-group on top.
-        let mut pod_overrides = shs.role().config.pod_overrides.clone();
-        pod_overrides.merge_from(role_group.config.pod_overrides);
-
-        let logging = validate_logging(&config.logging, &vector_aggregator_config_map_name)?;
 
         role_groups.insert(
             role_group_name,
-            ValidatedHistoryRoleGroup {
-                config,
-                config_overrides,
-                env_overrides: role_group.config.env_overrides,
-                pod_overrides,
-                replicas: shs.replicas(&rgr),
-                logging,
-            },
+            ValidatedHistoryRoleGroup { config, logging },
         );
     }
 

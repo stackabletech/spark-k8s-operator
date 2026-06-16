@@ -42,7 +42,10 @@ use stackable_operator::{
     role_utils::RoleGroupRef,
     shared::time::Duration,
     v2::{
-        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
+        builder::{
+            meta::ownerreference_from_resource,
+            pod::container::{EnvVarName, EnvVarSet},
+        },
         config_file_writer::{PropertiesWriterError, to_java_properties_string},
         product_logging::framework::vector_container,
         types::{
@@ -79,8 +82,8 @@ use crate::{
         tlscerts, to_spark_env_sh_string,
     },
     history::{
-        controller::validate::ValidatedHistoryRoleGroup, operations::pdb::add_pdbs,
-        recommended_labels, service::build_rolegroup_metrics_service,
+        config::jvm::construct_history_jvm_args, controller::validate::ValidatedHistoryRoleGroup,
+        operations::pdb::add_pdbs, recommended_labels, service::build_rolegroup_metrics_service,
     },
     product_logging::{self},
 };
@@ -203,9 +206,6 @@ pub enum Error {
     InvalidSparkHistoryServer {
         source: error_boundary::InvalidObject,
     },
-
-    #[snafu(display("failed to merge environment config and/or overrides"))]
-    MergeEnv { source: crate::crd::history::Error },
 
     #[snafu(display("failed to apply group listener"))]
     ApplyGroupListener {
@@ -394,7 +394,13 @@ fn build_config_map(
     .context(InvalidSparkDefaultsSnafu)?;
 
     let mut jvm_sec_props = default_jvm_security_properties();
-    jvm_sec_props.extend(rg.config_overrides.security_properties.overrides.clone());
+    jvm_sec_props.extend(
+        rg.config
+            .config_overrides
+            .security_properties
+            .overrides
+            .clone(),
+    );
 
     let mut cm_builder = ConfigMapBuilder::new();
 
@@ -414,7 +420,7 @@ fn build_config_map(
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
         .add_data(
             SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(rg.config_overrides.spark_env_sh.overrides.iter()),
+            to_spark_env_sh_string(rg.config.config_overrides.spark_env_sh.overrides.iter()),
         )
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,
@@ -436,7 +442,7 @@ fn build_config_map(
 
     product_logging::extend_config_map(
         &rgr,
-        &rg.config.logging,
+        &rg.config.config.logging,
         SparkHistoryServerContainer::SparkHistory,
         SparkHistoryServerContainer::Vector,
         &mut cm_builder,
@@ -467,6 +473,7 @@ fn build_stateful_set(
             })),
     }) = rg
         .config
+        .config
         .logging
         .containers
         .get(&SparkHistoryServerContainer::SparkHistory)
@@ -485,6 +492,7 @@ fn build_stateful_set(
     let mut pb = PodBuilder::new();
 
     let requested_secret_lifetime = rg
+        .config
         .config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
@@ -523,15 +531,39 @@ fn build_stateful_set(
             ..PodSecurityContext::default()
         });
 
-    let merged_env = shs
-        .merged_env(role_group_name.as_ref(), log_dir, rg.env_overrides.clone())
-        .context(MergeEnvSnafu)?;
+    // Base environment variables, with the already-merged (role + role group) env overrides
+    // layered on top (overrides win). The base names are static and known to be valid.
+    let known_env_var_name = |name: &str| {
+        EnvVarName::from_str(name).expect("the operator-generated env var name is valid")
+    };
+    let merged_env = EnvVarSet::new()
+        .with_values([
+            // Needed by the `containerdebug` running in the background of the history container
+            // to log it's tracing information to.
+            (
+                known_env_var_name("CONTAINERDEBUG_LOG_DIRECTORY"),
+                format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+            ),
+            // This env var prevents the history server from detaching itself from the
+            // start script because this leads to the Pod terminating immediately.
+            (known_env_var_name("SPARK_NO_DAEMONIZE"), "true".to_owned()),
+            (
+                known_env_var_name("SPARK_DAEMON_CLASSPATH"),
+                "/stackable/spark/extra-jars/*".to_owned(),
+            ),
+            // JVM arguments for the history server.
+            (
+                known_env_var_name("SPARK_HISTORY_OPTS"),
+                construct_history_jvm_args(&rg.config, log_dir),
+            ),
+        ])
+        .merge(rg.config.env_overrides.clone());
 
     let container_name = "spark-history";
     let container = ContainerBuilder::new(container_name)
         .context(InvalidContainerNameSnafu)?
         .image_from_product_image(resolved_product_image)
-        .resources(rg.config.resources.clone().into())
+        .resources(rg.config.config.resources.clone().into())
         .command(vec![
             "/bin/bash".to_string(),
             "-x".to_string(),
@@ -584,7 +616,7 @@ fn build_stateful_set(
     }
 
     let mut pod_template = pb.build_template();
-    pod_template.merge_from(rg.pod_overrides.clone());
+    pod_template.merge_from(rg.config.pod_overrides.clone());
 
     let sts_metadata = ObjectMetaBuilder::new()
         .name_and_namespace(validated)
@@ -598,7 +630,7 @@ fn build_stateful_set(
         spec: Some(StatefulSetSpec {
             template: pod_template,
             volume_claim_templates,
-            replicas: rg.replicas,
+            replicas: Some(i32::from(rg.config.replicas)),
             selector: LabelSelector {
                 match_labels: Some(validated.role_group_selector(role_group_name).into()),
                 ..LabelSelector::default()

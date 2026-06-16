@@ -1,28 +1,17 @@
-use snafu::{ResultExt, Snafu};
-use stackable_operator::role_utils::{self, JvmArgumentOverrides};
-
-use crate::crd::{
-    constants::{
-        JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, METRICS_PORT,
-        STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_CONFIG,
-        VOLUME_MOUNT_PATH_LOG_CONFIG,
+use crate::{
+    crd::{
+        constants::{
+            JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, METRICS_PORT,
+            STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_CONFIG,
+            VOLUME_MOUNT_PATH_LOG_CONFIG,
+        },
+        logdir::ResolvedLogDir,
     },
-    history::SparkHistoryRoleType,
-    logdir::ResolvedLogDir,
+    history::controller::validate::HistoryRoleGroupConfig,
 };
 
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: role_utils::Error },
-}
-
 /// JVM arguments that go into `SPARK_HISTORY_OPTS`
-pub fn construct_history_jvm_args(
-    role: &SparkHistoryRoleType,
-    role_group: &str,
-    logdir: &ResolvedLogDir,
-) -> Result<String, Error> {
+pub fn construct_history_jvm_args(rg: &HistoryRoleGroupConfig, logdir: &ResolvedLogDir) -> String {
     // Note (@sbernauer): As of 2025-03-04, we did not set any heap related JVM arguments, so I
     // kept the implementation as is. We can always re-visit this as needed.
 
@@ -44,17 +33,28 @@ pub fn construct_history_jvm_args(
         ]);
     }
 
-    let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
-    let merged = role
-        .get_merged_jvm_argument_overrides(role_group, &operator_generated)
-        .context(MergeJvmArgumentOverridesSnafu)?;
-    Ok(merged.effective_jvm_config_after_merging().join(" "))
+    // Apply the already-merged (role + role group) JVM argument overrides on top of the
+    // operator-generated base arguments.
+    rg.product_specific_common_config
+        .jvm_argument_overrides
+        .apply_to(jvm_args)
+        .join(" ")
 }
 
 #[cfg(test)]
 mod tests {
+    use stackable_operator::{
+        cli::OperatorEnvironmentOptions, commons::tls_verification::TlsClientDetails, crd::s3,
+    };
+
     use super::*;
-    use crate::crd::history::v1alpha1::SparkHistoryServer;
+    use crate::{
+        crd::{history::v1alpha1::SparkHistoryServer, logdir::S3LogDir},
+        history::controller::{
+            dereference::DereferencedSparkHistoryServer,
+            validate::{ValidatedSparkHistoryServer, validate},
+        },
+    };
 
     #[test]
     fn test_construct_jvm_arguments_defaults() {
@@ -63,6 +63,8 @@ mod tests {
         kind: SparkHistoryServer
         metadata:
           name: spark-history
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
         spec:
           image:
             productVersion: 3.5.8
@@ -96,6 +98,8 @@ mod tests {
         kind: SparkHistoryServer
         metadata:
           name: spark-history
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
         spec:
           image:
             productVersion: 3.5.8
@@ -135,14 +139,47 @@ mod tests {
         );
     }
 
+    /// Validates the given `SparkHistoryServer` YAML and returns the `default` role group's merged
+    /// config, mirroring the controller's validate path so the JVM args are built from a real
+    /// [`HistoryRoleGroupConfig`].
     fn construct_jvm_config_for_test(history_server: &str) -> String {
         let deserializer = serde_yaml::Deserializer::from_str(history_server);
         let history_server: SparkHistoryServer =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
-        let role = history_server.role();
         let resolved_log_dir = ResolvedLogDir::Custom("local:/tmp/foo".to_owned());
 
-        construct_history_jvm_args(role, "default", &resolved_log_dir).unwrap()
+        let validated: ValidatedSparkHistoryServer = validate(
+            &history_server,
+            DereferencedSparkHistoryServer {
+                log_dir: ResolvedLogDir::S3(S3LogDir {
+                    bucket: s3::v1alpha1::ResolvedBucket {
+                        bucket_name: "my-bucket".to_string(),
+                        connection: s3::v1alpha1::ConnectionSpec {
+                            host: "my-s3".to_string().try_into().unwrap(),
+                            port: None,
+                            access_style: Default::default(),
+                            credentials: None,
+                            tls: TlsClientDetails { tls: None },
+                            region: Default::default(),
+                        },
+                    },
+                    prefix: "prefix".to_string(),
+                }),
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "default".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.stackable.tech/sdp".to_string(),
+            },
+        )
+        .expect("validation should succeed");
+
+        let rg = validated
+            .role_groups
+            .get(&"default".parse().expect("valid role group name"))
+            .expect("default role group should exist");
+
+        construct_history_jvm_args(&rg.config, &resolved_log_dir)
     }
 }

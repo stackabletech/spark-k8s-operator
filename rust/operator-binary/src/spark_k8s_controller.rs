@@ -584,9 +584,7 @@ fn pod_template(
         s3conn,
         logdir,
         spark_image,
-    )
-    // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-    .unwrap();
+    )?;
 
     for init_container in init_containers {
         pb.add_init_container(init_container.clone());

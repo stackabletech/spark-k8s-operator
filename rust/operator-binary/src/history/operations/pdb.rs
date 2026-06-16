@@ -1,21 +1,15 @@
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::pdb::PodDisruptionBudgetBuilder, client::Client, cluster_resources::ClusterResources,
-    commons::pdb::PdbConfig, kube::ResourceExt,
+    client::Client, cluster_resources::ClusterResources, commons::pdb::PdbConfig,
+    kube::ResourceExt, v2::builder::pdb::pod_disruption_budget_builder_with_role,
 };
 
-use crate::crd::{
-    constants::{HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME, HISTORY_ROLE_NAME, OPERATOR_NAME},
-    history::v1alpha1,
+use crate::history::controller::validate::{
+    ValidatedSparkHistoryServer, controller_name, operator_name, product_name,
 };
 
 #[derive(Snafu, Debug)]
 pub enum Error {
-    #[snafu(display("Cannot create PodDisruptionBudget for role [{role}]"))]
-    CreatePdb {
-        source: stackable_operator::builder::pdb::Error,
-        role: String,
-    },
     #[snafu(display("Cannot apply PodDisruptionBudget [{name}]"))]
     ApplyPdb {
         source: stackable_operator::cluster_resources::Error,
@@ -25,7 +19,7 @@ pub enum Error {
 
 pub async fn add_pdbs(
     pdb: &PdbConfig,
-    history: &v1alpha1::SparkHistoryServer,
+    validated: &ValidatedSparkHistoryServer,
     client: &Client,
     cluster_resources: &mut ClusterResources<'_>,
 ) -> Result<(), Error> {
@@ -35,16 +29,13 @@ pub async fn add_pdbs(
     let max_unavailable = pdb
         .max_unavailable
         .unwrap_or(max_unavailable_history_servers());
-    let pdb = PodDisruptionBudgetBuilder::new_with_role(
-        history,
-        HISTORY_APP_NAME,
-        HISTORY_ROLE_NAME,
-        OPERATOR_NAME,
-        HISTORY_CONTROLLER_NAME,
+    let pdb = pod_disruption_budget_builder_with_role(
+        validated,
+        &product_name(),
+        &ValidatedSparkHistoryServer::role_name(),
+        &operator_name(),
+        &controller_name(),
     )
-    .with_context(|_| CreatePdbSnafu {
-        role: HISTORY_ROLE_NAME,
-    })?
     .with_max_unavailable(max_unavailable)
     .build();
     let pdb_name = pdb.name_any();

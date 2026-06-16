@@ -6,16 +6,9 @@ use stackable_operator::{
         self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
-        pod::{
-            PodBuilder,
-            container::ContainerBuilder,
-            volume::{
-                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
-                ListenerReference, VolumeBuilder,
-            },
-        },
+        pod::{PodBuilder, container::ContainerBuilder, volume::VolumeBuilder},
     },
-    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
+    cluster_resources::ClusterResourceApplyStrategy,
     commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
     crd::listener,
     k8s_openapi::{
@@ -27,7 +20,7 @@ use stackable_operator::{
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     kube::{
-        Resource, ResourceExt,
+        ResourceExt,
         core::{DeserializeGuard, error_boundary},
         runtime::{controller::Action, reflector::ObjectRef},
     },
@@ -44,12 +37,16 @@ use stackable_operator::{
     v2::{
         builder::{
             meta::ownerreference_from_resource,
-            pod::container::{EnvVarName, EnvVarSet},
+            pod::{
+                container::{EnvVarName, EnvVarSet},
+                volume::{ListenerReference, listener_operator_volume_source_builder_build_pvc},
+            },
         },
+        cluster_resources::cluster_resources_new,
         config_file_writer::{PropertiesWriterError, to_java_properties_string},
         product_logging::framework::vector_container,
         types::{
-            kubernetes::{ContainerName, VolumeName},
+            kubernetes::{ContainerName, PersistentVolumeClaimName, VolumeName},
             operator::RoleGroupName,
         },
     },
@@ -61,17 +58,20 @@ stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
 // name constants used elsewhere to build the same volumes.
 stackable_operator::constant!(VOLUME_MOUNT_NAME_CONFIG_TYPED: VolumeName = "config");
 stackable_operator::constant!(VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log");
+// PVC name for the listener volume, required by the v2 listener-volume builder. Its value matches
+// `LISTENER_VOLUME_NAME` in `crd::constants`.
+stackable_operator::constant!(LISTENER_VOLUME_NAME_PVC: PersistentVolumeClaimName = "listener");
 
 use crate::{
     Ctx,
     crd::{
         constants::{
             ACCESS_KEY_ID, DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL,
-            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME,
-            HISTORY_ROLE_NAME, HISTORY_UI_PORT, JVM_SECURITY_PROPERTIES_FILE,
+            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL, HISTORY_APP_NAME, HISTORY_ROLE_NAME,
+            HISTORY_UI_PORT, JVM_SECURITY_PROPERTIES_FILE,
             JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL, JVM_SECURITY_PROPERTY_DNS_CACHE_TTL,
             LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
-            OPERATOR_NAME, SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
+            SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
             STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
             VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
             VOLUME_MOUNT_PATH_LOG_CONFIG,
@@ -103,11 +103,6 @@ pub enum Error {
     #[snafu(display("failed to build spark history group listener"))]
     BuildListener {
         source: crate::crd::listener_ext::Error,
-    },
-
-    #[snafu(display("failed to build listener volume"))]
-    BuildListenerVolume {
-        source: ListenerOperatorVolumeSourceBuilderError,
     },
 
     #[snafu(display("missing secret lifetime"))]
@@ -154,11 +149,6 @@ pub enum Error {
 
     #[snafu(display("failed to validate SparkHistoryServer"))]
     ValidateSparkHistoryServer { source: validate::Error },
-
-    #[snafu(display("failed to create cluster resources"))]
-    CreateClusterResources {
-        source: stackable_operator::cluster_resources::Error,
-    },
 
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
@@ -243,15 +233,16 @@ pub async fn reconcile(
     let validated = validate::validate(shs, dereferenced, &ctx.operator_environment)
         .context(ValidateSparkHistoryServerSnafu)?;
 
-    let mut cluster_resources = ClusterResources::new(
-        HISTORY_APP_NAME,
-        OPERATOR_NAME,
-        HISTORY_CONTROLLER_NAME,
-        &validated.object_ref(&()),
+    let mut cluster_resources = cluster_resources_new(
+        &validate::product_name(),
+        &validate::operator_name(),
+        &validate::controller_name(),
+        &validated.name,
+        &validated.namespace,
+        &validated.uid,
         ClusterResourceApplyStrategy::Default,
         &shs.spec.object_overrides,
-    )
-    .context(CreateClusterResourcesSnafu)?;
+    );
 
     let resolved_product_image = &validated.resolved_product_image;
     let log_dir = &validated.log_dir;
@@ -317,7 +308,7 @@ pub async fn reconcile(
     let role_config = &shs.spec.nodes.role_config;
     add_pdbs(
         &role_config.common.pod_disruption_budget,
-        shs,
+        &validated,
         client,
         &mut cluster_resources,
     )
@@ -592,14 +583,15 @@ fn build_stateful_set(
     // so that load balancers can hard-code the target addresses. This will
     // be the case even when no class is set (and the value defaults to
     // cluster-internal) as the address should still be consistent.
-    let volume_claim_templates = Some(vec![
-        ListenerOperatorVolumeSourceBuilder::new(
-            &ListenerReference::ListenerName(group_listener_name(shs, HISTORY_ROLE_NAME)),
-            &recommended_labels,
-        )
-        .build_pvc(LISTENER_VOLUME_NAME.to_string())
-        .context(BuildListenerVolumeSnafu)?,
-    ]);
+    let volume_claim_templates = Some(vec![listener_operator_volume_source_builder_build_pvc(
+        &ListenerReference::Listener(
+            group_listener_name(shs, HISTORY_ROLE_NAME)
+                .parse()
+                .expect("the group listener name is a valid ListenerName"),
+        ),
+        &recommended_labels,
+        &LISTENER_VOLUME_NAME_PVC,
+    )]);
 
     pb.add_container(container);
 

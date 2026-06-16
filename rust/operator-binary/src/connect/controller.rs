@@ -22,10 +22,15 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use super::crd::{CONNECT_APP_NAME, v1alpha1};
 use crate::{
     Ctx,
-    connect::{common, crd::SparkConnectServerStatus, executor, server, service},
+    connect::{
+        common,
+        controller::build::{executor, server, service},
+        crd::SparkConnectServerStatus,
+    },
     crd::constants::OPERATOR_NAME,
 };
 
+pub mod build;
 pub mod dereference;
 pub mod validate;
 
@@ -120,7 +125,7 @@ pub enum Error {
 
     #[snafu(display("failed to build connect executor pod template"))]
     ExecutorPodTemplate {
-        source: crate::connect::executor::Error,
+        source: crate::connect::controller::build::executor::Error,
     },
 
     #[snafu(display("failed to serialize executor pod template"))]
@@ -320,13 +325,10 @@ pub async fn reconcile(
     let stateful_set = server::build_stateful_set(
         &validated,
         scs,
-        server_config,
-        resolved_product_image,
         &service_account,
         &server_config_map,
         &applied_listener.name_any(),
         args,
-        resolved_s3,
     )
     .context(BuildServerStatefulSetSnafu)?;
 

@@ -190,18 +190,18 @@ pub(crate) fn server_config_map(
         .context(InvalidConfigMapSnafu { name: cm_name })
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_stateful_set(
     validated: &ValidatedSparkConnectServer,
     scs: &v1alpha1::SparkConnectServer,
-    config: &v1alpha1::ServerConfig,
-    resolved_product_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
     config_map: &ConfigMap,
     listener_name: &str,
     args: Vec<String>,
-    resolved_s3: &s3::ResolvedS3,
 ) -> Result<StatefulSet, Error> {
+    let config = &validated.server_config;
+    let resolved_product_image = &validated.resolved_product_image;
+    let resolved_s3 = &validated.cluster_config.resolved_s3;
+
     let recommended_labels = validated.recommended_labels(SparkConnectRole::Server);
 
     let metadata = ObjectMetaBuilder::new()

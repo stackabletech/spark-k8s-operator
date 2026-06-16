@@ -20,13 +20,13 @@ use stackable_operator::{
     product_logging::framework::calculate_log_volume_size_limit,
 };
 
-use super::{
-    common::{SparkConnectRole, object_name},
-    controller::validate::ValidatedSparkConnectServer,
-    crd::SparkConnectContainer,
-};
 use crate::{
-    connect::{common, crd::v1alpha1, s3},
+    connect::{
+        common::{self, SparkConnectRole, object_name},
+        controller::validate::ValidatedSparkConnectServer,
+        crd::{SparkConnectContainer, v1alpha1},
+        s3,
+    },
     crd::constants::{
         JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
         METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, VOLUME_MOUNT_NAME_CONFIG,

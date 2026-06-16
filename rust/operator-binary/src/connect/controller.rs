@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    cluster_resources::{ClusterResourceApplyStrategy, ClusterResources},
+    cluster_resources::ClusterResourceApplyStrategy,
     commons::rbac::build_rbac_resources,
     kube::{
-        Resource, ResourceExt,
+        ResourceExt,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
@@ -15,10 +15,11 @@ use stackable_operator::{
         compute_conditions, operations::ClusterOperationsConditionBuilder,
         statefulset::StatefulSetConditionBuilder,
     },
+    v2::cluster_resources::cluster_resources_new,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use super::crd::{CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, v1alpha1};
+use super::crd::{CONNECT_APP_NAME, v1alpha1};
 use crate::{
     Ctx,
     connect::{common, crd::SparkConnectServerStatus, executor, server, service},
@@ -96,11 +97,6 @@ pub enum Error {
 
     #[snafu(display("failed to apply global RoleBinding"))]
     ApplyRoleBinding {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to create cluster resources"))]
-    CreateClusterResources {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -186,15 +182,16 @@ pub async fn reconcile(
 
     let server_role_config = &scs.spec.server.role_config;
 
-    let mut cluster_resources = ClusterResources::new(
-        CONNECT_APP_NAME,
-        OPERATOR_NAME,
-        CONNECT_CONTROLLER_NAME,
-        &validated.object_ref(&()),
+    let mut cluster_resources = cluster_resources_new(
+        &validate::product_name(),
+        &validate::operator_name(),
+        &validate::controller_name(),
+        &validated.name,
+        &validated.namespace,
+        &validated.uid,
         ClusterResourceApplyStrategy::from(&scs.spec.cluster_operation),
         &scs.spec.object_overrides,
-    )
-    .context(CreateClusterResourcesSnafu)?;
+    );
 
     // Use a dedicated service account for connect server pods.
     let (service_account, role_binding) = build_rbac_resources(

@@ -285,8 +285,8 @@ pub(crate) fn build_stateful_set(
             "-c".to_string(),
         ])
         .args(args)
-        .add_container_port(GRPC, CONNECT_GRPC_PORT)
-        .add_container_port(HTTP, CONNECT_UI_PORT)
+        .add_container_port(GRPC, CONNECT_GRPC_PORT.into())
+        .add_container_port(HTTP, CONNECT_UI_PORT.into())
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
@@ -553,7 +553,7 @@ fn server_jvm_args(
 fn probe() -> Probe {
     Probe {
         http_get: Some(HTTPGetAction {
-            port: IntOrString::Int(CONNECT_UI_PORT),
+            port: IntOrString::Int(CONNECT_UI_PORT.into()),
             scheme: Some("HTTP".to_string()),
             path: Some("/metrics/prometheus".to_string()),
             ..Default::default()
@@ -592,12 +592,12 @@ pub(crate) fn build_listener(
     let listener_ports = [
         listener::v1alpha1::ListenerPort {
             name: GRPC.to_string(),
-            port: CONNECT_GRPC_PORT,
+            port: CONNECT_GRPC_PORT.into(),
             protocol: Some("TCP".to_string()),
         },
         listener::v1alpha1::ListenerPort {
             name: HTTP.to_string(),
-            port: CONNECT_UI_PORT,
+            port: CONNECT_UI_PORT.into(),
             protocol: Some("TCP".to_string()),
         },
     ];

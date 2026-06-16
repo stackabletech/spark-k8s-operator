@@ -40,12 +40,12 @@ pub(crate) fn build_headless_service(
             ports: Some(vec![
                 ServicePort {
                     name: Some(String::from(GRPC)),
-                    port: CONNECT_GRPC_PORT,
+                    port: CONNECT_GRPC_PORT.into(),
                     ..ServicePort::default()
                 },
                 ServicePort {
                     name: Some(String::from(HTTP)),
-                    port: CONNECT_UI_PORT,
+                    port: CONNECT_UI_PORT.into(),
                     ..ServicePort::default()
                 },
             ]),
@@ -100,7 +100,7 @@ pub(crate) fn build_metrics_service(
 fn metrics_ports() -> Vec<ServicePort> {
     vec![ServicePort {
         name: Some("metrics".to_string()),
-        port: CONNECT_UI_PORT,
+        port: CONNECT_UI_PORT.into(),
         protocol: Some("TCP".to_string()),
         ..ServicePort::default()
     }]

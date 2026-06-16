@@ -31,6 +31,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
+    v2::types::common::Port,
     versioned::versioned,
 };
 use strum::{Display, EnumIter};
@@ -45,8 +46,8 @@ pub const CONNECT_FULL_CONTROLLER_NAME: &str = concatcp!(
 );
 pub const CONNECT_SERVER_ROLE_NAME: &str = "server";
 pub const CONNECT_EXECUTOR_ROLE_NAME: &str = "executor";
-pub const CONNECT_GRPC_PORT: i32 = 15002;
-pub const CONNECT_UI_PORT: i32 = 4040;
+pub const CONNECT_GRPC_PORT: Port = Port(15002);
+pub const CONNECT_UI_PORT: Port = Port(4040);
 
 pub const DEFAULT_SPARK_CONNECT_GROUP_NAME: &str = "default";
 

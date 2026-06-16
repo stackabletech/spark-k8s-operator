@@ -33,9 +33,6 @@ pub mod validate;
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to build spark connect listener"))]
-    BuildListener { source: server::Error },
-
     #[snafu(display("failed to apply spark connect listener"))]
     ApplyListener {
         source: stackable_operator::cluster_resources::Error,
@@ -312,8 +309,7 @@ pub async fn reconcile(
 
     // ========================================
     // Server listener
-    let listener = server::build_listener(scs, server_role_config, resolved_product_image)
-        .context(BuildListenerSnafu)?;
+    let listener = server::build_listener(&validated, server_role_config);
 
     let applied_listener = cluster_resources
         .add(client, listener)

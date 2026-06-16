@@ -9,7 +9,7 @@ use stackable_operator::{
         pod::{PodBuilder, container::ContainerBuilder, volume::VolumeBuilder},
     },
     cluster_resources::ClusterResourceApplyStrategy,
-    commons::{product_image_selection::ResolvedProductImage, rbac::build_rbac_resources},
+    commons::rbac::build_rbac_resources,
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -83,7 +83,7 @@ use crate::{
     },
     history::{
         config::jvm::construct_history_jvm_args, controller::validate::ValidatedHistoryRoleGroup,
-        operations::pdb::add_pdbs, recommended_labels, service::build_rolegroup_metrics_service,
+        operations::pdb::add_pdbs, service::build_rolegroup_metrics_service,
     },
     product_logging::{self},
 };
@@ -98,11 +98,6 @@ pub enum Error {
     #[snafu(display("failed to build RBAC resources"))]
     BuildRbacResources {
         source: stackable_operator::commons::rbac::Error,
-    },
-
-    #[snafu(display("failed to build spark history group listener"))]
-    BuildListener {
-        source: crate::crd::listener_ext::Error,
     },
 
     #[snafu(display("missing secret lifetime"))]
@@ -244,7 +239,6 @@ pub async fn reconcile(
         &shs.spec.object_overrides,
     );
 
-    let resolved_product_image = &validated.resolved_product_image;
     let log_dir = &validated.log_dir;
 
     // Use a dedicated service account for history server pods.
@@ -270,14 +264,7 @@ pub async fn reconcile(
 
         let metrics_service = build_rolegroup_metrics_service(&validated, role_group_name);
 
-        let sts = build_stateful_set(
-            shs,
-            &validated,
-            role_group_name,
-            rg,
-            log_dir,
-            &service_account,
-        )?;
+        let sts = build_stateful_set(&validated, role_group_name, rg, log_dir, &service_account)?;
 
         cluster_resources
             .add(client, config_map)
@@ -294,11 +281,10 @@ pub async fn reconcile(
     }
 
     let rg_group_listener = build_group_listener(
-        shs,
-        resolved_product_image,
+        &validated,
         HISTORY_ROLE_NAME,
         shs.node_listener_class().to_string(),
-    )?;
+    );
 
     cluster_resources
         .add(client, rg_group_listener)
@@ -323,17 +309,18 @@ pub async fn reconcile(
     Ok(Action::await_change())
 }
 
-#[allow(clippy::result_large_err)]
 fn build_group_listener(
-    shs: &v1alpha1::SparkHistoryServer,
-    resolved_product_image: &ResolvedProductImage,
+    validated: &validate::ValidatedSparkHistoryServer,
     role: &str,
     listener_class: String,
-) -> Result<listener::v1alpha1::Listener, Error> {
-    let listener_name = group_listener_name(shs, role);
+) -> listener::v1alpha1::Listener {
+    let listener_name = group_listener_name(validated, role);
 
-    let recommended_object_labels =
-        recommended_labels(shs, &resolved_product_image.app_version_label_value, "none");
+    // Group listeners are shared across role groups, so the role-group label is "none" (preserving
+    // the previous behaviour).
+    let recommended_object_labels = validated.recommended_labels(
+        &RoleGroupName::from_str("none").expect("\"none\" is a valid role group name"),
+    );
 
     let listener_ports = [listener::v1alpha1::ListenerPort {
         name: "http".to_string(),
@@ -342,17 +329,16 @@ fn build_group_listener(
     }];
 
     listener_ext::build_listener(
-        shs,
+        validated,
         &listener_name,
         &listener_class,
         recommended_object_labels,
         &listener_ports,
     )
-    .context(BuildListenerSnafu)
 }
 
-fn group_listener_name(shs: &v1alpha1::SparkHistoryServer, role: &str) -> String {
-    format!("{cluster}-{role}", cluster = shs.name_any())
+fn group_listener_name(validated: &validate::ValidatedSparkHistoryServer, role: &str) -> String {
+    format!("{cluster}-{role}", cluster = validated.name_any())
 }
 
 pub fn error_policy(
@@ -447,7 +433,6 @@ fn build_config_map(
 
 #[allow(clippy::result_large_err)]
 fn build_stateful_set(
-    shs: &v1alpha1::SparkHistoryServer,
     validated: &validate::ValidatedSparkHistoryServer,
     role_group_name: &RoleGroupName,
     rg: &ValidatedHistoryRoleGroup,
@@ -585,7 +570,7 @@ fn build_stateful_set(
     // cluster-internal) as the address should still be consistent.
     let volume_claim_templates = Some(vec![listener_operator_volume_source_builder_build_pvc(
         &ListenerReference::Listener(
-            group_listener_name(shs, HISTORY_ROLE_NAME)
+            group_listener_name(validated, HISTORY_ROLE_NAME)
                 .parse()
                 .expect("the group listener name is a valid ListenerName"),
         ),

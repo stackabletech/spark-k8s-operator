@@ -81,11 +81,6 @@ use crate::{
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to build spark connect listener"))]
-    BuildListener {
-        source: crate::crd::listener_ext::Error,
-    },
-
     #[snafu(display("failed to build listener volume"))]
     BuildListenerVolume {
         source: ListenerOperatorVolumeSourceBuilderError,
@@ -574,20 +569,17 @@ fn default_role_group_ref(
 }
 
 pub(crate) fn build_listener(
-    scs: &v1alpha1::SparkConnectServer,
+    validated: &ValidatedSparkConnectServer,
     role_config: &v1alpha1::SparkConnectServerRoleConfig,
-    resolved_product_image: &ResolvedProductImage,
-) -> Result<listener::v1alpha1::Listener, Error> {
+) -> listener::v1alpha1::Listener {
     let listener_name = format!(
         "{cluster}-{role}",
-        cluster = scs.name_any(),
+        cluster = validated.name_any(),
         role = SparkConnectRole::Server
     );
 
     let listener_class = role_config.listener_class.clone();
-    let role = SparkConnectRole::Server.to_string();
-    let recommended_object_labels =
-        common::labels(scs, &resolved_product_image.app_version_label_value, &role);
+    let recommended_object_labels = validated.recommended_labels(SparkConnectRole::Server);
 
     let listener_ports = [
         listener::v1alpha1::ListenerPort {
@@ -603,11 +595,10 @@ pub(crate) fn build_listener(
     ];
 
     listener_ext::build_listener(
-        scs,
+        validated,
         &listener_name,
         &listener_class,
         recommended_object_labels,
         &listener_ports,
     )
-    .context(BuildListenerSnafu)
 }

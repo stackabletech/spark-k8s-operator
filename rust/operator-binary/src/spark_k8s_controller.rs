@@ -354,12 +354,13 @@ pub async fn reconcile(
 }
 
 fn init_containers(
-    spark_application: &v1alpha1::SparkApplication,
+    validated: &validate::ValidatedSparkApplication,
     logging: &Logging<SparkContainer>,
     s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
 ) -> Result<Vec<Container>> {
+    let spark_application = &validated.spark_application;
     let mut jcb = ContainerBuilder::new(&SparkContainer::Job.to_string())
         .context(IllegalContainerNameSnafu)?;
     let job_container = match &spark_application.spec.image {
@@ -579,13 +580,7 @@ fn pod_template(
         .affinity(&config.affinity)
         .service_account_name(service_account.name_any());
 
-    let init_containers = init_containers(
-        spark_application,
-        &config.logging,
-        s3conn,
-        logdir,
-        spark_image,
-    )?;
+    let init_containers = init_containers(validated, &config.logging, s3conn, logdir, spark_image)?;
 
     for init_container in init_containers {
         pb.add_init_container(init_container.clone());

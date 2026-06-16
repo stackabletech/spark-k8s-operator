@@ -77,7 +77,14 @@ pub struct ValidatedSparkApplication {
     pub name: ClusterName,
     pub namespace: NamespaceName,
     pub uid: Uid,
-    // Still carried in full because `reconcile` builds the submit/driver pod from the whole spec.
+    /// The full source spec.
+    ///
+    /// Unlike the other operators' validated types, a `SparkApplication` cannot be reduced to
+    /// resolved fields: it has no Stackable role/role-group model to decompose into. The submit,
+    /// driver and executor pods are built directly from the whole spec, and the per-role helpers
+    /// (`merged_env`, `pod_overrides`, `requirements`, …) read it at build time. Resolving all of
+    /// that up front would duplicate the spec rather than replace it, so the raw CR is retained
+    /// here as the deliberate "too interwoven to refactor" exception.
     pub spark_application: v1alpha1::SparkApplication,
     pub resolved_product_image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,

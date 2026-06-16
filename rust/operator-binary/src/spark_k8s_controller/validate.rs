@@ -16,8 +16,12 @@ use stackable_operator::{
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
     v2::{
-        controller_utils::{get_cluster_name, get_namespace},
-        types::{kubernetes::NamespaceName, operator::ClusterName},
+        HasName, HasUid, NameIsValidLabelValue,
+        controller_utils::{get_cluster_name, get_namespace, get_uid},
+        types::{
+            kubernetes::{NamespaceName, Uid},
+            operator::ClusterName,
+        },
     },
 };
 
@@ -43,6 +47,11 @@ pub enum Error {
         source: stackable_operator::v2::controller_utils::Error,
     },
 
+    #[snafu(display("failed to resolve uid"))]
+    ResolveUid {
+        source: stackable_operator::v2::controller_utils::Error,
+    },
+
     #[snafu(display("S3 TLS with verification disabled is not supported ({context})"))]
     S3TlsNoVerificationNotSupported { context: String },
 }
@@ -56,12 +65,31 @@ pub struct ValidatedSparkApplication {
     metadata: ObjectMeta,
     pub name: ClusterName,
     pub namespace: NamespaceName,
+    pub uid: Uid,
     // Still carried in full because `reconcile` builds the submit/driver pod from the whole spec.
     pub spark_application: v1alpha1::SparkApplication,
     pub resolved_template_refs: Vec<v1alpha1::ResolvedSparkApplicationTemplate>,
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
     pub log_dir: Option<ResolvedLogDir>,
     pub resolved_product_image: ResolvedProductImage,
+}
+
+impl NameIsValidLabelValue for ValidatedSparkApplication {
+    fn to_label_value(&self) -> String {
+        self.name.to_label_value()
+    }
+}
+
+impl HasName for ValidatedSparkApplication {
+    fn to_name(&self) -> String {
+        String::from(&self.name)
+    }
+}
+
+impl HasUid for ValidatedSparkApplication {
+    fn to_uid(&self) -> Uid {
+        self.uid.clone()
+    }
 }
 
 impl Resource for ValidatedSparkApplication {
@@ -119,12 +147,14 @@ pub fn validate(
         get_cluster_name(&dereferenced.spark_application).context(ResolveClusterNameSnafu)?;
     let namespace =
         get_namespace(&dereferenced.spark_application).context(ResolveNamespaceSnafu)?;
+    let uid = get_uid(&dereferenced.spark_application).context(ResolveUidSnafu)?;
     let metadata = dereferenced.spark_application.meta().clone();
 
     Ok(ValidatedSparkApplication {
         metadata,
         name,
         namespace,
+        uid,
         spark_application: dereferenced.spark_application,
         resolved_template_refs: dereferenced.resolved_template_refs,
         s3_connection: dereferenced.s3_connection,

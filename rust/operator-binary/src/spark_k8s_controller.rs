@@ -43,7 +43,10 @@ use stackable_operator::{
     },
     role_utils::RoleGroupRef,
     shared::time::Duration,
-    v2::config_file_writer::{PropertiesWriterError, to_java_properties_string},
+    v2::{
+        builder::meta::ownerreference_from_resource,
+        config_file_writer::{PropertiesWriterError, to_java_properties_string},
+    },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
@@ -73,11 +76,6 @@ pub enum Error {
 
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
-
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
 
     #[snafu(display("failed to apply role ServiceAccount"))]
     ApplyServiceAccount {
@@ -215,7 +213,7 @@ pub async fn reconcile(
     tracing::debug!("reconciling spark application [{spark_application:?}]");
 
     let (serviceaccount, rolebinding) =
-        build_spark_role_serviceaccount(spark_application, resolved_product_image)?;
+        build_spark_role_serviceaccount(&validated, resolved_product_image)?;
     client
         .apply_patch(SPARK_CONTROLLER_NAME, &serviceaccount, &serviceaccount)
         .await
@@ -543,8 +541,7 @@ fn pod_template(
     omb.name(&container_name)
         // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
         // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
-        .ownerreference_from_resource(validated, None, None)
-        .context(ObjectMissingMetadataForOwnerRefSnafu)?
+        .ownerreference(ownerreference_from_resource(validated, None, None))
         .with_recommended_labels(
             &spark_application
                 .build_recommended_labels(&spark_image.app_version_label_value, &container_name),
@@ -691,8 +688,7 @@ fn pod_template_config_map(
             ObjectMetaBuilder::new()
                 .namespace(validated.namespace.clone())
                 .name(&cm_name)
-                .ownerreference_from_resource(validated, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
                 .with_recommended_labels(&spark_application.build_recommended_labels(
                     &spark_image.app_version_label_value,
                     "pod-templates",
@@ -749,8 +745,7 @@ fn submit_job_config_map(
         ObjectMetaBuilder::new()
             .namespace(validated.namespace.clone())
             .name(&cm_name)
-            .ownerreference_from_resource(validated, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
             .with_recommended_labels(
                 &spark_application
                     .build_recommended_labels(&spark_image.app_version_label_value, "spark-submit"),
@@ -905,8 +900,7 @@ fn spark_job(
         metadata: ObjectMetaBuilder::new()
             .name(validated.name.to_string())
             .namespace(validated.namespace.clone())
-            .ownerreference_from_resource(validated, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
             .with_recommended_labels(
                 &spark_application
                     .build_recommended_labels(&spark_image.app_version_label_value, "spark-job"),
@@ -930,18 +924,17 @@ fn spark_job(
 /// Both objects have an owner reference to the SparkApplication, as well as the same name as the app.
 /// They are deleted when the job is deleted.
 fn build_spark_role_serviceaccount(
-    spark_app: &v1alpha1::SparkApplication,
+    validated: &validate::ValidatedSparkApplication,
     spark_image: &ResolvedProductImage,
 ) -> Result<(ServiceAccount, RoleBinding)> {
-    // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
-    let sa_name = spark_app.metadata.name.as_ref().unwrap().to_string();
+    let spark_app = &validated.spark_application;
+    let sa_name = validated.name.to_string();
     let sa =
         ServiceAccount {
             metadata: ObjectMetaBuilder::new()
                 .name_and_namespace(spark_app)
                 .name(&sa_name)
-                .ownerreference_from_resource(spark_app, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
                 .with_recommended_labels(&spark_app.build_recommended_labels(
                     &spark_image.app_version_label_value,
                     "service-account",
@@ -955,8 +948,7 @@ fn build_spark_role_serviceaccount(
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(spark_app)
             .name(binding_name)
-            .ownerreference_from_resource(spark_app, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
             .with_recommended_labels(
                 &spark_app
                     .build_recommended_labels(&spark_image.app_version_label_value, "role-binding"),

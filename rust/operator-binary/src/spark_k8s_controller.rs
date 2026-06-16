@@ -696,14 +696,7 @@ fn pod_template_config_map(
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
-        .metadata(
-            ObjectMetaBuilder::new()
-                .namespace(validated.namespace.clone())
-                .name(&cm_name)
-                .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-                .with_labels(validated.recommended_labels("pod-templates"))
-                .build(),
-        )
+        .metadata(validated.object_meta(&cm_name, "pod-templates").build())
         .add_data(
             POD_TEMPLATE_FILE,
             serde_yaml::to_string(&template).context(PodTemplateSerdeSnafu)?,
@@ -742,14 +735,7 @@ fn submit_job_config_map(
 
     let mut cm_builder = ConfigMapBuilder::new();
 
-    cm_builder.metadata(
-        ObjectMetaBuilder::new()
-            .namespace(validated.namespace.clone())
-            .name(&cm_name)
-            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_labels(validated.recommended_labels("spark-submit"))
-            .build(),
-    );
+    cm_builder.metadata(validated.object_meta(&cm_name, "spark-submit").build());
 
     cm_builder.add_data(
         SPARK_ENV_SH_FILE_NAME,
@@ -876,11 +862,8 @@ fn spark_job(
     }
 
     let job = Job {
-        metadata: ObjectMetaBuilder::new()
-            .name(validated.name.to_string())
-            .namespace(validated.namespace.clone())
-            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_labels(validated.recommended_labels("spark-job"))
+        metadata: validated
+            .object_meta(validated.name.to_string(), "spark-job")
             .build(),
         spec: Some(JobSpec {
             template: pod,
@@ -901,25 +884,14 @@ fn spark_job(
 fn build_spark_role_serviceaccount(
     validated: &validate::ValidatedSparkApplication,
 ) -> Result<(ServiceAccount, RoleBinding)> {
-    let spark_app = &validated.spark_application;
     let sa_name = validated.name.to_string();
     let sa = ServiceAccount {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(spark_app)
-            .name(&sa_name)
-            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_labels(validated.recommended_labels("service-account"))
-            .build(),
+        metadata: validated.object_meta(&sa_name, "service-account").build(),
         ..ServiceAccount::default()
     };
     let binding_name = &sa_name;
     let binding = RoleBinding {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(spark_app)
-            .name(binding_name)
-            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_labels(validated.recommended_labels("role-binding"))
-            .build(),
+        metadata: validated.object_meta(binding_name, "role-binding").build(),
         role_ref: RoleRef {
             api_group: ClusterRole::GROUP.to_string(),
             kind: ClusterRole::KIND.to_string(),

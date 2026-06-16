@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::BTreeMap, str::FromStr};
 
 use const_format::concatcp;
 use stackable_operator::{
@@ -110,3 +110,18 @@ pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 
 pub const DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT: u16 = 0;
+
+/// The JVM `security.properties` entries the operator sets by default (DNS cache TTLs).
+pub fn default_jvm_security_properties() -> BTreeMap<String, String> {
+    [
+        (
+            JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string(),
+        ),
+        (
+            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
+            DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string(),
+        ),
+    ]
+    .into()
+}

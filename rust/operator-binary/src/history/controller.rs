@@ -58,16 +58,13 @@ use crate::{
     Ctx,
     crd::{
         constants::{
-            ACCESS_KEY_ID, DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL,
-            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL, HISTORY_APP_NAME, HISTORY_ROLE_NAME,
-            HISTORY_UI_PORT, JVM_SECURITY_PROPERTIES_FILE,
-            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL, JVM_SECURITY_PROPERTY_DNS_CACHE_TTL,
-            LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
-            SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-            STACKABLE_TRUST_STORE, VECTOR_CONTAINER_NAME, VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_CONFIG_TYPED, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-            VOLUME_MOUNT_NAME_LOG_TYPED, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
-            VOLUME_MOUNT_PATH_LOG_CONFIG,
+            ACCESS_KEY_ID, HISTORY_APP_NAME, HISTORY_ROLE_NAME, HISTORY_UI_PORT,
+            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME,
+            SPARK_ENV_SH_FILE_NAME, STACKABLE_TRUST_STORE, VECTOR_CONTAINER_NAME,
+            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_CONFIG_TYPED, VOLUME_MOUNT_NAME_LOG,
+            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_NAME_LOG_TYPED, VOLUME_MOUNT_PATH_CONFIG,
+            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG, default_jvm_security_properties,
         },
         history::{SparkHistoryServerContainer, v1alpha1},
         listener_ext,
@@ -648,20 +645,6 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
         format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
     vec![command.join("\n")]
-}
-
-fn default_jvm_security_properties() -> BTreeMap<String, String> {
-    [
-        (
-            JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
-            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string(),
-        ),
-        (
-            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
-            DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string(),
-        ),
-    ]
-    .into()
 }
 
 /// Return the Spark properties for the cleaner role group (if any).

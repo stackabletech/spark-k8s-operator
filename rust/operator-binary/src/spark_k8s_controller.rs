@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, str::FromStr, sync::Arc, vec};
+use std::{str::FromStr, sync::Arc, vec};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -776,20 +776,6 @@ fn submit_job_config_map(
     );
 
     cm_builder.build().context(PodTemplateConfigMapSnafu)
-}
-
-fn default_jvm_security_properties() -> BTreeMap<String, String> {
-    [
-        (
-            JVM_SECURITY_PROPERTY_DNS_CACHE_TTL.to_string(),
-            DEFAULT_JVM_SECURITY_DNS_CACHE_TTL.to_string(),
-        ),
-        (
-            JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL.to_string(),
-            DEFAULT_JVM_SECURITY_DNS_CACHE_NEGATIVE_TTL.to_string(),
-        ),
-    ]
-    .into()
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -1,5 +1,8 @@
 use const_format::concatcp;
-use stackable_operator::memory::{BinaryMultiple, MemoryQuantity};
+use stackable_operator::{
+    memory::{BinaryMultiple, MemoryQuantity},
+    v2::types::common::Port,
+};
 
 pub const APP_NAME: &str = "spark-k8s";
 
@@ -89,8 +92,8 @@ pub const SPARK_DEFAULTS_FILE_NAME: &str = "spark-defaults.conf";
 pub const SPARK_ENV_SH_FILE_NAME: &str = "spark-env.sh";
 
 pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
-pub const METRICS_PORT: u16 = 18081;
-pub const HISTORY_UI_PORT: u16 = 18080;
+pub const METRICS_PORT: Port = Port(18081);
+pub const HISTORY_UI_PORT: Port = Port(18080);
 
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";

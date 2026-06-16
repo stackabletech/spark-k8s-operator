@@ -12,6 +12,7 @@ use stackable_operator::{
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
     v2::{
+        HasName, HasUid,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         types::{
             kubernetes::{NamespaceName, Uid},
@@ -69,6 +70,18 @@ pub struct ValidatedSparkConnectServer {
     pub resolved_product_image: ResolvedProductImage,
     pub server_config: v1alpha1::ServerConfig,
     pub executor_config: v1alpha1::ExecutorConfig,
+}
+
+impl HasName for ValidatedSparkConnectServer {
+    fn to_name(&self) -> String {
+        String::from(&self.name)
+    }
+}
+
+impl HasUid for ValidatedSparkConnectServer {
+    fn to_uid(&self) -> Uid {
+        self.uid.clone()
+    }
 }
 
 impl Resource for ValidatedSparkConnectServer {

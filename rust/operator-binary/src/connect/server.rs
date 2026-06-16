@@ -34,6 +34,7 @@ use stackable_operator::{
     kvp::{Label, Labels},
     product_logging::framework::{LoggingError, calculate_log_volume_size_limit, vector_container},
     role_utils::RoleGroupRef,
+    v2::builder::meta::ownerreference_from_resource,
 };
 
 use super::crd::CONNECT_APP_NAME;
@@ -90,9 +91,6 @@ pub enum Error {
     InvalidContainerName {
         source: builder::pod::container::Error,
     },
-
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef { source: builder::meta::Error },
 
     #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
     InvalidLoggingConfig {
@@ -184,8 +182,7 @@ pub(crate) fn server_config_map(
             ObjectMetaBuilder::new()
                 .name_and_namespace(validated)
                 .name(&cm_name)
-                .ownerreference_from_resource(validated, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
                 .with_recommended_labels(&common::labels(
                     validated,
                     &resolved_product_image.app_version_label_value,
@@ -218,6 +215,7 @@ pub(crate) fn server_config_map(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_stateful_set(
+    validated: &ValidatedSparkConnectServer,
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ServerConfig,
     resolved_product_image: &ResolvedProductImage,
@@ -395,8 +393,7 @@ pub(crate) fn build_stateful_set(
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(scs)
             .name(object_name(&scs.name_any(), SparkConnectRole::Server))
-            .ownerreference_from_resource(scs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
             .with_recommended_labels(&common::labels(
                 scs,
                 &resolved_product_image.app_version_label_value,

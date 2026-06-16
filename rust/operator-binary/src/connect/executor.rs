@@ -19,6 +19,7 @@ use stackable_operator::{
     kube::{ResourceExt, runtime::reflector::ObjectRef},
     product_logging::framework::calculate_log_volume_size_limit,
     role_utils::RoleGroupRef,
+    v2::builder::meta::ownerreference_from_resource,
 };
 
 use super::{
@@ -40,11 +41,6 @@ use crate::{
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to build metadata for spark connect executor pod template"))]
     PodTemplateMetadataBuild { source: builder::meta::Error },
 
@@ -368,8 +364,7 @@ pub(crate) fn executor_config_map(
             ObjectMetaBuilder::new()
                 .name_and_namespace(validated)
                 .name(&cm_name)
-                .ownerreference_from_resource(validated, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
+                .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
                 .with_recommended_labels(&common::labels(
                     validated,
                     &resolved_product_image.app_version_label_value,

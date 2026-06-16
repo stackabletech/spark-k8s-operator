@@ -4,21 +4,20 @@ use stackable_operator::{
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kube::ResourceExt,
     kvp::{Annotations, Labels},
+    v2::builder::meta::ownerreference_from_resource,
 };
 
 use super::crd::CONNECT_APP_NAME;
 use crate::connect::{
     GRPC, HTTP,
     common::{self, SparkConnectRole},
+    controller::validate::ValidatedSparkConnectServer,
     crd::{CONNECT_GRPC_PORT, CONNECT_UI_PORT, v1alpha1},
 };
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef { source: builder::meta::Error },
-
     #[snafu(display("failed to build Labels"))]
     LabelBuild {
         source: stackable_operator::kvp::LabelError,
@@ -31,6 +30,7 @@ pub enum Error {
 // This is the headless driver service used for the internal
 // communication with the executors as recommended by the Spark docs.
 pub(crate) fn build_headless_service(
+    validated: &ValidatedSparkConnectServer,
     scs: &v1alpha1::SparkConnectServer,
     app_version_label: &str,
 ) -> Result<Service, Error> {
@@ -49,8 +49,7 @@ pub(crate) fn build_headless_service(
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(scs)
             .name(service_name)
-            .ownerreference_from_resource(scs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
             .with_recommended_labels(&common::labels(
                 scs,
                 app_version_label,
@@ -86,6 +85,7 @@ pub(crate) fn build_headless_service(
 
 // This is the metrics service
 pub(crate) fn build_metrics_service(
+    validated: &ValidatedSparkConnectServer,
     scs: &v1alpha1::SparkConnectServer,
     app_version_label: &str,
 ) -> Result<Service, Error> {
@@ -104,8 +104,7 @@ pub(crate) fn build_metrics_service(
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(scs)
             .name(service_name)
-            .ownerreference_from_resource(scs, None, Some(true))
-            .context(ObjectMissingMetadataForOwnerRefSnafu)?
+            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
             .with_recommended_labels(&common::labels(
                 scs,
                 app_version_label,

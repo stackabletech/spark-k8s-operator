@@ -219,9 +219,12 @@ pub async fn reconcile(
         .context(ApplyRoleBindingSnafu)?;
 
     // Headless service used by executors connect back to the driver
-    let headless_service =
-        service::build_headless_service(scs, &resolved_product_image.app_version_label_value)
-            .context(BuildServiceSnafu)?;
+    let headless_service = service::build_headless_service(
+        &validated,
+        scs,
+        &resolved_product_image.app_version_label_value,
+    )
+    .context(BuildServiceSnafu)?;
 
     let applied_headless_service = cluster_resources
         .add(client, headless_service.clone())
@@ -229,9 +232,12 @@ pub async fn reconcile(
         .context(ApplyServiceSnafu)?;
 
     // Metrics service used for scraping
-    let metrics_service =
-        service::build_metrics_service(scs, &resolved_product_image.app_version_label_value)
-            .context(BuildServiceSnafu)?;
+    let metrics_service = service::build_metrics_service(
+        &validated,
+        scs,
+        &resolved_product_image.app_version_label_value,
+    )
+    .context(BuildServiceSnafu)?;
 
     cluster_resources
         .add(client, metrics_service.clone())
@@ -335,6 +341,7 @@ pub async fn reconcile(
     // Server stateful set
     let args = server::command_args(&scs.spec.args);
     let stateful_set = server::build_stateful_set(
+        &validated,
         scs,
         server_config,
         resolved_product_image,

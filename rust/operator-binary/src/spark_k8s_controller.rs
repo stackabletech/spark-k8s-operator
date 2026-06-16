@@ -49,18 +49,12 @@ use stackable_operator::{
         },
         role_group_utils::ResourceNames,
         types::{
-            kubernetes::{ConfigMapName, ContainerName, VolumeName},
+            kubernetes::ConfigMapName,
             operator::{RoleGroupName, RoleName},
         },
     },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
-
-stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
-// Typed volume names required by the v2 `vector_container`; values match the existing `&str`
-// volume-mount consts VOLUME_MOUNT_NAME_CONFIG ("config") / VOLUME_MOUNT_NAME_LOG ("log").
-stackable_operator::constant!(VOLUME_MOUNT_NAME_CONFIG_TYPED: VolumeName = "config");
-stackable_operator::constant!(VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log");
 
 use crate::{
     Ctx,

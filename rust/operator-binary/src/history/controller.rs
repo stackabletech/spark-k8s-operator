@@ -45,19 +45,11 @@ use stackable_operator::{
         cluster_resources::cluster_resources_new,
         config_file_writer::{PropertiesWriterError, to_java_properties_string},
         product_logging::framework::vector_container,
-        types::{
-            kubernetes::{ContainerName, PersistentVolumeClaimName, VolumeName},
-            operator::RoleGroupName,
-        },
+        types::{kubernetes::PersistentVolumeClaimName, operator::RoleGroupName},
     },
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
-// Typed volume names required by the v2 `vector_container`; values match the `&str` volume-mount
-// name constants used elsewhere to build the same volumes.
-stackable_operator::constant!(VOLUME_MOUNT_NAME_CONFIG_TYPED: VolumeName = "config");
-stackable_operator::constant!(VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log");
 // PVC name for the listener volume, required by the v2 listener-volume builder. Its value matches
 // `LISTENER_VOLUME_NAME` in `crd::constants`.
 stackable_operator::constant!(LISTENER_VOLUME_NAME_PVC: PersistentVolumeClaimName = "listener");
@@ -72,8 +64,9 @@ use crate::{
             JVM_SECURITY_PROPERTY_DNS_CACHE_NEGATIVE_TTL, JVM_SECURITY_PROPERTY_DNS_CACHE_TTL,
             LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT,
             SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
-            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+            STACKABLE_TRUST_STORE, VECTOR_CONTAINER_NAME, VOLUME_MOUNT_NAME_CONFIG,
+            VOLUME_MOUNT_NAME_CONFIG_TYPED, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+            VOLUME_MOUNT_NAME_LOG_TYPED, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
             VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::{SparkHistoryServerContainer, v1alpha1},

@@ -1,7 +1,12 @@
+use std::str::FromStr;
+
 use const_format::concatcp;
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
-    v2::types::common::Port,
+    v2::types::{
+        common::Port,
+        kubernetes::{ContainerName, VolumeName},
+    },
 };
 
 pub const APP_NAME: &str = "spark-k8s";
@@ -94,6 +99,12 @@ pub const SPARK_ENV_SH_FILE_NAME: &str = "spark-env.sh";
 pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
 pub const METRICS_PORT: Port = Port(18081);
 pub const HISTORY_UI_PORT: Port = Port(18080);
+
+// Typed container/volume names required by the v2 `vector_container`; values match the `&str`
+// volume-mount consts `VOLUME_MOUNT_NAME_CONFIG` ("config") / `VOLUME_MOUNT_NAME_LOG` ("log").
+stackable_operator::constant!(pub VECTOR_CONTAINER_NAME: ContainerName = "vector");
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_CONFIG_TYPED: VolumeName = "config");
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log");
 
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";

@@ -40,19 +40,9 @@ use stackable_operator::{
         builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
         product_logging::framework::vector_container,
         role_group_utils::ResourceNames,
-        types::{
-            kubernetes::{ContainerName, VolumeName},
-            operator::{RoleGroupName, RoleName},
-        },
+        types::operator::{RoleGroupName, RoleName},
     },
 };
-
-stackable_operator::constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
-// Typed volume names required by the v2 `vector_container`; values match the `&str` volume-mount
-// name constants (`VOLUME_MOUNT_NAME_CONFIG`/`VOLUME_MOUNT_NAME_LOG`) used elsewhere to build the
-// same volumes.
-stackable_operator::constant!(VOLUME_MOUNT_NAME_CONFIG_TYPED: VolumeName = "config");
-stackable_operator::constant!(VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log");
 
 use crate::{
     connect::{
@@ -69,8 +59,9 @@ use crate::{
         constants::{
             JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
             LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE,
-            POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+            POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, VECTOR_CONTAINER_NAME,
+            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_CONFIG_TYPED, VOLUME_MOUNT_NAME_LOG,
+            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_NAME_LOG_TYPED, VOLUME_MOUNT_PATH_CONFIG,
             VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         listener_ext,

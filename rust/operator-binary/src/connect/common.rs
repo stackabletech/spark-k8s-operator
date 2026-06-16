@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use snafu::{ResultExt, Snafu};
-use stackable_operator::{
-    role_utils::{JavaCommonConfig, JvmArgumentOverrides},
-    v2::config_file_writer::{PropertiesWriterError, to_java_properties_string},
+use stackable_operator::v2::{
+    config_file_writer::{PropertiesWriterError, to_java_properties_string},
+    role_utils::JavaCommonConfig,
 };
 use strum::Display;
 
@@ -19,11 +19,6 @@ use crate::{
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides {
-        source: stackable_operator::role_utils::Error,
-    },
-
     #[snafu(display("failed to serialize spark properties"))]
     SparkProperties { source: PropertiesWriterError },
 
@@ -48,22 +43,14 @@ pub(crate) fn object_name(stacklet_name: &str, role: SparkConnectRole) -> String
     }
 }
 
-// Returns the jvm arguments a user has provided merged with the operator props.
-pub(crate) fn jvm_args(
-    jvm_args: &[String],
-    user_java_config: Option<&JavaCommonConfig>,
-) -> Result<String, Error> {
-    if let Some(user_jvm_props) = user_java_config {
-        let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args.to_vec());
-        let mut user_jvm_props_copy = user_jvm_props.jvm_argument_overrides.clone();
-        user_jvm_props_copy
-            .try_merge(&operator_generated)
-            .context(MergeJvmArgumentOverridesSnafu)?;
-        Ok(user_jvm_props_copy
-            .effective_jvm_config_after_merging()
-            .join(" "))
-    } else {
-        Ok(jvm_args.join(" "))
+// Returns the operator-generated jvm arguments with the user-provided overrides applied on top.
+pub(crate) fn jvm_args(jvm_args: &[String], user_java_config: Option<&JavaCommonConfig>) -> String {
+    match user_java_config {
+        Some(user) => user
+            .jvm_argument_overrides
+            .apply_to(jvm_args.iter().cloned())
+            .join(" "),
+        None => jvm_args.join(" "),
     }
 }
 

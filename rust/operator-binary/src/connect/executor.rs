@@ -52,9 +52,6 @@ pub enum Error {
         source: builder::pod::container::Error,
     },
 
-    #[snafu(display("failed build connect executor jvm args for {name}"))]
-    ExecutorJvmArgs { source: common::Error, name: String },
-
     #[snafu(display("failed build connect executor security properties"))]
     ExecutorJvmSecurityProperties { source: common::Error },
 
@@ -230,7 +227,7 @@ pub(crate) fn executor_properties(
         ),
         (
             "spark.executor.defaultJavaOptions".to_string(),
-            Some(executor_jvm_args(scs, config)?),
+            Some(executor_jvm_args(scs, config)),
         ),
         (
             "spark.kubernetes.executor.podTemplateFile".to_string(),
@@ -292,7 +289,7 @@ pub(crate) fn executor_properties(
 fn executor_jvm_args(
     scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
-) -> Result<String, Error> {
+) -> String {
     let mut jvm_args = vec![format!(
         "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
     )];
@@ -310,9 +307,6 @@ fn executor_jvm_args(
             .as_ref()
             .map(|s| &s.product_specific_common_config),
     )
-    .context(ExecutorJvmArgsSnafu {
-        name: scs.name_any(),
-    })
 }
 
 // Assemble the configuration of the spark-connect executor.

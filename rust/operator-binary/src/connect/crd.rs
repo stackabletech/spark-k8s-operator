@@ -27,11 +27,11 @@ use stackable_operator::{
             CustomContainerLogConfig, Logging,
         },
     },
-    role_utils::{CommonConfiguration, JavaCommonConfig},
+    role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    v2::types::common::Port,
+    v2::{role_utils::JavaCommonConfig, types::common::Port},
     versioned::versioned,
 };
 use strum::{Display, EnumIter};

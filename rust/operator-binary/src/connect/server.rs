@@ -115,9 +115,6 @@ pub enum Error {
         source: builder::pod::container::Error,
     },
 
-    #[snafu(display("failed build connect server jvm args for {name}"))]
-    ServerJvmArgs { source: common::Error, name: String },
-
     #[snafu(display("failed to build S3 volumes and mounts for the server"))]
     BuildS3VolumesAndMounts { source: s3::Error },
 
@@ -475,7 +472,7 @@ pub(crate) fn server_properties(
         ),
         (
             "spark.driver.defaultJavaOptions".to_string(),
-            Some(server_jvm_args(scs, config)?),
+            Some(server_jvm_args(scs, config)),
         ),
         (
             "spark.driver.extraClassPath".to_string(),
@@ -502,10 +499,7 @@ pub(crate) fn server_properties(
     Ok(result)
 }
 
-fn server_jvm_args(
-    scs: &v1alpha1::SparkConnectServer,
-    config: &v1alpha1::ServerConfig,
-) -> Result<String, Error> {
+fn server_jvm_args(scs: &v1alpha1::SparkConnectServer, config: &v1alpha1::ServerConfig) -> String {
     let mut jvm_args = vec![format!(
         "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
     )];
@@ -524,9 +518,6 @@ fn server_jvm_args(
             .as_ref()
             .map(|s| &s.product_specific_common_config),
     )
-    .context(ServerJvmArgsSnafu {
-        name: scs.name_any(),
-    })
 }
 
 fn probe() -> Probe {

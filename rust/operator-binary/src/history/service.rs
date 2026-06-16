@@ -1,8 +1,7 @@
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kvp::{Annotations, Labels},
-    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
+    v2::types::operator::RoleGroupName,
 };
 
 use crate::{
@@ -15,16 +14,14 @@ pub fn build_rolegroup_metrics_service(
     role_group_name: &RoleGroupName,
 ) -> Service {
     Service {
-        metadata: ObjectMetaBuilder::new()
-            .name_and_namespace(validated)
-            .name(
+        metadata: validated
+            .object_meta(
                 validated
                     .resource_names(role_group_name)
                     .metrics_service_name()
                     .to_string(),
+                role_group_name,
             )
-            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_labels(validated.recommended_labels(role_group_name))
             .with_labels(prometheus_labels())
             .with_annotations(prometheus_annotations())
             .build(),

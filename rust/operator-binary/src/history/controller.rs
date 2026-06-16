@@ -571,11 +571,11 @@ fn build_stateful_set(
     let mut pod_template = pb.build_template();
     pod_template.merge_from(rg.config.pod_overrides.clone());
 
-    let sts_metadata = ObjectMetaBuilder::new()
-        .name_and_namespace(validated)
-        .name(resource_names.stateful_set_name().to_string())
-        .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-        .with_labels(recommended_labels)
+    let sts_metadata = validated
+        .object_meta(
+            resource_names.stateful_set_name().to_string(),
+            role_group_name,
+        )
         .build();
 
     Ok(StatefulSet {

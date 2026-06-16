@@ -3,7 +3,7 @@
 //! Synchronously validates the [`super::dereference::DereferencedSparkApplication`] and
 //! resolves the product image. Does not touch the Kubernetes API.
 
-use std::borrow::Cow;
+use std::{borrow::Cow, str::FromStr};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -15,18 +15,27 @@ use stackable_operator::{
     crd::s3,
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
+    kvp::Labels,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
+        kvp::label::recommended_labels,
         types::{
             kubernetes::{NamespaceName, Uid},
-            operator::ClusterName,
+            operator::{
+                ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
+                RoleGroupName, RoleName,
+            },
         },
     },
 };
 
 use crate::{
-    crd::{constants::CONTAINER_IMAGE_BASE_NAME, logdir::ResolvedLogDir, v1alpha1},
+    crd::{
+        constants::{APP_NAME, CONTAINER_IMAGE_BASE_NAME, OPERATOR_NAME, SPARK_CONTROLLER_NAME},
+        logdir::ResolvedLogDir,
+        v1alpha1,
+    },
     spark_k8s_controller::dereference::DereferencedSparkApplication,
 };
 
@@ -119,6 +128,49 @@ impl Resource for ValidatedSparkApplication {
     fn meta_mut(&mut self) -> &mut ObjectMeta {
         &mut self.metadata
     }
+}
+
+impl ValidatedSparkApplication {
+    /// Recommended labels for a resource fulfilling the given `role` within the SparkApplication.
+    ///
+    /// A SparkApplication has no Stackable role groups, so the role group label is fixed to the
+    /// controller name (preserving the previous `build_recommended_labels` behaviour). `role` is a
+    /// free-form component name such as "spark", "spark-submit" or "role-binding".
+    pub(crate) fn recommended_labels(&self, role: &str) -> Labels {
+        // `app_version_label_value` is constructed to be a valid label value, so it is also a
+        // valid `ProductVersion`.
+        let product_version =
+            ProductVersion::from_str(&self.resolved_product_image.app_version_label_value)
+                .expect("the app version label value is a valid product version");
+        let role_name = RoleName::from_str(role).expect("the role is a valid role name");
+        let role_group = RoleGroupName::from_str(SPARK_CONTROLLER_NAME)
+            .expect("SPARK_CONTROLLER_NAME is a valid role group name");
+        recommended_labels(
+            self,
+            &product_name(),
+            &product_version,
+            &operator_name(),
+            &controller_name(),
+            &role_name,
+            &role_group,
+        )
+    }
+}
+
+/// The product name (`spark-k8s`) as a type-safe label value.
+pub(crate) fn product_name() -> ProductName {
+    ProductName::from_str(APP_NAME).expect("APP_NAME is a valid product name")
+}
+
+/// The operator name as a type-safe label value.
+pub(crate) fn operator_name() -> OperatorName {
+    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
+}
+
+/// The controller name as a type-safe label value.
+pub(crate) fn controller_name() -> ControllerName {
+    ControllerName::from_str(SPARK_CONTROLLER_NAME)
+        .expect("the controller name is a valid label value")
 }
 
 pub fn validate(

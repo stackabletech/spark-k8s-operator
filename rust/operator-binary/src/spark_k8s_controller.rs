@@ -156,11 +156,6 @@ pub enum Error {
         source: stackable_operator::kvp::LabelError,
     },
 
-    #[snafu(display("failed to build Metadata"))]
-    MetadataBuild {
-        source: stackable_operator::builder::meta::Error,
-    },
-
     #[snafu(display("failed to create Volumes for SparkApplication"))]
     CreateVolumes { source: crate::crd::Error },
 
@@ -231,8 +226,7 @@ pub async fn reconcile(
     // No more mutating operations after this point (except for status).
     tracing::debug!("reconciling spark application [{spark_application:?}]");
 
-    let (serviceaccount, rolebinding) =
-        build_spark_role_serviceaccount(&validated, resolved_product_image)?;
+    let (serviceaccount, rolebinding) = build_spark_role_serviceaccount(&validated)?;
     client
         .apply_patch(SPARK_CONTROLLER_NAME, &serviceaccount, &serviceaccount)
         .await
@@ -321,8 +315,7 @@ pub async fn reconcile(
         .map(|job| job.config_overrides.clone())
         .unwrap_or_default();
 
-    let submit_job_config_map =
-        submit_job_config_map(&validated, &submit_config_overrides, resolved_product_image)?;
+    let submit_job_config_map = submit_job_config_map(&validated, &submit_config_overrides)?;
     client
         .apply_patch(
             SPARK_CONTROLLER_NAME,
@@ -561,11 +554,7 @@ fn pod_template(
         // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
         // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
         .ownerreference(ownerreference_from_resource(validated, None, None))
-        .with_recommended_labels(
-            &spark_application
-                .build_recommended_labels(&spark_image.app_version_label_value, &container_name),
-        )
-        .context(MetadataBuildSnafu)?;
+        .with_labels(validated.recommended_labels(&container_name));
 
     // Only the driver pod should be scraped by Prometheus
     // because the executor metrics are also available via /metrics/executors/prometheus/
@@ -719,11 +708,7 @@ fn pod_template_config_map(
                 .namespace(validated.namespace.clone())
                 .name(&cm_name)
                 .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-                .with_recommended_labels(&spark_application.build_recommended_labels(
-                    &spark_image.app_version_label_value,
-                    "pod-templates",
-                ))
-                .context(MetadataBuildSnafu)?
+                .with_labels(validated.recommended_labels("pod-templates"))
                 .build(),
         )
         .add_data(
@@ -764,7 +749,6 @@ fn pod_template_config_map(
 fn submit_job_config_map(
     validated: &validate::ValidatedSparkApplication,
     config_overrides: &v1alpha1::ConfigOverrides,
-    spark_image: &ResolvedProductImage,
 ) -> Result<ConfigMap> {
     let spark_application = &validated.spark_application;
     let cm_name = spark_application.submit_job_config_map_name();
@@ -776,11 +760,7 @@ fn submit_job_config_map(
             .namespace(validated.namespace.clone())
             .name(&cm_name)
             .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_recommended_labels(
-                &spark_application
-                    .build_recommended_labels(&spark_image.app_version_label_value, "spark-submit"),
-            )
-            .context(MetadataBuildSnafu)?
+            .with_labels(validated.recommended_labels("spark-submit"))
             .build(),
     );
 
@@ -897,11 +877,7 @@ fn spark_job(
         metadata: Some(
             ObjectMetaBuilder::new()
                 .name("spark-submit")
-                .with_recommended_labels(&spark_application.build_recommended_labels(
-                    &spark_image.app_version_label_value,
-                    "spark-job-template",
-                ))
-                .context(MetadataBuildSnafu)?
+                .with_labels(validated.recommended_labels("spark-job-template"))
                 .build(),
         ),
         spec: Some(PodSpec {
@@ -931,11 +907,7 @@ fn spark_job(
             .name(validated.name.to_string())
             .namespace(validated.namespace.clone())
             .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_recommended_labels(
-                &spark_application
-                    .build_recommended_labels(&spark_image.app_version_label_value, "spark-job"),
-            )
-            .context(MetadataBuildSnafu)?
+            .with_labels(validated.recommended_labels("spark-job"))
             .build(),
         spec: Some(JobSpec {
             template: pod,
@@ -955,35 +927,25 @@ fn spark_job(
 /// They are deleted when the job is deleted.
 fn build_spark_role_serviceaccount(
     validated: &validate::ValidatedSparkApplication,
-    spark_image: &ResolvedProductImage,
 ) -> Result<(ServiceAccount, RoleBinding)> {
     let spark_app = &validated.spark_application;
     let sa_name = validated.name.to_string();
-    let sa =
-        ServiceAccount {
-            metadata: ObjectMetaBuilder::new()
-                .name_and_namespace(spark_app)
-                .name(&sa_name)
-                .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-                .with_recommended_labels(&spark_app.build_recommended_labels(
-                    &spark_image.app_version_label_value,
-                    "service-account",
-                ))
-                .context(MetadataBuildSnafu)?
-                .build(),
-            ..ServiceAccount::default()
-        };
+    let sa = ServiceAccount {
+        metadata: ObjectMetaBuilder::new()
+            .name_and_namespace(spark_app)
+            .name(&sa_name)
+            .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
+            .with_labels(validated.recommended_labels("service-account"))
+            .build(),
+        ..ServiceAccount::default()
+    };
     let binding_name = &sa_name;
     let binding = RoleBinding {
         metadata: ObjectMetaBuilder::new()
             .name_and_namespace(spark_app)
             .name(binding_name)
             .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-            .with_recommended_labels(
-                &spark_app
-                    .build_recommended_labels(&spark_image.app_version_label_value, "role-binding"),
-            )
-            .context(MetadataBuildSnafu)?
+            .with_labels(validated.recommended_labels("role-binding"))
             .build(),
         role_ref: RoleRef {
             api_group: ClusterRole::GROUP.to_string(),

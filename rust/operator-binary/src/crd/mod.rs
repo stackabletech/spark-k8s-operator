@@ -30,7 +30,6 @@ use stackable_operator::{
         apimachinery::pkg::api::resource::Quantity,
     },
     kube::{CustomResource, ResourceExt},
-    kvp::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging,
     role_utils::{CommonConfiguration, JavaCommonConfig, RoleGroup},
@@ -554,22 +553,6 @@ impl v1alpha1::SparkApplication {
         }
 
         mounts
-    }
-
-    pub fn build_recommended_labels<'a>(
-        &'a self,
-        app_version: &'a str,
-        role: &'a str,
-    ) -> ObjectLabels<'a, v1alpha1::SparkApplication> {
-        ObjectLabels {
-            owner: self,
-            app_name: APP_NAME,
-            app_version,
-            operator_name: OPERATOR_NAME,
-            controller_name: SPARK_CONTROLLER_NAME,
-            role,
-            role_group: SPARK_CONTROLLER_NAME,
-        }
     }
 
     pub fn build_command(

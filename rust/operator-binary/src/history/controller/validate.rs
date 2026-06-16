@@ -9,7 +9,10 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     cli::OperatorEnvironmentOptions,
-    commons::product_image_selection::{self, ResolvedProductImage},
+    commons::{
+        pdb::PdbConfig,
+        product_image_selection::{self, ResolvedProductImage},
+    },
     config::fragment,
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
@@ -175,16 +178,27 @@ pub struct ValidatedSparkHistoryServer {
     /// `app.kubernetes.io/version` label. Derived from the resolved image's app version label
     /// value.
     pub product_version: ProductVersion,
+    pub resolved_product_image: ResolvedProductImage,
+    pub cluster_config: ValidatedClusterConfig,
+    pub role_config: ValidatedRoleConfig,
+    pub role_groups: BTreeMap<RoleGroupName, ValidatedHistoryRoleGroup>,
+}
+
+/// Cluster-wide settings resolved during validation and dereferencing, so the resource builders
+/// never have to read the raw [`v1alpha1::SparkHistoryServer`] spec.
+pub struct ValidatedClusterConfig {
     pub cleaner_rolegroup_name: Option<String>,
     pub spark_conf: BTreeMap<String, String>,
-    pub resolved_product_image: ResolvedProductImage,
-    // These two are a bit redundant right now.
-    // This is a temporary situation until we remove all v1alpha1::SparkHistoryServer usages after validation.
-    // Currently log_dir_settings is needed for  history::controller::build_configmap() function whereas log_dir
-    // is needed for command args and volume mounts.
+    /// The resolved log directory.
     pub log_dir: ResolvedLogDir,
+    /// Spark configuration properties that configure event logging into the `log_dir`.
     pub log_dir_settings: BTreeMap<String, String>,
-    pub role_groups: BTreeMap<RoleGroupName, ValidatedHistoryRoleGroup>,
+}
+
+/// Per-role configuration extracted during validation.
+pub struct ValidatedRoleConfig {
+    pub pdb: PdbConfig,
+    pub listener_class: String,
 }
 
 impl ValidatedSparkHistoryServer {
@@ -413,11 +427,23 @@ pub fn validate(
         namespace,
         uid,
         product_version,
-        cleaner_rolegroup_name,
-        spark_conf: shs.spec.spark_conf.clone(),
-        log_dir: dereferenced.log_dir,
-        log_dir_settings,
         resolved_product_image,
+        cluster_config: ValidatedClusterConfig {
+            cleaner_rolegroup_name,
+            spark_conf: shs.spec.spark_conf.clone(),
+            log_dir: dereferenced.log_dir,
+            log_dir_settings,
+        },
+        role_config: ValidatedRoleConfig {
+            pdb: shs
+                .spec
+                .nodes
+                .role_config
+                .common
+                .pod_disruption_budget
+                .clone(),
+            listener_class: shs.node_listener_class().to_string(),
+        },
         role_groups,
     })
 }

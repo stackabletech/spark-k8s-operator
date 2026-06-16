@@ -228,7 +228,7 @@ pub async fn reconcile(
         &shs.spec.object_overrides,
     );
 
-    let log_dir = &validated.log_dir;
+    let log_dir = &validated.cluster_config.log_dir;
 
     // Use a dedicated service account for history server pods.
     let (service_account, role_binding) = build_rbac_resources(
@@ -272,7 +272,7 @@ pub async fn reconcile(
     let rg_group_listener = build_group_listener(
         &validated,
         HISTORY_ROLE_NAME,
-        shs.node_listener_class().to_string(),
+        validated.role_config.listener_class.clone(),
     );
 
     cluster_resources
@@ -280,8 +280,7 @@ pub async fn reconcile(
         .await
         .context(ApplyGroupListenerSnafu)?;
 
-    let role_config = &shs.spec.nodes.role_config;
-    if let Some(pdb) = build_pdb(&role_config.common.pod_disruption_budget, &validated) {
+    if let Some(pdb) = build_pdb(&validated.role_config.pdb, &validated) {
         cluster_resources
             .add(client, pdb)
             .await
@@ -598,13 +597,13 @@ fn spark_defaults(
     validated: &validate::ValidatedSparkHistoryServer,
     role_group_name: &RoleGroupName,
 ) -> BTreeMap<String, Option<String>> {
-    let mut default_properties = validated.log_dir_settings.clone();
+    let mut default_properties = validated.cluster_config.log_dir_settings.clone();
 
     // add cleaner spark settings if requested
     default_properties.extend(cleaner_config(validated, role_group_name));
 
     // add user provided configuration. These can overwrite everything.
-    default_properties.extend(validated.spark_conf.clone());
+    default_properties.extend(validated.cluster_config.spark_conf.clone());
 
     default_properties
         .into_iter()
@@ -640,7 +639,7 @@ fn cleaner_config(
     validated: &validate::ValidatedSparkHistoryServer,
     role_group_name: &RoleGroupName,
 ) -> BTreeMap<String, String> {
-    match validated.cleaner_rolegroup_name.as_ref() {
+    match validated.cluster_config.cleaner_rolegroup_name.as_ref() {
         Some(cleaner_rolegroup) if cleaner_rolegroup == role_group_name.as_ref() => {
             BTreeMap::from([(
                 "spark.history.fs.cleaner.enabled".to_string(),

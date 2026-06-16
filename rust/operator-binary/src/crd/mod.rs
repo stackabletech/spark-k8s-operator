@@ -32,11 +32,11 @@ use stackable_operator::{
     kube::{CustomResource, ResourceExt},
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging,
-    role_utils::{CommonConfiguration, JavaCommonConfig, RoleGroup},
+    role_utils::{CommonConfiguration, RoleGroup},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
-    v2::config_overrides::KeyValueConfigOverrides,
+    v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
     versioned::versioned,
 };
 
@@ -111,9 +111,6 @@ pub enum Error {
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
-
-    #[snafu(display("failed to construct JVM arguments"))]
-    ConstructJvmArguments { source: crate::config::jvm::Error },
 }
 
 pub type SparkApplicationJobRoleType =
@@ -658,8 +655,7 @@ impl v1alpha1::SparkApplication {
         }
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(self, s3conn, log_dir)
-                .context(ConstructJvmArgumentsSnafu)?;
+            construct_extra_java_options(self, s3conn, log_dir);
         submit_cmd.extend(vec![
             format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),
             format!("--conf spark.executor.extraJavaOptions=\"{executor_extra_java_options}\""),

@@ -83,7 +83,7 @@ use crate::{
     },
     history::{
         config::jvm::construct_history_jvm_args, controller::validate::ValidatedHistoryRoleGroup,
-        operations::pdb::add_pdbs, service::build_rolegroup_metrics_service,
+        operations::pdb::build_pdb, service::build_rolegroup_metrics_service,
     },
     product_logging::{self},
 };
@@ -165,9 +165,9 @@ pub enum Error {
         rolegroup: String,
     },
 
-    #[snafu(display("failed to create PodDisruptionBudget"))]
-    FailedToCreatePdb {
-        source: crate::history::operations::pdb::Error,
+    #[snafu(display("failed to apply PodDisruptionBudget"))]
+    ApplyPdb {
+        source: stackable_operator::cluster_resources::Error,
     },
 
     #[snafu(display("failed to get required Labels"))]
@@ -292,14 +292,12 @@ pub async fn reconcile(
         .context(ApplyGroupListenerSnafu)?;
 
     let role_config = &shs.spec.nodes.role_config;
-    add_pdbs(
-        &role_config.common.pod_disruption_budget,
-        &validated,
-        client,
-        &mut cluster_resources,
-    )
-    .await
-    .context(FailedToCreatePdbSnafu)?;
+    if let Some(pdb) = build_pdb(&role_config.common.pod_disruption_budget, &validated) {
+        cluster_resources
+            .add(client, pdb)
+            .await
+            .context(ApplyPdbSnafu)?;
+    }
 
     cluster_resources
         .delete_orphaned_resources(client)

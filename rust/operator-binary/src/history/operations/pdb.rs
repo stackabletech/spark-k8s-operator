@@ -1,30 +1,19 @@
-use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    client::Client, cluster_resources::ClusterResources, commons::pdb::PdbConfig,
-    kube::ResourceExt, v2::builder::pdb::pod_disruption_budget_builder_with_role,
+    commons::pdb::PdbConfig, k8s_openapi::api::policy::v1::PodDisruptionBudget,
+    v2::builder::pdb::pod_disruption_budget_builder_with_role,
 };
 
 use crate::history::controller::validate::{
     ValidatedSparkHistoryServer, controller_name, operator_name, product_name,
 };
 
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("Cannot apply PodDisruptionBudget [{name}]"))]
-    ApplyPdb {
-        source: stackable_operator::cluster_resources::Error,
-        name: String,
-    },
-}
-
-pub async fn add_pdbs(
+/// Builds the [`PodDisruptionBudget`] for the history server role, or `None` if PDBs are disabled.
+pub fn build_pdb(
     pdb: &PdbConfig,
     validated: &ValidatedSparkHistoryServer,
-    client: &Client,
-    cluster_resources: &mut ClusterResources<'_>,
-) -> Result<(), Error> {
+) -> Option<PodDisruptionBudget> {
     if !pdb.enabled {
-        return Ok(());
+        return None;
     }
     let max_unavailable = pdb
         .max_unavailable
@@ -38,13 +27,8 @@ pub async fn add_pdbs(
     )
     .with_max_unavailable(max_unavailable)
     .build();
-    let pdb_name = pdb.name_any();
-    cluster_resources
-        .add(client, pdb)
-        .await
-        .with_context(|_| ApplyPdbSnafu { name: pdb_name })?;
 
-    Ok(())
+    Some(pdb)
 }
 
 fn max_unavailable_history_servers() -> u16 {

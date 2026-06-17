@@ -1,0 +1,142 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: krb5-kdc
+spec:
+  selector:
+    matchLabels:
+      app: krb5-kdc
+  template:
+    metadata:
+      labels:
+        app: krb5-kdc
+    spec:
+      serviceAccountName: integration-tests-sa
+      initContainers:
+        - name: init
+          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable0.0.0-dev
+          args:
+            - sh
+            - -euo
+            - pipefail
+            - -c
+            - |
+              test -e /var/kerberos/krb5kdc/principal || kdb5_util create -s -P asdf
+              kadmin.local get_principal -terse root/admin || kadmin.local add_principal -pw asdf root/admin
+              # stackable-secret-operator principal must match the keytab specified in the SecretClass
+              kadmin.local get_principal -terse stackable-secret-operator || kadmin.local add_principal -e aes256-cts-hmac-sha384-192:normal -pw asdf stackable-secret-operator
+          env:
+            - name: KRB5_CONFIG
+              value: /stackable/config/krb5.conf
+          volumeMounts:
+            - mountPath: /stackable/config
+              name: config
+            - mountPath: /var/kerberos/krb5kdc
+              name: data
+      containers:
+        - name: kdc
+          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable0.0.0-dev
+          args:
+            - krb5kdc
+            - -n
+          env:
+            - name: KRB5_CONFIG
+              value: /stackable/config/krb5.conf
+          volumeMounts:
+            - mountPath: /stackable/config
+              name: config
+            - mountPath: /var/kerberos/krb5kdc
+              name: data
+# Root permissions required on Openshift to access internal ports
+{% if test_scenario['values']['openshift'] == "true" %}
+          securityContext:
+            runAsUser: 0
+{% endif %}
+        - name: kadmind
+          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable0.0.0-dev
+          args:
+            - kadmind
+            - -nofork
+          env:
+            - name: KRB5_CONFIG
+              value: /stackable/config/krb5.conf
+          volumeMounts:
+            - mountPath: /stackable/config
+              name: config
+            - mountPath: /var/kerberos/krb5kdc
+              name: data
+# Root permissions required on Openshift to access internal ports
+{% if test_scenario['values']['openshift'] == "true" %}
+          securityContext:
+            runAsUser: 0
+{% endif %}
+        - name: client
+          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable0.0.0-dev
+          tty: true
+          stdin: true
+          env:
+            - name: KRB5_CONFIG
+              value: /stackable/config/krb5.conf
+          volumeMounts:
+            - mountPath: /stackable/config
+              name: config
+      volumes:
+        - name: config
+          configMap:
+            name: krb5-kdc
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: krb5-kdc
+spec:
+  selector:
+    app: krb5-kdc
+  ports:
+    - name: kadmin
+      port: 749
+    - name: kdc
+      port: 88
+    - name: kdc-udp
+      port: 88
+      protocol: UDP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: krb5-kdc
+data:
+  krb5.conf: |
+    [logging]
+    default = STDERR
+    kdc = STDERR
+    admin_server = STDERR
+    [libdefaults]
+    dns_lookup_realm = false
+    ticket_lifetime = 24h
+    renew_lifetime = 7d
+    forwardable = true
+    rdns = false
+    default_realm = {{ test_scenario['values']['kerberos-realm'] }}
+    spake_preauth_groups = edwards25519
+    [realms]
+    {{ test_scenario['values']['kerberos-realm'] }} = {
+     acl_file = /stackable/config/kadm5.acl
+     disable_encrypted_timestamp = false
+    }
+    [domain_realm]
+    .cluster.local = {{ test_scenario['values']['kerberos-realm'] }}
+    cluster.local = {{ test_scenario['values']['kerberos-realm'] }}
+  kadm5.acl: |
+    root/admin *e
+    stackable-secret-operator *e

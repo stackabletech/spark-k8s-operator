@@ -4,7 +4,7 @@ kind: TestAssert
 timeout: 120
 commands:
   - script: |
-      set -euo pipefail
+      set -eu
 
       compare_fixture() {
         fixture_path="$1"
@@ -15,10 +15,18 @@ commands:
         expected=$(sed "s|__NAMESPACE__|$NAMESPACE|g" "$fixture_path" | jq -S .)
         actual=$(kubectl -n "$NAMESPACE" get "$kind" "$name" -o json | jq "$jq_expr" | jq -S .)
 
-        if ! diff <(echo "$expected") <(echo "$actual"); then
+        expected_file=$(mktemp)
+        actual_file=$(mktemp)
+        printf '%s\n' "$expected" > "$expected_file"
+        printf '%s\n' "$actual" > "$actual_file"
+
+        if ! diff -u "$expected_file" "$actual_file"; then
+          rm -f "$expected_file" "$actual_file"
           echo "ERROR: $kind/$name drifted from baseline fixture $fixture_path"
           exit 1
         fi
+
+        rm -f "$expected_file" "$actual_file"
       }
 
       wait_for_configmap() {

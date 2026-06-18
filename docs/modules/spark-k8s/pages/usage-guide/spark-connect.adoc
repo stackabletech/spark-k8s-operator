@@ -97,6 +97,92 @@ spec:
 ...
 ```
 
+== Kerberos
+
+NOTE: Kerberos support for Spark Connect is not a first-class feature of the operator. The setup described here is a manual configuration that uses `podOverrides`, `configOverrides`, `envOverrides` and an init container.
+
+A Spark Connect server can authenticate to a Kerberos-secured service, such as a Apache Hive metastore or Apache Hadoop HDFS.
+There is, however, an important caveat: the Spark Connect server runs in Spark's `client` deploy mode.
+Spark only performs the automatic keytab login (`UserGroupInformation.loginUserFromKeytab`) for YARN, local, Mesos and the Kubernetes _cluster_-mode driver -- *not* for the Kubernetes client mode that the Connect server uses.
+As a consequence, setting `spark.kerberos.keytab` and `spark.kerberos.principal` alone does not obtain a Kerberos ticket (TGT), and the SASL/GSSAPI handshake to the metastore fails with `GSS initiate failed` / `Failed to find any Kerberos tgt`.
+
+The workaround is to obtain the ticket yourself with an *init container* that runs `kinit` before the Spark Connect server JVM starts.
+The init container reads the keytab and writes a Kerberos credential cache to an `emptyDir` volume that is shared with the `spark` container; the server JVM then picks the ticket up from that cache.
+An init container is required because nothing in the client-mode server process performs the login automatically, so the ticket must exist in the credential cache before the JVM opens the metastore connection.
+
+The relevant parts of the `SparkConnectServer` are shown below.
+
+[source,yaml]
+----
+spec:
+  server:
+    envOverrides:
+      # The shared credential cache populated by the init container. Hadoop's
+      # UserGroupInformation reads KRB5CCNAME when Kerberos auth is enabled.
+      KRB5CCNAME: /stackable/krb5/ccache
+    jvmArgumentOverrides:
+      add:
+        # The JVM does NOT read the KRB5_CONFIG environment variable (that is an
+        # MIT C-library variable). It reads this system property (or /etc/krb5.conf).
+        - -Djava.security.krb5.conf=/stackable/kerberos/krb5.conf
+        # The Spark Connect execute thread does not carry the ticket in its
+        # Subject, so JGSS must fall back to the ambient credential cache.
+        - -Djavax.security.auth.useSubjectCredsOnly=false
+    configOverrides:
+      spark-defaults.conf:
+        spark.hadoop.hadoop.security.authentication: "kerberos"
+        spark.hadoop.hive.metastore.uris: "thrift://hive-metastore:9083"
+        spark.hadoop.hive.metastore.sasl.enabled: "true"
+        # Use the literal metastore principal, not _HOST (which would resolve to
+        # the connection host instead of the metastore's service principal).
+        spark.hadoop.hive.metastore.kerberos.principal: "hive/hive.example.svc.cluster.local@EXAMPLE.COM"
+    podOverrides:
+      spec:
+        initContainers:
+          - name: kinit
+            image: oci.stackable.tech/sdp/spark-k8s:4.1.1-stackable0.0.0-dev
+            command: ["/bin/bash", "-euo", "pipefail", "-c"]
+            args:
+              - kinit -kt /stackable/kerberos/keytab spark-connect/spark-connect.example.svc.cluster.local@EXAMPLE.COM
+            env:
+              - name: KRB5_CONFIG
+                value: /stackable/kerberos/krb5.conf
+              - name: KRB5CCNAME
+                value: /stackable/krb5/ccache
+            volumeMounts:
+              - name: kerberos
+                mountPath: /stackable/kerberos
+              - name: krb5-ccache
+                mountPath: /stackable/krb5
+        containers:
+          - name: spark
+            volumeMounts:
+              - name: kerberos
+                mountPath: /stackable/kerberos
+              - name: krb5-ccache
+                mountPath: /stackable/krb5
+        volumes:
+          - name: krb5-ccache
+            emptyDir: {}
+          - name: kerberos
+            ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/class: kerberos
+                    secrets.stackable.tech/scope: service=spark-connect
+                    secrets.stackable.tech/kerberos.service.names: spark-connect
+                spec:
+                  storageClassName: secrets.stackable.tech
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: "1"
+----
+
+The keytab and `krb5.conf` are only required on the server, which is the Spark driver and the only component that talks to the metastore.
+Executors that merely read and write data files on (non-kerberized) S3 do not need Kerberos credentials.
+
 == Spark History Server
 
 Unfortunately integration with the Spark History Server is not supported yet.
@@ -112,4 +198,9 @@ The following features are not supported by the Stackable Spark operator yet
 
 == Known Issues
 
-* Dynamically provisioning the iceberg runtime leads to "iceberg.SparkWrite$WriterFactory" ClassNotfoundException when attempting to use it from clients.
+* Distributed operations on Apache Iceberg tables fail on the executors.
+  PySpark calls that trigger a distributed job over an Iceberg table -- for example `DataFrame.collect()` or `DataFrame.count()` -- fail with `java.lang.ClassCastException: cannot assign instance of java.lang.invoke.SerializedLambda to field org.apache.spark.rdd.MapPartitionsRDD.f of type scala.Function3`.
+  Driver-only operations still work: DDL (`CREATE`/`DROP`), `INSERT` of small data, `DataFrame.show()` of a small result, `SHOW TABLES` and `DESCRIBE`.
+  The cause is upstream in Spark Connect: executor tasks run under a per-session class loader (which fetches session classes from the driver's artifact server) that cannot deserialize the Iceberg scan closures.
+  It is independent of how the Iceberg runtime is provisioned -- it reproduces with `--packages`, with the jar placed on the system class path (`/stackable/spark/jars`), with `spark.addArtifact()`, and with combinations of these.
+  See https://issues.apache.org/jira/browse/SPARK-46032[SPARK-46032] (open) and https://issues.apache.org/jira/browse/SPARK-51537[SPARK-51537] for details.

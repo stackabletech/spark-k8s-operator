@@ -151,7 +151,7 @@ spec:
         # protocol (not the rename-based FileOutputCommitter), so writes to S3
         # work without the staging/_temporary issues of plain parquet tables.
         # The catalog inherits the kerberos metastore config from spark.hadoop.*
-        # above. See https://github.com/stackabletech/spark-k8s-operator/issues/702
+        # above. See https://issues.apache.org/jira/browse/SPARK-46032
         spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
         spark.sql.catalog.iceberg: org.apache.iceberg.spark.SparkCatalog
         spark.sql.catalog.iceberg.type: hive

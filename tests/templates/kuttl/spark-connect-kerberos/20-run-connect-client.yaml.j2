@@ -63,10 +63,12 @@ data:
       # metastore query (driver-side). We deliberately avoid result.collect() /
       # count() over the Iceberg table: a *distributed* scan ships the Iceberg
       # RDD closure to the executors, where it currently fails to deserialize on
-      # Spark Connect ("cannot assign SerializedLambda ... Function3"). That is a
-      # Spark Connect classloader limitation independent of where the Iceberg jar
-      # is placed, and is separate from the metastore/Kerberos integration this
-      # test validates. See https://github.com/stackabletech/spark-k8s-operator/issues/702
+      # Spark Connect ("cannot assign SerializedLambda ... Function3"). This is an
+      # upstream Spark Connect classloader limitation (see SPARK-46032 /
+      # SPARK-51537) independent of how the Iceberg jar is provisioned - it
+      # reproduces with --packages, with the jar on the system classpath, with
+      # spark.addArtifact(), and with --packages + addArtifact together - and is
+      # separate from the metastore/Kerberos integration this test validates.
       ice_tables = [row.tableName for row in spark.sql("SHOW TABLES IN iceberg.lakehouse").collect()]
       print("Tables in 'iceberg.lakehouse':", ice_tables)
       assert "greetings" in ice_tables, f"Iceberg table not registered in the HMS: {ice_tables}"

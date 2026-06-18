@@ -57,25 +57,30 @@ data:
       spark.sql("DROP TABLE IF EXISTS iceberg.lakehouse.greetings")
       spark.sql("CREATE TABLE iceberg.lakehouse.greetings (id INT, data STRING) USING iceberg")
       spark.sql("INSERT INTO iceberg.lakehouse.greetings VALUES (1, 'one'), (2, 'two'), (3, 'three')")
-      spark.sql("SELECT * FROM iceberg.lakehouse.greetings ORDER BY id").show()
 
-      # Verify the Iceberg table is registered in the kerberized metastore via a
-      # metastore query (driver-side). We deliberately avoid result.collect() /
-      # count() over the Iceberg table: a *distributed* scan ships the Iceberg
-      # RDD closure to the executors, where it currently fails to deserialize on
-      # Spark Connect ("cannot assign SerializedLambda ... Function3"). This is an
-      # upstream Spark Connect classloader limitation (see SPARK-46032 /
-      # SPARK-51537) independent of how the Iceberg jar is provisioned - it
-      # reproduces with --packages, with the jar on the system classpath, with
-      # spark.addArtifact(), and with --packages + addArtifact together - and is
-      # separate from the metastore/Kerberos integration this test validates.
-      ice_tables = [row.tableName for row in spark.sql("SHOW TABLES IN iceberg.lakehouse").collect()]
-      print("Tables in 'iceberg.lakehouse':", ice_tables)
-      assert "greetings" in ice_tables, f"Iceberg table not registered in the HMS: {ice_tables}"
-
-      ice_columns = [row.col_name for row in spark.sql("DESCRIBE TABLE iceberg.lakehouse.greetings").collect()]
-      print("Columns of iceberg.lakehouse.greetings:", ice_columns)
-      assert "id" in ice_columns and "data" in ice_columns, f"unexpected columns: {ice_columns}"
+      # Reading the Iceberg table back differs by Spark version:
+      #
+      # Spark 4 includes the Spark Connect executor class loader fix
+      # (SPARK-51537 / apache/spark#50475), so a *distributed* read works:
+      # collect() ships the Iceberg scan closure to the executors and succeeds.
+      #
+      # On Spark 3.5.x that distributed scan still fails on the executors with
+      # "cannot assign SerializedLambda ... Function3" (SPARK-46032, not fixed in
+      # 3.5.x), so we verify the table via metastore queries (driver-side) instead.
+      print(f"Connected to Spark {spark.version}")
+      if spark.version.startswith("4"):
+        result = spark.sql("SELECT * FROM iceberg.lakehouse.greetings ORDER BY id")
+        result.show()
+        rows = result.collect()
+        assert len(rows) == 3, f"expected 3 rows in the Iceberg table, got {len(rows)}"
+      else:
+        spark.sql("SELECT * FROM iceberg.lakehouse.greetings ORDER BY id").show()
+        ice_tables = [row.tableName for row in spark.sql("SHOW TABLES IN iceberg.lakehouse").collect()]
+        print("Tables in 'iceberg.lakehouse':", ice_tables)
+        assert "greetings" in ice_tables, f"Iceberg table not registered in the HMS: {ice_tables}"
+        ice_columns = [row.col_name for row in spark.sql("DESCRIBE TABLE iceberg.lakehouse.greetings").collect()]
+        print("Columns of iceberg.lakehouse.greetings:", ice_columns)
+        assert "id" in ice_columns and "data" in ice_columns, f"unexpected columns: {ice_columns}"
 
       print("[SUCCESS] Read/write against the kerberized Hive metastore and Iceberg catalog succeeded")
 

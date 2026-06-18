@@ -198,9 +198,9 @@ The following features are not supported by the Stackable Spark operator yet
 
 == Known Issues
 
-* Distributed operations on Apache Iceberg tables fail on the executors.
+* Distributed operations on Apache Iceberg tables fail on the executors *with Spark 3.5.x*.
   PySpark calls that trigger a distributed job over an Iceberg table -- for example `DataFrame.collect()` or `DataFrame.count()` -- fail with `java.lang.ClassCastException: cannot assign instance of java.lang.invoke.SerializedLambda to field org.apache.spark.rdd.MapPartitionsRDD.f of type scala.Function3`.
   Driver-only operations still work: DDL (`CREATE`/`DROP`), `INSERT` of small data, `DataFrame.show()` of a small result, `SHOW TABLES` and `DESCRIBE`.
   The cause is upstream in Spark Connect: executor tasks run under a per-session class loader (which fetches session classes from the driver's artifact server) that cannot deserialize the Iceberg scan closures.
   It is independent of how the Iceberg runtime is provisioned -- it reproduces with `--packages`, with the jar placed on the system class path (`/stackable/spark/jars`), with `spark.addArtifact()`, and with combinations of these.
-  See https://issues.apache.org/jira/browse/SPARK-46032[SPARK-46032] (open) and https://issues.apache.org/jira/browse/SPARK-51537[SPARK-51537] for details.
+  *This is fixed in Spark 4* (https://issues.apache.org/jira/browse/SPARK-51537[SPARK-51537] / https://github.com/apache/spark/pull/50475[apache/spark#50475]), where distributed reads and writes of Iceberg tables work; it is not backported to the 3.5.x line (see the still-open https://issues.apache.org/jira/browse/SPARK-46032[SPARK-46032]).

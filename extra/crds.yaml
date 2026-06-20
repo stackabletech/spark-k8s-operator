@@ -22,7 +22,7 @@ spec:
         properties:
           spec:
             description: |-
-              A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark.
+              A Spark application run on Kubernetes by the Stackable operator for Apache Spark.
               Find more information on how to use it and the resources that the operator generates in the
               [operator documentation](https://docs.stackable.tech/home/nightly/spark-k8s/).
 

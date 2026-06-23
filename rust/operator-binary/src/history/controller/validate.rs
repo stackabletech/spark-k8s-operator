@@ -22,7 +22,7 @@ use stackable_operator::{
         HasName, HasUid, NameIsValidLabelValue,
         builder::{
             meta::ownerreference_from_resource,
-            pod::container::{self, EnvVarName, EnvVarSet},
+            pod::container::{EnvVarName, EnvVarSet},
         },
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         kvp::label::{recommended_labels, role_group_selector},
@@ -95,7 +95,7 @@ pub enum Error {
 
     #[snafu(display("invalid environment variable override name in role group {role_group}"))]
     ParseEnvVarName {
-        source: container::Error,
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
         role_group: String,
     },
 
@@ -404,7 +404,7 @@ pub fn validate(
         )?;
 
         let config = HistoryRoleGroupConfig {
-            replicas: merged.replicas.unwrap_or(1),
+            replicas: Some(merged.replicas.unwrap_or(1)),
             config: merged.config.config,
             config_overrides: merged.config.config_overrides,
             env_overrides,

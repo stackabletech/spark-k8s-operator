@@ -237,7 +237,7 @@ pub(crate) fn build_stateful_set(
         spec: Some(StatefulSetSpec {
             template: pod_template,
             volume_claim_templates,
-            replicas: Some(i32::from(rg.config.replicas)),
+            replicas: rg.config.replicas.map(i32::from),
             selector: LabelSelector {
                 match_labels: Some(validated.role_group_selector(role_group_name).into()),
                 ..LabelSelector::default()

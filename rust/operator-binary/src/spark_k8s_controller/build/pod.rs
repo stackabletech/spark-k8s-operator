@@ -13,13 +13,16 @@ use stackable_operator::{
         },
     },
     kube::ResourceExt,
-    kvp::Label,
     product_logging::{
         framework::{capture_shell_output, create_vector_shutdown_file_command},
         spec::{ContainerLogConfig, ContainerLogConfigChoice, Logging},
     },
     v2::{
-        builder::{meta::ownerreference_from_resource, pod::container::EnvVarSet},
+        builder::{
+            meta::ownerreference_from_resource,
+            pod::container::EnvVarSet,
+            service::{Scraping, prometheus_labels},
+        },
         product_logging::framework::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
             vector_container,
@@ -39,7 +42,7 @@ use crate::{
         tlscerts,
     },
     spark_k8s_controller::{
-        AddVolumeMountSnafu, AddVolumeSnafu, IllegalContainerNameSnafu, LabelBuildSnafu,
+        AddVolumeMountSnafu, AddVolumeSnafu, IllegalContainerNameSnafu,
         ParseVectorAggregatorConfigMapNameSnafu, Result, ValidateLoggingConfigSnafu,
         VectorAggregatorConfigMapMissingSnafu, validate,
     },
@@ -244,7 +247,7 @@ pub(crate) fn pod_template(
     // Only the driver pod should be scraped by Prometheus
     // because the executor metrics are also available via /metrics/executors/prometheus/
     if role == SparkApplicationRole::Driver {
-        omb.with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?);
+        omb.with_labels(prometheus_labels(&Scraping::Enabled));
     }
 
     let mut metadata = omb.build();

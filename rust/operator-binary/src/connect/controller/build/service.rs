@@ -1,7 +1,7 @@
 use stackable_operator::{
     k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec},
     kube::ResourceExt,
-    kvp::{Annotations, Labels},
+    v2::builder::service::{Scheme, Scraping, prometheus_annotations, prometheus_labels},
 };
 
 use crate::connect::{
@@ -71,8 +71,13 @@ pub(crate) fn build_metrics_service(
     Service {
         metadata: validated
             .object_meta(service_name, SparkConnectRole::Server)
-            .with_labels(prometheus_labels())
-            .with_annotations(prometheus_annotations())
+            .with_labels(prometheus_labels(&Scraping::Enabled))
+            .with_annotations(prometheus_annotations(
+                &Scraping::Enabled,
+                &Scheme::Http,
+                "/metrics/prometheus",
+                &CONNECT_UI_PORT,
+            ))
             .build(),
         spec: Some(ServiceSpec {
             type_: Some("ClusterIP".to_owned()),
@@ -96,27 +101,4 @@ fn metrics_ports() -> Vec<ServicePort> {
         protocol: Some("TCP".to_string()),
         ..ServicePort::default()
     }]
-}
-
-/// Common labels for Prometheus
-fn prometheus_labels() -> Labels {
-    Labels::try_from([("prometheus.io/scrape", "true")]).expect("should be a valid label")
-}
-
-/// Common annotations for Prometheus
-///
-/// These annotations can be used in a ServiceMonitor.
-///
-/// see also <https://github.com/prometheus-community/helm-charts/blob/prometheus-27.32.0/charts/prometheus/values.yaml#L983-L1036>
-fn prometheus_annotations() -> Annotations {
-    Annotations::try_from([
-        (
-            "prometheus.io/path".to_owned(),
-            "/metrics/prometheus".to_owned(),
-        ),
-        ("prometheus.io/port".to_owned(), CONNECT_UI_PORT.to_string()),
-        ("prometheus.io/scheme".to_owned(), "http".to_owned()),
-        ("prometheus.io/scrape".to_owned(), "true".to_owned()),
-    ])
-    .expect("should be valid annotations")
 }

@@ -33,10 +33,12 @@ use stackable_operator::{
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
     kube::ResourceExt,
-    kvp::Label,
     product_logging::framework::calculate_log_volume_size_limit,
     v2::{
-        builder::pod::container::EnvVarSet,
+        builder::{
+            pod::container::EnvVarSet,
+            service::{Scraping, prometheus_labels},
+        },
         product_logging::framework::vector_container,
         role_group_utils::ResourceNames,
         types::operator::{RoleGroupName, RoleName},
@@ -206,7 +208,7 @@ pub(crate) fn build_stateful_set(
 
     let metadata = ObjectMetaBuilder::new()
         .with_labels(recommended_labels.clone())
-        .with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?)
+        .with_labels(prometheus_labels(&Scraping::Enabled))
         .build();
 
     let mut pb = PodBuilder::new();

@@ -313,6 +313,47 @@ mod tests {
     }
 
     #[test]
+    fn test_deep_merge_metadata_namespace_overlay_wins() {
+        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: base-app
+              namespace: template-namespace
+            spec:
+              mode: cluster
+              mainApplicationFile: base.py
+              sparkImage:
+                productVersion: "3.5.0"
+        "#})
+        .unwrap();
+
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: overlay-app
+              namespace: app-namespace
+            spec:
+              mode: cluster
+              mainApplicationFile: overlay.py
+              sparkImage:
+                productVersion: "3.5.1"
+        "#})
+        .unwrap();
+
+        let merged = deep_merge(&base, &overlay);
+
+        assert_eq!(
+            merged.metadata.namespace,
+            Some("app-namespace".to_string()),
+            "overlay namespace should take precedence"
+        );
+    }
+
+    #[test]
     fn test_deep_merge_spark_conf() {
         let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---

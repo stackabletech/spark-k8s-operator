@@ -17,7 +17,7 @@ const CONSOLE_CONVERSION_PATTERN: &str = "%d{ISO8601} %p [%t] %c - %m%n";
 /// The static Vector agent configuration (`vector.yaml`).
 ///
 /// Cluster/role/role-group/namespace metadata and the file-log level are injected at runtime via
-/// the env vars set by the v2 `vector_container` (`${CLUSTER_NAME}`, `${ROLE_NAME}`,
+/// the env vars set on the Vector sidecar container (`${CLUSTER_NAME}`, `${ROLE_NAME}`,
 /// `${ROLE_GROUP_NAME}`, `${NAMESPACE}`, `${VECTOR_FILE_LOG_LEVEL}`, `${VECTOR_AGGREGATOR_ADDRESS}`,
 /// …), so this file is role-group-agnostic.
 const VECTOR_CONFIG: &str = include_str!("vector.yaml");

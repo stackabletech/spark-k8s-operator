@@ -320,9 +320,8 @@ impl v1alpha1::ServerConfig {
     }
 }
 
-// This is the equivalent to merged_config() in other ops
-// only here we only need to merge operator defaults with
-// user configuration.
+// Merges the operator defaults with the user-provided configuration to produce the resolved
+// server and executor configs.
 impl v1alpha1::SparkConnectServer {
     pub fn server_config(&self) -> Result<v1alpha1::ServerConfig, Error> {
         let defaults = v1alpha1::ServerConfig::default_config();

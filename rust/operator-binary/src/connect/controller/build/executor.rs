@@ -18,7 +18,7 @@ use stackable_operator::{
     },
     kube::ResourceExt,
     product_logging::framework::{VECTOR_CONFIG_FILE, calculate_log_volume_size_limit},
-    v2::builder::pod::container::new_container_builder,
+    v2::{builder::pod::container::new_container_builder, role_utils::JavaCommonConfig},
 };
 
 use crate::{
@@ -79,19 +79,12 @@ pub enum Error {
 #[allow(clippy::result_large_err)]
 pub fn executor_pod_template(
     validated: &ValidatedSparkConnectServer,
-    scs: &v1alpha1::SparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
     resolved_product_image: &ResolvedProductImage,
     config_map: &ConfigMap,
     resolved_s3: &s3::ResolvedS3,
 ) -> Result<PodTemplateSpec, Error> {
-    let container_env = executor_env(
-        scs.spec
-            .executor
-            .as_ref()
-            .map(|s| s.env_overrides.clone())
-            .as_ref(),
-    )?;
+    let container_env = executor_env(Some(&validated.executor_overrides.env_overrides))?;
 
     let (s3_volumes, s3_volume_mounts) = resolved_s3
         .volumes_and_mounts()
@@ -168,9 +161,7 @@ pub fn executor_pod_template(
     let mut result = template.add_container(container.build()).build_template();
 
     // Merge user provided pod spec if any
-    if let Some(pod_overrides_spec) = scs.spec.executor.as_ref().map(|s| s.pod_overrides.clone()) {
-        result.merge_from(pod_overrides_spec);
-    }
+    result.merge_from(validated.executor_overrides.pod_overrides.clone());
 
     Ok(result)
 }
@@ -201,7 +192,7 @@ fn executor_env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<E
 }
 
 pub(crate) fn executor_properties(
-    scs: &v1alpha1::SparkConnectServer,
+    validated: &ValidatedSparkConnectServer,
     config: &v1alpha1::ExecutorConfig,
     resolved_product_image: &ResolvedProductImage,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
@@ -214,7 +205,10 @@ pub(crate) fn executor_properties(
         ),
         (
             "spark.executor.defaultJavaOptions".to_string(),
-            Some(executor_jvm_args(scs, config)),
+            Some(executor_jvm_args(
+                validated.executor_overrides.jvm_config.as_ref(),
+                config,
+            )),
         ),
         (
             "spark.kubernetes.executor.podTemplateFile".to_string(),
@@ -261,12 +255,12 @@ pub(crate) fn executor_properties(
     // ========================================
     // Add the user provided executor properties
 
-    let config_overrides = scs
-        .spec
-        .executor
-        .as_ref()
-        .map(|s| s.config_overrides.spark_defaults_conf.overrides.clone())
-        .unwrap_or_default();
+    let config_overrides = validated
+        .executor_overrides
+        .config_overrides
+        .spark_defaults_conf
+        .overrides
+        .clone();
 
     result.extend(config_overrides.into_iter().map(|(k, v)| (k, Some(v))));
 
@@ -274,7 +268,7 @@ pub(crate) fn executor_properties(
 }
 
 fn executor_jvm_args(
-    scs: &v1alpha1::SparkConnectServer,
+    jvm_config: Option<&JavaCommonConfig>,
     config: &v1alpha1::ExecutorConfig,
 ) -> String {
     let mut jvm_args = vec![format!(
@@ -287,13 +281,7 @@ fn executor_jvm_args(
         ));
     }
 
-    common::jvm_args(
-        &jvm_args,
-        scs.spec
-            .executor
-            .as_ref()
-            .map(|s| &s.product_specific_common_config),
-    )
+    common::jvm_args(&jvm_args, jvm_config)
 }
 
 // Assemble the configuration of the spark-connect executor.

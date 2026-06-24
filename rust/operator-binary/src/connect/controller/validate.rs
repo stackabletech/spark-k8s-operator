@@ -3,14 +3,14 @@
 //! Resolves the product image and the server/executor configs.
 //! Does not touch the Kubernetes API.
 
-use std::{borrow::Cow, str::FromStr};
+use std::{borrow::Cow, collections::HashMap, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
-    k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    k8s_openapi::{api::core::v1::PodTemplateSpec, apimachinery::pkg::apis::meta::v1::ObjectMeta},
     kube::Resource,
     kvp::Labels,
     product_logging::spec::Logging,
@@ -22,6 +22,7 @@ use stackable_operator::{
         product_logging::framework::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
         },
+        role_utils::JavaCommonConfig,
         types::{
             kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, Uid},
             operator::{
@@ -137,8 +138,20 @@ pub struct ValidatedSparkConnectServer {
     pub cluster_config: ValidatedClusterConfig,
     pub role_config: ValidatedRoleConfig,
     pub server_config: v1alpha1::ServerConfig,
+    pub server_overrides: ValidatedOverrides,
     pub server_logging: ValidatedLogging,
     pub executor_config: v1alpha1::ExecutorConfig,
+    pub executor_overrides: ValidatedOverrides,
+}
+
+/// User-provided overrides for a role, captured during validation so the resource builders never
+/// read the raw [`v1alpha1::SparkConnectServer`] spec.
+#[derive(Clone, Debug, Default)]
+pub struct ValidatedOverrides {
+    pub config_overrides: v1alpha1::ConfigOverrides,
+    pub env_overrides: HashMap<String, String>,
+    pub pod_overrides: PodTemplateSpec,
+    pub jvm_config: Option<JavaCommonConfig>,
 }
 
 /// Cluster-wide settings resolved during validation, so the resource builders never have to read
@@ -292,6 +305,32 @@ pub fn validate(
 
     let server_config = scs.server_config().context(ServerConfigSnafu)?;
     let executor_config = scs.executor_config().context(ExecutorConfigSnafu)?;
+
+    // Capture the user overrides up-front so the resource builders never read the raw spec.
+    let server_overrides = scs
+        .spec
+        .server
+        .config
+        .as_ref()
+        .map(|cc| ValidatedOverrides {
+            config_overrides: cc.config_overrides.clone(),
+            env_overrides: cc.env_overrides.clone(),
+            pod_overrides: cc.pod_overrides.clone(),
+            jvm_config: Some(cc.product_specific_common_config.clone()),
+        })
+        .unwrap_or_default();
+    let executor_overrides = scs
+        .spec
+        .executor
+        .as_ref()
+        .map(|cc| ValidatedOverrides {
+            config_overrides: cc.config_overrides.clone(),
+            env_overrides: cc.env_overrides.clone(),
+            pod_overrides: cc.pod_overrides.clone(),
+            jvm_config: Some(cc.product_specific_common_config.clone()),
+        })
+        .unwrap_or_default();
+
     let name = get_cluster_name(scs).context(ResolveClusterNameSnafu)?;
     let namespace = get_namespace(scs).context(ResolveNamespaceSnafu)?;
     let uid = get_uid(scs).context(ResolveUidSnafu)?;
@@ -316,7 +355,9 @@ pub fn validate(
             listener_class: scs.spec.server.role_config.listener_class.clone(),
         },
         server_config,
+        server_overrides,
         server_logging,
         executor_config,
+        executor_overrides,
     })
 }

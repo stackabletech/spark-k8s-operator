@@ -8,18 +8,15 @@ use crate::connect::{
     GRPC, HTTP,
     common::SparkConnectRole,
     controller::validate::ValidatedSparkConnectServer,
-    crd::{CONNECT_GRPC_PORT, CONNECT_UI_PORT, v1alpha1},
+    crd::{CONNECT_GRPC_PORT, CONNECT_UI_PORT},
 };
 
 // This is the headless driver service used for the internal
 // communication with the executors as recommended by the Spark docs.
-pub(crate) fn build_headless_service(
-    validated: &ValidatedSparkConnectServer,
-    scs: &v1alpha1::SparkConnectServer,
-) -> Service {
+pub(crate) fn build_headless_service(validated: &ValidatedSparkConnectServer) -> Service {
     let service_name = format!(
         "{cluster}-{role}-headless",
-        cluster = scs.name_any(),
+        cluster = validated.name_any(),
         role = SparkConnectRole::Server
     );
 
@@ -56,13 +53,10 @@ pub(crate) fn build_headless_service(
 }
 
 // This is the metrics service
-pub(crate) fn build_metrics_service(
-    validated: &ValidatedSparkConnectServer,
-    scs: &v1alpha1::SparkConnectServer,
-) -> Service {
+pub(crate) fn build_metrics_service(validated: &ValidatedSparkConnectServer) -> Service {
     let service_name = format!(
         "{cluster}-{role}-metrics",
-        cluster = scs.name_any(),
+        cluster = validated.name_any(),
         role = SparkConnectRole::Server
     );
 

@@ -213,7 +213,7 @@ pub async fn reconcile(
         .context(ApplyRoleBindingSnafu)?;
 
     // Headless service used by executors connect back to the driver
-    let headless_service = service::build_headless_service(&validated, scs);
+    let headless_service = service::build_headless_service(&validated);
 
     let applied_headless_service = cluster_resources
         .add(client, headless_service.clone())
@@ -221,7 +221,7 @@ pub async fn reconcile(
         .context(ApplyServiceSnafu)?;
 
     // Metrics service used for scraping
-    let metrics_service = service::build_metrics_service(&validated, scs);
+    let metrics_service = service::build_metrics_service(&validated);
 
     cluster_resources
         .add(client, metrics_service.clone())
@@ -236,30 +236,24 @@ pub async fn reconcile(
             .spark_properties()
             .context(S3SparkPropertiesSnafu)?,
         server::server_properties(
-            scs,
+            &validated,
             server_config,
             &applied_headless_service,
             &service_account,
             resolved_product_image,
         )
         .context(ServerPropertiesSnafu)?,
-        executor::executor_properties(scs, executor_config, resolved_product_image)
+        executor::executor_properties(&validated, executor_config, resolved_product_image)
             .context(ExecutorPropertiesSnafu)?,
     ])
     .context(SerializePropertiesSnafu)?;
-
-    let executor_config_overrides = scs
-        .spec
-        .executor
-        .as_ref()
-        .map(|s| s.config_overrides.clone());
 
     // ========================================
     // Executor config map and pod template
     let executor_config_map = executor::executor_config_map(
         &validated,
         executor_config,
-        executor_config_overrides.as_ref(),
+        Some(&validated.executor_overrides.config_overrides),
     )
     .context(BuildExecutorConfigMapSnafu {
         name: validated.name_any(),
@@ -274,7 +268,6 @@ pub async fn reconcile(
     let executor_pod_template = serde_yaml::to_string(
         &executor::executor_pod_template(
             &validated,
-            scs,
             executor_config,
             resolved_product_image,
             &executor_config_map,
@@ -284,13 +277,6 @@ pub async fn reconcile(
     )
     .context(ExecutorPodTemplateSerdeSnafu)?;
 
-    let server_config_overrides = scs
-        .spec
-        .server
-        .config
-        .as_ref()
-        .map(|s| s.config_overrides.clone());
-
     // ========================================
     // Server config map
     let server_config_map = server::server_config_map(
@@ -298,7 +284,7 @@ pub async fn reconcile(
         server_config,
         &spark_props,
         &executor_pod_template,
-        server_config_overrides.as_ref(),
+        Some(&validated.server_overrides.config_overrides),
     )
     .context(BuildServerConfigMapSnafu {
         name: validated.name_any(),
@@ -324,7 +310,6 @@ pub async fn reconcile(
     let args = server::command_args(&scs.spec.args);
     let stateful_set = server::build_stateful_set(
         &validated,
-        scs,
         &service_account,
         &server_config_map,
         &applied_listener.name_any(),

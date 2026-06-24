@@ -40,6 +40,7 @@ use stackable_operator::{
         },
         product_logging::framework::vector_container,
         role_group_utils::ResourceNames,
+        role_utils::JavaCommonConfig,
         types::operator::{RoleGroupName, RoleName},
     },
 };
@@ -176,7 +177,6 @@ pub(crate) fn server_config_map(
 
 pub(crate) fn build_stateful_set(
     validated: &ValidatedSparkConnectServer,
-    scs: &v1alpha1::SparkConnectServer,
     service_account: &ServiceAccount,
     config_map: &ConfigMap,
     listener_name: &str,
@@ -220,13 +220,7 @@ pub(crate) fn build_stateful_set(
             ..PodSecurityContext::default()
         });
 
-    let container_env = env(scs
-        .spec
-        .server
-        .config
-        .as_ref()
-        .map(|s| s.env_overrides.clone())
-        .as_ref())?;
+    let container_env = env(Some(&validated.server_overrides.env_overrides))?;
 
     let (s3_volumes, s3_volume_mounts) = resolved_s3
         .volumes_and_mounts()
@@ -327,20 +321,12 @@ pub(crate) fn build_stateful_set(
 
     // Merge user defined pod template if available
     let mut pod_template = pb.build_template();
-    if let Some(pod_overrides_spec) = scs
-        .spec
-        .server
-        .config
-        .as_ref()
-        .map(|s| s.pod_overrides.clone())
-    {
-        pod_template.merge_from(pod_overrides_spec);
-    }
+    pod_template.merge_from(validated.server_overrides.pod_overrides.clone());
 
     Ok(StatefulSet {
         metadata: validated
             .object_meta(
-                object_name(&scs.name_any(), SparkConnectRole::Server),
+                object_name(&validated.name_any(), SparkConnectRole::Server),
                 SparkConnectRole::Server,
             )
             .build(),
@@ -415,7 +401,7 @@ fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, E
 // It merges operator properties with user properties.
 #[allow(clippy::result_large_err)]
 pub(crate) fn server_properties(
-    scs: &v1alpha1::SparkConnectServer,
+    validated: &ValidatedSparkConnectServer,
     config: &v1alpha1::ServerConfig,
     driver_service: &Service,
     service_account: &ServiceAccount,
@@ -428,13 +414,12 @@ pub(crate) fn server_properties(
         .namespace()
         .context(ObjectHasNoNamespaceSnafu)?;
 
-    let config_overrides = scs
-        .spec
-        .server
-        .config
-        .as_ref()
-        .map(|s| s.config_overrides.spark_defaults_conf.overrides.clone())
-        .unwrap_or_default();
+    let config_overrides = validated
+        .server_overrides
+        .config_overrides
+        .spark_defaults_conf
+        .overrides
+        .clone();
 
     let mut result: BTreeMap<String, Option<String>> = [
         // This needs to match the name of the headless service for the executors to be able
@@ -458,7 +443,10 @@ pub(crate) fn server_properties(
         ),
         (
             "spark.driver.defaultJavaOptions".to_string(),
-            Some(server_jvm_args(scs, config)),
+            Some(server_jvm_args(
+                validated.server_overrides.jvm_config.as_ref(),
+                config,
+            )),
         ),
         (
             "spark.driver.extraClassPath".to_string(),
@@ -485,7 +473,10 @@ pub(crate) fn server_properties(
     Ok(result)
 }
 
-fn server_jvm_args(scs: &v1alpha1::SparkConnectServer, config: &v1alpha1::ServerConfig) -> String {
+fn server_jvm_args(
+    jvm_config: Option<&JavaCommonConfig>,
+    config: &v1alpha1::ServerConfig,
+) -> String {
     let mut jvm_args = vec![format!(
         "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
     )];
@@ -496,14 +487,7 @@ fn server_jvm_args(scs: &v1alpha1::SparkConnectServer, config: &v1alpha1::Server
         ));
     }
 
-    common::jvm_args(
-        &jvm_args,
-        scs.spec
-            .server
-            .config
-            .as_ref()
-            .map(|s| &s.product_specific_common_config),
-    )
+    common::jvm_args(&jvm_args, jvm_config)
 }
 
 fn probe() -> Probe {

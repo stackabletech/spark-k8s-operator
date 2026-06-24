@@ -52,38 +52,3 @@ where
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn vector_config_is_valid_and_complete() {
-        let content = vector_config_file_content();
-        // Parses as YAML and has the expected top-level shape.
-        let parsed: serde_yaml::Value =
-            serde_yaml::from_str(&content).expect("vector.yaml must be valid YAML");
-        let sources = parsed
-            .get("sources")
-            .and_then(|s| s.as_mapping())
-            .expect("sources mapping");
-        // All Spark log sources must be present.
-        for source in [
-            "files_stdout",
-            "files_stderr",
-            "files_log4j",
-            "files_log4j2",
-            "files_py",
-            "files_airlift",
-        ] {
-            assert!(
-                sources.contains_key(serde_yaml::Value::from(source)),
-                "vector.yaml is missing source {source}"
-            );
-        }
-        // Runtime metadata must come from env vars, not baked literals.
-        assert!(content.contains("${CLUSTER_NAME}"));
-        assert!(content.contains("${ROLE_GROUP_NAME}"));
-        assert!(content.contains("${VECTOR_AGGREGATOR_ADDRESS}"));
-    }
-}

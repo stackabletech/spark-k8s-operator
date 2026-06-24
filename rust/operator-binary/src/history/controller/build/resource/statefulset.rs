@@ -41,9 +41,8 @@ use crate::{
         constants::{
             ACCESS_KEY_ID, HISTORY_ROLE_NAME, HISTORY_UI_PORT, LISTENER_VOLUME_DIR,
             LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, SECRET_ACCESS_KEY,
-            SPARK_DEFAULTS_FILE_NAME, STACKABLE_TRUST_STORE, VECTOR_CONTAINER_NAME,
-            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_CONFIG_TYPED, VOLUME_MOUNT_NAME_LOG,
-            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_NAME_LOG_TYPED, VOLUME_MOUNT_PATH_CONFIG,
+            SPARK_DEFAULTS_FILE_NAME, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
+            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
             VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::SparkHistoryServerContainer,
@@ -106,19 +105,19 @@ pub(crate) fn build_stateful_set(
         .metadata(pb_metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
                 .with_config_map(resource_names.role_group_config_map().to_string())
                 .build(),
         )
         .context(AddVolumeSnafu)?
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
                 .with_config_map(log_config_map)
                 .build(),
         )
         .context(AddVolumeSnafu)?
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
                 .with_empty_dir(
                     None::<String>,
                     Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
@@ -182,13 +181,16 @@ pub(crate) fn build_stateful_set(
             .add_env_vars(merged_env)
             .add_volume_mounts(log_dir.volume_mounts())
             .context(AddVolumeMountSnafu)?
-            .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
+            .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
             .context(AddVolumeMountSnafu)?
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
+            .add_volume_mount(
+                VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
+                VOLUME_MOUNT_PATH_LOG_CONFIG,
+            )
             .context(AddVolumeMountSnafu)?
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+            .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
             .context(AddVolumeMountSnafu)?
-            .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+            .add_volume_mount(LISTENER_VOLUME_NAME.as_ref(), LISTENER_VOLUME_DIR)
             .context(AddVolumeMountSnafu)?
             .build();
 
@@ -211,12 +213,12 @@ pub(crate) fn build_stateful_set(
 
     if let Some(vector_log_config) = &rg.logging.vector_container {
         pb.add_container(vector_container(
-            &VECTOR_CONTAINER_NAME,
+            &SparkHistoryServerContainer::Vector.to_container_name(),
             resolved_product_image,
             vector_log_config,
             &resource_names,
-            &VOLUME_MOUNT_NAME_CONFIG_TYPED,
-            &VOLUME_MOUNT_NAME_LOG_TYPED,
+            &VOLUME_MOUNT_NAME_CONFIG,
+            &VOLUME_MOUNT_NAME_LOG,
             EnvVarSet::new(),
         ));
     }

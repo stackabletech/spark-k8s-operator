@@ -3,39 +3,36 @@ use std::{collections::BTreeMap, str::FromStr};
 use const_format::concatcp;
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
-    v2::types::{
-        common::Port,
-        kubernetes::{ContainerName, VolumeName},
-    },
+    v2::types::{common::Port, kubernetes::VolumeName},
 };
 
 pub const APP_NAME: &str = "spark-k8s";
 
-pub const VOLUME_MOUNT_NAME_IVY2: &str = "ivy2";
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_IVY2: VolumeName = "ivy2");
 pub const VOLUME_MOUNT_PATH_IVY2: &str = "/ivy2";
 
-pub const VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES: &str = "driver-pod-template";
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES: VolumeName = "driver-pod-template");
 pub const VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES: &str = "/stackable/spark/driver-pod-templates";
 
-pub const VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES: &str = "executor-pod-template";
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES: VolumeName = "executor-pod-template");
 pub const VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES: &str =
     "/stackable/spark/executor-pod-templates";
 
 pub const POD_TEMPLATE_FILE: &str = "template.yaml";
 
-pub const VOLUME_MOUNT_NAME_CONFIG: &str = "config";
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_CONFIG: VolumeName = "config");
 pub const VOLUME_MOUNT_PATH_CONFIG: &str = "/stackable/spark/conf";
 
-pub const VOLUME_MOUNT_NAME_JOB: &str = "job-files";
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_JOB: VolumeName = "job-files");
 pub const VOLUME_MOUNT_PATH_JOB: &str = "/stackable/spark/jobs";
 
-pub const VOLUME_MOUNT_NAME_REQ: &str = "req-files";
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_REQ: VolumeName = "req-files");
 pub const VOLUME_MOUNT_PATH_REQ: &str = "/stackable/spark/requirements";
 
-pub const VOLUME_MOUNT_NAME_LOG_CONFIG: &str = "log-config";
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_LOG_CONFIG: VolumeName = "log-config");
 pub const VOLUME_MOUNT_PATH_LOG_CONFIG: &str = "/stackable/log_config";
 
-pub const VOLUME_MOUNT_NAME_LOG: &str = "log";
+stackable_operator::constant!(pub VOLUME_MOUNT_NAME_LOG: VolumeName = "log");
 pub const VOLUME_MOUNT_PATH_LOG: &str = "/stackable/log";
 
 pub const LOG4J2_CONFIG_FILE: &str = "log4j2.properties";
@@ -100,13 +97,7 @@ pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
 pub const METRICS_PORT: Port = Port(18081);
 pub const HISTORY_UI_PORT: Port = Port(18080);
 
-// Typed container/volume names required by the v2 `vector_container`; values match the `&str`
-// volume-mount consts `VOLUME_MOUNT_NAME_CONFIG` ("config") / `VOLUME_MOUNT_NAME_LOG` ("log").
-stackable_operator::constant!(pub VECTOR_CONTAINER_NAME: ContainerName = "vector");
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_CONFIG_TYPED: VolumeName = "config");
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log");
-
-pub const LISTENER_VOLUME_NAME: &str = "listener";
+stackable_operator::constant!(pub LISTENER_VOLUME_NAME: VolumeName = "listener");
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 

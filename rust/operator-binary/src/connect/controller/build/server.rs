@@ -59,9 +59,8 @@ use crate::{
         constants::{
             JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
             LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE,
-            POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, VECTOR_CONTAINER_NAME,
-            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_CONFIG_TYPED, VOLUME_MOUNT_NAME_LOG,
-            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_NAME_LOG_TYPED, VOLUME_MOUNT_PATH_CONFIG,
+            POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, VOLUME_MOUNT_NAME_CONFIG,
+            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
             VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         listener_ext,
@@ -200,13 +199,13 @@ pub(crate) fn build_stateful_set(
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
                 .with_config_map(config_map.name_any())
                 .build(),
         )
         .context(AddVolumeSnafu)?
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
                 .with_empty_dir(
                     None::<String>,
                     Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
@@ -248,11 +247,11 @@ pub(crate) fn build_stateful_set(
         .add_container_port(GRPC, CONNECT_GRPC_PORT.into())
         .add_container_port(HTTP, CONNECT_UI_PORT.into())
         .add_env_vars(container_env)
-        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
+        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+        .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+        .add_volume_mount(LISTENER_VOLUME_NAME.as_ref(), LISTENER_VOLUME_DIR)
         .context(AddVolumeMountSnafu)?
         .add_volume_mounts(s3_volume_mounts)
         .context(AddVolumeMountSnafu)?
@@ -262,14 +261,17 @@ pub(crate) fn build_stateful_set(
     // Add custom log4j config map volumes if configured
     if let Some(cm_name) = config.log_config_map() {
         pb.add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
                 .with_config_map(cm_name)
                 .build(),
         )
         .context(AddVolumeSnafu)?;
 
         container
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
+            .add_volume_mount(
+                VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
+                VOLUME_MOUNT_PATH_LOG_CONFIG,
+            )
             .context(AddVolumeMountSnafu)?;
     }
 
@@ -288,12 +290,12 @@ pub(crate) fn build_stateful_set(
         };
 
         pb.add_container(vector_container(
-            &VECTOR_CONTAINER_NAME,
+            &SparkConnectContainer::Vector.to_container_name(),
             resolved_product_image,
             vector_log_config,
             &vector_resource_names,
-            &VOLUME_MOUNT_NAME_CONFIG_TYPED,
-            &VOLUME_MOUNT_NAME_LOG_TYPED,
+            &VOLUME_MOUNT_NAME_CONFIG,
+            &VOLUME_MOUNT_NAME_LOG,
             EnvVarSet::new(),
         ));
     }

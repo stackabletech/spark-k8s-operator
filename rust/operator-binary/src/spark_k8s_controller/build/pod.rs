@@ -81,9 +81,9 @@ fn init_containers(
                         "-c".to_string(),
                     ])
                     .args(vec![args.join("\n")])
-                    .add_volume_mount(VOLUME_MOUNT_NAME_JOB, VOLUME_MOUNT_PATH_JOB)
+                    .add_volume_mount(VOLUME_MOUNT_NAME_JOB.as_ref(), VOLUME_MOUNT_PATH_JOB)
                     .context(AddVolumeMountSnafu)?
-                    .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+                    .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
                     .context(AddVolumeMountSnafu)?
                     .resources(
                         ResourceRequirementsBuilder::new()
@@ -129,9 +129,9 @@ fn init_containers(
                     "-c".to_string(),
                 ])
                 .args(vec![args.join("\n")])
-                .add_volume_mount(VOLUME_MOUNT_NAME_REQ, VOLUME_MOUNT_PATH_REQ)
+                .add_volume_mount(VOLUME_MOUNT_NAME_REQ.as_ref(), VOLUME_MOUNT_PATH_REQ)
                 .context(AddVolumeMountSnafu)?
-                .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+                .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
                 .context(AddVolumeMountSnafu)?
                 .image_pull_policy(&spark_image.image_pull_policy);
 
@@ -299,12 +299,12 @@ pub(crate) fn pod_template(
                 .expect("\"default\" is a valid role group name"),
         };
         pb.add_container(vector_container(
-            &VECTOR_CONTAINER_NAME,
+            &SparkContainer::Vector.to_container_name(),
             spark_image,
             &vector_log_config,
             &vector_resource_names,
-            &VOLUME_MOUNT_NAME_CONFIG_TYPED,
-            &VOLUME_MOUNT_NAME_LOG_TYPED,
+            &VOLUME_MOUNT_NAME_CONFIG,
+            &VOLUME_MOUNT_NAME_LOG,
             EnvVarSet::new(),
         ));
     }

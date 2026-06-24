@@ -63,7 +63,7 @@ pub(crate) fn pod_template_config_map(
         )
         .context(CreateVolumesSnafu)?;
     volumes.push(
-        VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
+        VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
             .with_config_map(&cm_name)
             .build(),
     );

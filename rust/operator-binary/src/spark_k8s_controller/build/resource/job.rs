@@ -71,15 +71,15 @@ pub(crate) fn spark_job(
         .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");
 
     let mut volumes = vec![
-        VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
+        VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
             .with_config_map(spark_application.submit_job_config_map_name())
             .build(),
-        VolumeBuilder::new(VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES)
+        VolumeBuilder::new(VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES.as_ref())
             .with_config_map(
                 spark_application.pod_template_config_map_name(SparkApplicationRole::Driver),
             )
             .build(),
-        VolumeBuilder::new(VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES)
+        VolumeBuilder::new(VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES.as_ref())
             .with_config_map(
                 spark_application.pod_template_config_map_name(SparkApplicationRole::Executor),
             )

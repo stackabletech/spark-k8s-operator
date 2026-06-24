@@ -100,9 +100,9 @@ pub fn executor_pod_template(
     let mut container = new_container_builder(&SparkConnectContainer::Spark.to_container_name());
     container
         .add_env_vars(container_env)
-        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
+        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+        .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
         .context(AddVolumeMountSnafu)?
         .add_volume_mounts(s3_volume_mounts)
         .context(AddVolumeMountSnafu)?;
@@ -117,7 +117,7 @@ pub fn executor_pod_template(
         .image_pull_secrets_from_product_image(resolved_product_image)
         .affinity(&config.affinity)
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
                 .with_empty_dir(
                     None::<String>,
                     Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
@@ -126,7 +126,7 @@ pub fn executor_pod_template(
         )
         .context(AddVolumeSnafu)?
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
                 .with_config_map(config_map.name_unchecked())
                 .build(),
         )
@@ -150,12 +150,15 @@ pub fn executor_pod_template(
 
     if let Some(cm_name) = config.log_config_map() {
         container
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
+            .add_volume_mount(
+                VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
+                VOLUME_MOUNT_PATH_LOG_CONFIG,
+            )
             .context(AddVolumeMountSnafu)?;
 
         template
             .add_volume(
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
                     .with_config_map(cm_name)
                     .build(),
             )

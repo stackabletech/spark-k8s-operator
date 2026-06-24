@@ -313,7 +313,7 @@ impl v1alpha1::SparkApplication {
         if self.spec.image.is_some() {
             result.insert(
                 VOLUME_MOUNT_NAME_JOB.to_string(),
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB.as_ref())
                     .empty_dir(EmptyDirVolumeSource::default())
                     .build(),
             );
@@ -322,7 +322,7 @@ impl v1alpha1::SparkApplication {
         if self.requirements().is_some() {
             result.insert(
                 VOLUME_MOUNT_NAME_REQ.to_string(),
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ.as_ref())
                     .empty_dir(EmptyDirVolumeSource::default())
                     .build(),
             );
@@ -359,7 +359,7 @@ impl v1alpha1::SparkApplication {
         if let Some(log_config_map) = log_config_map {
             result.insert(
                 VOLUME_MOUNT_NAME_LOG_CONFIG.to_string(),
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
                     .with_config_map(log_config_map)
                     .build(),
             );
@@ -367,7 +367,7 @@ impl v1alpha1::SparkApplication {
         // This volume is also used by the containerdebug process so it must always be there.
         result.insert(
             VOLUME_MOUNT_NAME_LOG.to_string(),
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
                 .with_empty_dir(
                     None::<String>,
                     Some(product_logging::framework::calculate_log_volume_size_limit(
@@ -380,7 +380,7 @@ impl v1alpha1::SparkApplication {
         if !self.packages().is_empty() {
             result.insert(
                 VOLUME_MOUNT_NAME_IVY2.to_string(),
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_IVY2)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_IVY2.as_ref())
                     .empty_dir(EmptyDirVolumeSource::default())
                     .build(),
             );
@@ -441,12 +441,12 @@ impl v1alpha1::SparkApplication {
     ) -> Vec<VolumeMount> {
         let mut tmpl_mounts = vec![
             VolumeMount {
-                name: VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES.into(),
+                name: VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES.into(),
                 ..VolumeMount::default()
             },
             VolumeMount {
-                name: VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES.into(),
+                name: VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES.into(),
                 ..VolumeMount::default()
             },
@@ -481,14 +481,14 @@ impl v1alpha1::SparkApplication {
     ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
             mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_JOB.into(),
+                name: VOLUME_MOUNT_NAME_JOB.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_JOB.into(),
                 ..VolumeMount::default()
             });
         }
         if self.requirements().is_some() {
             mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_REQ.into(),
+                name: VOLUME_MOUNT_NAME_REQ.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_REQ.into(),
                 ..VolumeMount::default()
             });
@@ -515,7 +515,7 @@ impl v1alpha1::SparkApplication {
 
         if logging_enabled {
             mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_LOG_CONFIG.into(),
+                name: VOLUME_MOUNT_NAME_LOG_CONFIG.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_LOG_CONFIG.into(),
                 ..VolumeMount::default()
             });
@@ -524,14 +524,14 @@ impl v1alpha1::SparkApplication {
         // This is used at least by the containerdebug process.
         // The volume is always there.
         mounts.push(VolumeMount {
-            name: VOLUME_MOUNT_NAME_LOG.into(),
+            name: VOLUME_MOUNT_NAME_LOG.to_string(),
             mount_path: VOLUME_MOUNT_PATH_LOG.into(),
             ..VolumeMount::default()
         });
 
         if !self.packages().is_empty() {
             mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_IVY2.into(),
+                name: VOLUME_MOUNT_NAME_IVY2.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_IVY2.into(),
                 ..VolumeMount::default()
             });

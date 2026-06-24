@@ -142,6 +142,7 @@ pub struct ValidatedSparkConnectServer {
     pub server_logging: ValidatedLogging,
     pub executor_config: v1alpha1::ExecutorConfig,
     pub executor_overrides: ValidatedOverrides,
+    pub executor_logging: ValidatedLogging,
 }
 
 /// User-provided overrides for a role, captured during validation so the resource builders never
@@ -341,6 +342,8 @@ pub fn validate(
 
     let server_logging =
         validate_logging(&server_config.logging, &vector_aggregator_config_map_name)?;
+    let executor_logging =
+        validate_logging(&executor_config.logging, &vector_aggregator_config_map_name)?;
 
     Ok(ValidatedSparkConnectServer {
         metadata: scs.meta().clone(),
@@ -359,5 +362,6 @@ pub fn validate(
         server_logging,
         executor_config,
         executor_overrides,
+        executor_logging,
     })
 }

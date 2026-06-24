@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -15,14 +18,23 @@ use stackable_operator::{
     },
     kube::ResourceExt,
     product_logging::framework::{VECTOR_CONFIG_FILE, calculate_log_volume_size_limit},
-    v2::{builder::pod::container::new_container_builder, role_utils::JavaCommonConfig},
+    v2::{
+        builder::pod::container::{EnvVarSet, new_container_builder},
+        product_logging::framework::vector_container,
+        role_group_utils::ResourceNames,
+        role_utils::JavaCommonConfig,
+        types::operator::{RoleGroupName, RoleName},
+    },
 };
 
 use crate::{
     connect::{
         common::{self, SparkConnectRole, object_name},
         controller::validate::ValidatedSparkConnectServer,
-        crd::{SparkConnectContainer, v1alpha1},
+        crd::{
+            CONNECT_EXECUTOR_ROLE_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer,
+            v1alpha1,
+        },
         s3,
     },
     crd::constants::{
@@ -155,7 +167,33 @@ pub fn executor_pod_template(
             .context(AddVolumeSnafu)?;
     }
 
-    let mut result = template.add_container(container.build()).build_template();
+    template.add_container(container.build());
+
+    // Vector log-aggregation sidecar (symmetric with the server), added when the executor enables
+    // the Vector agent.
+    if let Some(vector_log_config) = &validated.executor_logging.vector_container {
+        // The Vector sidecar's `CLUSTER_NAME`/`ROLE_NAME`/`ROLE_GROUP_NAME` log-metadata env vars.
+        // These do NOT affect resource naming: Spark Connect keeps its `{cluster}-{role}` names.
+        let vector_resource_names = ResourceNames {
+            cluster_name: validated.name.clone(),
+            role_name: RoleName::from_str(CONNECT_EXECUTOR_ROLE_NAME)
+                .expect("CONNECT_EXECUTOR_ROLE_NAME is a valid role name"),
+            role_group_name: RoleGroupName::from_str(DEFAULT_SPARK_CONNECT_GROUP_NAME)
+                .expect("DEFAULT_SPARK_CONNECT_GROUP_NAME is a valid role group name"),
+        };
+
+        template.add_container(vector_container(
+            &SparkConnectContainer::Vector.to_container_name(),
+            resolved_product_image,
+            vector_log_config,
+            &vector_resource_names,
+            &VOLUME_MOUNT_NAME_CONFIG,
+            &VOLUME_MOUNT_NAME_LOG,
+            EnvVarSet::new(),
+        ));
+    }
+
+    let mut result = template.build_template();
 
     // Merge user provided pod spec if any
     result.merge_from(validated.executor_overrides.pod_overrides.clone());

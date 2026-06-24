@@ -36,7 +36,10 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
-    v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
+    v2::{
+        config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig,
+        types::kubernetes::ConfigMapName,
+    },
     versioned::versioned,
 };
 
@@ -188,7 +191,7 @@ pub mod versioned {
         /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
         /// The job builds a spark-submit command, complete with arguments and referenced dependencies
         /// such as templates, and passes it on to Spark.

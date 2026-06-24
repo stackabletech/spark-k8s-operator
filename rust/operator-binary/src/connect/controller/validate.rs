@@ -83,11 +83,6 @@ pub enum Error {
         "the Vector aggregator discovery ConfigMap name must be set when the Vector agent is enabled"
     ))]
     MissingVectorAggregatorConfigMapName,
-
-    #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
-    ParseVectorAggregatorConfigMapName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
-    },
 }
 
 /// Validates the logging configuration for the (optional) Vector container.
@@ -301,15 +296,9 @@ pub fn validate(
     let namespace = get_namespace(scs).context(ResolveNamespaceSnafu)?;
     let uid = get_uid(scs).context(ResolveUidSnafu)?;
 
-    // The Vector aggregator discovery ConfigMap name (validated here so an invalid name fails
-    // up-front). It is only required when the Vector agent is enabled for the server.
-    let vector_aggregator_config_map_name = scs
-        .spec
-        .vector_aggregator_config_map_name
-        .as_deref()
-        .map(ConfigMapName::from_str)
-        .transpose()
-        .context(ParseVectorAggregatorConfigMapNameSnafu)?;
+    // The Vector aggregator discovery ConfigMap name. It is only required when the Vector agent is
+    // enabled for the server.
+    let vector_aggregator_config_map_name = scs.spec.vector_aggregator_config_map_name.clone();
 
     let server_logging =
         validate_logging(&server_config.logging, &vector_aggregator_config_map_name)?;

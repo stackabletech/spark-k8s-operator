@@ -108,11 +108,6 @@ pub enum Error {
         "the Vector aggregator discovery ConfigMap name must be set when the Vector agent is enabled"
     ))]
     MissingVectorAggregatorConfigMapName,
-
-    #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
-    ParseVectorAggregatorConfigMapName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
-    },
 }
 
 /// Validates the logging configuration for the (optional) Vector container.
@@ -357,15 +352,9 @@ pub fn validate(
     let product_version = ProductVersion::from_str(&resolved_product_image.app_version_label_value)
         .expect("the app version label value is a valid product version");
 
-    // The Vector aggregator discovery ConfigMap name (validated here so an invalid name fails
-    // up-front). It is only required when the Vector agent is enabled for a role group.
-    let vector_aggregator_config_map_name = shs
-        .spec
-        .vector_aggregator_config_map_name
-        .as_deref()
-        .map(ConfigMapName::from_str)
-        .transpose()
-        .context(ParseVectorAggregatorConfigMapNameSnafu)?;
+    // The Vector aggregator discovery ConfigMap name. It is only required when the Vector agent is
+    // enabled for a role group.
+    let vector_aggregator_config_map_name = shs.spec.vector_aggregator_config_map_name.clone();
 
     let role = shs.role();
     let default_config = HistoryConfig::default_config(name.as_ref());

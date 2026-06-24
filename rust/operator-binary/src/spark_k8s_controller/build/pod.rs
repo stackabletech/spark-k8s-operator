@@ -28,10 +28,7 @@ use stackable_operator::{
             vector_container,
         },
         role_group_utils::ResourceNames,
-        types::{
-            kubernetes::ConfigMapName,
-            operator::{RoleGroupName, RoleName},
-        },
+        types::operator::{RoleGroupName, RoleName},
     },
 };
 
@@ -42,8 +39,8 @@ use crate::{
         tlscerts,
     },
     spark_k8s_controller::{
-        AddVolumeMountSnafu, AddVolumeSnafu, ParseVectorAggregatorConfigMapNameSnafu, Result,
-        ValidateLoggingConfigSnafu, VectorAggregatorConfigMapMissingSnafu, validate,
+        AddVolumeMountSnafu, AddVolumeSnafu, Result, ValidateLoggingConfigSnafu,
+        VectorAggregatorConfigMapMissingSnafu, validate,
     },
 };
 
@@ -280,7 +277,7 @@ pub(crate) fn pod_template(
         let vector_aggregator_config_map_name = spark_application
             .spec
             .vector_aggregator_config_map_name
-            .as_ref()
+            .clone()
             .context(VectorAggregatorConfigMapMissingSnafu)?;
         let vector_log_config = VectorContainerLogConfig {
             log_config: validate_logging_configuration_for_container(
@@ -288,10 +285,7 @@ pub(crate) fn pod_template(
                 &SparkContainer::Vector,
             )
             .context(ValidateLoggingConfigSnafu)?,
-            vector_aggregator_config_map_name: ConfigMapName::from_str(
-                vector_aggregator_config_map_name,
-            )
-            .context(ParseVectorAggregatorConfigMapNameSnafu)?,
+            vector_aggregator_config_map_name,
         };
         // These resource names are constructed SOLELY to provide the Vector sidecar with its
         // `CLUSTER_NAME`/`ROLE_NAME`/`ROLE_GROUP_NAME` log-metadata env vars. They do NOT affect

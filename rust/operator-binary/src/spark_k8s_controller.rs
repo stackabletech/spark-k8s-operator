@@ -73,11 +73,6 @@ pub enum Error {
         source: stackable_operator::v2::product_logging::framework::Error,
     },
 
-    #[snafu(display("invalid Vector aggregator discovery ConfigMap name"))]
-    ParseVectorAggregatorConfigMapName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
-    },
-
     #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
     JvmSecurityProperties {
         source: PropertiesWriterError,

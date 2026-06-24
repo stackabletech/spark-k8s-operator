@@ -2183,7 +2183,10 @@ spec:
                   It must contain the key `ADDRESS` with the address of the Vector aggregator.
                   Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator)
                   to learn how to configure log aggregation with Vector.
+                maxLength: 253
+                minLength: 1
                 nullable: true
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                 type: string
               volumes:
                 default: []
@@ -3315,7 +3318,10 @@ spec:
                 description: |-
                   Name of the Vector aggregator discovery ConfigMap.
                   It must contain the key `ADDRESS` with the address of the Vector aggregator.
+                maxLength: 253
+                minLength: 1
                 nullable: true
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                 type: string
             required:
             - image
@@ -4528,7 +4534,10 @@ spec:
                 description: |-
                   Name of the Vector aggregator discovery ConfigMap.
                   It must contain the key `ADDRESS` with the address of the Vector aggregator.
+                maxLength: 253
+                minLength: 1
                 nullable: true
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                 type: string
             required:
             - image
@@ -6765,7 +6774,10 @@ spec:
                   It must contain the key `ADDRESS` with the address of the Vector aggregator.
                   Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator)
                   to learn how to configure log aggregation with Vector.
+                maxLength: 253
+                minLength: 1
                 nullable: true
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                 type: string
               volumes:
                 default: []

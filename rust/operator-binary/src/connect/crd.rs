@@ -37,7 +37,7 @@ use stackable_operator::{
         role_utils::JavaCommonConfig,
         types::{
             common::Port,
-            kubernetes::{ContainerName, ListenerClassName},
+            kubernetes::{ConfigMapName, ContainerName, ListenerClassName},
         },
     },
     versioned::versioned,
@@ -124,7 +124,7 @@ pub mod versioned {
         /// Name of the Vector aggregator discovery ConfigMap.
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
         /// A Spark Connect server definition.
         #[serde(default)]

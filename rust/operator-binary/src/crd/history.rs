@@ -23,7 +23,7 @@ use stackable_operator::{
     v2::{
         config_overrides::KeyValueConfigOverrides,
         role_utils::JavaCommonConfig,
-        types::kubernetes::{ContainerName, ListenerClassName},
+        types::kubernetes::{ConfigMapName, ContainerName, ListenerClassName},
     },
     versioned::versioned,
 };
@@ -79,7 +79,7 @@ pub mod versioned {
         /// Name of the Vector aggregator discovery ConfigMap.
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
         /// The log file directory definition used by the Spark history server.
         pub log_file_directory: LogFileDirectorySpec,

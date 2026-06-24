@@ -17,7 +17,7 @@ use stackable_operator::{
         api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
     },
     kube::ResourceExt,
-    product_logging::framework::calculate_log_volume_size_limit,
+    product_logging::framework::{VECTOR_CONFIG_FILE, calculate_log_volume_size_limit},
     v2::builder::pod::container::new_container_builder,
 };
 
@@ -40,11 +40,6 @@ use crate::{
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("invalid connect container name"))]
-    InvalidContainerName {
-        source: builder::pod::container::Error,
-    },
-
     #[snafu(display("failed to add volume"))]
     AddVolume { source: builder::pod::Error },
 
@@ -59,14 +54,6 @@ pub enum Error {
     #[snafu(display("executor metrics properties for spark connect {name}",))]
     MetricsProperties { source: common::Error, name: String },
 
-    #[snafu(display(
-        "failed to add the logging configuration to connect executor config map [{cm_name}]"
-    ))]
-    InvalidLoggingConfig {
-        source: product_logging::Error,
-        cm_name: String,
-    },
-
     #[snafu(display("failed to build connect executor config map [{cm_name}]"))]
     InvalidConfigMap {
         source: builder::configmap::Error,
@@ -75,9 +62,6 @@ pub enum Error {
 
     #[snafu(display("failed to build S3 volumes and mounts for executors"))]
     BuildS3VolumesAndMounts { source: s3::Error },
-
-    #[snafu(display("failed to add S3 secret volumes to executors"))]
-    AddS3Volume { source: s3::Error },
 
     #[snafu(display("failed to create the init container for the S3 truststore"))]
     TrustStoreInitContainer { source: s3::Error },
@@ -349,14 +333,17 @@ pub(crate) fn executor_config_map(
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
-    product_logging::extend_config_map(
-        &config.logging,
-        SparkConnectContainer::Spark,
-        &mut cm_builder,
-    )
-    .context(InvalidLoggingConfigSnafu {
-        cm_name: cm_name.clone(),
-    })?;
+    if let Some(log4j2) =
+        product_logging::build_log4j2(&config.logging, SparkConnectContainer::Spark)
+    {
+        cm_builder.add_data(LOG4J2_CONFIG_FILE, log4j2);
+    }
+    if config.logging.enable_vector_agent {
+        cm_builder.add_data(
+            VECTOR_CONFIG_FILE,
+            product_logging::vector_config_file_content(),
+        );
+    }
 
     cm_builder
         .build()

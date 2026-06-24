@@ -25,7 +25,6 @@ use crate::{
         config_map::build_config_map, listener::build_group_listener, pdb::build_pdb,
         service::build_rolegroup_metrics_service, statefulset::build_stateful_set,
     },
-    product_logging::{self},
 };
 
 pub mod build;
@@ -48,11 +47,6 @@ pub enum Error {
     InvalidConfigMap {
         source: stackable_operator::builder::configmap::Error,
         name: String,
-    },
-
-    #[snafu(display("invalid history container name"))]
-    InvalidContainerName {
-        source: stackable_operator::builder::pod::container::Error,
     },
 
     #[snafu(display("failed to update the history server stateful set"))]
@@ -91,12 +85,6 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
-    InvalidLoggingConfig {
-        source: product_logging::Error,
-        cm_name: String,
-    },
-
     #[snafu(display(
         "History server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
         rolegroup
@@ -130,7 +118,9 @@ pub enum Error {
 
     #[snafu(display("SparkHistoryServer object is invalid"))]
     InvalidSparkHistoryServer {
-        source: error_boundary::InvalidObject,
+        // boxed because otherwise Clippy warns about a large enum variant
+        #[snafu(source(from(error_boundary::InvalidObject, Box::new)))]
+        source: Box<error_boundary::InvalidObject>,
     },
 
     #[snafu(display("failed to apply group listener"))]

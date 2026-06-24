@@ -1,8 +1,6 @@
 use std::fmt::Display;
 
-use snafu::Snafu;
 use stackable_operator::{
-    builder::configmap::ConfigMapBuilder,
     memory::BinaryMultiple,
     product_logging::{
         self,
@@ -10,24 +8,7 @@ use stackable_operator::{
     },
 };
 
-use crate::crd::constants::{LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, VOLUME_MOUNT_PATH_LOG};
-
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("failed to retrieve the ConfigMap {cm_name}"))]
-    ConfigMapNotFound {
-        source: stackable_operator::client::Error,
-        cm_name: String,
-    },
-
-    #[snafu(display("failed to retrieve the entry {entry} for ConfigMap {cm_name}"))]
-    MissingConfigMapEntry {
-        entry: &'static str,
-        cm_name: String,
-    },
-}
-
-type Result<T, E = Error> = std::result::Result<T, E>;
+use crate::crd::constants::{MAX_SPARK_LOG_FILES_SIZE, VOLUME_MOUNT_PATH_LOG};
 
 pub const LOG_FILE: &str = "spark.log4j2.xml";
 
@@ -46,42 +27,30 @@ pub fn vector_config_file_content() -> String {
     VECTOR_CONFIG.to_owned()
 }
 
-/// Extend a ConfigMap with logging (`log4j2.properties`) and the Vector agent configuration.
-pub fn extend_config_map<C>(
-    logging: &Logging<C>,
-    main_container: C,
-    cm_builder: &mut ConfigMapBuilder,
-) -> Result<()>
+/// Renders the `log4j2.properties` content for the given main container, if it uses the operator's
+/// automatic logging configuration.
+///
+/// Returns `None` when the container references a custom log ConfigMap (or has no log config), in
+/// which case no `log4j2.properties` should be added to the rolegroup `ConfigMap`.
+pub fn build_log4j2<C>(logging: &Logging<C>, main_container: C) -> Option<String>
 where
     C: Clone + Ord + Display,
 {
-    if let Some(ContainerLogConfig {
-        choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
-    }) = logging.containers.get(&main_container)
-    {
-        cm_builder.add_data(
-            LOG4J2_CONFIG_FILE,
-            product_logging::framework::create_log4j2_config(
-                &format!("{VOLUME_MOUNT_PATH_LOG}/{main_container}"),
-                LOG_FILE,
-                MAX_SPARK_LOG_FILES_SIZE
-                    .scale_to(BinaryMultiple::Mebi)
-                    .floor()
-                    .value as u32,
-                CONSOLE_CONVERSION_PATTERN,
-                log_config,
-            ),
-        );
+    match logging.containers.get(&main_container) {
+        Some(ContainerLogConfig {
+            choice: Some(ContainerLogConfigChoice::Automatic(log_config)),
+        }) => Some(product_logging::framework::create_log4j2_config(
+            &format!("{VOLUME_MOUNT_PATH_LOG}/{main_container}"),
+            LOG_FILE,
+            MAX_SPARK_LOG_FILES_SIZE
+                .scale_to(BinaryMultiple::Mebi)
+                .floor()
+                .value as u32,
+            CONSOLE_CONVERSION_PATTERN,
+            log_config,
+        )),
+        _ => None,
     }
-
-    if logging.enable_vector_agent {
-        cm_builder.add_data(
-            product_logging::framework::VECTOR_CONFIG_FILE,
-            vector_config_file_content(),
-        );
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

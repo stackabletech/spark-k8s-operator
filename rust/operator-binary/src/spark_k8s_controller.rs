@@ -17,7 +17,6 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 use crate::{
     Ctx,
     crd::{constants::*, roles::SparkApplicationRole, v1alpha1},
-    product_logging::{self},
 };
 
 pub mod build;
@@ -66,11 +65,6 @@ pub enum Error {
     #[snafu(display("failed to resolve and merge config"))]
     FailedToResolveConfig { source: crate::crd::Error },
 
-    #[snafu(display("illegal container name"))]
-    IllegalContainerName {
-        source: stackable_operator::builder::pod::container::Error,
-    },
-
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
 
@@ -84,12 +78,6 @@ pub enum Error {
         source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
 
-    #[snafu(display("failed to add the logging configuration to the ConfigMap [{cm_name}]"))]
-    InvalidLoggingConfig {
-        source: product_logging::Error,
-        cm_name: String,
-    },
-
     #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
     JvmSecurityProperties {
         source: PropertiesWriterError,
@@ -98,11 +86,6 @@ pub enum Error {
 
     #[snafu(display("invalid submit config"))]
     SubmitConfig { source: crate::crd::Error },
-
-    #[snafu(display("failed to build Labels"))]
-    LabelBuild {
-        source: stackable_operator::kvp::LabelError,
-    },
 
     #[snafu(display("failed to create Volumes for SparkApplication"))]
     CreateVolumes { source: crate::crd::Error },
@@ -123,7 +106,9 @@ pub enum Error {
 
     #[snafu(display("SparkApplication object is invalid"))]
     InvalidSparkApplication {
-        source: error_boundary::InvalidObject,
+        // boxed because otherwise Clippy warns about a large enum variant
+        #[snafu(source(from(error_boundary::InvalidObject, Box::new)))]
+        source: Box<error_boundary::InvalidObject>,
     },
 }
 

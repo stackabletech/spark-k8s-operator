@@ -2,8 +2,12 @@ use snafu::{OptionExt, ResultExt};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, pod::volume::VolumeBuilder},
     k8s_openapi::api::core::v1::{ConfigMap, EnvVar, ServiceAccount},
-    product_logging::spec::{
-        ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice, CustomContainerLogConfig,
+    product_logging::{
+        framework::VECTOR_CONFIG_FILE,
+        spec::{
+            ConfigMapLogConfig, ContainerLogConfig, ContainerLogConfigChoice,
+            CustomContainerLogConfig,
+        },
     },
     v2::config_file_writer::to_java_properties_string,
 };
@@ -16,9 +20,9 @@ use crate::{
     },
     product_logging::{self},
     spark_k8s_controller::{
-        CreateVolumesSnafu, InvalidLoggingConfigSnafu, JvmSecurityPropertiesSnafu,
-        MissingSecretLifetimeSnafu, PodTemplateConfigMapSnafu, PodTemplateSerdeSnafu, Result,
-        build::pod::pod_template, validate,
+        CreateVolumesSnafu, JvmSecurityPropertiesSnafu, MissingSecretLifetimeSnafu,
+        PodTemplateConfigMapSnafu, PodTemplateSerdeSnafu, Result, build::pod::pod_template,
+        validate,
     },
 };
 
@@ -82,12 +86,17 @@ pub(crate) fn pod_template_config_map(
             serde_yaml::to_string(&template).context(PodTemplateSerdeSnafu)?,
         );
 
-    product_logging::extend_config_map(
-        &merged_config.logging,
-        SparkContainer::Spark,
-        &mut cm_builder,
-    )
-    .context(InvalidLoggingConfigSnafu { cm_name })?;
+    if let Some(log4j2) =
+        product_logging::build_log4j2(&merged_config.logging, SparkContainer::Spark)
+    {
+        cm_builder.add_data(LOG4J2_CONFIG_FILE, log4j2);
+    }
+    if merged_config.logging.enable_vector_agent {
+        cm_builder.add_data(
+            VECTOR_CONFIG_FILE,
+            product_logging::vector_config_file_content(),
+        );
+    }
 
     cm_builder.add_data(
         SPARK_ENV_SH_FILE_NAME,

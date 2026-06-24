@@ -4,6 +4,7 @@ use snafu::ResultExt;
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
+    product_logging::framework::VECTOR_CONFIG_FILE,
     v2::{
         builder::meta::ownerreference_from_resource, config_file_writer::to_java_properties_string,
         types::operator::RoleGroupName,
@@ -13,15 +14,14 @@ use stackable_operator::{
 use crate::{
     crd::{
         constants::{
-            JVM_SECURITY_PROPERTIES_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_ENV_SH_FILE_NAME,
-            default_jvm_security_properties,
+            JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, SPARK_DEFAULTS_FILE_NAME,
+            SPARK_ENV_SH_FILE_NAME, default_jvm_security_properties,
         },
         history::SparkHistoryServerContainer,
         to_spark_env_sh_string,
     },
     history::controller::{
-        Error, InvalidConfigMapSnafu, InvalidLoggingConfigSnafu, InvalidSparkDefaultsSnafu,
-        JvmSecurityPropertiesSnafu,
+        Error, InvalidConfigMapSnafu, InvalidSparkDefaultsSnafu, JvmSecurityPropertiesSnafu,
         validate::{self, ValidatedHistoryRoleGroup},
     },
     product_logging::{self},
@@ -83,12 +83,18 @@ pub(crate) fn build_config_map(
             })?,
         );
 
-    product_logging::extend_config_map(
+    if let Some(log4j2) = product_logging::build_log4j2(
         &rg.config.config.logging,
         SparkHistoryServerContainer::SparkHistory,
-        &mut cm_builder,
-    )
-    .context(InvalidLoggingConfigSnafu { cm_name: &cm_name })?;
+    ) {
+        cm_builder.add_data(LOG4J2_CONFIG_FILE, log4j2);
+    }
+    if rg.config.config.logging.enable_vector_agent {
+        cm_builder.add_data(
+            VECTOR_CONFIG_FILE,
+            product_logging::vector_config_file_content(),
+        );
+    }
 
     cm_builder
         .build()

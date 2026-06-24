@@ -108,6 +108,7 @@ stackable_operator::constant!(pub VOLUME_MOUNT_NAME_LOG_TYPED: VolumeName = "log
 
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
+pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
 pub const DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT: u16 = 0;
 

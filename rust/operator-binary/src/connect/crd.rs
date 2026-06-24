@@ -35,7 +35,10 @@ use stackable_operator::{
     status::condition::{ClusterCondition, HasStatusCondition},
     v2::{
         role_utils::JavaCommonConfig,
-        types::{common::Port, kubernetes::ContainerName},
+        types::{
+            common::Port,
+            kubernetes::{ContainerName, ListenerClassName},
+        },
     },
     versioned::versioned,
 };
@@ -151,7 +154,7 @@ pub mod versioned {
         /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
         /// is used to expose the Spark Connect services.
         #[serde(default = "default_listener_class")]
-        pub listener_class: String,
+        pub listener_class: ListenerClassName,
     }
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -360,8 +363,9 @@ impl Default for v1alpha1::SparkConnectServerRoleConfig {
     }
 }
 
-pub fn default_listener_class() -> String {
-    "cluster-internal".to_string()
+pub fn default_listener_class() -> ListenerClassName {
+    ListenerClassName::from_str(crate::crd::constants::DEFAULT_LISTENER_CLASS)
+        .expect("the default listener class is a valid listener class name")
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]

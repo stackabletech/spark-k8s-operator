@@ -1,6 +1,10 @@
 use std::str::FromStr;
 
-use stackable_operator::{crd::listener, kube::ResourceExt, v2::types::operator::RoleGroupName};
+use stackable_operator::{
+    crd::listener,
+    kube::ResourceExt,
+    v2::types::{kubernetes::ListenerClassName, operator::RoleGroupName},
+};
 
 use crate::{
     crd::{constants::HISTORY_UI_PORT, listener_ext},
@@ -10,7 +14,7 @@ use crate::{
 pub(crate) fn build_group_listener(
     validated: &validate::ValidatedSparkHistoryServer,
     role: &str,
-    listener_class: String,
+    listener_class: ListenerClassName,
 ) -> listener::v1alpha1::Listener {
     let listener_name = group_listener_name(validated, role);
 

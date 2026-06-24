@@ -23,7 +23,7 @@ use stackable_operator::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
         },
         types::{
-            kubernetes::{ConfigMapName, NamespaceName, Uid},
+            kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, Uid},
             operator::{
                 ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
                 RoleGroupName, RoleName,
@@ -154,7 +154,7 @@ pub struct ValidatedClusterConfig {
 
 /// Per-role configuration extracted during validation (Spark Connect exposes only the server role).
 pub struct ValidatedRoleConfig {
-    pub listener_class: String,
+    pub listener_class: ListenerClassName,
 }
 
 impl ValidatedSparkConnectServer {

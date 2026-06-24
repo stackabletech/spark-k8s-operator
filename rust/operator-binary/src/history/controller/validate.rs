@@ -32,7 +32,7 @@ use stackable_operator::{
         role_group_utils::ResourceNames,
         role_utils::{JavaCommonConfig, RoleGroupConfig, with_validated_config},
         types::{
-            kubernetes::{ConfigMapName, NamespaceName, Uid},
+            kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, Uid},
             operator::{
                 ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
                 RoleGroupName, RoleName,
@@ -198,7 +198,7 @@ pub struct ValidatedClusterConfig {
 /// Per-role configuration extracted during validation.
 pub struct ValidatedRoleConfig {
     pub pdb: PdbConfig,
-    pub listener_class: String,
+    pub listener_class: ListenerClassName,
 }
 
 impl ValidatedSparkHistoryServer {
@@ -442,7 +442,7 @@ pub fn validate(
                 .common
                 .pod_disruption_budget
                 .clone(),
-            listener_class: shs.node_listener_class().to_string(),
+            listener_class: shs.node_listener_class().clone(),
         },
         role_groups,
     })

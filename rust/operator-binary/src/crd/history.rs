@@ -21,14 +21,18 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     shared::time::Duration,
     v2::{
-        config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig,
-        types::kubernetes::ContainerName,
+        config_overrides::KeyValueConfigOverrides,
+        role_utils::JavaCommonConfig,
+        types::kubernetes::{ContainerName, ListenerClassName},
     },
     versioned::versioned,
 };
 use strum::{Display, EnumIter};
 
-use crate::crd::{affinity::history_affinity, history::v1alpha1::SparkHistoryServerRoleConfig};
+use crate::crd::{
+    affinity::history_affinity, constants::DEFAULT_LISTENER_CLASS,
+    history::v1alpha1::SparkHistoryServerRoleConfig,
+};
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -102,7 +106,7 @@ pub mod versioned {
         /// This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html)
         /// is used to expose the history server.
         #[serde(default = "default_listener_class")]
-        pub listener_class: String,
+        pub listener_class: ListenerClassName,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
@@ -125,8 +129,8 @@ impl v1alpha1::SparkHistoryServer {
     }
 
     /// Return the listener class of the role config.
-    pub fn node_listener_class(&self) -> &str {
-        self.spec.nodes.role_config.listener_class.as_str()
+    pub fn node_listener_class(&self) -> &ListenerClassName {
+        &self.spec.nodes.role_config.listener_class
     }
 
     // Returns the name of the cleaner role group if any.
@@ -297,8 +301,9 @@ impl Default for v1alpha1::SparkHistoryServerRoleConfig {
     }
 }
 
-fn default_listener_class() -> String {
-    "cluster-internal".to_owned()
+fn default_listener_class() -> ListenerClassName {
+    ListenerClassName::from_str(DEFAULT_LISTENER_CLASS)
+        .expect("the default listener class is a valid listener class name")
 }
 
 #[cfg(test)]

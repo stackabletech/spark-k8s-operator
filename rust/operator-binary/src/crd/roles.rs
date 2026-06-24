@@ -13,7 +13,7 @@
 //! each role is named "default". These roles are transparent to the user.
 //!
 //! The history server has its own role completely unrelated to this module.
-use std::slice;
+use std::{slice, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
@@ -34,6 +34,7 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
+    v2::types::kubernetes::ContainerName,
 };
 use strum::{Display, EnumIter};
 
@@ -87,6 +88,14 @@ pub enum SparkContainer {
     Spark,
     Vector,
     Tls,
+}
+
+impl SparkContainer {
+    /// The type-safe container name for this variant (matching its kebab-case serialization).
+    pub fn to_container_name(&self) -> ContainerName {
+        ContainerName::from_str(&self.to_string())
+            .expect("a SparkContainer variant name is a valid container name")
+    }
 }
 #[derive(Clone, Debug, Deserialize, Display, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]

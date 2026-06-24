@@ -4,7 +4,7 @@ use snafu::{OptionExt, ResultExt};
 use stackable_operator::{
     builder::{
         meta::ObjectMetaBuilder,
-        pod::{PodBuilder, container::ContainerBuilder, resources::ResourceRequirementsBuilder},
+        pod::{PodBuilder, resources::ResourceRequirementsBuilder},
     },
     k8s_openapi::{
         DeepMerge,
@@ -20,7 +20,7 @@ use stackable_operator::{
     v2::{
         builder::{
             meta::ownerreference_from_resource,
-            pod::container::EnvVarSet,
+            pod::container::{EnvVarSet, new_container_builder},
             service::{Scraping, prometheus_labels},
         },
         product_logging::framework::{
@@ -42,9 +42,8 @@ use crate::{
         tlscerts,
     },
     spark_k8s_controller::{
-        AddVolumeMountSnafu, AddVolumeSnafu, IllegalContainerNameSnafu,
-        ParseVectorAggregatorConfigMapNameSnafu, Result, ValidateLoggingConfigSnafu,
-        VectorAggregatorConfigMapMissingSnafu, validate,
+        AddVolumeMountSnafu, AddVolumeSnafu, ParseVectorAggregatorConfigMapNameSnafu, Result,
+        ValidateLoggingConfigSnafu, VectorAggregatorConfigMapMissingSnafu, validate,
     },
 };
 
@@ -56,8 +55,7 @@ fn init_containers(
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
     let spark_image = &validated.resolved_product_image;
-    let mut jcb = ContainerBuilder::new(&SparkContainer::Job.to_string())
-        .context(IllegalContainerNameSnafu)?;
+    let mut jcb = new_container_builder(&SparkContainer::Job.to_container_name());
     let job_container = match &spark_application.spec.image {
         Some(job_image) => {
             let mut args = Vec::new();
@@ -104,8 +102,7 @@ fn init_containers(
         None => None,
     };
 
-    let mut rcb = ContainerBuilder::new(&SparkContainer::Requirements.to_string())
-        .context(IllegalContainerNameSnafu)?;
+    let mut rcb = new_container_builder(&SparkContainer::Requirements.to_container_name());
     let requirements_container = match spark_application.requirements() {
         Some(req) => {
             let mut args = Vec::new();
@@ -156,8 +153,7 @@ fn init_containers(
     };
 
     // if TLS is enabled, build TrustStore and put secret inside.
-    let mut tcb = ContainerBuilder::new(&SparkContainer::Tls.to_string())
-        .context(IllegalContainerNameSnafu)?;
+    let mut tcb = new_container_builder(&SparkContainer::Tls.to_container_name());
     let mut args = Vec::new();
 
     let tls_container = match tlscerts::tls_secret_names(s3conn, logdir) {
@@ -216,7 +212,7 @@ pub(crate) fn pod_template(
     let logdir = &validated.cluster_config.log_dir;
     let spark_image = &validated.resolved_product_image;
     let container_name = SparkContainer::Spark.to_string();
-    let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
+    let mut cb = new_container_builder(&SparkContainer::Spark.to_container_name());
     let merged_env = spark_application.merged_env(role.clone(), env);
 
     cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))

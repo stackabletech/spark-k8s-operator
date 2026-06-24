@@ -12,7 +12,6 @@ use stackable_operator::{
         meta::ObjectMetaBuilder,
         pod::{
             PodBuilder,
-            container::ContainerBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
                 ListenerReference, VolumeBuilder,
@@ -36,7 +35,7 @@ use stackable_operator::{
     product_logging::framework::calculate_log_volume_size_limit,
     v2::{
         builder::{
-            pod::container::EnvVarSet,
+            pod::container::{EnvVarSet, new_container_builder},
             service::{Scraping, prometheus_labels},
         },
         product_logging::framework::vector_container,
@@ -250,8 +249,7 @@ pub(crate) fn build_stateful_set(
         .volumes_and_mounts()
         .context(BuildS3VolumesAndMountsSnafu)?;
 
-    let mut container = ContainerBuilder::new(&SparkConnectContainer::Spark.to_string())
-        .context(InvalidContainerNameSnafu)?;
+    let mut container = new_container_builder(&SparkConnectContainer::Spark.to_container_name());
     container
         .image_from_product_image(resolved_product_image)
         .resources(config.resources.clone().into())

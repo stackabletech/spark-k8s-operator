@@ -4,7 +4,7 @@ use snafu::{OptionExt, ResultExt};
 use stackable_operator::{
     builder::{
         meta::ObjectMetaBuilder,
-        pod::{PodBuilder, container::ContainerBuilder, volume::VolumeBuilder},
+        pod::{PodBuilder, volume::VolumeBuilder},
     },
     k8s_openapi::{
         DeepMerge,
@@ -24,7 +24,7 @@ use stackable_operator::{
     },
     v2::{
         builder::pod::{
-            container::{EnvVarName, EnvVarSet},
+            container::{EnvVarName, EnvVarSet, new_container_builder},
             volume::{ListenerReference, listener_operator_volume_source_builder_build_pvc},
         },
         product_logging::framework::vector_container,
@@ -54,7 +54,7 @@ use crate::{
         config::jvm::construct_history_jvm_args,
         controller::{
             AddVolumeMountSnafu, AddVolumeSnafu, CreateLogDirVolumesSpecSnafu, Error,
-            InvalidContainerNameSnafu, MissingSecretLifetimeSnafu,
+            MissingSecretLifetimeSnafu,
             build::resource::listener::group_listener_name,
             validate::{self, ValidatedHistoryRoleGroup},
         },
@@ -165,33 +165,32 @@ pub(crate) fn build_stateful_set(
         ])
         .merge(rg.config.env_overrides.clone());
 
-    let container_name = "spark-history";
-    let container = ContainerBuilder::new(container_name)
-        .context(InvalidContainerNameSnafu)?
-        .image_from_product_image(resolved_product_image)
-        .resources(rg.config.config.resources.clone().into())
-        .command(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-euo".to_string(),
-            "pipefail".to_string(),
-            "-c".to_string(),
-        ])
-        .args(command_args(log_dir))
-        .add_container_port("http", HISTORY_UI_PORT.into())
-        .add_container_port("metrics", METRICS_PORT.into())
-        .add_env_vars(merged_env)
-        .add_volume_mounts(log_dir.volume_mounts())
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
-        .context(AddVolumeMountSnafu)?
-        .build();
+    let container =
+        new_container_builder(&SparkHistoryServerContainer::SparkHistory.to_container_name())
+            .image_from_product_image(resolved_product_image)
+            .resources(rg.config.config.resources.clone().into())
+            .command(vec![
+                "/bin/bash".to_string(),
+                "-x".to_string(),
+                "-euo".to_string(),
+                "pipefail".to_string(),
+                "-c".to_string(),
+            ])
+            .args(command_args(log_dir))
+            .add_container_port("http", HISTORY_UI_PORT.into())
+            .add_container_port("metrics", METRICS_PORT.into())
+            .add_env_vars(merged_env)
+            .add_volume_mounts(log_dir.volume_mounts())
+            .context(AddVolumeMountSnafu)?
+            .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
+            .context(AddVolumeMountSnafu)?
+            .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
+            .context(AddVolumeMountSnafu)?
+            .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+            .context(AddVolumeMountSnafu)?
+            .add_volume_mount(LISTENER_VOLUME_NAME, LISTENER_VOLUME_DIR)
+            .context(AddVolumeMountSnafu)?
+            .build();
 
     // Add listener volume
     // Listener endpoints for the Webserver role will use persistent volumes

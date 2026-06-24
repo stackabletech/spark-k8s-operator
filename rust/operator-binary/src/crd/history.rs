@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
@@ -20,7 +20,10 @@ use stackable_operator::{
     role_utils::{GenericRoleConfig, Role},
     schemars::{self, JsonSchema},
     shared::time::Duration,
-    v2::{config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig},
+    v2::{
+        config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig,
+        types::kubernetes::ContainerName,
+    },
     versioned::versioned,
 };
 use strum::{Display, EnumIter};
@@ -220,6 +223,14 @@ pub struct HistoryStorageConfig {}
 pub enum SparkHistoryServerContainer {
     SparkHistory,
     Vector,
+}
+
+impl SparkHistoryServerContainer {
+    /// The type-safe container name for this variant (matching its kebab-case serialization).
+    pub fn to_container_name(&self) -> ContainerName {
+        ContainerName::from_str(&self.to_string())
+            .expect("a SparkHistoryServerContainer variant name is a valid container name")
+    }
 }
 
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]

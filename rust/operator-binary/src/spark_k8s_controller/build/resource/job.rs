@@ -1,9 +1,6 @@
 use snafu::{OptionExt, ResultExt};
 use stackable_operator::{
-    builder::{
-        meta::ObjectMetaBuilder,
-        pod::{container::ContainerBuilder, volume::VolumeBuilder},
-    },
+    builder::{meta::ObjectMetaBuilder, pod::volume::VolumeBuilder},
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -11,6 +8,7 @@ use stackable_operator::{
             core::v1::{Affinity, EnvVar, PodSpec, PodTemplateSpec, ServiceAccount},
         },
     },
+    v2::builder::pod::container::new_container_builder,
 };
 
 use crate::{
@@ -20,8 +18,8 @@ use crate::{
         tlscerts,
     },
     spark_k8s_controller::{
-        AddVolumeMountSnafu, CreateVolumesSnafu, IllegalContainerNameSnafu,
-        MissingSecretLifetimeSnafu, Result, build::pod::security_context, validate,
+        AddVolumeMountSnafu, CreateVolumesSnafu, MissingSecretLifetimeSnafu, Result,
+        build::pod::security_context, validate,
     },
 };
 
@@ -36,8 +34,7 @@ pub(crate) fn spark_job(
     let spark_image = &validated.resolved_product_image;
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
-    let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
-        .context(IllegalContainerNameSnafu)?;
+    let mut cb = new_container_builder(&SparkContainer::SparkSubmit.to_container_name());
 
     let merged_env = spark_application.merged_env(SparkApplicationRole::Submit, env);
 

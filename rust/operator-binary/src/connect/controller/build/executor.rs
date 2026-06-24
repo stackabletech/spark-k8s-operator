@@ -6,7 +6,7 @@ use stackable_operator::{
         self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
-        pod::{PodBuilder, container::ContainerBuilder, volume::VolumeBuilder},
+        pod::{PodBuilder, volume::VolumeBuilder},
     },
     commons::{
         product_image_selection::ResolvedProductImage,
@@ -18,6 +18,7 @@ use stackable_operator::{
     },
     kube::ResourceExt,
     product_logging::framework::calculate_log_volume_size_limit,
+    v2::builder::pod::container::new_container_builder,
 };
 
 use crate::{
@@ -112,8 +113,7 @@ pub fn executor_pod_template(
         .volumes_and_mounts()
         .context(BuildS3VolumesAndMountsSnafu)?;
 
-    let mut container = ContainerBuilder::new(&SparkConnectContainer::Spark.to_string())
-        .context(InvalidContainerNameSnafu)?;
+    let mut container = new_container_builder(&SparkConnectContainer::Spark.to_container_name());
     container
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)

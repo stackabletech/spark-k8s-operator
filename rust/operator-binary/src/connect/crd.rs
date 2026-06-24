@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use const_format::concatcp;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
@@ -31,7 +33,10 @@ use stackable_operator::{
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
-    v2::{role_utils::JavaCommonConfig, types::common::Port},
+    v2::{
+        role_utils::JavaCommonConfig,
+        types::{common::Port, kubernetes::ContainerName},
+    },
     versioned::versioned,
 };
 use strum::{Display, EnumIter};
@@ -261,6 +266,14 @@ pub(crate) struct ConnectStorageConfig {}
 pub(crate) enum SparkConnectContainer {
     Spark,
     Vector,
+}
+
+impl SparkConnectContainer {
+    /// The type-safe container name for this variant (matching its lowercase serialization).
+    pub fn to_container_name(&self) -> ContainerName {
+        ContainerName::from_str(&self.to_string())
+            .expect("a SparkConnectContainer variant name is a valid container name")
+    }
 }
 
 impl v1alpha1::ServerConfig {

@@ -18,7 +18,6 @@ use stackable_operator::{
             },
         },
     },
-    commons::product_image_selection::ResolvedProductImage,
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -118,11 +117,11 @@ pub enum Error {
 #[allow(clippy::result_large_err)]
 pub(crate) fn server_config_map(
     validated: &ValidatedSparkConnectServer,
-    config: &v1alpha1::ServerConfig,
     spark_properties: &str,
     executor_pod_template_spec: &str,
-    config_overrides: Option<&v1alpha1::ConfigOverrides>,
 ) -> Result<ConfigMap, Error> {
+    let config = &validated.server_config;
+    let config_overrides = Some(&validated.server_overrides.config_overrides);
     let cm_name = object_name(&validated.name_any(), SparkConnectRole::Server);
 
     let security_properties_overrides = config_overrides
@@ -402,11 +401,11 @@ fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, E
 #[allow(clippy::result_large_err)]
 pub(crate) fn server_properties(
     validated: &ValidatedSparkConnectServer,
-    config: &v1alpha1::ServerConfig,
     driver_service: &Service,
     service_account: &ServiceAccount,
-    resolved_product_image: &ResolvedProductImage,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
+    let config = &validated.server_config;
+    let resolved_product_image = &validated.resolved_product_image;
     let spark_image = resolved_product_image.image.clone();
     let spark_version = resolved_product_image.product_version.clone();
     let service_account_name = service_account.name_unchecked();

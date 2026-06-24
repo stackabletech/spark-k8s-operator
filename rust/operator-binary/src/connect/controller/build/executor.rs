@@ -8,10 +8,7 @@ use stackable_operator::{
         meta::ObjectMetaBuilder,
         pod::{PodBuilder, volume::VolumeBuilder},
     },
-    commons::{
-        product_image_selection::ResolvedProductImage,
-        resources::{CpuLimits, MemoryLimits, Resources},
-    },
+    commons::resources::{CpuLimits, MemoryLimits, Resources},
     k8s_openapi::{
         DeepMerge,
         api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
@@ -79,11 +76,11 @@ pub enum Error {
 #[allow(clippy::result_large_err)]
 pub fn executor_pod_template(
     validated: &ValidatedSparkConnectServer,
-    config: &v1alpha1::ExecutorConfig,
-    resolved_product_image: &ResolvedProductImage,
     config_map: &ConfigMap,
-    resolved_s3: &s3::ResolvedS3,
 ) -> Result<PodTemplateSpec, Error> {
+    let config = &validated.executor_config;
+    let resolved_product_image = &validated.resolved_product_image;
+    let resolved_s3 = &validated.cluster_config.resolved_s3;
     let container_env = executor_env(Some(&validated.executor_overrides.env_overrides))?;
 
     let (s3_volumes, s3_volume_mounts) = resolved_s3
@@ -193,9 +190,9 @@ fn executor_env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<E
 
 pub(crate) fn executor_properties(
     validated: &ValidatedSparkConnectServer,
-    config: &v1alpha1::ExecutorConfig,
-    resolved_product_image: &ResolvedProductImage,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
+    let config = &validated.executor_config;
+    let resolved_product_image = &validated.resolved_product_image;
     let spark_image = resolved_product_image.image.clone();
 
     let mut result: BTreeMap<String, Option<String>> = [
@@ -291,9 +288,9 @@ fn executor_jvm_args(
 //
 pub(crate) fn executor_config_map(
     validated: &ValidatedSparkConnectServer,
-    config: &v1alpha1::ExecutorConfig,
-    config_overrides: Option<&v1alpha1::ConfigOverrides>,
 ) -> Result<ConfigMap, Error> {
+    let config = &validated.executor_config;
+    let config_overrides = Some(&validated.executor_overrides.config_overrides);
     let cm_name = object_name(&validated.name_any(), SparkConnectRole::Executor);
 
     let security_properties_overrides = config_overrides

@@ -177,9 +177,6 @@ pub async fn reconcile(
         "Validated SparkConnectServer identity"
     );
 
-    let server_config = &validated.server_config;
-    let executor_config = &validated.executor_config;
-    let resolved_product_image = &validated.resolved_product_image;
     let resolved_s3 = &validated.cluster_config.resolved_s3;
 
     let mut cluster_resources = cluster_resources_new(
@@ -235,29 +232,18 @@ pub async fn reconcile(
         resolved_s3
             .spark_properties()
             .context(S3SparkPropertiesSnafu)?,
-        server::server_properties(
-            &validated,
-            server_config,
-            &applied_headless_service,
-            &service_account,
-            resolved_product_image,
-        )
-        .context(ServerPropertiesSnafu)?,
-        executor::executor_properties(&validated, executor_config, resolved_product_image)
-            .context(ExecutorPropertiesSnafu)?,
+        server::server_properties(&validated, &applied_headless_service, &service_account)
+            .context(ServerPropertiesSnafu)?,
+        executor::executor_properties(&validated).context(ExecutorPropertiesSnafu)?,
     ])
     .context(SerializePropertiesSnafu)?;
 
     // ========================================
     // Executor config map and pod template
-    let executor_config_map = executor::executor_config_map(
-        &validated,
-        executor_config,
-        Some(&validated.executor_overrides.config_overrides),
-    )
-    .context(BuildExecutorConfigMapSnafu {
-        name: validated.name_any(),
-    })?;
+    let executor_config_map =
+        executor::executor_config_map(&validated).context(BuildExecutorConfigMapSnafu {
+            name: validated.name_any(),
+        })?;
     cluster_resources
         .add(client, executor_config_map.clone())
         .await
@@ -266,29 +252,19 @@ pub async fn reconcile(
         })?;
 
     let executor_pod_template = serde_yaml::to_string(
-        &executor::executor_pod_template(
-            &validated,
-            executor_config,
-            resolved_product_image,
-            &executor_config_map,
-            resolved_s3,
-        )
-        .context(ExecutorPodTemplateSnafu)?,
+        &executor::executor_pod_template(&validated, &executor_config_map)
+            .context(ExecutorPodTemplateSnafu)?,
     )
     .context(ExecutorPodTemplateSerdeSnafu)?;
 
     // ========================================
     // Server config map
-    let server_config_map = server::server_config_map(
-        &validated,
-        server_config,
-        &spark_props,
-        &executor_pod_template,
-        Some(&validated.server_overrides.config_overrides),
-    )
-    .context(BuildServerConfigMapSnafu {
-        name: validated.name_any(),
-    })?;
+    let server_config_map =
+        server::server_config_map(&validated, &spark_props, &executor_pod_template).context(
+            BuildServerConfigMapSnafu {
+                name: validated.name_any(),
+            },
+        )?;
     cluster_resources
         .add(client, server_config_map.clone())
         .await

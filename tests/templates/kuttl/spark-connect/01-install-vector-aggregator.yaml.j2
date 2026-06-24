@@ -1,0 +1,23 @@
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # A dedicated Vector aggregator is installed (rather than pointing the discovery
+  # ConfigMap straight at VECTOR_AGGREGATOR) so the test can query its observability
+  # API to assert that the Spark Connect server and executor Vector sidecars actually
+  # ship log events. It forwards everything on to VECTOR_AGGREGATOR as well.
+  - script: >-
+      helm install spark-connect-vector-aggregator vector
+      --namespace $NAMESPACE
+      --version 0.52.0 `# app version 0.55.0`
+      --repo https://helm.vector.dev
+      --values spark-connect-vector-aggregator-values.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-aggregator-discovery
+data:
+  ADDRESS: spark-connect-vector-aggregator:6123
+{% endif %}

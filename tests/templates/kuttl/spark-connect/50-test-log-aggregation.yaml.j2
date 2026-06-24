@@ -1,0 +1,10 @@
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # Reuse the `python` test pod (oci.stackable.tech/sdp/testing-tools, which ships grpcurl)
+  # installed in step 40.
+  - script: |
+      kubectl cp ./test_log_aggregation.py $NAMESPACE/python:/tmp
+{% endif %}

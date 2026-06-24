@@ -1,10 +1,19 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
+timeout: 600
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: vector-aggregator-discovery
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spark-connect-vector-aggregator
+status:
+  readyReplicas: 1
+  replicas: 1
 {% endif %}

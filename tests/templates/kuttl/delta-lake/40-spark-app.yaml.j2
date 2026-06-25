@@ -14,7 +14,7 @@ spec:
 {% else %}
     productVersion: "{{ test_scenario['values']['spark-delta-lake'] }}"
 {% endif %}
-    pullPolicy: Never
+    pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: "local:///stackable/spark/jobs/write-to-delta.py"
   s3connection:

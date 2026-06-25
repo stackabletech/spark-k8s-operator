@@ -45,6 +45,25 @@ ignore = [
     # This version is pulled in transitively via num-bigint-dig -> rsa -> stackable-certs and cannot be
     # updated until the upstream rsa crate bumps its rand dependency.
     "RUSTSEC-2026-0097",
+
+    # https://rustsec.org/advisories/RUSTSEC-2026-0173
+    # The author of `proc-macro-error2` has [confirmed](https://github.com/GnomedDev/proc-macro-error-2/issues/17#issuecomment-4643215473)
+    # that the crate is no longer maintained and recommends that users migrate away from it.
+    #
+    # There currently is no way for us to negate this advisory, because that crate is not used
+    # directly by us. We need to wait for new versions of oci-spec and getset. See the following
+    # issue which tracks moving to a newer getset version: https://github.com/youki-dev/oci-spec-rs/issues/340
+    #
+    # proc-macro-error2 v2.0.1
+    #  └── getset v0.1.6
+    #      └── oci-spec v0.9.0
+    #          └── boil v0.2.1
+    #
+    # Alternate crates are:
+    #
+    # - https://crates.io/crates/manyhow
+    # - https://github.com/SergioBenitez/proc-macro2-diagnostics
+    "RUSTSEC-2026-0173",
 ]
 
 [bans]

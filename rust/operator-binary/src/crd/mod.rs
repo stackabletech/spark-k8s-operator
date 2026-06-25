@@ -169,7 +169,7 @@ pub mod versioned {
         pub resolved_template_ref: Vec<ResolvedSparkApplicationTemplate>,
     }
 
-    /// A Spark cluster stacklet. This resource is managed by the Stackable operator for Apache Spark.
+    /// A Spark application run on Kubernetes by the Stackable operator for Apache Spark.
     /// Find more information on how to use it and the resources that the operator generates in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/).
     ///

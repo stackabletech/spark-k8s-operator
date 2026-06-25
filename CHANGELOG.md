@@ -24,6 +24,8 @@ All notable changes to this project will be documented in this file.
 - Bump `stackable-operator` to 0.110.1 ([#679]).
 - Internal operator refactoring: introduce dereference() and validate() steps in the reconciler for spark application, spark connect and spark history server([#687]).
 - test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#689]).
+- Fix the `SparkApplication` CRD description, which incorrectly described it as a "Spark cluster stacklet" rather than a Spark application ([#705]).
+- BREAKING: make application templates namespaced instead of cluster wide objects ([#694]).
 
 [#674]: https://github.com/stackabletech/spark-k8s-operator/pull/674
 [#679]: https://github.com/stackabletech/spark-k8s-operator/pull/679
@@ -31,7 +33,9 @@ All notable changes to this project will be documented in this file.
 [#684]: https://github.com/stackabletech/spark-k8s-operator/pull/684
 [#687]: https://github.com/stackabletech/spark-k8s-operator/pull/687
 [#689]: https://github.com/stackabletech/spark-k8s-operator/pull/689
+[#694]: https://github.com/stackabletech/spark-k8s-operator/pull/694
 [#696]: https://github.com/stackabletech/spark-k8s-operator/pull/696
+[#705]: https://github.com/stackabletech/spark-k8s-operator/pull/705
 
 ## [26.3.0] - 2026-03-16
 

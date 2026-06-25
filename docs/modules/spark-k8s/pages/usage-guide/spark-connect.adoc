@@ -69,7 +69,7 @@ metadata:
   name: spark-connect
 spec:
   image:
-    productVersion: 4.1.1
+    productVersion: 4.1.2
   connectors:
     s3connection:
       reference: s3-connection
@@ -87,7 +87,7 @@ metadata:
   name: spark-connect
 spec:
   image:
-    productVersion: 4.1.1
+    productVersion: 4.1.2
   connectors:
     s3buckets:
       - reference: aws-cust-1-ingest

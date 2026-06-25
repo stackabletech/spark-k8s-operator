@@ -1,0 +1,172 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-connect-log-config
+data:
+  log4j2.properties: |-
+    appenders = CONSOLE
+
+    appender.CONSOLE.type = Console
+    appender.CONSOLE.name = CONSOLE
+    appender.CONSOLE.target = SYSTEM_ERR
+    appender.CONSOLE.layout.type = PatternLayout
+    appender.CONSOLE.layout.pattern = %d{ISO8601} %p [%t] %c - %m%n
+    appender.CONSOLE.filter.threshold.type = ThresholdFilter
+    appender.CONSOLE.filter.threshold.level = DEBUG
+
+    rootLogger.level=INFO
+    rootLogger.appenderRefs = CONSOLE
+    rootLogger.appenderRef.CONSOLE.ref = CONSOLE
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkConnectServer
+metadata:
+  name: spark-connect
+spec:
+  image:
+{% if test_scenario['values']['spark-connect'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark-connect'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark-connect'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark-connect'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  args:
+    # Provision the Iceberg runtime. Scala 2.13 for Spark 4, 2.12 otherwise.
+{% if test_scenario['values']['spark-connect'].startswith("4") %}
+    - "--packages org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-connect'].split('.')[:2]) }}_2.13:{{ test_scenario['values']['iceberg-latest'] }}"
+{% else %}
+    - "--packages org.apache.iceberg:iceberg-spark-runtime-{{ ".".join(test_scenario['values']['spark-connect'].split('.')[:2]) }}_2.12:{{ test_scenario['values']['iceberg-latest'] }}"
+{% endif %}
+  connectors:
+    s3connection:
+      reference: minio
+  server:
+    roleConfig:
+      listenerClass: external-unstable
+    # The JVM does NOT read the KRB5_CONFIG env var (that is an MIT C-library
+    # variable). The Java Kerberos layer reads `-Djava.security.krb5.conf`, then
+    # /etc/krb5.conf. The secret-operator kerberos volume provides krb5.conf at
+    # /stackable/kerberos/krb5.conf, so point the JVM at it explicitly.
+    jvmArgumentOverrides:
+      add:
+        - -Djava.security.krb5.conf=/stackable/kerberos/krb5.conf
+        # By default JGSS only uses credentials from the current Subject
+        # (useSubjectCredsOnly=true). The Spark Connect execute thread does not
+        # carry the login user's ticket in its Subject, so GSS fails with "Failed
+        # to find any Kerberos tgt". Setting this to false makes JGSS fall back to
+        # the ambient credential cache (KRB5CCNAME) populated by the kinit init
+        # container.
+        - -Djavax.security.auth.useSubjectCredsOnly=false
+    # The Spark Connect server runs in `--deploy-mode client` on Kubernetes.
+    # Spark only performs the automatic keytab login (UserGroupInformation
+    # loginUserFromKeytab) for YARN/local/Mesos or the k8s *cluster*-mode driver
+    # - NOT for k8s client mode. So `spark.kerberos.{keytab,principal}` never
+    # establish a TGT here and the Hive metastore SASL/GSS handshake fails with
+    # "Failed to find any Kerberos tgt".
+    #
+    # We therefore obtain a TGT ourselves: an init container runs `kinit` into a
+    # shared credential cache, and the server JVM uses it via `KRB5CCNAME`.
+    # Hadoop's UserGroupInformation reads `KRB5CCNAME` (useTicketCache) when
+    # `hadoop.security.authentication=kerberos`, so the metastore client uses
+    # that ticket. The kerberos keytab/krb5.conf are only needed on the server
+    # (the Spark driver); executors only write table data to S3 (not kerberized).
+    envOverrides:
+      KRB5CCNAME: /stackable/krb5/ccache
+    podOverrides:
+      spec:
+        initContainers:
+          - name: kinit
+{% if test_scenario['values']['spark-connect'].find(",") > 0 %}
+            image: "{{ test_scenario['values']['spark-connect'].split(',')[1] }}"
+{% else %}
+            image: oci.stackable.tech/sdp/spark-k8s:{{ test_scenario['values']['spark-connect'] }}-stackable0.0.0-dev
+{% endif %}
+            command: ["/bin/bash", "-euo", "pipefail", "-c"]
+            args:
+              - kinit -kt /stackable/kerberos/keytab spark-connect/spark-connect.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}
+            env:
+              - name: KRB5_CONFIG
+                value: /stackable/kerberos/krb5.conf
+              - name: KRB5CCNAME
+                value: /stackable/krb5/ccache
+            volumeMounts:
+              - name: kerberos
+                mountPath: /stackable/kerberos
+              - name: krb5-ccache
+                mountPath: /stackable/krb5
+        containers:
+          - name: spark
+            volumeMounts:
+              - name: kerberos
+                mountPath: /stackable/kerberos
+              - name: krb5-ccache
+                mountPath: /stackable/krb5
+        volumes:
+          - name: krb5-ccache
+            emptyDir: {}
+          - name: kerberos
+            ephemeral:
+              volumeClaimTemplate:
+                metadata:
+                  annotations:
+                    secrets.stackable.tech/class: kerberos-$NAMESPACE
+                    secrets.stackable.tech/scope: service=spark-connect
+                    secrets.stackable.tech/kerberos.service.names: spark-connect
+                spec:
+                  storageClassName: secrets.stackable.tech
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: "1"
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          spark:
+            custom:
+              configMap: spark-connect-log-config
+    configOverrides:
+      spark-defaults.conf:
+        spark.jars.ivy: /tmp/ivy2
+        # Use Spark's built-in Hive catalog (bundled in the image). This is a
+        # static SQL config and must be set at server startup.
+        spark.sql.catalogImplementation: hive
+        spark.hadoop.hive.metastore.uris: thrift://hive-metastore:9083
+        # Put Hadoop UserGroupInformation into Kerberos mode so it logs in from
+        # the ticket cache (KRB5CCNAME) populated by the kinit init container.
+        spark.hadoop.hadoop.security.authentication: kerberos
+        # Authenticate to the kerberized Hive metastore via SASL/GSSAPI. The HMS
+        # service principal must be the literal value below (not _HOST, which
+        # would resolve to the connection host "hive-metastore").
+        spark.hadoop.hive.metastore.sasl.enabled: "true"
+        spark.hadoop.hive.metastore.kerberos.principal: hive/hive.$NAMESPACE.svc.cluster.local@{{ test_scenario['values']['kerberos-realm'] }}
+        # Hive/Iceberg catalog backed by the same kerberized metastore, storing
+        # table data and metadata in S3 (MinIO). Iceberg uses its own commit
+        # protocol (not the rename-based FileOutputCommitter), so writes to S3
+        # work without the staging/_temporary issues of plain parquet tables.
+        # The catalog inherits the kerberos metastore config from spark.hadoop.*
+        # above. See https://issues.apache.org/jira/browse/SPARK-46032
+        spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+        spark.sql.catalog.iceberg: org.apache.iceberg.spark.SparkCatalog
+        spark.sql.catalog.iceberg.type: hive
+        spark.sql.catalog.iceberg.uri: thrift://hive-metastore:9083
+        spark.sql.catalog.iceberg.warehouse: s3a://lakehouse/warehouse
+  executor:
+    configOverrides:
+      spark-defaults.conf:
+        spark.executor.instances: "1"
+        spark.executor.memoryOverhead: "1m"
+        spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          spark:
+            custom:
+              configMap: spark-connect-log-config

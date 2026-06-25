@@ -1,0 +1,7 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # We need to replace $NAMESPACE (by KUTTL) because it is part of the Kerberos
+  # principals and the kerberos SecretClass name.
+  - script: envsubst '$NAMESPACE' < 10_spark-connect.yaml | kubectl apply -n $NAMESPACE -f -

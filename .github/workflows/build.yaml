@@ -83,9 +83,8 @@ jobs:
           submodules: recursive
 
       - name: Install Rust ${{ env.RUST_TOOLCHAIN_VERSION }} toolchain
-        uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN_VERSION }}
+        shell: bash
+        run: rustup toolchain install "${RUST_TOOLCHAIN_VERSION}"
 
       - name: Setup Rust Cache
         uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
@@ -160,9 +159,8 @@ jobs:
         uses: cachix/install-nix-action@fc6e360bedc9ee72d75e701397f0bb30dce77568 # v31.5.2
 
       - name: Install Rust ${{ env.RUST_TOOLCHAIN_VERSION }} Toolchain
-        uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN_VERSION }}
+        shell: bash
+        run: rustup toolchain install "${RUST_TOOLCHAIN_VERSION}"
 
       - name: Build Container Image
         id: build

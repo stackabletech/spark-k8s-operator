@@ -38,4 +38,7 @@ do
   jinja2 "$file" "$templating_vars_file" -o "$new_file_name"
 done
 
+# Ensure this script is executable
+chmod +x docs/modules/opensearch/examples/getting_started/getting_started.sh
+
 echo "done"

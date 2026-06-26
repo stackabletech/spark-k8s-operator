@@ -23,6 +23,8 @@ on:
       test:
         description: Name of the test. Only used of test-mode is `custom`
 
+permissions: {}
+
 jobs:
   test:
     name: Run Integration Test

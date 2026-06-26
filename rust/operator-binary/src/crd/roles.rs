@@ -7,7 +7,7 @@
 //! this responsibility to the Submit job.
 //!
 //! The submit job only supports one group per role. For this reason, the
-//! [`v1alpha1::SparkApplication`] spec doesn't declare Role objects directly. Instead it
+//! [`v1alpha2::SparkApplication`] spec doesn't declare Role objects directly. Instead it
 //! only declares [`stackable_operator::role_utils::CommonConfiguration`] objects for job,
 //!  driver and executor and constructs the Roles dynamically when needed. The only group under
 //! each role is named "default". These roles are transparent to the user.
@@ -38,12 +38,11 @@ use stackable_operator::{
 };
 use strum::{Display, EnumIter};
 
-use crate::crd::{ResolvedLogDir, constants::DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT, v1alpha1};
+use crate::crd::{ResolvedLogDir, v1alpha2};
 
 #[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
 #[strum(serialize_all = "kebab-case")]
 pub enum SparkApplicationRole {
-    Submit,
     Driver,
     Executor,
 }
@@ -156,7 +155,7 @@ impl RoleConfig {
 
     pub fn volume_mounts(
         &self,
-        spark_application: &v1alpha1::SparkApplication,
+        spark_application: &v1alpha2::SparkApplication,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
     ) -> Vec<VolumeMount> {
@@ -166,7 +165,7 @@ impl RoleConfig {
 }
 
 impl Configuration for RoleConfigFragment {
-    type Configurable = v1alpha1::SparkApplication;
+    type Configurable = v1alpha2::SparkApplication;
 
     fn compute_env(
         &self,
@@ -211,6 +210,9 @@ impl Configuration for RoleConfigFragment {
     ),
     serde(rename_all = "camelCase")
 )]
+// Deprecated since v1alpha2: this type only exists so the deprecated `spec.job` field keeps its
+// schema. It is no longer constructed or used at runtime.
+#[allow(dead_code)]
 pub struct SubmitConfig {
     #[fragment_attrs(serde(default))]
     pub resources: Resources<SparkStorageConfig, NoRuntimeLimits>,
@@ -231,33 +233,8 @@ pub struct SubmitConfig {
     pub retry_on_failure_count: u16,
 }
 
-impl SubmitConfig {
-    // Auto TLS certificate lifetime
-    const DEFAULT_SECRET_LIFETIME: Duration = Duration::from_days_unchecked(1);
-
-    pub fn default_config() -> SubmitConfigFragment {
-        SubmitConfigFragment {
-            resources: ResourcesFragment {
-                cpu: CpuLimitsFragment {
-                    min: Some(Quantity("100m".to_owned())),
-                    max: Some(Quantity("400m".to_owned())),
-                },
-                memory: MemoryLimitsFragment {
-                    limit: Some(Quantity("512Mi".to_owned())),
-                    runtime_limits: NoRuntimeLimitsFragment {},
-                },
-                storage: SparkStorageConfigFragment {},
-            },
-            affinity: Default::default(),
-            volume_mounts: Some(VolumeMounts::default()),
-            requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
-            retry_on_failure_count: Some(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT),
-        }
-    }
-}
-
 impl Configuration for SubmitConfigFragment {
-    type Configurable = v1alpha1::SparkApplication;
+    type Configurable = v1alpha2::SparkApplication;
 
     fn compute_env(
         &self,

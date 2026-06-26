@@ -8,9 +8,10 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{client::Client, crd::s3};
 
 use crate::crd::{
+    ResolvedSparkApplicationTemplate,
     logdir::ResolvedLogDir,
     template_spec::{self},
-    v1alpha1,
+    v1alpha2,
 };
 
 #[derive(Snafu, Debug)]
@@ -35,9 +36,9 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// Kubernetes objects referenced from a SparkApplication, already fetched.
 pub struct DereferencedSparkApplication {
     /// SparkApplication after merging any referenced templates.
-    pub spark_application: v1alpha1::SparkApplication,
+    pub spark_application: v1alpha2::SparkApplication,
     /// Resolved template references for status reporting.
-    pub resolved_template_refs: Vec<v1alpha1::ResolvedSparkApplicationTemplate>,
+    pub resolved_template_refs: Vec<ResolvedSparkApplicationTemplate>,
     /// Resolved S3 connection, if `spec.s3connection` is set.
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
     /// Resolved log directory, if `spec.log_file_directory` is set.
@@ -47,7 +48,7 @@ pub struct DereferencedSparkApplication {
 /// Fetches all Kubernetes objects referenced from the given SparkApplication.
 pub async fn dereference(
     client: &Client,
-    spark_application: &v1alpha1::SparkApplication,
+    spark_application: &v1alpha2::SparkApplication,
 ) -> Result<DereferencedSparkApplication> {
     // 1. Template merging — must happen first so subsequent lookups see the merged spec.
     let merged = template_spec::merge_application_templates(client, spark_application)

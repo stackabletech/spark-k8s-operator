@@ -24,17 +24,6 @@ commands:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: spark-pi-s3-1-submit-job
-data:
-  security.properties: |
-    networkaddress.cache.negative.ttl=0
-    networkaddress.cache.ttl=30
-    test.job.securityProperties=test
-  spark-env.sh: export TEST_JOB_SPARK-ENV-SH="TEST"
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
   name: spark-pi-s3-1-driver-pod-template
 data:
   security.properties: |

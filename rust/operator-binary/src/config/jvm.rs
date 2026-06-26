@@ -11,7 +11,7 @@ use crate::crd::{
     },
     logdir::ResolvedLogDir,
     tlscerts::tls_secret_names,
-    v1alpha1::SparkApplication,
+    v1alpha2::SparkApplication,
 };
 
 #[derive(Snafu, Debug)]

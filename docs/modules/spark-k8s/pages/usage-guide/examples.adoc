@@ -6,7 +6,7 @@ The following examples have the following `spec` fields in common:
 * `version`: the current version is "1.0"
 * `sparkImage`: the docker image that is used by job, driver and executor pods.
   This can be provided by the user.
-* `mode`: only `cluster` is currently supported
+* `mode`: deprecated and ignored; the driver always runs in client mode internally
 * `mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
 * `args`: these are the arguments passed directly to the application. In the examples below it is e.g. the input path for part of the public New York taxi dataset.
 * `sparkConf`: these list spark configuration settings that are passed directly to `spark-submit` and which are best defined explicitly by the user. Since the `SparkApplication` "knows" that there is an external dependency (the s3 bucket where the data and/or the application is located) and how that dependency should be treated (i.e. what type of credential checks are required, if any), it is better to have these things declared together.

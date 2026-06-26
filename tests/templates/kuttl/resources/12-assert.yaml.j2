@@ -3,27 +3,14 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 900
 ---
+# The driver now runs directly as a Kubernetes Job (no separate spark-submit pod). Its pod has a
+# generated name, so it is selected via labels.
 apiVersion: v1
 kind: Pod
 metadata:
   labels:
-    job-name: resources-sparkconf
-    app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
-spec:
-  containers:
-    - name: spark-submit
-      resources:
-        limits:
-          cpu: 400m
-          memory: 512Mi
-        requests:
-          cpu: 100m
-          memory: 512Mi
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: resources-sparkconf-driver
+    app.kubernetes.io/instance: resources-sparkconf
+    spark-role: driver
 spec:
   containers:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}

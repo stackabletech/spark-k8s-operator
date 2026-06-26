@@ -6,9 +6,6 @@ pub const APP_NAME: &str = "spark-k8s";
 pub const VOLUME_MOUNT_NAME_IVY2: &str = "ivy2";
 pub const VOLUME_MOUNT_PATH_IVY2: &str = "/ivy2";
 
-pub const VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES: &str = "driver-pod-template";
-pub const VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES: &str = "/stackable/spark/driver-pod-templates";
-
 pub const VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES: &str = "executor-pod-template";
 pub const VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES: &str =
     "/stackable/spark/executor-pod-templates";
@@ -88,7 +85,15 @@ pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
 pub const METRICS_PORT: u16 = 18081;
 pub const HISTORY_UI_PORT: u16 = 18080;
 
+/// Label value identifying the Spark driver pod. Used both as the headless driver Service selector
+/// and to let the driver/executor pods discover each other in client mode.
+pub const SPARK_ROLE_LABEL: &str = "spark-role";
+pub const SPARK_ROLE_DRIVER: &str = "driver";
+
+/// Fixed ports for the driver running in client mode, so the headless driver Service can expose a
+/// stable address that executors connect back to.
+pub const DRIVER_PORT: u16 = 7078;
+pub const DRIVER_BLOCK_MANAGER_PORT: u16 = 7079;
+
 pub const LISTENER_VOLUME_NAME: &str = "listener";
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
-
-pub const DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT: u16 = 0;

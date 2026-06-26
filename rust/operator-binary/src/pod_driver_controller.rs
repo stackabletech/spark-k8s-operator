@@ -13,7 +13,7 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::crd::{constants::POD_DRIVER_CONTROLLER_NAME, v1alpha1};
+use crate::crd::{constants::POD_DRIVER_CONTROLLER_NAME, v1alpha2};
 
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
@@ -48,12 +48,6 @@ pub enum Error {
     #[snafu(display("Pod object is invalid"))]
     InvalidPod {
         source: error_boundary::InvalidObject,
-    },
-
-    #[snafu(display("cannot delete Spark driver pod {pod_name:?}"))]
-    DeleteDriverPod {
-        source: stackable_operator::client::Error,
-        pod_name: String,
     },
 }
 
@@ -93,7 +87,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
     )?;
 
     let app = client
-        .get::<v1alpha1::SparkApplication>(
+        .get::<v1alpha2::SparkApplication>(
             app_name.as_ref(),
             pod.metadata
                 .namespace
@@ -111,7 +105,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
         .apply_patch_status(
             POD_DRIVER_CONTROLLER_NAME,
             &app,
-            &v1alpha1::SparkApplicationStatus {
+            &crate::crd::SparkApplicationStatus {
                 phase: phase.clone(),
                 resolved_template_ref: app
                     .status
@@ -125,19 +119,8 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
             name: app_name.clone(),
         })?;
 
-    // We must manually delete the driver pod when the application reached a terminal state
-    // otherwise they are left hanging forever.
-    if phase == "Succeeded" || phase == "Failed" {
-        tracing::info!(
-            "Spark application {app_name:?} completed with phase {phase:?}, deleting driver pod {pod_name:?}"
-        );
-        client
-            .delete(pod)
-            .await
-            .with_context(|_| DeleteDriverPodSnafu {
-                pod_name: pod_name.clone(),
-            })?;
-    }
+    // The driver pod is now owned by the driver Job. We must not delete it ourselves: the Job's
+    // `ttlSecondsAfterFinished` cleans up the Job and its pod once the application has finished.
     Ok(Action::await_change())
 }
 

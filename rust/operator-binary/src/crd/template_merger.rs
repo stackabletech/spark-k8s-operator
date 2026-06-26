@@ -10,7 +10,7 @@ use stackable_operator::{
     role_utils::{CommonConfiguration, RoleGroup},
 };
 
-use super::v1alpha1::SparkApplication;
+use super::v1alpha2::SparkApplication;
 
 /// Deep merge two SparkApplication instances.
 ///
@@ -30,11 +30,12 @@ use super::v1alpha1::SparkApplication;
 /// # Returns
 ///
 /// A new SparkApplication containing the merged result
+#[allow(deprecated)] // the deprecated `job` field is still merged for backwards compatibility
 pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkApplication {
     let metadata = merge_metadata(&base.metadata, &overlay.metadata);
 
     // Merge spec fields
-    let spec = super::v1alpha1::SparkApplicationSpec {
+    let spec = super::v1alpha2::SparkApplicationSpec {
         // Scalar fields: overlay takes precedence
         mode: overlay.spec.mode.clone(),
         main_application_file: overlay.spec.main_application_file.clone(),
@@ -69,8 +70,11 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
         // Product image: overlay takes precedence
         spark_image: overlay.spec.spark_image.clone(),
 
-        // Merge job configuration
-        job: merge_common_config(base.spec.job.as_ref(), overlay.spec.job.as_ref()),
+        // Merge the deprecated job configuration (kept for backwards compatibility).
+        deprecated_job: merge_common_config(
+            base.spec.deprecated_job.as_ref(),
+            overlay.spec.deprecated_job.as_ref(),
+        ),
 
         // Merge driver configuration
         driver: merge_common_config(base.spec.driver.as_ref(), overlay.spec.driver.as_ref()),
@@ -249,6 +253,7 @@ fn merge_deps(
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // tests exercise the deprecated `job` field merge for backwards compatibility
 mod tests {
     use indoc::indoc;
 
@@ -256,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_basic() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -274,7 +279,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -314,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_metadata_namespace_overlay_wins() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -329,7 +334,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -355,7 +360,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_spark_conf() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -372,7 +377,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -408,7 +413,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_job() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -422,7 +427,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -433,7 +438,7 @@ mod tests {
               mainApplicationFile: overlay.py
               sparkImage:
                 productVersion: "4.1.0"
-              job:
+              deprecatedJob:
                 config:
                   retryOnFailureCount: 2
         "#})
@@ -445,7 +450,7 @@ mod tests {
         assert_eq!(
             merged
                 .spec
-                .job
+                .deprecated_job
                 .as_ref()
                 .unwrap()
                 .config
@@ -456,7 +461,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_config_overrides() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -467,7 +472,7 @@ mod tests {
               mainApplicationFile: base.py
               sparkImage:
                 productVersion: "3.5.8"
-              job:
+              deprecatedJob:
                 configOverrides:
                   security.properties:
                     test.base.only: base
@@ -486,7 +491,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -497,7 +502,7 @@ mod tests {
               mainApplicationFile: overlay.py
               sparkImage:
                 productVersion: "4.1.0"
-              job:
+              deprecatedJob:
                 configOverrides:
                   security.properties:
                     test.overridden: overlay
@@ -522,7 +527,7 @@ mod tests {
         // conflicting keys are overridden by overlay values, and new overlay keys are added.
         let submit_security_props = merged
             .spec
-            .job
+            .deprecated_job
             .and_then(|config| config.config_overrides.security_properties)
             .map(|security_properties| security_properties.overrides)
             .unwrap();
@@ -580,7 +585,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_config_overrides_base_only() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -591,7 +596,7 @@ mod tests {
               mainApplicationFile: base.py
               sparkImage:
                 productVersion: "3.5.8"
-              job:
+              deprecatedJob:
                 configOverrides:
                   security.properties:
                     test.base.only: base
@@ -600,7 +605,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -611,7 +616,7 @@ mod tests {
               mainApplicationFile: overlay.py
               sparkImage:
                 productVersion: "4.1.0"
-              job:
+              deprecatedJob:
                 config:
                   retryOnFailureCount: 2
         "#})
@@ -620,7 +625,7 @@ mod tests {
         let merged = deep_merge(&base, &overlay);
         let submit_security_props = merged
             .spec
-            .job
+            .deprecated_job
             .and_then(|config| config.config_overrides.security_properties)
             .map(|security_properties| security_properties.overrides)
             .unwrap();
@@ -633,7 +638,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_config_overrides_overlay_only() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -644,13 +649,13 @@ mod tests {
               mainApplicationFile: base.py
               sparkImage:
                 productVersion: "3.5.8"
-              job:
+              deprecatedJob:
                 config:
                   retryOnFailureCount: 1
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -661,7 +666,7 @@ mod tests {
               mainApplicationFile: overlay.py
               sparkImage:
                 productVersion: "4.1.0"
-              job:
+              deprecatedJob:
                 configOverrides:
                   security.properties:
                     test.overlay.only: overlay
@@ -673,7 +678,7 @@ mod tests {
         let merged = deep_merge(&base, &overlay);
         let submit_security_props = merged
             .spec
-            .job
+            .deprecated_job
             .and_then(|config| config.config_overrides.security_properties)
             .map(|security_properties| security_properties.overrides)
             .unwrap();
@@ -686,7 +691,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_env_overrides() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -697,7 +702,7 @@ mod tests {
               mainApplicationFile: base.py
               sparkImage:
                 productVersion: "3.5.8"
-              job:
+              deprecatedJob:
                 envOverrides:
                   TEST_BASE_ONLY: base
                   TEST_OVERRIDDEN: base
@@ -713,7 +718,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -724,7 +729,7 @@ mod tests {
               mainApplicationFile: overlay.py
               sparkImage:
                 productVersion: "4.1.0"
-              job:
+              deprecatedJob:
                 envOverrides:
                   TEST_OVERRIDDEN: overlay
                   TEST_OVERLAY_ONLY: overlay
@@ -742,7 +747,7 @@ mod tests {
 
         let merged = deep_merge(&base, &overlay);
 
-        let submit_env = &merged.spec.job.as_ref().unwrap().env_overrides;
+        let submit_env = &merged.spec.deprecated_job.as_ref().unwrap().env_overrides;
         assert_eq!(submit_env.get("TEST_BASE_ONLY"), Some(&"base".to_string()));
         assert_eq!(
             submit_env.get("TEST_OVERRIDDEN"),
@@ -781,7 +786,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_pod_overrides() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -792,7 +797,7 @@ mod tests {
               mainApplicationFile: base.py
               sparkImage:
                 productVersion: "3.5.8"
-              job:
+              deprecatedJob:
                 podOverrides:
                   spec:
                     serviceAccountName: base-sa
@@ -817,7 +822,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -828,7 +833,7 @@ mod tests {
               mainApplicationFile: overlay.py
               sparkImage:
                 productVersion: "4.1.0"
-              job:
+              deprecatedJob:
                 podOverrides:
                   spec:
                     serviceAccountName: overlay-sa
@@ -857,7 +862,7 @@ mod tests {
 
         let submit_spec = merged
             .spec
-            .job
+            .deprecated_job
             .as_ref()
             .unwrap()
             .pod_overrides
@@ -958,7 +963,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_pod_overrides_container_resources() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -969,7 +974,7 @@ mod tests {
               mainApplicationFile: base.py
               sparkImage:
                 productVersion: "3.5.8"
-              job:
+              deprecatedJob:
                 podOverrides:
                   spec:
                     containers:
@@ -981,7 +986,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -992,7 +997,7 @@ mod tests {
               mainApplicationFile: overlay.py
               sparkImage:
                 productVersion: "4.1.0"
-              job:
+              deprecatedJob:
                 podOverrides:
                   spec:
                     containers:
@@ -1009,7 +1014,7 @@ mod tests {
 
         let submit_spec = merged
             .spec
-            .job
+            .deprecated_job
             .as_ref()
             .unwrap()
             .pod_overrides
@@ -1047,7 +1052,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_pod_overrides_base_only() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1058,7 +1063,7 @@ mod tests {
               mainApplicationFile: base.py
               sparkImage:
                 productVersion: "3.5.8"
-              job:
+              deprecatedJob:
                 podOverrides:
                   spec:
                     serviceAccountName: base-sa
@@ -1069,7 +1074,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1080,7 +1085,7 @@ mod tests {
               mainApplicationFile: overlay.py
               sparkImage:
                 productVersion: "4.1.0"
-              job:
+              deprecatedJob:
                 config:
                   retryOnFailureCount: 2
         "#})
@@ -1089,7 +1094,7 @@ mod tests {
         let merged = deep_merge(&base, &overlay);
         let submit_spec = merged
             .spec
-            .job
+            .deprecated_job
             .as_ref()
             .unwrap()
             .pod_overrides
@@ -1110,7 +1115,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_pod_overrides_overlay_only() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1121,13 +1126,13 @@ mod tests {
               mainApplicationFile: base.py
               sparkImage:
                 productVersion: "3.5.8"
-              job:
+              deprecatedJob:
                 config:
                   retryOnFailureCount: 1
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1138,7 +1143,7 @@ mod tests {
               mainApplicationFile: overlay.py
               sparkImage:
                 productVersion: "4.1.0"
-              job:
+              deprecatedJob:
                 podOverrides:
                   spec:
                     serviceAccountName: overlay-sa
@@ -1152,7 +1157,7 @@ mod tests {
         let merged = deep_merge(&base, &overlay);
         let submit_spec = merged
             .spec
-            .job
+            .deprecated_job
             .as_ref()
             .unwrap()
             .pod_overrides
@@ -1177,7 +1182,7 @@ mod tests {
     #[test]
     fn test_merge_two_templates_into_spark_application() {
         let template_a = serde_yaml::from_str::<
-            crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
+            crate::crd::template_spec::v1alpha2::SparkApplicationTemplate,
         >(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
@@ -1201,7 +1206,7 @@ mod tests {
         .unwrap();
 
         let template_b = serde_yaml::from_str::<
-            crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
+            crate::crd::template_spec::v1alpha2::SparkApplicationTemplate,
         >(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
@@ -1225,7 +1230,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1249,8 +1254,8 @@ mod tests {
 
         // Convert templates to SparkApplication and merge left-to-right:
         // template-a has the lowest priority, the spark application has the highest.
-        let app_from_a = crate::crd::v1alpha1::SparkApplication::from(template_a);
-        let app_from_b = crate::crd::v1alpha1::SparkApplication::from(template_b);
+        let app_from_a = crate::crd::v1alpha2::SparkApplication::from(template_a);
+        let app_from_b = crate::crd::v1alpha2::SparkApplication::from(template_b);
         // This how `merge_application_templates()` does it
         let template_apps = [app_from_a, app_from_b, spark_app];
         let merged = template_apps
@@ -1310,7 +1315,7 @@ mod tests {
     #[test]
     fn test_merge_template_role_affinities_into_spark_application() {
         let template = serde_yaml::from_str::<
-            crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
+            crate::crd::template_spec::v1alpha2::SparkApplicationTemplate,
         >(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
@@ -1322,7 +1327,7 @@ mod tests {
               mainApplicationFile: local:///template.jar
               sparkImage:
                 productVersion: "3.5.8"
-              job:
+              deprecatedJob:
                 config:
                   affinity:
                     nodeSelector:
@@ -1416,7 +1421,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1431,51 +1436,8 @@ mod tests {
         "#})
         .unwrap();
 
-        let app_from_template = crate::crd::v1alpha1::SparkApplication::from(template);
+        let app_from_template = crate::crd::v1alpha2::SparkApplication::from(template);
         let merged = deep_merge(&app_from_template, &spark_app);
-
-        let submit_affinity = merged.submit_config().unwrap().affinity;
-        assert_eq!(
-            Some("template-job"),
-            submit_affinity
-                .node_selector
-                .as_ref()
-                .and_then(|selectors| selectors.node_selector.get("affinity-role"))
-                .map(String::as_str)
-        );
-        assert_eq!(
-            Some(11),
-            submit_affinity
-                .node_affinity
-                .as_ref()
-                .and_then(|a| a
-                    .preferred_during_scheduling_ignored_during_execution
-                    .as_ref())
-                .and_then(|terms| terms.first())
-                .map(|term| term.weight)
-        );
-        assert_eq!(
-            Some(21),
-            submit_affinity
-                .pod_affinity
-                .as_ref()
-                .and_then(|a| a
-                    .preferred_during_scheduling_ignored_during_execution
-                    .as_ref())
-                .and_then(|terms| terms.first())
-                .map(|term| term.weight)
-        );
-        assert_eq!(
-            Some(31),
-            submit_affinity
-                .pod_anti_affinity
-                .as_ref()
-                .and_then(|a| a
-                    .preferred_during_scheduling_ignored_during_execution
-                    .as_ref())
-                .and_then(|terms| terms.first())
-                .map(|term| term.weight)
-        );
 
         let driver_affinity = merged.driver_config().unwrap().affinity;
         assert_eq!(

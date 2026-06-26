@@ -15,6 +15,7 @@ use stackable_operator::{
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
+        batch::v1::Job,
         core::v1::{ConfigMap, Pod, Service},
     },
     kube::{
@@ -83,13 +84,13 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => {
-            SparkApplication::merged_crd(crd::SparkApplicationVersion::V1Alpha1)?
+            SparkApplication::merged_crd(crd::SparkApplicationVersion::V1Alpha2)?
                 .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?;
             SparkHistoryServer::merged_crd(crd::history::SparkHistoryServerVersion::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?;
             SparkConnectServer::merged_crd(SparkConnectServerVersion::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?;
-            SparkApplicationTemplate::merged_crd(SparkApplicationTemplateVersion::V1Alpha1)?
+            SparkApplicationTemplate::merged_crd(SparkApplicationTemplateVersion::V1Alpha2)?
                 .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?;
         }
         Command::Run(RunArguments {
@@ -157,11 +158,19 @@ async fn main() -> anyhow::Result<()> {
             ));
             let app_controller = Controller::new(
                 watch_namespace
-                    .get_api::<DeserializeGuard<crd::v1alpha1::SparkApplication>>(&client),
+                    .get_api::<DeserializeGuard<crd::v1alpha2::SparkApplication>>(&client),
                 watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<Job>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<Service>>(&client),
                 watcher::Config::default(),
             )
             .graceful_shutdown_on(sigterm_watcher.handle())
@@ -383,7 +392,7 @@ async fn main() -> anyhow::Result<()> {
             };
 
             let delayed_app_controller = async {
-                signal::crd_established(&client, crd::v1alpha1::SparkApplication::crd_name(), None)
+                signal::crd_established(&client, crd::v1alpha2::SparkApplication::crd_name(), None)
                     .await?;
                 app_controller.await
             };

@@ -6,11 +6,13 @@ Afterwards you can <<_verify_that_it_works, verify that it works>> by looking at
 
 == Starting a Spark job
 
-A Spark application is made of up three components:
+A Spark application is made up of two components:
 
-* Job: this builds a `spark-submit` command from the resource, passing this to internal spark code together with templates for building the driver and executor pods
-* Driver: the driver starts the designated number of executors and removes them when the job is completed.
-* Executor(s): responsible for executing the job itself
+* Driver: the operator creates a Kubernetes `Job` (built from `spec.driver`) whose pod runs `spark-submit` in client mode and therefore _is_ the Spark driver.
+  The driver starts the designated number of executors and removes them when the job is completed.
+* Executor(s): responsible for executing the job itself. They are created by the driver via Spark's Kubernetes backend and connect back to the driver through a headless `Service` created by the operator.
+
+NOTE: Previous versions ran an additional `spark-submit` process in a dedicated pod that then created the driver pod. This is no longer the case; `spec.job` and `spec.mode` are deprecated and ignored.
 
 Create a Spark application by running:
 
@@ -27,22 +29,21 @@ include::example$getting_started/application.yaml[Create a Spark application]
 ----
 <1> `metadata.name` contains the name of the SparkApplication
 <2> `spec.sparkImage`: the image used by the job, driver and executor pods. This can be a custom image built by the user or an official Stackable image. Available official images are stored in the Stackable https://oci.stackable.tech/[image registry,window=_blank]. Information on how to browse the registry can be found xref:contributor:project-overview.adoc#docker-images[here,window=_blank].
-<3> `spec.mode`: only `cluster` is currently supported
+<3> `spec.mode`: deprecated and ignored; the driver always runs in client mode internally.
 <4> `spec.mainApplicationFile`: the artifact (Java, Scala or Python) that forms the basis of the Spark job.
   This path is relative to the image, so in this case an example python script (that calculates the value of pi) is running: it is bundled with the Spark code and therefore already present in the job image
-<5> `spec.job`: submit command specific settings.
-<6> `spec.driver`: driver-specific settings.
+<5> `spec.job`: deprecated and ignored. In previous versions this configured the dedicated `spark-submit` job.
+<6> `spec.driver`: driver-specific settings. Used to build the driver `Job` pod.
 <7> `spec.executor`: executor-specific settings.
 
 == Verify that it works
 
-As mentioned above, the SparkApplication that has just been created builds a `spark-submit` command and pass it to the driver Pod, which in turn creates executor Pods that run for the duration of the job before being clean up.
+As mentioned above, the operator creates a driver `Job` whose pod runs `spark-submit` in client mode and thus acts as the Spark driver, which in turn creates executor Pods that run for the duration of the job before being cleaned up.
 A running process looks like this:
 
 image::getting_started/spark_running.png[Spark job]
 
-* `pyspark-pi-xxxx`: this is the initializing job that creates the spark-submit command (named as `metadata.name` with a unique suffix)
-* `pyspark-pi-xxxxxxx-driver`: the driver pod that drives the execution
+* `pyspark-pi-xxxxxxx-driver`: the driver pod (created by the driver `Job`) that drives the execution
 * `pythonpi-xxxxxxxxx-exec-x`: the set of executors started by the driver (in the example `spec.executor.instances` was set to 3 which is why 3 executors are running)
 
 Job progress can be followed by issuing this command:

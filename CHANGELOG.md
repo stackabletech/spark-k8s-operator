@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#684]).
+- Add CRD version `v1alpha2` for `SparkApplication` and `SparkApplicationTemplate`. The conversion webhook converts `v1alpha1` objects to `v1alpha2` ([#711]).
 
 ### Fixed
 
@@ -15,6 +16,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- BREAKING: The operator no longer runs a separate `spark-submit` process for `SparkApplication`s. The driver is launched directly as a Kubernetes `Job` (built from `spec.driver`) running `spark-submit` in client mode; executors are still created by the driver via Spark's Kubernetes backend. A headless driver `Service` is created so executors can reach the driver. This affects both `v1alpha1` (after conversion) and `v1alpha2` objects ([#711]).
+- The driver `Job` is no longer retried on failure (`backoffLimit` is `0`); the previous `spec.job.retryOnFailureCount` is deprecated and ignored ([#711]).
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#674]).
 - BREAKING: Each custom resource accepts now only the known config files in `configOverrides`:
   - `SparkApplication`: `spark-env.sh` and `security.properties`
@@ -27,6 +30,11 @@ All notable changes to this project will be documented in this file.
 - Fix the `SparkApplication` CRD description, which incorrectly described it as a "Spark cluster stacklet" rather than a Spark application ([#705]).
 - BREAKING: make application templates namespaced instead of cluster wide objects ([#694]).
 
+### Deprecated
+
+- `SparkApplication`/`SparkApplicationTemplate` `spec.job` is deprecated and ignored since `v1alpha2` (renamed to `deprecatedJob` in that version). The driver `Job` is now built from `spec.driver` ([#711]).
+- `SparkApplication`/`SparkApplicationTemplate` `spec.mode` is deprecated and ignored: the operator always runs the driver in client mode internally ([#711]).
+
 [#674]: https://github.com/stackabletech/spark-k8s-operator/pull/674
 [#679]: https://github.com/stackabletech/spark-k8s-operator/pull/679
 [#680]: https://github.com/stackabletech/spark-k8s-operator/pull/680
@@ -36,6 +44,7 @@ All notable changes to this project will be documented in this file.
 [#694]: https://github.com/stackabletech/spark-k8s-operator/pull/694
 [#696]: https://github.com/stackabletech/spark-k8s-operator/pull/696
 [#705]: https://github.com/stackabletech/spark-k8s-operator/pull/705
+[#711]: https://github.com/stackabletech/spark-k8s-operator/pull/711
 
 ## [26.3.0] - 2026-03-16
 

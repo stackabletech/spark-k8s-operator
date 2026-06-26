@@ -18,7 +18,9 @@ spec:
   template:
     spec:
       containers:
-        - name: spark-submit
+        # The driver Job's container is named "spark"; its resources come from the driver
+        # podOverrides.
+        - name: spark
           resources:
             limits:
               cpu: 1500m

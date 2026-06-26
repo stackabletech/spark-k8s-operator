@@ -5,12 +5,13 @@ on:
   pull_request:
   merge_group:
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
   NIX_PKG_MANAGER_VERSION: "2.33.3"
   RUST_TOOLCHAIN_VERSION: "nightly-2026-02-24"
   HADOLINT_VERSION: "v2.14.0"
-  PYTHON_VERSION: "3.14"
   JINJA2_CLI_VERSION: "1.0.0"
 
 jobs:
@@ -29,7 +30,6 @@ jobs:
           fetch-depth: 0
       - uses: stackabletech/actions/run-prek@a14cbd08d9e034e2361ea9205b32aff0491885db # v0.15.0
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
           rust: ${{ env.RUST_TOOLCHAIN_VERSION }}
           hadolint: ${{ env.HADOLINT_VERSION }}
           nix: ${{ env.NIX_PKG_MANAGER_VERSION }}

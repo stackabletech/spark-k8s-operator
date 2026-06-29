@@ -20,7 +20,7 @@ spec:
   mainApplicationFile: "local:///stackable/spark/examples/jars/spark-examples.jar"
   sparkConf:
     spark.kubernetes.submission.waitAppCompletion: "false"
-    spark.kubernetes.driver.pod.name: "resources-crd-driver"
+    # spark.kubernetes.driver.pod.name: "resources-crd-driver"
     spark.kubernetes.executor.podNamePrefix: "resources-crd"
   job:
     config:

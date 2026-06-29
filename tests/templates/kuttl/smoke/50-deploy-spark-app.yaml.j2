@@ -20,6 +20,12 @@ spec:
   # spark-submit loads the application jar to s3a://my-bucket and thus makes it
   # available to the driver and executors.
   mainApplicationFile: "/stackable/spark/examples/jars/spark-examples.jar"
+  # The argument is the number of "slices" (partitions). SparkPi runs one task
+  # per slice sequentially on the single executor, so a high value stretches the
+  # runtime to ~1-2 minutes. This gives the assert in 50-assert.yaml enough time
+  # to exec into the running driver pod and for containerdebug to start.
+  args:
+    - "15000"
   sparkConf:
     spark.kubernetes.file.upload.path: "s3a://my-bucket"
   s3connection:

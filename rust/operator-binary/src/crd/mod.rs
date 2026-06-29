@@ -642,9 +642,8 @@ impl v1alpha2::SparkApplication {
         };
 
         let mut submit_cmd = vec![
-            format!(
-                "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-            ),
+            // containerdebug is started in the background by the image entrypoint (run-spark.sh) via
+            // the `_STACKABLE_PRE_HOOK` env var, so it must not be repeated here.
             build_truststore_commands,
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),

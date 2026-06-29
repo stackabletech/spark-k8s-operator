@@ -503,10 +503,11 @@ fn pod_template(
     logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
-    // When set, the spark container runs this command (the spark-submit client invocation). This is
-    // used for the driver pod, which the operator now launches directly as a Kubernetes Job. When
-    // `None` (executor pod template), the container relies on the image entrypoint, since Spark sets
-    // the command on the executor pods it creates.
+    // When set, the spark container runs this command (the spark-submit client invocation) as the
+    // container `args`, leaving `command` unset so the image entrypoint (run-spark.sh) is used. This
+    // is the driver pod, which the operator launches directly as a Kubernetes Job. When `None`
+    // (executor pod template), the container also relies on the image entrypoint, since Spark sets
+    // the args on the executor pods it creates.
     command: Option<&[String]>,
 ) -> Result<PodTemplateSpec> {
     let container_name = SparkContainer::Spark.to_string();
@@ -543,14 +544,20 @@ fn pod_template(
             ));
         }
 
-        cb.command(vec![
+        // We pass the spark-submit invocation as container `args` and leave `command` unset so the
+        // image entrypoint (run-spark.sh) runs it. The entrypoint evaluates `_STACKABLE_PRE_HOOK`
+        // (which starts containerdebug) before, and `_STACKABLE_POST_HOOK` (which writes the Vector
+        // shutdown file) after the spark-submit process exits. The latter is what lets the Vector
+        // agent terminate so the driver Job pod can complete. run-spark.sh delegates to Spark's
+        // entrypoint.sh, which runs our `/bin/bash -c ...` in pass-through mode.
+        cb.args(vec![
             "/bin/bash".to_string(),
             "-x".to_string(),
             "-euo".to_string(),
             "pipefail".to_string(),
             "-c".to_string(),
+            command.join("\n"),
         ])
-        .args(vec![command.join("\n")])
         .add_env_var("SPARK_SUBMIT_OPTS", spark_submit_opts.join(" "))
         // TODO: move this to the image
         .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");
@@ -909,6 +916,12 @@ fn driver_job(
     // A Job's pod must declare a restart policy.
     if let Some(spec) = template.spec.as_mut() {
         spec.restart_policy = Some("Never".to_string());
+        // Give the driver pod a stable hostname ending in `-driver`. The Vector agent reports this
+        // hostname as the `pod` field of every log event (see `log_schema.host_key: pod`), and log
+        // aggregation/monitoring identifies driver logs by that `-driver` suffix. Without this the
+        // Job controller's generated pod name (`<app>-<hash>`) would be used, which Spark previously
+        // avoided by naming the cluster-mode driver pod `<app>-...-driver`.
+        spec.hostname = Some(spark_application.driver_service_name());
     }
 
     let job = Job {

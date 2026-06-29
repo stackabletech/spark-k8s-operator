@@ -362,12 +362,11 @@ async fn update_status_from_driver_job(
     spark_application: &v1alpha2::SparkApplication,
 ) -> Result<Action> {
     let name = spark_application.name_any();
-    let namespace =
-        spark_application
-            .metadata
-            .namespace
-            .as_ref()
-            .context(SparkApplicationHasNoNamespaceSnafu { name: name.clone() })?;
+    let namespace = spark_application
+        .metadata
+        .namespace
+        .as_ref()
+        .context(SparkApplicationHasNoNamespaceSnafu { name: name.clone() })?;
 
     let Some(job) = client
         .get_opt::<Job>(&name, namespace)

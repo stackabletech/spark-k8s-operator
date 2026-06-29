@@ -39,9 +39,7 @@ use crate::{
     connect::crd::SparkConnectServerVersion,
     crd::{
         SparkApplication,
-        constants::{
-            HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, SPARK_FULL_CONTROLLER_NAME,
-        },
+        constants::{HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, SPARK_FULL_CONTROLLER_NAME},
         history::SparkHistoryServer,
         template_spec::{SparkApplicationTemplate, SparkApplicationTemplateVersion},
     },

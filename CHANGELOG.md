@@ -33,7 +33,7 @@ All notable changes to this project will be documented in this file.
 ### Deprecated
 
 - `SparkApplication`/`SparkApplicationTemplate` `spec.job` is deprecated and ignored since `v1alpha2` (renamed to `deprecatedJob` in that version). The driver `Job` is now built from `spec.driver` ([#711]).
-- `SparkApplication`/`SparkApplicationTemplate` `spec.mode` is deprecated and ignored: the operator always runs the driver in client mode internally ([#711]).
+- `SparkApplication`/`SparkApplicationTemplate` `spec.mode` is deprecated and ignored (renamed to `deprecatedMode` in `v1alpha2`): the operator always runs the driver in client mode internally. `mode` is now optional in `v1alpha1` as well ([#711]).
 
 [#674]: https://github.com/stackabletech/spark-k8s-operator/pull/674
 [#679]: https://github.com/stackabletech/spark-k8s-operator/pull/679

@@ -222,7 +222,12 @@ pub mod versioned {
         /// is launched directly as a Kubernetes Job running in client mode, so the deploy mode is
         /// always client internally. This field is kept for backwards compatibility but has no
         /// effect.
-        pub mode: SparkMode,
+        #[versioned(deprecated(
+            since = "v1alpha2",
+            note = "the operator always runs the driver in client mode; this field is ignored"
+        ))]
+        #[serde(default)]
+        pub deprecated_mode: SparkMode,
 
         /// The main class - i.e. entry point - for JVM artifacts.
         #[serde(default, skip_serializing_if = "Option::is_none")]

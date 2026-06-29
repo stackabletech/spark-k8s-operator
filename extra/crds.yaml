@@ -241,6 +241,19 @@ spec:
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
                 type: object
+              deprecatedMode:
+                default: cluster
+                description: |-
+                  Deprecated and ignored.
+
+                  Since v1alpha2 the operator no longer runs a separate `spark-submit` process. The driver
+                  is launched directly as a Kubernetes Job running in client mode, so the deploy mode is
+                  always client internally. This field is kept for backwards compatibility but has no
+                  effect.
+                enum:
+                - cluster
+                - client
+                type: string
               deps:
                 default:
                   excludePackages: []
@@ -1977,18 +1990,6 @@ spec:
                 description: The main class - i.e. entry point - for JVM artifacts.
                 nullable: true
                 type: string
-              mode:
-                description: |-
-                  Deprecated and ignored.
-
-                  Since v1alpha2 the operator no longer runs a separate `spark-submit` process. The driver
-                  is launched directly as a Kubernetes Job running in client mode, so the deploy mode is
-                  always client internally. This field is kept for backwards compatibility but has no
-                  effect.
-                enum:
-                - cluster
-                - client
-                type: string
               s3connection:
                 description: |-
                   Configure an S3 connection that the SparkApplication has access to.
@@ -2226,7 +2227,6 @@ spec:
                 type: array
             required:
             - mainApplicationFile
-            - mode
             - sparkImage
             type: object
           status:
@@ -4233,6 +4233,7 @@ spec:
                 nullable: true
                 type: string
               mode:
+                default: cluster
                 description: |-
                   Deprecated and ignored.
 
@@ -4481,7 +4482,6 @@ spec:
                 type: array
             required:
             - mainApplicationFile
-            - mode
             - sparkImage
             type: object
           status:
@@ -7140,6 +7140,19 @@ spec:
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
                 type: object
+              deprecatedMode:
+                default: cluster
+                description: |-
+                  Deprecated and ignored.
+
+                  Since v1alpha2 the operator no longer runs a separate `spark-submit` process. The driver
+                  is launched directly as a Kubernetes Job running in client mode, so the deploy mode is
+                  always client internally. This field is kept for backwards compatibility but has no
+                  effect.
+                enum:
+                - cluster
+                - client
+                type: string
               deps:
                 default:
                   excludePackages: []
@@ -8876,18 +8889,6 @@ spec:
                 description: The main class - i.e. entry point - for JVM artifacts.
                 nullable: true
                 type: string
-              mode:
-                description: |-
-                  Deprecated and ignored.
-
-                  Since v1alpha2 the operator no longer runs a separate `spark-submit` process. The driver
-                  is launched directly as a Kubernetes Job running in client mode, so the deploy mode is
-                  always client internally. This field is kept for backwards compatibility but has no
-                  effect.
-                enum:
-                - cluster
-                - client
-                type: string
               s3connection:
                 description: |-
                   Configure an S3 connection that the SparkApplication has access to.
@@ -9125,7 +9126,6 @@ spec:
                 type: array
             required:
             - mainApplicationFile
-            - mode
             - sparkImage
             type: object
         required:
@@ -11096,6 +11096,7 @@ spec:
                 nullable: true
                 type: string
               mode:
+                default: cluster
                 description: |-
                   Deprecated and ignored.
 
@@ -11344,7 +11345,6 @@ spec:
                 type: array
             required:
             - mainApplicationFile
-            - mode
             - sparkImage
             type: object
         required:

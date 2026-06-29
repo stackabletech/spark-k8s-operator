@@ -88,10 +88,13 @@ pub enum SparkContainer {
     Vector,
     Tls,
 }
-#[derive(Clone, Debug, Deserialize, Display, JsonSchema, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Display, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum SparkMode {
+    // Deprecated and ignored: the operator always runs the driver in client mode. The default only
+    // exists so the deprecated `mode` field can be optional.
+    #[default]
     Cluster,
     Client,
 }

@@ -37,7 +37,7 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
     // Merge spec fields
     let spec = super::v1alpha2::SparkApplicationSpec {
         // Scalar fields: overlay takes precedence
-        mode: overlay.spec.mode.clone(),
+        deprecated_mode: overlay.spec.deprecated_mode.clone(),
         main_application_file: overlay.spec.main_application_file.clone(),
 
         // Option fields: overlay if Some, otherwise base

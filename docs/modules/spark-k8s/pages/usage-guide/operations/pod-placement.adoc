@@ -22,7 +22,7 @@ spec:
   mode: cluster
   mainApplicationFile: app.jar
   sparkImage:
-    productVersion: 4.1.1
+    productVersion: 4.1.2
   job:
     config:
       affinity: # <2>

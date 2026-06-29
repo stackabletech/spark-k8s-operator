@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#684]).
+- Support for Spark `4.1.2` ([#708])
 
 ### Fixed
 
@@ -36,6 +37,7 @@ All notable changes to this project will be documented in this file.
 [#694]: https://github.com/stackabletech/spark-k8s-operator/pull/694
 [#696]: https://github.com/stackabletech/spark-k8s-operator/pull/696
 [#705]: https://github.com/stackabletech/spark-k8s-operator/pull/705
+[#708]: https://github.com/stackabletech/spark-k8s-operator/pull/708
 
 ## [26.3.0] - 2026-03-16
 

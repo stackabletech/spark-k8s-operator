@@ -16,7 +16,7 @@ use stackable_operator::{
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         batch::v1::Job,
-        core::v1::{ConfigMap, Pod, Service},
+        core::v1::{ConfigMap, Service},
     },
     kube::{
         CustomResourceExt as _,
@@ -40,8 +40,7 @@ use crate::{
     crd::{
         SparkApplication,
         constants::{
-            HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
-            SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
+            HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, SPARK_FULL_CONTROLLER_NAME,
         },
         history::SparkHistoryServer,
         template_spec::{SparkApplicationTemplate, SparkApplicationTemplateVersion},
@@ -53,7 +52,6 @@ mod config;
 mod connect;
 mod crd;
 mod history;
-mod pod_driver_controller;
 mod product_logging;
 mod spark_k8s_controller;
 mod webhooks;
@@ -198,47 +196,6 @@ async fn main() -> anyhow::Result<()> {
                 },
             )
             .map(anyhow::Ok);
-
-            let pod_driver_event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
-                    controller: POD_DRIVER_FULL_CONTROLLER_NAME.to_string(),
-                    instance: None,
-                },
-            ));
-            let pod_driver_controller = Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
-                watcher::Config::default()
-                 .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{SPARK_CONTROLLER_NAME},spark-role=driver")),
-            )
-            .owns(
-                watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
-                watcher::Config::default(),
-            )
-            .graceful_shutdown_on(sigterm_watcher.handle())
-            .run(
-                pod_driver_controller::reconcile,
-                pod_driver_controller::error_policy,
-                Arc::new(client.clone()),
-            )
-            .instrument(info_span!("pod_driver_controller"))
-            // We can let the reporting happen in the background
-            .for_each_concurrent(
-                16, // concurrency limit
-                |result| {
-                    // The event_recorder needs to be shared across all invocations, so that
-                    // events are correctly aggregated
-                    let pod_driver_event_recorder = pod_driver_event_recorder.clone();
-                    async move {
-                        report_controller_reconciled(
-                            &pod_driver_event_recorder,
-                            POD_DRIVER_FULL_CONTROLLER_NAME,
-                            &result,
-                        )
-                        .await;
-                    }
-                },
-            ).map(anyhow::Ok);
 
             // Create new object because Ctx cannot be cloned
             let ctx = Ctx {
@@ -399,7 +356,6 @@ async fn main() -> anyhow::Result<()> {
 
             // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
             futures::try_join!(
-                pod_driver_controller,
                 delayed_history_controller,
                 delayed_connect_controller,
                 delayed_app_controller,

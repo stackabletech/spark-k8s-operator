@@ -16,6 +16,7 @@ use stackable_operator::{
             volume::VolumeBuilder,
         },
     },
+    client::Client,
     commons::product_image_selection::ResolvedProductImage,
     crd::s3,
     k8s_openapi::{
@@ -166,6 +167,15 @@ pub enum Error {
     InvalidSparkApplication {
         source: error_boundary::InvalidObject,
     },
+
+    #[snafu(display("SparkApplication [{name}] has no namespace"))]
+    SparkApplicationHasNoNamespace { name: String },
+
+    #[snafu(display("failed to get driver Job for SparkApplication [{name}]"))]
+    GetDriverJob {
+        source: stackable_operator::client::Error,
+        name: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -190,12 +200,15 @@ pub async fn reconcile(
 
     let client = &ctx.client;
 
+    // Once the driver Job has been created, we must not create it again (see #457). On every
+    // subsequent reconcile - triggered by the owned driver Job's status changing - we instead
+    // derive the SparkApplication status from that Job and stop.
     if spark_application.k8s_job_has_been_created() {
         tracing::info!(
             spark_application = spark_application.name_any(),
-            "Skipped reconciling SparkApplication with non empty status"
+            "Updating SparkApplication status from driver Job"
         );
-        return Ok(Action::await_change());
+        return update_status_from_driver_job(client, spark_application).await;
     }
 
     // It is important to do this at the top of the reconciliation function to ensure
@@ -336,6 +349,88 @@ pub async fn reconcile(
         })?;
 
     Ok(Action::await_change())
+}
+
+/// Derives the SparkApplication status from its driver Job and patches it.
+///
+/// The driver Job carries the same name as the SparkApplication. Once it has finished, Kubernetes
+/// garbage collects it via `ttlSecondsAfterFinished`; from then on there is nothing left to derive a
+/// status from, so we keep the last known (terminal) status. We must never (re)create the Job here
+/// (see #457).
+async fn update_status_from_driver_job(
+    client: &Client,
+    spark_application: &v1alpha2::SparkApplication,
+) -> Result<Action> {
+    let name = spark_application.name_any();
+    let namespace =
+        spark_application
+            .metadata
+            .namespace
+            .as_ref()
+            .context(SparkApplicationHasNoNamespaceSnafu { name: name.clone() })?;
+
+    let Some(job) = client
+        .get_opt::<Job>(&name, namespace)
+        .await
+        .context(GetDriverJobSnafu { name: name.clone() })?
+    else {
+        // The driver Job was already garbage collected. Keep the last known status.
+        return Ok(Action::await_change());
+    };
+
+    let phase = driver_job_phase(&job);
+
+    client
+        .apply_patch_status(
+            SPARK_CONTROLLER_NAME,
+            spark_application,
+            &crate::crd::SparkApplicationStatus {
+                phase,
+                resolved_template_ref: spark_application
+                    .status
+                    .as_ref()
+                    .map(|s| s.resolved_template_ref.clone())
+                    .unwrap_or_default(),
+            },
+        )
+        .await
+        .with_context(|_| ApplySparkApplicationStatusSnafu { name })?;
+
+    Ok(Action::await_change())
+}
+
+/// Maps the driver Job's status to a SparkApplication phase.
+///
+/// The phase values mirror the pod phases reported previously (`Running`, `Succeeded`, `Failed`,
+/// `Unknown`) so that the externally visible status does not change. A Job's `active` count includes
+/// both pending and running pods, so a scheduled-but-not-yet-running driver also reports `Running`.
+fn driver_job_phase(job: &Job) -> String {
+    let Some(status) = job.status.as_ref() else {
+        return "Unknown".to_string();
+    };
+
+    // Terminal conditions take precedence over the pod counters.
+    if let Some(conditions) = status.conditions.as_ref() {
+        for condition in conditions {
+            if condition.status == "True" {
+                match condition.type_.as_str() {
+                    "Complete" | "SuccessCriteriaMet" => return "Succeeded".to_string(),
+                    "Failed" => return "Failed".to_string(),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if status.active.unwrap_or(0) > 0 {
+        "Running".to_string()
+    } else if status.succeeded.unwrap_or(0) > 0 {
+        "Succeeded".to_string()
+    } else if status.failed.unwrap_or(0) > 0 {
+        "Failed".to_string()
+    } else {
+        "Unknown".to_string()
+    }
 }
 
 fn init_containers(
@@ -1017,5 +1112,121 @@ pub fn error_policy(
     match error {
         Error::InvalidSparkApplication { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobCondition, JobStatus};
+
+    use super::driver_job_phase;
+
+    fn job_with_status(status: Option<JobStatus>) -> Job {
+        Job {
+            status,
+            ..Job::default()
+        }
+    }
+
+    fn condition(type_: &str, status: &str) -> JobCondition {
+        JobCondition {
+            type_: type_.to_string(),
+            status: status.to_string(),
+            ..JobCondition::default()
+        }
+    }
+
+    #[test]
+    fn no_status_is_unknown() {
+        assert_eq!(driver_job_phase(&job_with_status(None)), "Unknown");
+    }
+
+    #[test]
+    fn empty_status_is_unknown() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus::default()))),
+            "Unknown"
+        );
+    }
+
+    #[test]
+    fn active_pod_is_running() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                active: Some(1),
+                ..JobStatus::default()
+            }))),
+            "Running"
+        );
+    }
+
+    #[test]
+    fn succeeded_counter_is_succeeded() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                succeeded: Some(1),
+                ..JobStatus::default()
+            }))),
+            "Succeeded"
+        );
+    }
+
+    #[test]
+    fn failed_counter_is_failed() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                failed: Some(1),
+                ..JobStatus::default()
+            }))),
+            "Failed"
+        );
+    }
+
+    #[test]
+    fn complete_condition_is_succeeded() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                conditions: Some(vec![condition("Complete", "True")]),
+                ..JobStatus::default()
+            }))),
+            "Succeeded"
+        );
+    }
+
+    #[test]
+    fn failed_condition_is_failed() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                conditions: Some(vec![condition("Failed", "True")]),
+                ..JobStatus::default()
+            }))),
+            "Failed"
+        );
+    }
+
+    #[test]
+    fn terminal_condition_wins_over_active_counter() {
+        // A Job can still report an active pod while its terminal condition is being set; the
+        // terminal condition must take precedence so we don't report "Running" for a finished Job.
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                active: Some(1),
+                conditions: Some(vec![condition("Complete", "True")]),
+                ..JobStatus::default()
+            }))),
+            "Succeeded"
+        );
+    }
+
+    #[test]
+    fn condition_with_false_status_is_ignored() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                active: Some(1),
+                conditions: Some(vec![condition("Failed", "False")]),
+                ..JobStatus::default()
+            }))),
+            "Running"
+        );
     }
 }

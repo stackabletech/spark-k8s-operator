@@ -66,10 +66,6 @@ pub const FIELD_MANAGER: &str = "spark-operator";
 pub const SPARK_CONTROLLER_NAME: &str = "sparkapplication";
 pub const SPARK_FULL_CONTROLLER_NAME: &str = concatcp!(SPARK_CONTROLLER_NAME, '.', OPERATOR_NAME);
 
-pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
-pub const POD_DRIVER_FULL_CONTROLLER_NAME: &str =
-    concatcp!(POD_DRIVER_CONTROLLER_NAME, '.', OPERATOR_NAME);
-
 pub const HISTORY_CONTROLLER_NAME: &str = "history";
 pub const HISTORY_FULL_CONTROLLER_NAME: &str =
     concatcp!(HISTORY_CONTROLLER_NAME, '.', OPERATOR_NAME);

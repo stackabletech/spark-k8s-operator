@@ -13,17 +13,6 @@ rules:
       - nodes/proxy
     verbs:
       - get
-  # The pod-driver controller watches Spark driver pods (labelled spark-role=driver) to track
-  # SparkApplication completion. Driver pods are owned by the driver Job and cleaned up via the
-  # Job's ttlSecondsAfterFinished, so the operator no longer deletes them.
-  - apiGroups:
-      - ""
-    resources:
-      - pods
-    verbs:
-      - get
-      - list
-      - watch
   # ConfigMaps hold pod templates and Spark configuration. All three controllers apply
   # them via Server-Side Apply (create + patch). The history and connect controllers
   # track them for orphan cleanup (list + delete). All controllers watch ConfigMaps via

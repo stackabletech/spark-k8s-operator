@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 
 - BREAKING: The operator no longer runs a separate `spark-submit` process for `SparkApplication`s. The driver is launched directly as a Kubernetes `Job` (built from `spec.driver`) running `spark-submit` in client mode; executors are still created by the driver via Spark's Kubernetes backend. A headless driver `Service` is created so executors can reach the driver. This affects both `v1alpha1` (after conversion) and `v1alpha2` objects ([#711]).
 - The driver `Job` is no longer retried on failure (`backoffLimit` is `0`); the previous `spec.job.retryOnFailureCount` is deprecated and ignored ([#711]).
+- The `SparkApplication` status (`status.phase`) is now derived from the driver `Job` status by the application controller instead of a dedicated pod-driver controller watching driver pods. The pod-driver controller and the operator's `pods` RBAC permissions have been removed ([#711]).
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#674]).
 - BREAKING: Each custom resource accepts now only the known config files in `configOverrides`:
   - `SparkApplication`: `spark-env.sh` and `security.properties`

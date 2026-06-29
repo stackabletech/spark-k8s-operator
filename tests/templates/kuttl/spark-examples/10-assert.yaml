@@ -4,7 +4,7 @@ kind: TestAssert
 timeout: 900
 ---
 # The Job starting the whole process
-apiVersion: spark.stackable.tech/v1alpha1
+apiVersion: spark.stackable.tech/v1alpha2
 kind: SparkApplication
 metadata:
   name: spark-examples

@@ -47,12 +47,12 @@ pub async fn create_webhook_server(
             SparkConnectServer::try_convert as fn(_) -> _,
         ),
         (
-            SparkApplication::merged_crd(SparkApplicationVersion::V1Alpha1)
+            SparkApplication::merged_crd(SparkApplicationVersion::V1Alpha2)
                 .context(MergeCrdSnafu)?,
             SparkApplication::try_convert as fn(_) -> _,
         ),
         (
-            SparkApplicationTemplate::merged_crd(SparkApplicationTemplateVersion::V1Alpha1)
+            SparkApplicationTemplate::merged_crd(SparkApplicationTemplateVersion::V1Alpha2)
                 .context(MergeCrdSnafu)?,
             SparkApplicationTemplate::try_convert as fn(_) -> _,
         ),

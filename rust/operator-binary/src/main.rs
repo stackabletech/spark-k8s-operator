@@ -15,7 +15,8 @@ use stackable_operator::{
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
-        core::v1::{ConfigMap, Pod, Service},
+        batch::v1::Job,
+        core::v1::{ConfigMap, Service},
     },
     kube::{
         CustomResourceExt as _,
@@ -38,10 +39,7 @@ use crate::{
     connect::crd::SparkConnectServerVersion,
     crd::{
         SparkApplication,
-        constants::{
-            HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
-            SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
-        },
+        constants::{HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, SPARK_FULL_CONTROLLER_NAME},
         history::SparkHistoryServer,
         template_spec::{SparkApplicationTemplate, SparkApplicationTemplateVersion},
     },
@@ -52,7 +50,6 @@ mod config;
 mod connect;
 mod crd;
 mod history;
-mod pod_driver_controller;
 mod product_logging;
 mod spark_k8s_controller;
 mod webhooks;
@@ -83,13 +80,13 @@ async fn main() -> anyhow::Result<()> {
     let opts = Opts::parse();
     match opts.cmd {
         Command::Crd => {
-            SparkApplication::merged_crd(crd::SparkApplicationVersion::V1Alpha1)?
+            SparkApplication::merged_crd(crd::SparkApplicationVersion::V1Alpha2)?
                 .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?;
             SparkHistoryServer::merged_crd(crd::history::SparkHistoryServerVersion::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?;
             SparkConnectServer::merged_crd(SparkConnectServerVersion::V1Alpha1)?
                 .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?;
-            SparkApplicationTemplate::merged_crd(SparkApplicationTemplateVersion::V1Alpha1)?
+            SparkApplicationTemplate::merged_crd(SparkApplicationTemplateVersion::V1Alpha2)?
                 .print_yaml_schema(built_info::PKG_VERSION, &SerializeOptions::default())?;
         }
         Command::Run(RunArguments {
@@ -157,11 +154,19 @@ async fn main() -> anyhow::Result<()> {
             ));
             let app_controller = Controller::new(
                 watch_namespace
-                    .get_api::<DeserializeGuard<crd::v1alpha1::SparkApplication>>(&client),
+                    .get_api::<DeserializeGuard<crd::v1alpha2::SparkApplication>>(&client),
                 watcher::Config::default(),
             )
             .owns(
                 watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<Job>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<Service>>(&client),
                 watcher::Config::default(),
             )
             .graceful_shutdown_on(sigterm_watcher.handle())
@@ -189,47 +194,6 @@ async fn main() -> anyhow::Result<()> {
                 },
             )
             .map(anyhow::Ok);
-
-            let pod_driver_event_recorder = Arc::new(Recorder::new(
-                client.as_kube_client(),
-                Reporter {
-                    controller: POD_DRIVER_FULL_CONTROLLER_NAME.to_string(),
-                    instance: None,
-                },
-            ));
-            let pod_driver_controller = Controller::new(
-                watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
-                watcher::Config::default()
-                 .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{SPARK_CONTROLLER_NAME},spark-role=driver")),
-            )
-            .owns(
-                watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
-                watcher::Config::default(),
-            )
-            .graceful_shutdown_on(sigterm_watcher.handle())
-            .run(
-                pod_driver_controller::reconcile,
-                pod_driver_controller::error_policy,
-                Arc::new(client.clone()),
-            )
-            .instrument(info_span!("pod_driver_controller"))
-            // We can let the reporting happen in the background
-            .for_each_concurrent(
-                16, // concurrency limit
-                |result| {
-                    // The event_recorder needs to be shared across all invocations, so that
-                    // events are correctly aggregated
-                    let pod_driver_event_recorder = pod_driver_event_recorder.clone();
-                    async move {
-                        report_controller_reconciled(
-                            &pod_driver_event_recorder,
-                            POD_DRIVER_FULL_CONTROLLER_NAME,
-                            &result,
-                        )
-                        .await;
-                    }
-                },
-            ).map(anyhow::Ok);
 
             // Create new object because Ctx cannot be cloned
             let ctx = Ctx {
@@ -383,14 +347,13 @@ async fn main() -> anyhow::Result<()> {
             };
 
             let delayed_app_controller = async {
-                signal::crd_established(&client, crd::v1alpha1::SparkApplication::crd_name(), None)
+                signal::crd_established(&client, crd::v1alpha2::SparkApplication::crd_name(), None)
                     .await?;
                 app_controller.await
             };
 
             // kube-runtime's Controller will tokio::spawn each reconciliation, so this only concerns the internal watch machinery
             futures::try_join!(
-                pod_driver_controller,
                 delayed_history_controller,
                 delayed_connect_controller,
                 delayed_app_controller,

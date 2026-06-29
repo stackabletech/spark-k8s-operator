@@ -52,7 +52,7 @@ use crate::{
         job_dependencies::JobDependencies,
         roles::{
             RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
-            SubmitConfig, SubmitConfigFragment, VolumeMounts,
+            SubmitConfigFragment,
         },
     },
 };
@@ -133,16 +133,64 @@ pub enum Error {
 }
 
 pub type SparkApplicationJobRoleType =
-    CommonConfiguration<SubmitConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
+    CommonConfiguration<SubmitConfigFragment, JavaCommonConfig, ConfigOverrides>;
 
 pub type SparkApplicationDriverRoleType =
-    CommonConfiguration<RoleConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
+    CommonConfiguration<RoleConfigFragment, JavaCommonConfig, ConfigOverrides>;
 
 pub type SparkApplicationExecutorRoleType =
-    RoleGroup<RoleConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
+    RoleGroup<RoleConfigFragment, JavaCommonConfig, ConfigOverrides>;
+
+/// A reference to a [`SparkApplicationTemplate`](template_spec::SparkApplicationTemplate) that has
+/// been merged into a SparkApplication. Stored in the application status.
+///
+/// This type is intentionally defined outside the `versioned` module because it does not change
+/// between CRD versions and is nested inside a `Vec` in the status, which the auto-generated
+/// version conversions cannot handle for versioned types.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedSparkApplicationTemplate {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uid: Option<String>,
+}
+
+/// Status of a SparkApplication.
+///
+/// Defined outside the `versioned` module because it does not change between CRD versions and is
+/// shared by all versions as the status subresource.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SparkApplicationStatus {
+    pub phase: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resolved_template_ref: Vec<ResolvedSparkApplicationTemplate>,
+}
+
+/// Config file overrides accepted by a SparkApplication.
+///
+/// Defined outside the `versioned` module because it does not change between CRD versions.
+#[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+pub struct ConfigOverrides {
+    #[serde(
+        default,
+        rename = "spark-env.sh",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub spark_env_sh: Option<KeyValueConfigOverrides>,
+
+    #[serde(
+        default,
+        rename = "security.properties",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub security_properties: Option<KeyValueConfigOverrides>,
+}
 
 #[versioned(
     version(name = "v1alpha1"),
+    version(name = "v1alpha2"),
     crates(
         kube_core = "stackable_operator::kube::core",
         kube_client = "stackable_operator::kube::client",
@@ -152,22 +200,6 @@ pub type SparkApplicationExecutorRoleType =
     )
 )]
 pub mod versioned {
-
-    #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
-    #[serde(rename_all = "camelCase")]
-    pub(crate) struct ResolvedSparkApplicationTemplate {
-        pub name: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub uid: Option<String>,
-    }
-    #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[serde(rename_all = "camelCase")]
-    pub struct SparkApplicationStatus {
-        pub phase: String,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        pub resolved_template_ref: Vec<ResolvedSparkApplicationTemplate>,
-    }
 
     /// A Spark application run on Kubernetes by the Stackable operator for Apache Spark.
     /// Find more information on how to use it and the resources that the operator generates in the
@@ -184,8 +216,18 @@ pub mod versioned {
     #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct SparkApplicationSpec {
-        /// Mode: cluster or client. Currently only cluster is supported.
-        pub mode: SparkMode,
+        /// Deprecated and ignored.
+        ///
+        /// Since v1alpha2 the operator no longer runs a separate `spark-submit` process. The driver
+        /// is launched directly as a Kubernetes Job running in client mode, so the deploy mode is
+        /// always client internally. This field is kept for backwards compatibility but has no
+        /// effect.
+        #[versioned(deprecated(
+            since = "v1alpha2",
+            note = "the operator always runs the driver in client mode; this field is ignored"
+        ))]
+        #[serde(default)]
+        pub deprecated_mode: SparkMode,
 
         /// The main class - i.e. entry point - for JVM artifacts.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -209,15 +251,18 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<String>,
 
-        /// The job builds a spark-submit command, complete with arguments and referenced dependencies
-        /// such as templates, and passes it on to Spark.
-        /// The reason this property uses its own type (SubmitConfigFragment) is because logging is not
-        /// supported for spark-submit processes.
-        //
-        // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
-        // However, due to product-config things I wasn't able to remove them.
+        /// Deprecated and ignored.
+        ///
+        /// In previous versions this configured the dedicated `spark-submit` Job. Since v1alpha2 the
+        /// operator launches the driver directly as a Kubernetes Job (built from `spec.driver`), so
+        /// there is no separate submit process to configure. This field is kept for backwards
+        /// compatibility but has no effect.
+        #[versioned(deprecated(
+            since = "v1alpha2",
+            note = "the operator no longer runs a separate spark-submit process; the driver Job is built from spec.driver"
+        ))]
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub job: Option<SparkApplicationJobRoleType>,
+        pub deprecated_job: Option<SparkApplicationJobRoleType>,
 
         /// The driver role specifies the configuration that, together with the driver pod template, is used by
         /// Spark to create driver pods.
@@ -264,26 +309,9 @@ pub mod versioned {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub log_file_directory: Option<LogFileDirectorySpec>,
     }
-
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
-    pub struct ConfigOverrides {
-        #[serde(
-            default,
-            rename = "spark-env.sh",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub spark_env_sh: Option<KeyValueConfigOverrides>,
-
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
-    }
 }
 
-impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
+impl KeyValueOverridesProvider for ConfigOverrides {
     fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
         let field = match file {
             SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.as_ref(),
@@ -296,7 +324,7 @@ impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
     }
 }
 
-impl Merge for v1alpha1::ConfigOverrides {
+impl Merge for ConfigOverrides {
     fn merge(&mut self, defaults: &Self) {
         merge_key_value_config_overrides(&mut self.spark_env_sh, &defaults.spark_env_sh);
         merge_key_value_config_overrides(
@@ -316,8 +344,8 @@ fn merge_key_value_config_overrides(
     }
 }
 
-impl v1alpha1::SparkApplication {
-    /// Returns if this [`SparkApplication`] has already created a Kubernetes Job doing the actual `spark-submit`.
+impl v1alpha2::SparkApplication {
+    /// Returns if this [`SparkApplication`] has already created the driver Kubernetes Job.
     ///
     /// This is needed because Kubernetes will remove the succeeded Job after some time. When the spark-k8s-operator is
     /// restarted it would re-create the Job, resulting in the Spark job running multiple times. This function assumes
@@ -332,12 +360,23 @@ impl v1alpha1::SparkApplication {
             .unwrap_or_default()
     }
 
-    pub fn submit_job_config_map_name(&self) -> String {
-        format!("{app_name}-submit-job", app_name = self.name_any())
-    }
-
     pub fn pod_template_config_map_name(&self, role: SparkApplicationRole) -> String {
         format!("{app_name}-{role}-pod-template", app_name = self.name_any())
+    }
+
+    /// Name of the headless Service that exposes the driver pod so that executors can connect back
+    /// to it. Required because the driver now runs in client mode inside the operator-created Job.
+    pub fn driver_service_name(&self) -> String {
+        format!("{app_name}-driver", app_name = self.name_any())
+    }
+
+    /// The in-cluster DNS name executors use to reach the driver (`spark.driver.host`).
+    pub fn driver_host(&self) -> Result<String, Error> {
+        let namespace = self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?;
+        Ok(format!(
+            "{service}.{namespace}.svc.cluster.local",
+            service = self.driver_service_name()
+        ))
     }
 
     pub fn application_artifact(&self) -> &str {
@@ -480,55 +519,6 @@ impl v1alpha1::SparkApplication {
         Ok(result.into_values().collect())
     }
 
-    /// Return the volume mounts for the spark-submit pod.
-    ///
-    /// These volume mounts are assembled from:
-    /// * two pod template CMs for the driver and executors
-    /// * volume mounts for accessing applications stored in S3 buckets
-    /// * S3 credentials
-    /// * S3 verification certificates
-    /// * python packages (razvan: this was also a mistake since these packages are not used here.)
-    /// * volume mounts additional java packages
-    /// * finally user specified volume maps in `spec.job`.
-    ///
-    pub fn spark_job_volume_mounts(
-        &self,
-        s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
-        logdir: &Option<ResolvedLogDir>,
-    ) -> Vec<VolumeMount> {
-        let mut tmpl_mounts = vec![
-            VolumeMount {
-                name: VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES.into(),
-                mount_path: VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES.into(),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                name: VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES.into(),
-                mount_path: VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES.into(),
-                ..VolumeMount::default()
-            },
-        ];
-
-        tmpl_mounts = self.add_common_volume_mounts(tmpl_mounts, s3conn, logdir, false);
-
-        if let Some(CommonConfiguration {
-            config:
-                SubmitConfigFragment {
-                    volume_mounts:
-                        Some(VolumeMounts {
-                            volume_mounts: job_vm,
-                        }),
-                    ..
-                },
-            ..
-        }) = &self.spec.job
-        {
-            tmpl_mounts.extend(job_vm.clone());
-        }
-
-        tmpl_mounts
-    }
-
     fn add_common_volume_mounts(
         &self,
         mut mounts: Vec<VolumeMount>,
@@ -616,7 +606,7 @@ impl v1alpha1::SparkApplication {
         &'a self,
         app_version: &'a str,
         role: &'a str,
-    ) -> ObjectLabels<'a, v1alpha1::SparkApplication> {
+    ) -> ObjectLabels<'a, v1alpha2::SparkApplication> {
         ObjectLabels {
             owner: self,
             app_name: APP_NAME,
@@ -635,8 +625,8 @@ impl v1alpha1::SparkApplication {
         spark_image: &str,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
-        let mode = &self.spec.mode;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
+        let driver_host = self.driver_host()?;
 
         // Commands needed to build the p12 trust store from the secret class certs configured for
         // S3 connections.
@@ -652,25 +642,26 @@ impl v1alpha1::SparkApplication {
         };
 
         let mut submit_cmd = vec![
-            format!(
-                "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-            ),
+            // containerdebug is started in the background by the image entrypoint (run-spark.sh) via
+            // the `_STACKABLE_PRE_HOOK` env var, so it must not be repeated here.
             build_truststore_commands,
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
                 .to_string(),
-            format!("--deploy-mode {mode}"),
+            // The operator launches the driver directly as a Kubernetes Job. Running spark-submit in
+            // client mode makes this very process the driver (no separate driver pod is created by
+            // Spark). The driver then requests executor pods from the Kubernetes backend.
+            "--deploy-mode client".to_string(),
             format!("--name {name}"),
-            format!(
-                "--conf spark.kubernetes.driver.podTemplateFile={VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES}/{POD_TEMPLATE_FILE}"
-            ),
+            // Executors connect back to the driver via the headless driver Service. The driver binds
+            // to all interfaces inside its pod and advertises the Service address on fixed ports.
+            format!("--conf spark.driver.host={driver_host}"),
+            "--conf spark.driver.bindAddress=0.0.0.0".to_string(),
+            format!("--conf spark.driver.port={DRIVER_PORT}"),
+            format!("--conf spark.driver.blockManager.port={DRIVER_BLOCK_MANAGER_PORT}"),
             format!(
                 "--conf spark.kubernetes.executor.podTemplateFile={VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES}/{POD_TEMPLATE_FILE}"
-            ),
-            format!(
-                "--conf spark.kubernetes.driver.podTemplateContainerName={container_name}",
-                container_name = SparkContainer::Spark
             ),
             format!(
                 "--conf spark.kubernetes.executor.podTemplateContainerName={container_name}",
@@ -679,10 +670,6 @@ impl v1alpha1::SparkApplication {
             format!(
                 "--conf spark.kubernetes.namespace={}",
                 self.metadata.namespace.as_ref().context(NoNamespaceSnafu)?
-            ),
-            format!(
-                "--conf spark.kubernetes.driver.container.image={}",
-                spark_image.to_string()
             ),
             format!(
                 "--conf spark.kubernetes.executor.container.image={}",
@@ -875,16 +862,6 @@ impl v1alpha1::SparkApplication {
         e
     }
 
-    pub fn submit_config(&self) -> Result<SubmitConfig, Error> {
-        if let Some(CommonConfiguration { mut config, .. }) = self.spec.job.clone() {
-            config.merge(&SubmitConfig::default_config());
-            fragment::validate(config).context(FragmentValidationFailureSnafu)
-        } else {
-            fragment::validate(SubmitConfig::default_config())
-                .context(FragmentValidationFailureSnafu)
-        }
-    }
-
     pub fn driver_config(&self) -> Result<RoleConfig, Error> {
         if let Some(CommonConfiguration { mut config, .. }) = self.spec.driver.clone() {
             config.merge(&RoleConfig::default_config());
@@ -909,7 +886,6 @@ impl v1alpha1::SparkApplication {
 
     pub fn pod_overrides(&self, role: SparkApplicationRole) -> Option<PodTemplateSpec> {
         match role {
-            SparkApplicationRole::Submit => self.spec.job.clone().map(|j| j.pod_overrides),
             SparkApplicationRole::Driver => self.spec.driver.clone().map(|d| d.pod_overrides),
             SparkApplicationRole::Executor => {
                 self.spec.executor.clone().map(|r| r.config.pod_overrides)
@@ -926,7 +902,6 @@ impl v1alpha1::SparkApplication {
 
         // Merge the role-specific envOverrides on top
         let role_envs = match role {
-            SparkApplicationRole::Submit => self.spec.job.as_ref().map(|j| &j.env_overrides),
             SparkApplicationRole::Driver => self.spec.driver.as_ref().map(|d| &d.env_overrides),
             SparkApplicationRole::Executor => {
                 self.spec.executor.as_ref().map(|e| &e.config.env_overrides)
@@ -953,14 +928,6 @@ impl v1alpha1::SparkApplication {
         resolved_product_image: &ResolvedProductImage,
         product_config: &ProductConfigManager,
     ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        let submit_conf = match self.spec.job.as_ref() {
-            Some(job) => job.clone(),
-            None => CommonConfiguration {
-                config: SubmitConfig::default_config(),
-                ..CommonConfiguration::default()
-            },
-        };
-
         let driver_conf = match self.spec.driver.as_ref() {
             Some(driver) => driver.clone(),
             None => CommonConfiguration {
@@ -981,29 +948,6 @@ impl v1alpha1::SparkApplication {
         };
 
         let mut roles_to_validate = HashMap::new();
-        roles_to_validate.insert(
-            SparkApplicationRole::Submit.to_string(),
-            (
-                vec![
-                    PropertyNameKind::Env,
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                Role {
-                    config: submit_conf.clone(),
-                    role_config: GenericRoleConfig::default(),
-                    role_groups: [(
-                        "default".to_string(),
-                        RoleGroup {
-                            config: submit_conf,
-                            replicas: Some(1),
-                        },
-                    )]
-                    .into(),
-                }
-                .erase(),
-            ),
-        );
         roles_to_validate.insert(
             SparkApplicationRole::Driver.to_string(),
             (
@@ -1054,17 +998,6 @@ impl v1alpha1::SparkApplication {
             false,
         )
         .context(InvalidProductConfigSnafu)
-    }
-
-    pub fn retry_on_failure_count(&self) -> i32 {
-        let effective_retry_on_failure_count = self
-            .spec
-            .job
-            .as_ref()
-            .map(|common_config| common_config.config.clone())
-            .and_then(|config| config.retry_on_failure_count)
-            .unwrap_or(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT);
-        effective_retry_on_failure_count as i32
     }
 }
 
@@ -1259,7 +1192,7 @@ mod tests {
 
     #[test]
     fn test_default_resource_limits() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {"
+        let spark_application = serde_yaml::from_str::<v1alpha2::SparkApplication>(indoc! {"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1273,10 +1206,6 @@ mod tests {
         "})
         .unwrap();
 
-        let job_resources = &spark_application.submit_config().unwrap().resources;
-        assert_eq!("100m", job_resources.cpu.min.as_ref().unwrap().0);
-        assert_eq!("400m", job_resources.cpu.max.as_ref().unwrap().0);
-
         let driver_resources = &spark_application.driver_config().unwrap().resources;
         assert_eq!("250m", driver_resources.cpu.min.as_ref().unwrap().0);
         assert_eq!("1", driver_resources.cpu.max.as_ref().unwrap().0);
@@ -1288,7 +1217,7 @@ mod tests {
 
     #[test]
     fn test_merged_resource_limits() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_application = serde_yaml::from_str::<v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1299,7 +1228,7 @@ mod tests {
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              job:
+              deprecatedJob:
                 config:
                   resources:
                     cpu:
@@ -1328,17 +1257,6 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            "200m",
-            &spark_application
-                .submit_config()
-                .unwrap()
-                .resources
-                .cpu
-                .max
-                .unwrap()
-                .0
-        );
-        assert_eq!(
             "1300m",
             &spark_application
                 .driver_config()
@@ -1364,7 +1282,7 @@ mod tests {
 
     #[test]
     fn test_role_affinities() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_application = serde_yaml::from_str::<v1alpha2::SparkApplication>(indoc! {r#"
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
@@ -1374,7 +1292,7 @@ spec:
   mainApplicationFile: test.py
   sparkImage:
     productVersion: 1.2.3
-  job:
+  deprecatedJob:
     config:
       affinity:
         nodeSelector:
@@ -1468,49 +1386,6 @@ spec:
 
                 "#})
         .unwrap();
-
-        let job_affinity = spark_application.submit_config().unwrap().affinity;
-        assert_eq!(
-            Some("job"),
-            job_affinity
-                .node_selector
-                .as_ref()
-                .and_then(|selectors| selectors.node_selector.get("affinity-role"))
-                .map(String::as_str)
-        );
-        assert_eq!(
-            Some(11),
-            job_affinity
-                .node_affinity
-                .as_ref()
-                .and_then(|a| a
-                    .preferred_during_scheduling_ignored_during_execution
-                    .as_ref())
-                .and_then(|terms| terms.first())
-                .map(|term| term.weight)
-        );
-        assert_eq!(
-            Some(21),
-            job_affinity
-                .pod_affinity
-                .as_ref()
-                .and_then(|a| a
-                    .preferred_during_scheduling_ignored_during_execution
-                    .as_ref())
-                .and_then(|terms| terms.first())
-                .map(|term| term.weight)
-        );
-        assert_eq!(
-            Some(31),
-            job_affinity
-                .pod_anti_affinity
-                .as_ref()
-                .and_then(|a| a
-                    .preferred_during_scheduling_ignored_during_execution
-                    .as_ref())
-                .and_then(|terms| terms.first())
-                .map(|term| term.weight)
-        );
 
         let driver_affinity = spark_application.driver_config().unwrap().affinity;
         assert_eq!(
@@ -1702,7 +1577,7 @@ spec:
 
     #[test]
     fn test_validated_config() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_application = serde_yaml::from_str::<v1alpha2::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1756,7 +1631,6 @@ spec:
         .into_iter()
         .collect();
         let expected: ValidatedRoleConfigByPropertyKind = vec![
-            ("submit".into(), expected_role_groups.clone()),
             ("driver".into(), expected_role_groups.clone()),
             ("executor".into(), expected_role_groups),
         ]
@@ -1766,64 +1640,7 @@ spec:
         assert_eq!(expected, validated_config);
     }
 
-    #[test]
-    fn test_job_volume_mounts() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
-            ---
-            apiVersion: spark.stackable.tech/v1alpha1
-            kind: SparkApplication
-            metadata:
-              name: spark-examples
-            spec:
-              mode: cluster
-              mainApplicationFile: test.py
-              sparkImage:
-                productVersion: 1.2.3
-              job:
-                config:
-                  volumeMounts:
-                    - name: keytab
-                      mountPath: /kerberos
-              volumes:
-                - name: keytab
-                  configMap:
-                    name: keytab
-        "#})
-        .unwrap();
-
-        let got = spark_application.spark_job_volume_mounts(&None, &None);
-
-        let expected = vec![
-            VolumeMount {
-                mount_path: "/stackable/spark/driver-pod-templates".into(),
-                mount_propagation: None,
-                name: "driver-pod-template".into(),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                mount_path: "/stackable/spark/executor-pod-templates".into(),
-                mount_propagation: None,
-                name: "executor-pod-template".into(),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                mount_path: "/stackable/log".into(),
-                mount_propagation: None,
-                name: "log".into(),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                mount_path: "/kerberos".into(),
-                mount_propagation: None,
-                name: "keytab".into(),
-                ..VolumeMount::default()
-            },
-        ];
-
-        assert_eq!(got, expected);
-    }
-
-    impl RoundtripTestData for v1alpha1::SparkApplicationSpec {
+    impl RoundtripTestData for v1alpha2::SparkApplicationSpec {
         fn roundtrip_test_data() -> Vec<Self> {
             stackable_operator::utils::yaml_from_str_singleton_map(indoc! {r#"
               - sparkImage:
@@ -1852,7 +1669,7 @@ spec:
                     value: ORIGINAL
                   - name: TEST_SPARK_VAR_1
                     value: DONOTREPLACE
-                job:
+                deprecatedJob:
                   envOverrides:
                     TEST_SPARK_VAR_0: REPLACED
                   configOverrides:
@@ -1970,6 +1787,17 @@ spec:
                   customLogDirectory: /mnt/spark-events
             "#})
             .expect("Failed to parse SparkApplicationSpec YAML")
+        }
+    }
+
+    // v1alpha1 round-trip data is derived from the v1alpha2 data via the auto-generated downgrade
+    // conversion, so we don't duplicate the (large) YAML fixture.
+    impl RoundtripTestData for v1alpha1::SparkApplicationSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
+            v1alpha2::SparkApplicationSpec::roundtrip_test_data()
+                .into_iter()
+                .map(Into::into)
+                .collect()
         }
     }
 }

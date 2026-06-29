@@ -1680,22 +1680,3 @@ commands:
         exit 1
       fi
       rm -f "$expected_file" "$actual_file"
-  - script: |
-      expected=$(cat <<'YAMLEOF' | yq -o=json
-      security.properties: |
-        networkaddress.cache.negative.ttl=0
-        networkaddress.cache.ttl=30
-      spark-env.sh: ""
-      YAMLEOF
-      )
-      actual=$(kubectl -n $NAMESPACE get cm spark-pi-s3-1-submit-job -o yaml | yq -o=json '.data')
-      expected_file=$(mktemp) && actual_file=$(mktemp)
-      printf '%s\n' "$expected" > "$expected_file"
-      printf '%s\n' "$actual" > "$actual_file"
-      if ! diff_out=$(diff -u "$expected_file" "$actual_file"); then
-        echo "ERROR: ConfigMap spark-pi-s3-1-submit-job data drifted from snapshot."
-        printf '%s\n' "$diff_out"
-        rm -f "$expected_file" "$actual_file"
-        exit 1
-      fi
-      rm -f "$expected_file" "$actual_file"

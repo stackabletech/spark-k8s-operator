@@ -16,6 +16,7 @@ use stackable_operator::{
             volume::VolumeBuilder,
         },
     },
+    client::Client,
     commons::product_image_selection::ResolvedProductImage,
     crd::s3,
     k8s_openapi::{
@@ -23,8 +24,8 @@ use stackable_operator::{
         api::{
             batch::v1::{Job, JobSpec},
             core::v1::{
-                Affinity, ConfigMap, Container, EnvVar, PodSecurityContext, PodSpec,
-                PodTemplateSpec, ServiceAccount, Volume,
+                ConfigMap, Container, EnvVar, PodSecurityContext, PodTemplateSpec, Service,
+                ServiceAccount, ServicePort, ServiceSpec, Volume,
             },
             rbac::v1::{ClusterRole, RoleBinding, RoleRef, Subject},
         },
@@ -56,8 +57,8 @@ use crate::{
     crd::{
         constants::*,
         logdir::ResolvedLogDir,
-        roles::{RoleConfig, SparkApplicationRole, SparkContainer, SubmitConfig},
-        tlscerts, to_spark_env_sh_string, v1alpha1,
+        roles::{RoleConfig, SparkApplicationRole, SparkContainer},
+        tlscerts, to_spark_env_sh_string, v1alpha2,
     },
     product_logging::{self},
 };
@@ -135,9 +136,6 @@ pub enum Error {
         role: SparkApplicationRole,
     },
 
-    #[snafu(display("invalid submit config"))]
-    SubmitConfig { source: crate::crd::Error },
-
     #[snafu(display("failed to build Labels"))]
     LabelBuild {
         source: stackable_operator::kvp::LabelError,
@@ -169,6 +167,15 @@ pub enum Error {
     InvalidSparkApplication {
         source: error_boundary::InvalidObject,
     },
+
+    #[snafu(display("SparkApplication [{name}] has no namespace"))]
+    SparkApplicationHasNoNamespace { name: String },
+
+    #[snafu(display("failed to get driver Job for SparkApplication [{name}]"))]
+    GetDriverJob {
+        source: stackable_operator::client::Error,
+        name: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -180,7 +187,7 @@ impl ReconcilerError for Error {
 }
 
 pub async fn reconcile(
-    spark_application: Arc<DeserializeGuard<v1alpha1::SparkApplication>>,
+    spark_application: Arc<DeserializeGuard<v1alpha2::SparkApplication>>,
     ctx: Arc<Ctx>,
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
@@ -193,12 +200,15 @@ pub async fn reconcile(
 
     let client = &ctx.client;
 
+    // Once the driver Job has been created, we must not create it again (see #457). On every
+    // subsequent reconcile - triggered by the owned driver Job's status changing - we instead
+    // derive the SparkApplication status from that Job and stop.
     if spark_application.k8s_job_has_been_created() {
         tracing::info!(
             spark_application = spark_application.name_any(),
-            "Skipped reconciling SparkApplication with non empty status"
+            "Updating SparkApplication status from driver Job"
         );
-        return Ok(Action::await_change());
+        return update_status_from_driver_job(client, spark_application).await;
     }
 
     // It is important to do this at the top of the reconciliation function to ensure
@@ -296,38 +306,25 @@ pub async fn reconcile(
         .build_command(opt_s3conn, logdir, &resolved_product_image.image)
         .context(BuildCommandSnafu)?;
 
-    let submit_config = spark_application
-        .submit_config()
-        .context(SubmitConfigSnafu)?;
-
-    let submit_product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>> =
-        validated_product_config
-            .get(&SparkApplicationRole::Submit.to_string())
-            .and_then(|r| r.get(&"default".to_string()));
-
-    let submit_job_config_map = submit_job_config_map(
-        spark_application,
-        submit_product_config,
-        resolved_product_image,
-    )?;
+    // The driver runs in client mode, so executors connect back to it via a headless Service that
+    // selects the driver pod of this application.
+    let driver_service = driver_service(spark_application, resolved_product_image)?;
     client
-        .apply_patch(
-            SPARK_CONTROLLER_NAME,
-            &submit_job_config_map,
-            &submit_job_config_map,
-        )
+        .apply_patch(SPARK_CONTROLLER_NAME, &driver_service, &driver_service)
         .await
         .context(ApplyApplicationSnafu)?;
 
-    let job = spark_job(
+    // The driver itself now runs directly as a Kubernetes Job (no separate spark-submit process).
+    // Its pod is built from `spec.driver`.
+    let job = driver_job(
         spark_application,
-        resolved_product_image,
-        &serviceaccount,
+        &driver_config,
         &env_vars,
         &job_commands,
         opt_s3conn,
         logdir,
-        &submit_config,
+        resolved_product_image,
+        &serviceaccount,
     )?;
     client
         .apply_patch(SPARK_CONTROLLER_NAME, &job, &job)
@@ -341,7 +338,7 @@ pub async fn reconcile(
         .apply_patch_status(
             SPARK_CONTROLLER_NAME,
             spark_application,
-            &v1alpha1::SparkApplicationStatus {
+            &crate::crd::SparkApplicationStatus {
                 phase: "Unknown".to_string(),
                 resolved_template_ref: validated.resolved_template_refs.clone(),
             },
@@ -354,8 +351,89 @@ pub async fn reconcile(
     Ok(Action::await_change())
 }
 
+/// Derives the SparkApplication status from its driver Job and patches it.
+///
+/// The driver Job carries the same name as the SparkApplication. Once it has finished, Kubernetes
+/// garbage collects it via `ttlSecondsAfterFinished`; from then on there is nothing left to derive a
+/// status from, so we keep the last known (terminal) status. We must never (re)create the Job here
+/// (see #457).
+async fn update_status_from_driver_job(
+    client: &Client,
+    spark_application: &v1alpha2::SparkApplication,
+) -> Result<Action> {
+    let name = spark_application.name_any();
+    let namespace = spark_application
+        .metadata
+        .namespace
+        .as_ref()
+        .context(SparkApplicationHasNoNamespaceSnafu { name: name.clone() })?;
+
+    let Some(job) = client
+        .get_opt::<Job>(&name, namespace)
+        .await
+        .context(GetDriverJobSnafu { name: name.clone() })?
+    else {
+        // The driver Job was already garbage collected. Keep the last known status.
+        return Ok(Action::await_change());
+    };
+
+    let phase = driver_job_phase(&job);
+
+    client
+        .apply_patch_status(
+            SPARK_CONTROLLER_NAME,
+            spark_application,
+            &crate::crd::SparkApplicationStatus {
+                phase,
+                resolved_template_ref: spark_application
+                    .status
+                    .as_ref()
+                    .map(|s| s.resolved_template_ref.clone())
+                    .unwrap_or_default(),
+            },
+        )
+        .await
+        .with_context(|_| ApplySparkApplicationStatusSnafu { name })?;
+
+    Ok(Action::await_change())
+}
+
+/// Maps the driver Job's status to a SparkApplication phase.
+///
+/// The phase values mirror the pod phases reported previously (`Running`, `Succeeded`, `Failed`,
+/// `Unknown`) so that the externally visible status does not change. A Job's `active` count includes
+/// both pending and running pods, so a scheduled-but-not-yet-running driver also reports `Running`.
+fn driver_job_phase(job: &Job) -> String {
+    let Some(status) = job.status.as_ref() else {
+        return "Unknown".to_string();
+    };
+
+    // Terminal conditions take precedence over the pod counters.
+    if let Some(conditions) = status.conditions.as_ref() {
+        for condition in conditions {
+            if condition.status == "True" {
+                match condition.type_.as_str() {
+                    "Complete" | "SuccessCriteriaMet" => return "Succeeded".to_string(),
+                    "Failed" => return "Failed".to_string(),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if status.active.unwrap_or(0) > 0 {
+        "Running".to_string()
+    } else if status.succeeded.unwrap_or(0) > 0 {
+        "Succeeded".to_string()
+    } else if status.failed.unwrap_or(0) > 0 {
+        "Failed".to_string()
+    } else {
+        "Unknown".to_string()
+    }
+}
+
 fn init_containers(
-    spark_application: &v1alpha1::SparkApplication,
+    spark_application: &v1alpha2::SparkApplication,
     logging: &Logging<SparkContainer>,
     s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
@@ -510,7 +588,7 @@ fn init_containers(
 
 #[allow(clippy::too_many_arguments)]
 fn pod_template(
-    spark_application: &v1alpha1::SparkApplication,
+    spark_application: &v1alpha2::SparkApplication,
     role: SparkApplicationRole,
     config: &RoleConfig,
     volumes: &[Volume],
@@ -519,6 +597,12 @@ fn pod_template(
     logdir: &Option<ResolvedLogDir>,
     spark_image: &ResolvedProductImage,
     service_account: &ServiceAccount,
+    // When set, the spark container runs this command (the spark-submit client invocation) as the
+    // container `args`, leaving `command` unset so the image entrypoint (run-spark.sh) is used. This
+    // is the driver pod, which the operator launches directly as a Kubernetes Job. When `None`
+    // (executor pod template), the container also relies on the image entrypoint, since Spark sets
+    // the args on the executor pods it creates.
+    command: Option<&[String]>,
 ) -> Result<PodTemplateSpec> {
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = ContainerBuilder::new(&container_name).context(IllegalContainerNameSnafu)?;
@@ -529,6 +613,49 @@ fn pod_template(
         .add_env_vars(merged_env)
         .resources(config.resources.clone().into())
         .image_from_product_image(spark_image);
+
+    if let Some(command) = command {
+        // The driver mounts the executor pod template so that Spark's Kubernetes backend can create
+        // executor pods from it.
+        cb.add_volume_mount(
+            VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES,
+            VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES,
+        )
+        .context(AddVolumeMountSnafu)?;
+
+        // The SPARK_SUBMIT_OPTS env var configures the JVM settings of the spark-submit/driver
+        // process: it points the JVM to our logging configuration and, if S3 (data or Spark
+        // History) is used, to the trust store.
+        let mut spark_submit_opts = vec![format!(
+            "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
+        )];
+        if tlscerts::tls_secret_names(s3conn, logdir).is_some() {
+            spark_submit_opts.push(format!(
+                "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"
+            ));
+            spark_submit_opts.push(format!(
+                "-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"
+            ));
+        }
+
+        // We pass the spark-submit invocation as container `args` and leave `command` unset so the
+        // image entrypoint (run-spark.sh) runs it. The entrypoint evaluates `_STACKABLE_PRE_HOOK`
+        // (which starts containerdebug) before, and `_STACKABLE_POST_HOOK` (which writes the Vector
+        // shutdown file) after the spark-submit process exits. The latter is what lets the Vector
+        // agent terminate so the driver Job pod can complete. run-spark.sh delegates to Spark's
+        // entrypoint.sh, which runs our `/bin/bash -c ...` in pass-through mode.
+        cb.args(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+            "-c".to_string(),
+            command.join("\n"),
+        ])
+        .add_env_var("SPARK_SUBMIT_OPTS", spark_submit_opts.join(" "))
+        // TODO: move this to the image
+        .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");
+    }
 
     if config.logging.enable_vector_agent {
         cb.add_env_var(
@@ -558,6 +685,14 @@ fn pod_template(
     // because the executor metrics are also available via /metrics/executors/prometheus/
     if role == SparkApplicationRole::Driver {
         omb.with_label(Label::try_from(("prometheus.io/scrape", "true")).context(LabelBuildSnafu)?);
+    }
+
+    // The actual driver pod (the Job pod, identified by `command` being set) needs the `spark-role`
+    // label so the headless driver Service can select it and the operator can identify it.
+    if command.is_some() {
+        omb.with_label(
+            Label::try_from((SPARK_ROLE_LABEL, SPARK_ROLE_DRIVER)).context(LabelBuildSnafu)?,
+        );
     }
 
     let mut metadata = omb.build();
@@ -633,7 +768,7 @@ fn pod_template(
 
 #[allow(clippy::too_many_arguments)]
 fn pod_template_config_map(
-    spark_application: &v1alpha1::SparkApplication,
+    spark_application: &v1alpha2::SparkApplication,
     role: SparkApplicationRole,
     merged_config: &RoleConfig,
     product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
@@ -684,6 +819,7 @@ fn pod_template_config_map(
         logdir,
         spark_image,
         service_account,
+        None,
     )?;
 
     let mut cm_builder = ConfigMapBuilder::new();
@@ -751,169 +887,135 @@ fn pod_template_config_map(
     cm_builder.build().context(PodTemplateConfigMapSnafu)
 }
 
-fn submit_job_config_map(
-    spark_application: &v1alpha1::SparkApplication,
-    product_config: Option<&HashMap<PropertyNameKind, BTreeMap<String, String>>>,
+/// Headless Service that exposes the driver pod so executors can connect back to it in client mode.
+fn driver_service(
+    spark_application: &v1alpha2::SparkApplication,
     spark_image: &ResolvedProductImage,
-) -> Result<ConfigMap> {
-    let cm_name = spark_application.submit_job_config_map_name();
+) -> Result<Service> {
+    // Select exactly the driver pod of this application.
+    let selector = BTreeMap::from([
+        (
+            "app.kubernetes.io/instance".to_string(),
+            spark_application.name_any(),
+        ),
+        (SPARK_ROLE_LABEL.to_string(), SPARK_ROLE_DRIVER.to_string()),
+    ]);
 
-    let mut cm_builder = ConfigMapBuilder::new();
-
-    cm_builder.metadata(
-        ObjectMetaBuilder::new()
+    let service = Service {
+        metadata: ObjectMetaBuilder::new()
             .name_and_namespace(spark_application)
-            .name(&cm_name)
+            .name(spark_application.driver_service_name())
             .ownerreference_from_resource(spark_application, None, Some(true))
             .context(ObjectMissingMetadataForOwnerRefSnafu)?
             .with_recommended_labels(
                 &spark_application
-                    .build_recommended_labels(&spark_image.app_version_label_value, "spark-submit"),
+                    .build_recommended_labels(&spark_image.app_version_label_value, "driver"),
             )
             .context(MetadataBuildSnafu)?
             .build(),
-    );
+        spec: Some(ServiceSpec {
+            // Headless: executors resolve the driver pod directly.
+            cluster_ip: Some("None".to_string()),
+            selector: Some(selector),
+            // The driver must be reachable as soon as its pod has an IP, even before it is "ready".
+            publish_not_ready_addresses: Some(true),
+            ports: Some(vec![
+                ServicePort {
+                    name: Some("driver".to_string()),
+                    port: i32::from(DRIVER_PORT),
+                    ..ServicePort::default()
+                },
+                ServicePort {
+                    name: Some("block-manager".to_string()),
+                    port: i32::from(DRIVER_BLOCK_MANAGER_PORT),
+                    ..ServicePort::default()
+                },
+            ]),
+            ..ServiceSpec::default()
+        }),
+        status: None,
+    };
 
-    if let Some(product_config) = product_config {
-        cm_builder.add_data(
-            SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(
-                product_config
-                    .get(&PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()))
-                    .cloned()
-                    .unwrap_or_default()
-                    .iter(),
-            ),
-        );
-
-        let jvm_sec_props: BTreeMap<String, Option<String>> = product_config
-            .get(&PropertyNameKind::File(
-                JVM_SECURITY_PROPERTIES_FILE.to_string(),
-            ))
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|(k, v)| (k, Some(v)))
-            .collect();
-
-        cm_builder.add_data(
-            JVM_SECURITY_PROPERTIES_FILE,
-            to_java_properties_string(jvm_sec_props.iter()).with_context(|_| {
-                JvmSecurityPropertiesSnafu {
-                    role: SparkApplicationRole::Submit,
-                }
-            })?,
-        );
-    }
-
-    cm_builder.build().context(PodTemplateConfigMapSnafu)
+    Ok(service)
 }
 
+/// The driver Job. Its pod runs `spark-submit` in client mode and therefore *is* the Spark driver.
+/// The pod spec is built from `spec.driver`. Executors are created by the driver via Spark's
+/// Kubernetes backend.
 #[allow(clippy::too_many_arguments)]
-fn spark_job(
-    spark_application: &v1alpha1::SparkApplication,
-    spark_image: &ResolvedProductImage,
-    serviceaccount: &ServiceAccount,
+fn driver_job(
+    spark_application: &v1alpha2::SparkApplication,
+    driver_config: &RoleConfig,
     env: &[EnvVar],
     job_commands: &[String],
     s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &Option<ResolvedLogDir>,
-    job_config: &SubmitConfig,
+    spark_image: &ResolvedProductImage,
+    service_account: &ServiceAccount,
 ) -> Result<Job> {
-    let mut cb = ContainerBuilder::new(&SparkContainer::SparkSubmit.to_string())
-        .context(IllegalContainerNameSnafu)?;
+    let cm_name = spark_application.pod_template_config_map_name(SparkApplicationRole::Driver);
 
-    let merged_env = spark_application.merged_env(SparkApplicationRole::Submit, env);
+    let log_config_map = if let Some(ContainerLogConfig {
+        choice:
+            Some(ContainerLogConfigChoice::Custom(CustomContainerLogConfig {
+                custom: ConfigMapLogConfig { config_map },
+            })),
+    }) = driver_config.logging.containers.get(&SparkContainer::Spark)
+    {
+        config_map.into()
+    } else {
+        cm_name.clone()
+    };
 
-    // The SPARK_SUBMIT_OPTS env var is used to configure the JVM settings of the spark-submit job.
-    // Here we need to point the JVM to our logging configuration and if S3 is used for data or Spark History,
-    // we also need to tell the JVM where the trust store is located.
-    // The same properties are also set for the driver and executor pods via the pod template config maps.
-    let mut spark_submit_opts_env = vec![format!(
-        "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
-    )];
-    if tlscerts::tls_secret_names(s3conn, logdir).is_some() {
-        spark_submit_opts_env.push(format!(
-            "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"
-        ));
-        spark_submit_opts_env.push(format!(
-            "-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"
-        ));
-    }
-    cb.image_from_product_image(spark_image)
-        .command(vec![
-            "/bin/bash".to_string(),
-            "-x".to_string(),
-            "-euo".to_string(),
-            "pipefail".to_string(),
-            "-c".to_string(),
-        ])
-        .args(vec![job_commands.join("\n")])
-        .resources(job_config.resources.clone().into())
-        .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, logdir))
-        .context(AddVolumeMountSnafu)?
-        .add_env_vars(merged_env)
-        .add_env_var("SPARK_SUBMIT_OPTS", spark_submit_opts_env.join(" "))
-        // TODO: move this to the image
-        .add_env_var("SPARK_CONF_DIR", "/stackable/spark/conf");
+    let requested_secret_lifetime = driver_config
+        .requested_secret_lifetime
+        .context(MissingSecretLifetimeSnafu)?;
 
-    let mut volumes = vec![
+    let mut volumes = spark_application
+        .volumes(
+            s3conn,
+            logdir,
+            Some(&log_config_map),
+            &requested_secret_lifetime,
+        )
+        .context(CreateVolumesSnafu)?;
+    // The driver's own config (spark-env.sh, security.properties, log4j) ConfigMap.
+    volumes.push(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
-            .with_config_map(spark_application.submit_job_config_map_name())
+            .with_config_map(&cm_name)
             .build(),
-        VolumeBuilder::new(VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES)
-            .with_config_map(
-                spark_application.pod_template_config_map_name(SparkApplicationRole::Driver),
-            )
-            .build(),
+    );
+    // The executor pod template ConfigMap, read by the driver's Spark Kubernetes backend.
+    volumes.push(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES)
             .with_config_map(
                 spark_application.pod_template_config_map_name(SparkApplicationRole::Executor),
             )
             .build(),
-    ];
-    let requested_secret_lifetime = job_config
-        .requested_secret_lifetime
-        .context(MissingSecretLifetimeSnafu)?;
-    volumes.extend(
-        spark_application
-            .volumes(s3conn, logdir, None, &requested_secret_lifetime)
-            .context(CreateVolumesSnafu)?,
     );
 
-    let containers = vec![cb.build()];
+    let mut template = pod_template(
+        spark_application,
+        SparkApplicationRole::Driver,
+        driver_config,
+        &volumes,
+        env,
+        s3conn,
+        logdir,
+        spark_image,
+        service_account,
+        Some(job_commands),
+    )?;
 
-    let mut pod = PodTemplateSpec {
-        metadata: Some(
-            ObjectMetaBuilder::new()
-                .name("spark-submit")
-                .with_recommended_labels(&spark_application.build_recommended_labels(
-                    &spark_image.app_version_label_value,
-                    "spark-job-template",
-                ))
-                .context(MetadataBuildSnafu)?
-                .build(),
-        ),
-        spec: Some(PodSpec {
-            containers,
-            restart_policy: Some("Never".to_string()),
-            service_account_name: serviceaccount.metadata.name.clone(),
-            volumes: Some(volumes),
-            affinity: Some(Affinity {
-                node_affinity: job_config.affinity.node_affinity.clone(),
-                pod_affinity: job_config.affinity.pod_affinity.clone(),
-                pod_anti_affinity: job_config.affinity.pod_anti_affinity.clone(),
-            }),
-            image_pull_secrets: spark_image.pull_secrets.clone(),
-            security_context: Some(security_context()),
-            ..PodSpec::default()
-        }),
-    };
-
-    if let Some(submit_pod_overrides) =
-        spark_application.pod_overrides(SparkApplicationRole::Submit)
-    {
-        pod.merge_from(submit_pod_overrides);
+    // A Job's pod must declare a restart policy.
+    if let Some(spec) = template.spec.as_mut() {
+        spec.restart_policy = Some("Never".to_string());
+        // Give the driver pod a stable hostname ending in `-driver`. The Vector agent reports this
+        // hostname as the `pod` field of every log event (see `log_schema.host_key: pod`), and log
+        // aggregation/monitoring identifies driver logs by that `-driver` suffix. Without this the
+        // Job controller's generated pod name (`<app>-<hash>`) would be used, which Spark previously
+        // avoided by naming the cluster-mode driver pod `<app>-...-driver`.
+        spec.hostname = Some(spark_application.driver_service_name());
     }
 
     let job = Job {
@@ -928,9 +1030,11 @@ fn spark_job(
             .context(MetadataBuildSnafu)?
             .build(),
         spec: Some(JobSpec {
-            template: pod,
+            template,
             ttl_seconds_after_finished: Some(600),
-            backoff_limit: Some(spark_application.retry_on_failure_count()),
+            // The driver Job is not retried by default. `spec.job.retryOnFailureCount` configured the
+            // old submit Job and is deprecated since v1alpha2.
+            backoff_limit: Some(0),
             ..Default::default()
         }),
         status: None,
@@ -944,7 +1048,7 @@ fn spark_job(
 /// Both objects have an owner reference to the SparkApplication, as well as the same name as the app.
 /// They are deleted when the job is deleted.
 fn build_spark_role_serviceaccount(
-    spark_app: &v1alpha1::SparkApplication,
+    spark_app: &v1alpha2::SparkApplication,
     spark_image: &ResolvedProductImage,
 ) -> Result<(ServiceAccount, RoleBinding)> {
     // TODO (@NickLarsenNZ): Explain this unwrap. Either convert to expect, or gracefully handle the error.
@@ -1000,12 +1104,128 @@ fn security_context() -> PodSecurityContext {
 }
 
 pub fn error_policy(
-    _obj: Arc<DeserializeGuard<v1alpha1::SparkApplication>>,
+    _obj: Arc<DeserializeGuard<v1alpha2::SparkApplication>>,
     error: &Error,
     _ctx: Arc<Ctx>,
 ) -> Action {
     match error {
         Error::InvalidSparkApplication { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::k8s_openapi::api::batch::v1::{Job, JobCondition, JobStatus};
+
+    use super::driver_job_phase;
+
+    fn job_with_status(status: Option<JobStatus>) -> Job {
+        Job {
+            status,
+            ..Job::default()
+        }
+    }
+
+    fn condition(type_: &str, status: &str) -> JobCondition {
+        JobCondition {
+            type_: type_.to_string(),
+            status: status.to_string(),
+            ..JobCondition::default()
+        }
+    }
+
+    #[test]
+    fn no_status_is_unknown() {
+        assert_eq!(driver_job_phase(&job_with_status(None)), "Unknown");
+    }
+
+    #[test]
+    fn empty_status_is_unknown() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus::default()))),
+            "Unknown"
+        );
+    }
+
+    #[test]
+    fn active_pod_is_running() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                active: Some(1),
+                ..JobStatus::default()
+            }))),
+            "Running"
+        );
+    }
+
+    #[test]
+    fn succeeded_counter_is_succeeded() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                succeeded: Some(1),
+                ..JobStatus::default()
+            }))),
+            "Succeeded"
+        );
+    }
+
+    #[test]
+    fn failed_counter_is_failed() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                failed: Some(1),
+                ..JobStatus::default()
+            }))),
+            "Failed"
+        );
+    }
+
+    #[test]
+    fn complete_condition_is_succeeded() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                conditions: Some(vec![condition("Complete", "True")]),
+                ..JobStatus::default()
+            }))),
+            "Succeeded"
+        );
+    }
+
+    #[test]
+    fn failed_condition_is_failed() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                conditions: Some(vec![condition("Failed", "True")]),
+                ..JobStatus::default()
+            }))),
+            "Failed"
+        );
+    }
+
+    #[test]
+    fn terminal_condition_wins_over_active_counter() {
+        // A Job can still report an active pod while its terminal condition is being set; the
+        // terminal condition must take precedence so we don't report "Running" for a finished Job.
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                active: Some(1),
+                conditions: Some(vec![condition("Complete", "True")]),
+                ..JobStatus::default()
+            }))),
+            "Succeeded"
+        );
+    }
+
+    #[test]
+    fn condition_with_false_status_is_ignored() {
+        assert_eq!(
+            driver_job_phase(&job_with_status(Some(JobStatus {
+                active: Some(1),
+                conditions: Some(vec![condition("Failed", "False")]),
+                ..JobStatus::default()
+            }))),
+            "Running"
+        );
     }
 }

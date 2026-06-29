@@ -13,19 +13,6 @@ rules:
       - nodes/proxy
     verbs:
       - get
-  # The pod-driver controller watches Spark driver pods
-  # (labelled spark-role=driver) to track SparkApplication completion. It also
-  # deletes driver pods once the application reaches a terminal phase (Succeeded
-  # or Failed).
-  - apiGroups:
-      - ""
-    resources:
-      - pods
-    verbs:
-      - delete
-      - get
-      - list
-      - watch
   # ConfigMaps hold pod templates and Spark configuration. All three controllers apply
   # them via Server-Side Apply (create + patch). The history and connect controllers
   # track them for orphan cleanup (list + delete). All controllers watch ConfigMaps via
@@ -43,9 +30,10 @@ rules:
       - patch
       - watch
   # Services expose Spark History Server and Spark Connect Server for metrics and
-  # inter-component communication. Applied via Server-Side Apply and tracked for orphan
-  # cleanup by the history and connect controllers. The history and connect controllers
-  # watch Services via .owns(Service) to trigger re-reconciliation on change.
+  # inter-component communication, and the app controller creates a headless driver Service per
+  # SparkApplication so executors can reach the driver in client mode. Applied via Server-Side
+  # Apply and tracked for orphan cleanup by the history and connect controllers. The app, history
+  # and connect controllers watch Services via .owns(Service) to trigger re-reconciliation on change.
   # get is required for the ReconciliationPaused strategy in cluster_resources.add().
   - apiGroups:
       - ""
@@ -115,17 +103,20 @@ rules:
       - list
       - patch
       - watch
-  # A Kubernetes Job is created per SparkApplication via Server-Side Apply to run
-  # spark-submit. The app controller applies Jobs directly (not via cluster_resources),
-  # so only create + patch (SSA) are needed. Jobs are not watched and not tracked for
-  # orphan cleanup by any controller.
+  # The driver Job is created per SparkApplication via Server-Side Apply. The app controller
+  # applies Jobs directly (create + patch via SSA) and watches them via .owns(Job) to track
+  # SparkApplication progress, so get + list + watch are also required. Jobs are garbage collected
+  # via their owner reference and ttlSecondsAfterFinished, so no explicit delete is needed.
   - apiGroups:
       - batch
     resources:
       - jobs
     verbs:
       - create
+      - get
+      - list
       - patch
+      - watch
   # PodDisruptionBudgets limit voluntary disruptions to Spark History Server pods.
   # Applied via Server-Side Apply and tracked for orphan cleanup by the history
   # controller. No controller watches PDBs via .owns().

@@ -51,6 +51,7 @@ pub enum Error {
 
 #[versioned(
     version(name = "v1alpha1"),
+    version(name = "v1alpha2"),
     crates(
         kube_core = "stackable_operator::kube::core",
         kube_client = "stackable_operator::kube::client",
@@ -73,18 +74,33 @@ pub mod versioned {
     #[derive(Clone, CustomResource, Debug, Deserialize, JsonSchema, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct SparkApplicationTemplateSpec {
-        /// The template body mirrors a [`SparkApplication`](super::super::v1alpha1::SparkApplication)
+        /// The template body mirrors a [`SparkApplication`](super::super::v1alpha2::SparkApplication)
         /// spec exactly — it is merged into a `SparkApplication` at reconcile time, see
         /// [`merge_application_templates`].
+        ///
+        /// The embedded spec tracks the SparkApplication CRD version: a v1alpha1 template embeds a
+        /// v1alpha1 spec and a v1alpha2 template embeds a v1alpha2 spec. Conversion reuses the
+        /// auto-generated SparkApplicationSpec version conversions.
+        #[versioned(changed(
+            since = "v1alpha2",
+            from_type = "crate::crd::v1alpha1::SparkApplicationSpec",
+            downgrade_with = downgrade_template_spec
+        ))]
         #[serde(flatten)]
-        pub spec: crate::crd::v1alpha1::SparkApplicationSpec,
+        pub spec: crate::crd::v1alpha2::SparkApplicationSpec,
     }
 }
 
-impl From<&v1alpha1::SparkApplicationTemplate>
-    for super::v1alpha1::ResolvedSparkApplicationTemplate
-{
-    fn from(value: &v1alpha1::SparkApplicationTemplate) -> Self {
+/// Downgrades the embedded SparkApplicationSpec when converting a v1alpha2 template back to
+/// v1alpha1. Delegates to the auto-generated SparkApplicationSpec conversion.
+fn downgrade_template_spec(
+    spec: crate::crd::v1alpha2::SparkApplicationSpec,
+) -> crate::crd::v1alpha1::SparkApplicationSpec {
+    spec.into()
+}
+
+impl From<&v1alpha2::SparkApplicationTemplate> for super::ResolvedSparkApplicationTemplate {
+    fn from(value: &v1alpha2::SparkApplicationTemplate) -> Self {
         Self {
             name: value.name_any(),
             uid: value.metadata.uid.clone(),
@@ -92,9 +108,9 @@ impl From<&v1alpha1::SparkApplicationTemplate>
     }
 }
 
-impl From<v1alpha1::SparkApplicationTemplate> for super::v1alpha1::SparkApplication {
-    fn from(template: v1alpha1::SparkApplicationTemplate) -> super::v1alpha1::SparkApplication {
-        super::v1alpha1::SparkApplication {
+impl From<v1alpha2::SparkApplicationTemplate> for super::v1alpha2::SparkApplication {
+    fn from(template: v1alpha2::SparkApplicationTemplate) -> super::v1alpha2::SparkApplication {
+        super::v1alpha2::SparkApplication {
             metadata: template.metadata,
             spec: template.spec.spec,
             status: None,
@@ -137,12 +153,12 @@ const ANNO_TEMPLATE_UPDATE_STRATEGY: &str = "spark-application.template.updateSt
 // Currently only "enforce" is supported, meaning: fail in case of errors.
 const ANNO_TEMPLATE_APPLY_STRATEGY: &str = "spark-application.template.applyStrategy";
 
-impl TryFrom<&super::v1alpha1::SparkApplication> for MergeTemplateOptions {
+impl TryFrom<&super::v1alpha2::SparkApplication> for MergeTemplateOptions {
     type Error = Error;
 
     // Build a `MergeTemplateOptions` value from the metadata annotations of a `SparkApplication`.
     // The `template_names` are sorted in the order in which they are applied as specified by the `index`.
-    fn try_from(app: &super::v1alpha1::SparkApplication) -> Result<Self, Error> {
+    fn try_from(app: &super::v1alpha2::SparkApplication) -> Result<Self, Error> {
         if let Some(annos) = app.metadata.annotations.as_ref() {
             let merge: bool = match annos.get(ANNO_TEMPLATE_MERGE) {
                 Some(v) => {
@@ -198,12 +214,12 @@ impl TryFrom<&super::v1alpha1::SparkApplication> for MergeTemplateOptions {
 }
 
 pub(crate) struct MergeTemplateResult {
-    pub app: Option<super::v1alpha1::SparkApplication>,
-    pub resolved_template_ref: Vec<super::v1alpha1::ResolvedSparkApplicationTemplate>,
+    pub app: Option<super::v1alpha2::SparkApplication>,
+    pub resolved_template_ref: Vec<super::ResolvedSparkApplicationTemplate>,
 }
 
-// Merges one or more [`SparkApplicationTemplate`](v1alpha1::SparkApplicationTemplate) resources
-// into the given [`SparkApplication`](super::v1alpha1::SparkApplication).
+// Merges one or more [`SparkApplicationTemplate`](v1alpha2::SparkApplicationTemplate) resources
+// into the given [`SparkApplication`](super::v1alpha2::SparkApplication).
 //
 // Template merging is controlled by annotations on the `SparkApplication`.
 //
@@ -234,7 +250,7 @@ pub(crate) struct MergeTemplateResult {
 // - `Err(Error)` if annotation parsing fails or a Kubernetes API call returns an error.
 pub(crate) async fn merge_application_templates(
     client: &stackable_operator::client::Client,
-    spark_application: &super::v1alpha1::SparkApplication,
+    spark_application: &super::v1alpha2::SparkApplication,
 ) -> Result<MergeTemplateResult, Error> {
     let app_name = spark_application.name_any();
 
@@ -279,11 +295,11 @@ pub(crate) async fn merge_application_templates(
             // The list of apps from templates in the correct order.
             // The final element is the actual Spark application being reconciled
             // which has the highest priority during merging.
-            let mut template_apps: Vec<super::v1alpha1::SparkApplication> = templates
+            let mut template_apps: Vec<super::v1alpha2::SparkApplication> = templates
                 .iter()
                 .cloned()
-                .map(super::v1alpha1::SparkApplication::from)
-                .collect::<Vec<super::v1alpha1::SparkApplication>>();
+                .map(super::v1alpha2::SparkApplication::from)
+                .collect::<Vec<super::v1alpha2::SparkApplication>>();
             template_apps.push(spark_application.clone());
 
             // Deep merge app templates from left to right
@@ -295,8 +311,8 @@ pub(crate) async fn merge_application_templates(
             // list might differ from what is in the app annotations so make sure we return the correct one.
             let effective_template_list = templates
                 .iter()
-                .map(super::v1alpha1::ResolvedSparkApplicationTemplate::from)
-                .collect::<Vec<super::v1alpha1::ResolvedSparkApplicationTemplate>>();
+                .map(super::ResolvedSparkApplicationTemplate::from)
+                .collect::<Vec<super::ResolvedSparkApplicationTemplate>>();
 
             tracing::info!(
                 "app [{app_name}] : successfully merged templates [{tnames}]",
@@ -323,7 +339,7 @@ pub(crate) async fn merge_application_templates(
 }
 
 fn spark_application_namespace(
-    spark_application: &super::v1alpha1::SparkApplication,
+    spark_application: &super::v1alpha2::SparkApplication,
 ) -> Result<&str, Error> {
     spark_application
         .metadata
@@ -337,13 +353,13 @@ async fn resolve(
     namespace: &str,
     template_names: &[String],
     apply_strategy: TemplateApplyStrategy,
-) -> Result<Vec<v1alpha1::SparkApplicationTemplate>, Error> {
+) -> Result<Vec<v1alpha2::SparkApplicationTemplate>, Error> {
     if template_names.is_empty() {
         return Ok(vec![]);
     }
 
     let templates_api =
-        Api::<v1alpha1::SparkApplicationTemplate>::namespaced(client.as_kube_client(), namespace);
+        Api::<v1alpha2::SparkApplicationTemplate>::namespaced(client.as_kube_client(), namespace);
     let mut resolved_templates = Vec::new();
     for template_name in template_names {
         let template_res = templates_api
@@ -378,7 +394,7 @@ mod tests {
     #[test]
     fn try_from_parses_annotations_and_sorts_template_names() {
         let spark_application =
-            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
                 ---
                 apiVersion: spark.stackable.tech/v1alpha1
                 kind: SparkApplication
@@ -423,7 +439,7 @@ mod tests {
     #[test]
     fn try_from_without_annotations_returns_default_options() {
         let spark_application =
-            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
                 ---
                 apiVersion: spark.stackable.tech/v1alpha1
                 kind: SparkApplication
@@ -454,7 +470,7 @@ mod tests {
     #[test]
     fn spark_application_namespace_returns_namespace() {
         let spark_application =
-            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
                 ---
                 apiVersion: spark.stackable.tech/v1alpha1
                 kind: SparkApplication
@@ -478,7 +494,7 @@ mod tests {
     #[test]
     fn spark_application_namespace_returns_error_when_missing() {
         let spark_application =
-            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            serde_yaml::from_str::<crate::crd::v1alpha2::SparkApplication>(indoc! {r#"
                 ---
                 apiVersion: spark.stackable.tech/v1alpha1
                 kind: SparkApplication
@@ -498,9 +514,19 @@ mod tests {
         ));
     }
 
-    impl RoundtripTestData for v1alpha1::SparkApplicationTemplateSpec {
+    impl RoundtripTestData for v1alpha2::SparkApplicationTemplateSpec {
         fn roundtrip_test_data() -> Vec<Self> {
             // SparkApplicationTemplateSpec is just a wrapper around SparkApplicationSpec
+            let test_data = crate::crd::v1alpha2::SparkApplicationSpec::roundtrip_test_data();
+            test_data
+                .into_iter()
+                .map(|spec| v1alpha2::SparkApplicationTemplateSpec { spec })
+                .collect()
+        }
+    }
+
+    impl RoundtripTestData for v1alpha1::SparkApplicationTemplateSpec {
+        fn roundtrip_test_data() -> Vec<Self> {
             let test_data = crate::crd::v1alpha1::SparkApplicationSpec::roundtrip_test_data();
             test_data
                 .into_iter()

@@ -23,6 +23,8 @@ on:
       test:
         description: Name of the test. Only used of test-mode is `custom`
 
+permissions: {}
+
 jobs:
   test:
     name: Run Integration Test
@@ -41,7 +43,7 @@ jobs:
       # TODO: Enable the scheduled runs which hard-code what profile to use
       - name: Run Integration Test
         id: test
-        uses: stackabletech/actions/run-integration-test@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
+        uses: stackabletech/actions/run-integration-test@a14cbd08d9e034e2361ea9205b32aff0491885db # v0.15.0
         with:
           replicated-api-token: ${{ secrets.REPLICATED_API_TOKEN }}
           test-mode-input: ${{ inputs.test-mode-input }}
@@ -51,7 +53,7 @@ jobs:
 
       - name: Send Notification
         if: ${{ failure() || github.run_attempt > 1 }}
-        uses: stackabletech/actions/send-slack-notification@6a84fcfccf4ee37d85217407bc6a94742afbb45f # v0.14.2
+        uses: stackabletech/actions/send-slack-notification@a14cbd08d9e034e2361ea9205b32aff0491885db # v0.15.0
         with:
           slack-token: ${{ secrets.SLACK_INTEGRATION_TEST_TOKEN }}
           failed-tests: ${{ steps.test.outputs.failed-tests }}

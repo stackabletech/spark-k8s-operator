@@ -1,0 +1,197 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 60
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spark-connect-server
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/managed-by: spark.stackable.tech_connect
+    app.kubernetes.io/name: spark-connect
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkConnectServer
+      name: spark-connect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: server
+      app.kubernetes.io/instance: spark-connect
+      app.kubernetes.io/name: spark-connect
+      app.kubernetes.io/role-group: default
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-connect-server
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/managed-by: spark.stackable.tech_connect
+    app.kubernetes.io/name: spark-connect
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkConnectServer
+      name: spark-connect
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-connect-executor
+  labels:
+    app.kubernetes.io/component: executor
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/managed-by: spark.stackable.tech_connect
+    app.kubernetes.io/name: spark-connect
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkConnectServer
+      name: spark-connect
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-connect-server-headless
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/managed-by: spark.stackable.tech_connect
+    app.kubernetes.io/name: spark-connect
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkConnectServer
+      name: spark-connect
+spec:
+  clusterIP: None
+  ports:
+    - name: grpc
+      port: 15002
+      protocol: TCP
+      targetPort: 15002
+    - name: http
+      port: 4040
+      protocol: TCP
+      targetPort: 4040
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/name: spark-connect
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-connect-server-metrics
+  annotations:
+    prometheus.io/path: /metrics/prometheus
+    prometheus.io/port: "4040"
+    prometheus.io/scheme: http
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/managed-by: spark.stackable.tech_connect
+    app.kubernetes.io/name: spark-connect
+    app.kubernetes.io/role-group: default
+    prometheus.io/scrape: "true"
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkConnectServer
+      name: spark-connect
+spec:
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 4040
+      protocol: TCP
+      targetPort: 4040
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/name: spark-connect
+  type: ClusterIP
+---
+apiVersion: listeners.stackable.tech/v1alpha1
+kind: Listener
+metadata:
+  name: spark-connect-server
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/managed-by: spark.stackable.tech_connect
+    app.kubernetes.io/name: spark-connect
+    app.kubernetes.io/role-group: default
+    stackable.tech/vendor: Stackable
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkConnectServer
+      name: spark-connect
+spec:
+  className: external-unstable
+  ports:
+    - name: grpc
+      port: 15002
+      protocol: TCP
+    - name: http
+      port: 4040
+      protocol: TCP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark-connect-serviceaccount
+  labels:
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/managed-by: spark.stackable.tech_connect
+    app.kubernetes.io/name: spark-connect
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkConnectServer
+      name: spark-connect
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-connect-rolebinding
+  labels:
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/managed-by: spark.stackable.tech_connect
+    app.kubernetes.io/name: spark-connect
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkConnectServer
+      name: spark-connect
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: spark-connect-clusterrole
+subjects:
+  - kind: ServiceAccount
+    name: spark-connect-serviceaccount

@@ -462,7 +462,7 @@ mod tests {
           name: spark-connect
         spec:
           image:
-            productVersion: 4.1.1
+            productVersion: 4.1.2
         "# })
         .expect("Failed to deserialize minimal SparkConnectServer CR");
     }
@@ -477,7 +477,7 @@ mod tests {
             name: spark-connect
           spec:
             image:
-              productVersion: 4.1.1
+              productVersion: 4.1.2
             connectors:
               s3:
                 - reference: my-s3-bucket
@@ -499,7 +499,7 @@ mod tests {
             name: spark-connect
           spec:
             image:
-              productVersion: 4.1.1
+              productVersion: 4.1.2
             connectors:
               s3:
                 - inline:
@@ -528,7 +528,7 @@ mod tests {
         fn roundtrip_test_data() -> Vec<Self> {
             stackable_operator::utils::yaml_from_str_singleton_map(indoc! {r#"
               - image:
-                  productVersion: 4.1.1
+                  productVersion: 4.1.2
                   pullPolicy: IfNotPresent
                 connectors:
                   s3buckets:

@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#684]).
+- Support for Spark `4.1.2` ([#708])
 
 ### Fixed
 
@@ -28,6 +29,7 @@ All notable changes to this project will be documented in this file.
 - Internal operator refactoring: introduce dereference() and validate() steps in the reconciler for spark application, spark connect and spark history server([#687]).
 - test: Bump vector-aggregator to 0.55.0, replace /graphql call with gRPC call ([#689]).
 - Fix the `SparkApplication` CRD description, which incorrectly described it as a "Spark cluster stacklet" rather than a Spark application ([#705]).
+- BREAKING: make application templates namespaced instead of cluster wide objects ([#694]).
 
 [#674]: https://github.com/stackabletech/spark-k8s-operator/pull/674
 [#679]: https://github.com/stackabletech/spark-k8s-operator/pull/679
@@ -36,8 +38,10 @@ All notable changes to this project will be documented in this file.
 [#687]: https://github.com/stackabletech/spark-k8s-operator/pull/687
 [#689]: https://github.com/stackabletech/spark-k8s-operator/pull/689
 [#692]: https://github.com/stackabletech/spark-k8s-operator/pull/692
+[#694]: https://github.com/stackabletech/spark-k8s-operator/pull/694
 [#696]: https://github.com/stackabletech/spark-k8s-operator/pull/696
 [#705]: https://github.com/stackabletech/spark-k8s-operator/pull/705
+[#708]: https://github.com/stackabletech/spark-k8s-operator/pull/708
 
 ## [26.3.0] - 2026-03-16
 

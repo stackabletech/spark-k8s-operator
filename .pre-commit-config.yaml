@@ -38,6 +38,10 @@ repos:
     hooks:
       - id: shellcheck
         args: ["--severity=info"]
+        # Temporarily needed until all getting_started.sh.j2 scripts are made non-executable.
+        # As long as they are, prek will treat them as shell scripts and so this hook will fail.
+        # pre-commit behaves differently apparently and doesn't pass .j2 files to this hook.
+        exclude: \.j2$
 
   # WARNING (@NickLarsenNZ): Nix users need to install ruff first.
   # If you do not, you will need to delete the cached ruff binary shown in the

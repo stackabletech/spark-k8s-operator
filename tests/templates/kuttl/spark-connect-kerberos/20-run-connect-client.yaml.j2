@@ -1,0 +1,127 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-connect-client
+data:
+  example.py: |-
+    #
+    # PySpark example that connects to a Spark Connect server and exercises a
+    # Kerberos-enabled Hive metastore in two ways:
+    #   1. Spark's built-in Hive catalog: DDL (write) + catalog queries (read).
+    #   2. A Hive/Iceberg catalog ("iceberg") that stores table data and metadata
+    #      in S3 (MinIO): write rows into an Iceberg table and read them back.
+    #
+    # The client itself does NOT use Kerberos: it speaks plain gRPC over the
+    # `sc://` protocol. All Kerberos authentication happens between the Spark
+    # Connect server (the driver) and the Hive metastore. The catalogs and the
+    # kerberos config are set server-side, so the client only issues SQL.
+    #
+    import sys
+    from pyspark.sql import SparkSession
+
+    if __name__ == "__main__":
+      remote: str = sys.argv[1]
+
+      print(f"Connecting to Spark Connect server at {remote}")
+      spark = (
+        SparkSession.builder.appName("KerberosHiveExample")
+        .remote(remote)
+        .getOrCreate()
+      )
+
+      # 1. Built-in Hive catalog: DDL is persisted in the kerberized Hive
+      # metastore. Reaching the metastore at all requires a successful
+      # SASL/GSSAPI (Kerberos) handshake, which is the point of this test.
+      print("Creating database and table in the kerberized Hive metastore")
+      spark.sql("CREATE DATABASE IF NOT EXISTS kerb LOCATION 's3a://lakehouse/kerb'")
+      spark.sql("DROP TABLE IF EXISTS kerb.greetings")
+      spark.sql("CREATE TABLE kerb.greetings (id INT, data STRING) USING parquet")
+
+      print("Reading metadata back from the metastore")
+      tables = [row.tableName for row in spark.sql("SHOW TABLES IN kerb").collect()]
+      print("Tables in 'kerb':", tables)
+      assert "greetings" in tables, f"table 'greetings' not registered in the HMS: {tables}"
+
+      columns = [row.col_name for row in spark.sql("DESCRIBE TABLE kerb.greetings").collect()]
+      print("Columns of kerb.greetings:", columns)
+      assert "id" in columns and "data" in columns, f"unexpected columns: {columns}"
+
+      # 2. Hive/Iceberg catalog: write an Iceberg table managed in S3. Creating
+      # and writing the table goes through the Iceberg HiveCatalog, which opens
+      # its own connection to the kerberized metastore - this is exactly the path
+      # that failed in issue #702 (GSS initiate failed). Iceberg's commit protocol
+      # writes the data + metadata to S3 without a rename-based committer.
+      print("Writing an Iceberg table stored in S3 via the kerberized metastore")
+      spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.lakehouse")
+      spark.sql("DROP TABLE IF EXISTS iceberg.lakehouse.greetings")
+      spark.sql("CREATE TABLE iceberg.lakehouse.greetings (id INT, data STRING) USING iceberg")
+      spark.sql("INSERT INTO iceberg.lakehouse.greetings VALUES (1, 'one'), (2, 'two'), (3, 'three')")
+
+      # Reading the Iceberg table back differs by Spark version:
+      #
+      # Spark 4 includes the Spark Connect executor class loader fix
+      # (SPARK-51537 / apache/spark#50475), so a *distributed* read works:
+      # collect() ships the Iceberg scan closure to the executors and succeeds.
+      #
+      # On Spark 3.5.x that distributed scan still fails on the executors with
+      # "cannot assign SerializedLambda ... Function3" (SPARK-46032, not fixed in
+      # 3.5.x), so we verify the table via metastore queries (driver-side) instead.
+      print(f"Connected to Spark {spark.version}")
+      if spark.version.startswith("4"):
+        result = spark.sql("SELECT * FROM iceberg.lakehouse.greetings ORDER BY id")
+        result.show()
+        rows = result.collect()
+        assert len(rows) == 3, f"expected 3 rows in the Iceberg table, got {len(rows)}"
+      else:
+        spark.sql("SELECT * FROM iceberg.lakehouse.greetings ORDER BY id").show()
+        ice_tables = [row.tableName for row in spark.sql("SHOW TABLES IN iceberg.lakehouse").collect()]
+        print("Tables in 'iceberg.lakehouse':", ice_tables)
+        assert "greetings" in ice_tables, f"Iceberg table not registered in the HMS: {ice_tables}"
+        ice_columns = [row.col_name for row in spark.sql("DESCRIBE TABLE iceberg.lakehouse.greetings").collect()]
+        print("Columns of iceberg.lakehouse.greetings:", ice_columns)
+        assert "id" in ice_columns and "data" in ice_columns, f"unexpected columns: {ice_columns}"
+
+      print("[SUCCESS] Read/write against the kerberized Hive metastore and Iceberg catalog succeeded")
+
+      spark.stop()
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: simple-connect-app
+  labels:
+    stackable.tech/vendor: Stackable
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      activeDeadlineSeconds: 600
+      containers:
+        - name: simple-connect-app
+{% set spark_connect_client_version = test_scenario['values']['spark-connect'].split(',')[0] %}
+          # Extract the Spark Connect version and use it for the client.
+          # Using a separate dimension for the client doesn't work because beku would generate tests with
+          # version mismatches between client and server.
+          image: oci.stackable.tech/stackable/spark-connect-client:{{ spark_connect_client_version }}-stackable0.0.0-dev
+          imagePullPolicy: IfNotPresent
+          command:
+            [
+              "/usr/bin/python",
+              "/app/example.py",
+              "sc://spark-connect-server",
+            ]
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: spark-connect-client
+              mountPath: /app
+      volumes:
+        - name: spark-connect-client
+          configMap:
+            name: spark-connect-client

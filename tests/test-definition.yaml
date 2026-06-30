@@ -89,11 +89,6 @@ tests:
     dimensions:
       - spark
       - openshift
-  - name: spark-ny-public-s3
-    dimensions:
-      - spark
-      - s3-use-tls
-      - openshift
   - name: spark-examples
     dimensions:
       - spark

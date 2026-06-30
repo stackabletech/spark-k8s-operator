@@ -61,11 +61,7 @@ pub(crate) fn build_config_map(
             ObjectMetaBuilder::new()
                 .namespace(validated.namespace.clone())
                 .name(&cm_name)
-                .ownerreference(ownerreference_from_resource(
-                    validated,
-                    Some(true),
-                    Some(true),
-                ))
+                .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
                 .labels(validated.recommended_labels(role_group_name))
                 .build(),
         )

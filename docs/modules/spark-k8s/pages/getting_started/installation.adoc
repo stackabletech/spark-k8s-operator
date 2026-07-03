@@ -59,7 +59,8 @@ Install the Stackable Operators:
 include::example$getting_started/getting_started.sh[tag=helm-install-operators]
 ----
 
-Helm will deploy the operators in a Kubernetes Deployment and apply the CRDs for the SparkApplication (as well as the CRDs for the required operators).
+Helm will deploy the operators in a Kubernetes Deployment.
+Each operator installs and maintains its own CRDs at startup (see xref:concepts:maintenance/crds.adoc[]).
 --
 ====
 

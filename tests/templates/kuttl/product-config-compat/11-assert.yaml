@@ -1,0 +1,19 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 900
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: pyspark-pi
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+metadata:
+  name: spark-history
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkConnectServer
+metadata:
+  name: spark-connect

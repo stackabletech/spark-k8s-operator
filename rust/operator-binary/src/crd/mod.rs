@@ -8,7 +8,6 @@ use std::{
 use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
-use product_config::{ProductConfigManager, types::PropertyNameKind};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -17,7 +16,7 @@ use stackable_operator::{
         VolumeBuilder,
     },
     commons::{
-        product_image_selection::{ProductImage, ResolvedProductImage},
+        product_image_selection::ProductImage,
         resources::{CpuLimits, MemoryLimits, Resources},
         secret_class::SecretClassVolumeProvisionParts,
     },
@@ -25,24 +24,22 @@ use stackable_operator::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
-    config_overrides::{KeyValueConfigOverrides, KeyValueOverridesProvider},
     crd::s3,
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
         apimachinery::pkg::api::resource::Quantity,
     },
     kube::{CustomResource, ResourceExt},
-    kvp::ObjectLabels,
     memory::{BinaryMultiple, MemoryQuantity},
-    product_config_utils::{
-        ValidatedRoleConfigByPropertyKind, transform_all_roles_to_config,
-        validate_all_roles_and_groups_config,
-    },
     product_logging,
-    role_utils::{CommonConfiguration, GenericRoleConfig, JavaCommonConfig, Role, RoleGroup},
+    role_utils::{CommonConfiguration, RoleGroup},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
+    v2::{
+        config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig,
+        types::kubernetes::ConfigMapName,
+    },
     versioned::versioned,
 };
 
@@ -97,16 +94,6 @@ pub enum Error {
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
 
-    #[snafu(display("failed to transform configs"))]
-    ProductConfigTransform {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
-    #[snafu(display("invalid product config"))]
-    InvalidProductConfig {
-        source: stackable_operator::product_config_utils::Error,
-    },
-
     #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
     TlsCertSecretClassVolumeBuild {
         source: SecretOperatorVolumeSourceBuilderError,
@@ -127,9 +114,6 @@ pub enum Error {
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
-
-    #[snafu(display("failed to construct JVM arguments"))]
-    ConstructJvmArguments { source: crate::config::jvm::Error },
 }
 
 pub type SparkApplicationJobRoleType =
@@ -207,7 +191,7 @@ pub mod versioned {
         /// Follow the [logging tutorial](DOCS_BASE_URL_PLACEHOLDER/tutorials/logging-vector-aggregator)
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
         /// The job builds a spark-submit command, complete with arguments and referenced dependencies
         /// such as templates, and passes it on to Spark.
@@ -215,7 +199,7 @@ pub mod versioned {
         /// supported for spark-submit processes.
         //
         // IMPORTANT: Please note that the jvmArgumentOverrides have no effect here!
-        // However, due to product-config things I wasn't able to remove them.
+        // This field is currently kept for API compatibility.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub job: Option<SparkApplicationJobRoleType>,
 
@@ -265,54 +249,13 @@ pub mod versioned {
         pub log_file_directory: Option<LogFileDirectorySpec>,
     }
 
-    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
     pub struct ConfigOverrides {
-        #[serde(
-            default,
-            rename = "spark-env.sh",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub spark_env_sh: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "spark-env.sh")]
+        pub spark_env_sh: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
-    }
-}
-
-impl KeyValueOverridesProvider for v1alpha1::ConfigOverrides {
-    fn get_key_value_overrides(&self, file: &str) -> BTreeMap<String, Option<String>> {
-        let field = match file {
-            SPARK_ENV_SH_FILE_NAME => self.spark_env_sh.as_ref(),
-            JVM_SECURITY_PROPERTIES_FILE => self.security_properties.as_ref(),
-            _ => None,
-        };
-        field
-            .map(KeyValueConfigOverrides::as_product_config_overrides)
-            .unwrap_or_default()
-    }
-}
-
-impl Merge for v1alpha1::ConfigOverrides {
-    fn merge(&mut self, defaults: &Self) {
-        merge_key_value_config_overrides(&mut self.spark_env_sh, &defaults.spark_env_sh);
-        merge_key_value_config_overrides(
-            &mut self.security_properties,
-            &defaults.security_properties,
-        );
-    }
-}
-
-fn merge_key_value_config_overrides(
-    base: &mut Option<KeyValueConfigOverrides>,
-    overlay: &Option<KeyValueConfigOverrides>,
-) {
-    let base = base.get_or_insert_default();
-    if let Some(overlay) = overlay {
-        base.overrides.extend(overlay.overrides.clone());
+        #[serde(default, rename = "security.properties")]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
@@ -370,7 +313,7 @@ impl v1alpha1::SparkApplication {
         if self.spec.image.is_some() {
             result.insert(
                 VOLUME_MOUNT_NAME_JOB.to_string(),
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_JOB.as_ref())
                     .empty_dir(EmptyDirVolumeSource::default())
                     .build(),
             );
@@ -379,7 +322,7 @@ impl v1alpha1::SparkApplication {
         if self.requirements().is_some() {
             result.insert(
                 VOLUME_MOUNT_NAME_REQ.to_string(),
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_REQ.as_ref())
                     .empty_dir(EmptyDirVolumeSource::default())
                     .build(),
             );
@@ -416,7 +359,7 @@ impl v1alpha1::SparkApplication {
         if let Some(log_config_map) = log_config_map {
             result.insert(
                 VOLUME_MOUNT_NAME_LOG_CONFIG.to_string(),
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
                     .with_config_map(log_config_map)
                     .build(),
             );
@@ -424,7 +367,7 @@ impl v1alpha1::SparkApplication {
         // This volume is also used by the containerdebug process so it must always be there.
         result.insert(
             VOLUME_MOUNT_NAME_LOG.to_string(),
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
                 .with_empty_dir(
                     None::<String>,
                     Some(product_logging::framework::calculate_log_volume_size_limit(
@@ -437,7 +380,7 @@ impl v1alpha1::SparkApplication {
         if !self.packages().is_empty() {
             result.insert(
                 VOLUME_MOUNT_NAME_IVY2.to_string(),
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_IVY2)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_IVY2.as_ref())
                     .empty_dir(EmptyDirVolumeSource::default())
                     .build(),
             );
@@ -498,12 +441,12 @@ impl v1alpha1::SparkApplication {
     ) -> Vec<VolumeMount> {
         let mut tmpl_mounts = vec![
             VolumeMount {
-                name: VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES.into(),
+                name: VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES.into(),
                 ..VolumeMount::default()
             },
             VolumeMount {
-                name: VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES.into(),
+                name: VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES.into(),
                 ..VolumeMount::default()
             },
@@ -538,14 +481,14 @@ impl v1alpha1::SparkApplication {
     ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
             mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_JOB.into(),
+                name: VOLUME_MOUNT_NAME_JOB.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_JOB.into(),
                 ..VolumeMount::default()
             });
         }
         if self.requirements().is_some() {
             mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_REQ.into(),
+                name: VOLUME_MOUNT_NAME_REQ.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_REQ.into(),
                 ..VolumeMount::default()
             });
@@ -572,7 +515,7 @@ impl v1alpha1::SparkApplication {
 
         if logging_enabled {
             mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_LOG_CONFIG.into(),
+                name: VOLUME_MOUNT_NAME_LOG_CONFIG.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_LOG_CONFIG.into(),
                 ..VolumeMount::default()
             });
@@ -581,14 +524,14 @@ impl v1alpha1::SparkApplication {
         // This is used at least by the containerdebug process.
         // The volume is always there.
         mounts.push(VolumeMount {
-            name: VOLUME_MOUNT_NAME_LOG.into(),
+            name: VOLUME_MOUNT_NAME_LOG.to_string(),
             mount_path: VOLUME_MOUNT_PATH_LOG.into(),
             ..VolumeMount::default()
         });
 
         if !self.packages().is_empty() {
             mounts.push(VolumeMount {
-                name: VOLUME_MOUNT_NAME_IVY2.into(),
+                name: VOLUME_MOUNT_NAME_IVY2.to_string(),
                 mount_path: VOLUME_MOUNT_PATH_IVY2.into(),
                 ..VolumeMount::default()
             });
@@ -610,22 +553,6 @@ impl v1alpha1::SparkApplication {
         }
 
         mounts
-    }
-
-    pub fn build_recommended_labels<'a>(
-        &'a self,
-        app_version: &'a str,
-        role: &'a str,
-    ) -> ObjectLabels<'a, v1alpha1::SparkApplication> {
-        ObjectLabels {
-            owner: self,
-            app_name: APP_NAME,
-            app_version,
-            operator_name: OPERATOR_NAME,
-            controller_name: SPARK_CONTROLLER_NAME,
-            role,
-            role_group: SPARK_CONTROLLER_NAME,
-        }
     }
 
     pub fn build_command(
@@ -731,8 +658,7 @@ impl v1alpha1::SparkApplication {
         }
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(self, s3conn, log_dir)
-                .context(ConstructJvmArgumentsSnafu)?;
+            construct_extra_java_options(self, s3conn, log_dir);
         submit_cmd.extend(vec![
             format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),
             format!("--conf spark.executor.extraJavaOptions=\"{executor_extra_java_options}\""),
@@ -948,114 +874,6 @@ impl v1alpha1::SparkApplication {
         env.into_values().collect()
     }
 
-    pub fn validated_role_config(
-        &self,
-        resolved_product_image: &ResolvedProductImage,
-        product_config: &ProductConfigManager,
-    ) -> Result<ValidatedRoleConfigByPropertyKind, Error> {
-        let submit_conf = match self.spec.job.as_ref() {
-            Some(job) => job.clone(),
-            None => CommonConfiguration {
-                config: SubmitConfig::default_config(),
-                ..CommonConfiguration::default()
-            },
-        };
-
-        let driver_conf = match self.spec.driver.as_ref() {
-            Some(driver) => driver.clone(),
-            None => CommonConfiguration {
-                config: RoleConfig::default_config(),
-                ..CommonConfiguration::default()
-            },
-        };
-
-        let executor_conf = match self.spec.executor.as_ref() {
-            Some(executor) => executor.clone(),
-            None => RoleGroup {
-                replicas: Some(1),
-                config: CommonConfiguration {
-                    config: RoleConfig::default_config(),
-                    ..CommonConfiguration::default()
-                },
-            },
-        };
-
-        let mut roles_to_validate = HashMap::new();
-        roles_to_validate.insert(
-            SparkApplicationRole::Submit.to_string(),
-            (
-                vec![
-                    PropertyNameKind::Env,
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                Role {
-                    config: submit_conf.clone(),
-                    role_config: GenericRoleConfig::default(),
-                    role_groups: [(
-                        "default".to_string(),
-                        RoleGroup {
-                            config: submit_conf,
-                            replicas: Some(1),
-                        },
-                    )]
-                    .into(),
-                }
-                .erase(),
-            ),
-        );
-        roles_to_validate.insert(
-            SparkApplicationRole::Driver.to_string(),
-            (
-                vec![
-                    PropertyNameKind::Env,
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                Role {
-                    config: driver_conf.clone(),
-                    role_config: GenericRoleConfig::default(),
-                    role_groups: [(
-                        "default".to_string(),
-                        RoleGroup {
-                            config: driver_conf,
-                            replicas: Some(1),
-                        },
-                    )]
-                    .into(),
-                }
-                .erase(),
-            ),
-        );
-        roles_to_validate.insert(
-            SparkApplicationRole::Executor.to_string(),
-            (
-                vec![
-                    PropertyNameKind::Env,
-                    PropertyNameKind::File(SPARK_ENV_SH_FILE_NAME.to_string()),
-                    PropertyNameKind::File(JVM_SECURITY_PROPERTIES_FILE.to_string()),
-                ],
-                Role {
-                    config: executor_conf.config.clone(),
-                    role_config: GenericRoleConfig::default(),
-                    role_groups: [("default".to_string(), executor_conf)].into(),
-                }
-                .erase(),
-            ),
-        );
-
-        let role_config = transform_all_roles_to_config(self, &roles_to_validate);
-
-        validate_all_roles_and_groups_config(
-            &resolved_product_image.product_version,
-            &role_config.context(ProductConfigTransformSnafu)?,
-            product_config,
-            false,
-            false,
-        )
-        .context(InvalidProductConfigSnafu)
-    }
-
     pub fn retry_on_failure_count(&self) -> i32 {
         let effective_retry_on_failure_count = self
             .spec
@@ -1239,17 +1057,15 @@ where
 #[cfg(test)]
 mod tests {
 
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::BTreeMap;
 
     use indoc::indoc;
-    use product_config::{ProductConfigManager, types::PropertyNameKind};
     use rstest::rstest;
     use stackable_operator::{
         commons::{
             affinity::StackableAffinity,
             resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, Resources},
         },
-        product_config_utils::ValidatedRoleConfigByPropertyKind,
         product_logging::spec::Logging,
         versioned::test_utils::RoundtripTestData,
     };
@@ -1698,72 +1514,6 @@ spec:
         .collect();
 
         assert_eq!(expected, props);
-    }
-
-    #[test]
-    fn test_validated_config() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
-            ---
-            apiVersion: spark.stackable.tech/v1alpha1
-            kind: SparkApplication
-            metadata:
-              name: spark-examples
-            spec:
-              mode: cluster
-              mainApplicationFile: test.py
-              sparkImage:
-                productVersion: 1.2.3
-        "#})
-        .unwrap();
-
-        let resolved_product_image = spark_application
-            .spec
-            .spark_image
-            .resolve("spark-k8s", "oci.example.org", "0.0.0-dev")
-            .expect("test: resolved product image is always valid");
-
-        let product_config =
-            ProductConfigManager::from_yaml_file("../../deploy/config-spec/properties.yaml")
-                .unwrap();
-        let validated_config = spark_application
-            .validated_role_config(&resolved_product_image, &product_config)
-            .unwrap();
-
-        let expected_role_groups: HashMap<
-            String,
-            HashMap<PropertyNameKind, BTreeMap<String, String>>,
-        > = vec![(
-            "default".into(),
-            vec![
-                (PropertyNameKind::Env, BTreeMap::new()),
-                (
-                    PropertyNameKind::File("spark-env.sh".into()),
-                    BTreeMap::new(),
-                ),
-                (
-                    PropertyNameKind::File("security.properties".into()),
-                    vec![
-                        ("networkaddress.cache.negative.ttl".into(), "0".into()),
-                        ("networkaddress.cache.ttl".into(), "30".into()),
-                    ]
-                    .into_iter()
-                    .collect(),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-        )]
-        .into_iter()
-        .collect();
-        let expected: ValidatedRoleConfigByPropertyKind = vec![
-            ("submit".into(), expected_role_groups.clone()),
-            ("driver".into(), expected_role_groups.clone()),
-            ("executor".into(), expected_role_groups),
-        ]
-        .into_iter()
-        .collect();
-
-        assert_eq!(expected, validated_config);
     }
 
     #[test]

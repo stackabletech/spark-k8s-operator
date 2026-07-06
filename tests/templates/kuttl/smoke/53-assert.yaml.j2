@@ -105,12 +105,14 @@ commands:
 {% endif %}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
           - args:
-            - |
+            - |-
               mkdir --parents /stackable/log/_vector-state
               # Vector will ignore SIGTERM (as PID != 1) and must be shut down by writing a shutdown trigger file
-              vector --config /stackable/config/vector.yaml & vector_pid=$!
+              vector & vector_pid=$!
               if [ ! -f "/stackable/log/_vector/shutdown" ]; then
-                mkdir -p /stackable/log/_vector && inotifywait -qq --event create /stackable/log/_vector; fi
+              mkdir -p /stackable/log/_vector
+              inotifywait -qq --event create /stackable/log/_vector;
+              fi
               sleep 1
               kill $vector_pid
             command:
@@ -120,13 +122,31 @@ commands:
             - pipefail
             - -c
             env:
-            - name: VECTOR_LOG
-              value: info
+            - name: CLUSTER_NAME
+              value: spark-pi-s3-1
+            - name: DATA_DIR
+              value: /stackable/log/_vector-state
+            - name: LOG_DIR
+              value: /stackable/log
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ROLE_GROUP_NAME
+              value: default
+            - name: ROLE_NAME
+              value: driver
             - name: VECTOR_AGGREGATOR_ADDRESS
               valueFrom:
                 configMapKeyRef:
                   key: ADDRESS
                   name: vector-aggregator-discovery
+            - name: VECTOR_CONFIG_YAML
+              value: /stackable/config/vector.yaml
+            - name: VECTOR_FILE_LOG_LEVEL
+              value: info
+            - name: VECTOR_LOG
+              value: info
             image: oci.stackable.tech/sdp/spark-k8s:{{ test_scenario['values']['spark'].split(',')[0] }}-stackable0.0.0-dev
             imagePullPolicy: IfNotPresent
             name: vector
@@ -138,8 +158,10 @@ commands:
                 cpu: 250m
                 memory: 128Mi
             volumeMounts:
-            - mountPath: /stackable/config
+            - mountPath: /stackable/config/vector.yaml
               name: config
+              readOnly: true
+              subPath: vector.yaml
             - mountPath: /stackable/log
               name: log
 {% endif %}
@@ -237,211 +259,34 @@ commands:
             name: config
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       vector.yaml: |
-        data_dir: /stackable/log/_vector-state
+        ---
+        data_dir: ${DATA_DIR}
 
         log_schema:
           host_key: pod
 
         sources:
+          # Reads the internal Vector logs
           vector:
             type: internal_logs
 
           files_stdout:
             type: file
             include:
-              - /stackable/log/*/*.stdout.log
+              - ${LOG_DIR}/*/*.stdout.log
 
           files_stderr:
             type: file
             include:
-              - /stackable/log/*/*.stderr.log
-
-          files_log4j:
-            type: file
-            include:
-              - /stackable/log/*/*.log4j.xml
-            line_delimiter: "\r\n"
-            multiline:
-              mode: halt_before
-              start_pattern: ^<log4j:event
-              condition_pattern: ^<log4j:event
-              timeout_ms: 1000
+              - ${LOG_DIR}/*/*.stderr.log
 
           files_log4j2:
             type: file
             include:
-              - /stackable/log/*/*.log4j2.xml
+              - ${LOG_DIR}/*/*.log4j2.xml
             line_delimiter: "\r\n"
 
-          files_py:
-            type: file
-            include:
-              - /stackable/log/*/*.py.json
-
-          files_airlift:
-            type: file
-            include:
-              - /stackable/log/*/*.airlift.json
-
-          files_tracing_rs:
-            type: file
-            include:
-              - /stackable/log/*/*.tracing-rs.json
-
-          files_opa_json:
-            type: file
-            include:
-              - /stackable/log/opa/current
-              - /stackable/log/opa/test
-
         transforms:
-          processed_files_tracing_rs:
-            inputs:
-              - files_tracing_rs
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              parsed_event, err = parse_json(raw_message)
-              if err != null {
-                error = "JSON not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else if !is_object(parsed_event) {
-                error = "Parsed event is not a JSON object."
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                event = object!(parsed_event)
-
-                timestamp_string, err = string(event.timestamp)
-                if err == null {
-                  parsed_timestamp, err = parse_timestamp(timestamp_string, "%+")
-                  if err == null {
-                    .timestamp = parsed_timestamp
-                  } else {
-                    .errors = push(.errors, "Timestamp not parsable, trying current time instead: " + err)
-                  }
-                }
-
-                .logger, err = string(event.target)
-                if err != null || is_empty(.logger) {
-                  .errors = push(.errors, "Logger/target not found.")
-                }
-
-                level, err = string(event.level)
-                if err != null {
-                  .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                } else if !includes(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"], upcase(level)) {
-                  .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                } else {
-                  .level = upcase(level)
-                }
-
-                fields, err = object(event.fields)
-                if err != null {
-                  .errors = push(.errors, "Fields are not an object.")
-                }
-
-                .message, err = string(fields.message)
-                if err != null || is_empty(.message) {
-                  .errors = push(.errors, "Message not found.")
-                }
-
-                del(fields.message)
-
-                other_fields = encode_key_value(fields, field_delimiter: "\n")
-                .message = join!(compact([.message, other_fields]), "\n\n")
-              }
-
-          processed_files_opa_json:
-            inputs:
-              - files_opa_json
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              parsed_event, err = parse_json(raw_message)
-              if err != null {
-                error = "JSON not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else if !is_object(parsed_event) {
-                error = "Parsed event is not a JSON object."
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                event = object!(parsed_event)
-
-                property_timestamp_valid = false
-                timestamp_string, err = string(event.timestamp)
-                if err == null {
-                  parsed_timestamp, err = parse_timestamp(timestamp_string, "%Y-%m-%dT%H:%M:%S.%fZ")
-                  if err == null {
-                    .timestamp = parsed_timestamp
-                    property_timestamp_valid = true
-                  } else {
-                    .errors = push(.errors, "Timestamp not parsable, trying property time instead: " + err)
-                  }
-                }
-                if !property_timestamp_valid {
-                  time_string, err = string(event.time)
-                  if err == null {
-                    parsed_timestamp, err = parse_timestamp(time_string, "%Y-%m-%dT%H:%M:%SZ")
-                    if err == null {
-                      .timestamp = parsed_timestamp
-                    } else {
-                      .errors = push(.errors, "Time not parsable, using current time instead: " + err)
-                    }
-                  } else {
-                    .errors = push(.errors, "Time not found, using current time instead.")
-                  }
-                }
-
-                .logger, err = string(event.logger)
-                if err != null || is_empty(.logger) {
-                  .errors = push(.errors, "Logger not found.")
-                }
-
-                level, err = string(event.level)
-                if err != null {
-                  .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                } else if !includes(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"], upcase(level)) {
-                  .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                } else {
-                  .level = upcase(level)
-                }
-
-                .message, err = string(event.msg)
-                if err != null || is_empty(.message) {
-                  .errors = push(.errors, "Message not found.")
-                }
-
-                del(event.time)
-                del(event.timestamp)
-                del(event.level)
-                del(event.msg)
-
-                other_fields = encode_key_value(event, field_delimiter: "\n")
-                .message = join!(compact([.message, other_fields]), "\n\n")
-              }
-
           processed_files_stdout:
             inputs:
               - files_stdout
@@ -457,75 +302,6 @@ commands:
             source: |
               .logger = "ROOT"
               .level = "ERROR"
-
-          processed_files_log4j:
-            inputs:
-              - files_log4j
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              # Wrap the event so that the log4j namespace is defined when parsing the event
-              wrapped_xml_event = "<root xmlns:log4j=\"http://jakarta.apache.org/log4j/\">" + raw_message + "</root>"
-              parsed_event, err = parse_xml(wrapped_xml_event)
-              if err != null {
-                error = "XML not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                root = object!(parsed_event.root)
-                if !is_object(root.event) {
-                  error = "Parsed event contains no \"event\" tag."
-                  .errors = push(.errors, error)
-                  log(error, level: "warn")
-                  .message = raw_message
-                } else {
-                  if keys(root) != ["event"] {
-                    .errors = push(.errors, "Parsed event contains multiple tags: " + join!(keys(root), ", "))
-                  }
-                  event = object!(root.event)
-
-                  epoch_milliseconds, err = to_int(event.@timestamp)
-                  if err == null && epoch_milliseconds != 0 {
-                    converted_timestamp, err = from_unix_timestamp(epoch_milliseconds, "milliseconds")
-                    if err == null {
-                      .timestamp = converted_timestamp
-                    } else {
-                      .errors = push(.errors, "Time not parsable, using current time instead: " + err)
-                    }
-                  } else {
-                    .errors = push(.errors, "Timestamp not found, using current time instead.")
-                  }
-
-                  .logger, err = string(event.@logger)
-                  if err != null || is_empty(.logger) {
-                    .errors = push(.errors, "Logger not found.")
-                  }
-
-                  level, err = string(event.@level)
-                  if err != null {
-                    .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                  } else if !includes(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"], level) {
-                    .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                  } else {
-                    .level = level
-                  }
-
-                  message, err = string(event.message)
-                  if err != null || is_empty(message) {
-                    .errors = push(.errors, "Message not found.")
-                  }
-                  throwable = string(event.throwable) ?? ""
-                  .message = join!(compact([message, throwable]), "\n")
-                }
-              }
 
           processed_files_log4j2:
             inputs:
@@ -658,136 +434,7 @@ commands:
                 }
               }
 
-          processed_files_py:
-            inputs:
-              - files_py
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              parsed_event, err = parse_json(raw_message)
-              if err != null {
-                error = "JSON not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else if !is_object(parsed_event) {
-                error = "Parsed event is not a JSON object."
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                event = object!(parsed_event)
-
-                asctime, err = string(event.asctime)
-                if err == null {
-                  parsed_timestamp, err = parse_timestamp(asctime, "%F %T,%3f")
-                  if err == null {
-                    .timestamp = parsed_timestamp
-                  } else {
-                    .errors = push(.errors, "Timestamp not parsable, using current time instead: "+ err)
-                  }
-                } else {
-                  .errors = push(.errors, "Timestamp not found, using current time instead.")
-                }
-
-                .logger, err = string(event.name)
-                if err != null || is_empty(.logger) {
-                  .errors = push(.errors, "Logger not found.")
-                }
-
-                level, err = string(event.levelname)
-                if err != null {
-                  .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                } else if level == "DEBUG" {
-                  .level = "DEBUG"
-                } else if level == "INFO" {
-                  .level = "INFO"
-                } else if level == "WARNING" {
-                  .level = "WARN"
-                } else if level == "ERROR" {
-                  .level = "ERROR"
-                } else if level == "CRITICAL" {
-                  .level = "FATAL"
-                } else {
-                  .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                }
-
-                .message, err = string(event.message)
-                if err != null || is_empty(.message) {
-                  .errors = push(.errors, "Message not found.")
-                }
-              }
-
-          processed_files_airlift:
-            inputs:
-              - files_airlift
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              parsed_event, err = parse_json(raw_message)
-              if err != null {
-                error = "JSON not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else if !is_object(parsed_event) {
-                error = "Parsed event is not a JSON object."
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                event = object!(parsed_event)
-
-                timestamp_string, err = string(event.timestamp)
-                if err == null {
-                  parsed_timestamp, err = parse_timestamp(timestamp_string, "%Y-%m-%dT%H:%M:%S.%fZ")
-                  if err == null {
-                    .timestamp = parsed_timestamp
-                  } else {
-                    .errors = push(.errors, "Timestamp not parsable, using current time instead: " + err)
-                  }
-                } else {
-                  .errors = push(.errors, "Timestamp not found, using current time instead.")
-                }
-
-                .logger, err = string(event.logger)
-                if err != null || is_empty(.logger) {
-                  .errors = push(.errors, "Logger not found.")
-                }
-
-                level, err = string(event.level)
-                if err != null {
-                  .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                } else if !includes(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"], level) {
-                  .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                } else {
-                  .level = level
-                }
-
-                .thread = string(parsed_event.thread) ?? null
-
-                .message, err = string(event.message)
-                if err != null || is_empty(.message) {
-                  .errors = push(.errors, "Message not found.")
-                }
-                stacktrace = string(event.stackTrace) ?? ""
-                .message = join!(compact([.message, stacktrace]), "\n\n")
-              }
-
+          # Extends the processed files with the fields "container" and "file"
           extended_logs_files:
             inputs:
               - processed_files_*
@@ -797,14 +444,21 @@ commands:
               if .errors == [] {
                 del(.errors)
               }
-              . |= parse_regex!(.file, r'^/stackable/log/(?P<container>.*?)/(?P<file>.*?)$')
+              . |= parse_regex!(.file, r'^${LOG_DIR}/(?P<container>.*?)/(?P<file>.*?)$')
 
+          # Filters the logs of the Vector agent according to the defined log level
           filtered_logs_vector:
             inputs:
               - vector
             type: filter
-            condition: '!includes(["TRACE", "DEBUG"], .metadata.level)'
+            condition: >
+              (.metadata.level == "TRACE" && "${VECTOR_FILE_LOG_LEVEL}" == "trace") ||
+              (.metadata.level == "DEBUG" && includes(["trace", "debug"], "${VECTOR_FILE_LOG_LEVEL}")) ||
+              (.metadata.level == "INFO" && includes(["trace", "debug", "info"], "${VECTOR_FILE_LOG_LEVEL}")) ||
+              (.metadata.level == "WARN" && includes(["trace", "debug", "info", "warn"], "${VECTOR_FILE_LOG_LEVEL}")) ||
+              (.metadata.level == "ERROR" && includes(["trace", "debug", "info", "warn", "error"], "${VECTOR_FILE_LOG_LEVEL}"))
 
+          # Aligns the logs of the Vector agent with the common format
           extended_logs_vector:
             inputs:
               - filtered_logs_vector
@@ -818,22 +472,24 @@ commands:
               del(.pid)
               del(.source_type)
 
+          # Add the fields "namespace", "cluster", "role" and "roleGroup" to all logs
           extended_logs:
             inputs:
               - extended_logs_*
             type: remap
             source: |
-              .namespace = "__NAMESPACE__"
-              .cluster = "spark-pi-s3-1"
-              .role = ""
-              .roleGroup = ""
+              .namespace = "${NAMESPACE}"
+              .cluster = "${CLUSTER_NAME}"
+              .role = "${ROLE_NAME}"
+              .roleGroup = "${ROLE_GROUP_NAME}"
 
         sinks:
+          # Forward the logs to the Vector aggregator
           aggregator:
             inputs:
               - extended_logs
             type: vector
-            address: $VECTOR_AGGREGATOR_ADDRESS
+            address: ${VECTOR_AGGREGATOR_ADDRESS}
 {% endif %}
       YAMLEOF
       )
@@ -937,12 +593,14 @@ commands:
 {% endif %}
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
           - args:
-            - |
+            - |-
               mkdir --parents /stackable/log/_vector-state
               # Vector will ignore SIGTERM (as PID != 1) and must be shut down by writing a shutdown trigger file
-              vector --config /stackable/config/vector.yaml & vector_pid=$!
+              vector & vector_pid=$!
               if [ ! -f "/stackable/log/_vector/shutdown" ]; then
-                mkdir -p /stackable/log/_vector && inotifywait -qq --event create /stackable/log/_vector; fi
+              mkdir -p /stackable/log/_vector
+              inotifywait -qq --event create /stackable/log/_vector;
+              fi
               sleep 1
               kill $vector_pid
             command:
@@ -952,13 +610,31 @@ commands:
             - pipefail
             - -c
             env:
-            - name: VECTOR_LOG
-              value: info
+            - name: CLUSTER_NAME
+              value: spark-pi-s3-1
+            - name: DATA_DIR
+              value: /stackable/log/_vector-state
+            - name: LOG_DIR
+              value: /stackable/log
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ROLE_GROUP_NAME
+              value: default
+            - name: ROLE_NAME
+              value: executor
             - name: VECTOR_AGGREGATOR_ADDRESS
               valueFrom:
                 configMapKeyRef:
                   key: ADDRESS
                   name: vector-aggregator-discovery
+            - name: VECTOR_CONFIG_YAML
+              value: /stackable/config/vector.yaml
+            - name: VECTOR_FILE_LOG_LEVEL
+              value: info
+            - name: VECTOR_LOG
+              value: info
             image: oci.stackable.tech/sdp/spark-k8s:{{ test_scenario['values']['spark'].split(',')[0] }}-stackable0.0.0-dev
             imagePullPolicy: IfNotPresent
             name: vector
@@ -970,8 +646,10 @@ commands:
                 cpu: 250m
                 memory: 128Mi
             volumeMounts:
-            - mountPath: /stackable/config
+            - mountPath: /stackable/config/vector.yaml
               name: config
+              readOnly: true
+              subPath: vector.yaml
             - mountPath: /stackable/log
               name: log
 {% endif %}
@@ -1069,211 +747,34 @@ commands:
             name: config
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
       vector.yaml: |
-        data_dir: /stackable/log/_vector-state
+        ---
+        data_dir: ${DATA_DIR}
 
         log_schema:
           host_key: pod
 
         sources:
+          # Reads the internal Vector logs
           vector:
             type: internal_logs
 
           files_stdout:
             type: file
             include:
-              - /stackable/log/*/*.stdout.log
+              - ${LOG_DIR}/*/*.stdout.log
 
           files_stderr:
             type: file
             include:
-              - /stackable/log/*/*.stderr.log
-
-          files_log4j:
-            type: file
-            include:
-              - /stackable/log/*/*.log4j.xml
-            line_delimiter: "\r\n"
-            multiline:
-              mode: halt_before
-              start_pattern: ^<log4j:event
-              condition_pattern: ^<log4j:event
-              timeout_ms: 1000
+              - ${LOG_DIR}/*/*.stderr.log
 
           files_log4j2:
             type: file
             include:
-              - /stackable/log/*/*.log4j2.xml
+              - ${LOG_DIR}/*/*.log4j2.xml
             line_delimiter: "\r\n"
 
-          files_py:
-            type: file
-            include:
-              - /stackable/log/*/*.py.json
-
-          files_airlift:
-            type: file
-            include:
-              - /stackable/log/*/*.airlift.json
-
-          files_tracing_rs:
-            type: file
-            include:
-              - /stackable/log/*/*.tracing-rs.json
-
-          files_opa_json:
-            type: file
-            include:
-              - /stackable/log/opa/current
-              - /stackable/log/opa/test
-
         transforms:
-          processed_files_tracing_rs:
-            inputs:
-              - files_tracing_rs
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              parsed_event, err = parse_json(raw_message)
-              if err != null {
-                error = "JSON not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else if !is_object(parsed_event) {
-                error = "Parsed event is not a JSON object."
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                event = object!(parsed_event)
-
-                timestamp_string, err = string(event.timestamp)
-                if err == null {
-                  parsed_timestamp, err = parse_timestamp(timestamp_string, "%+")
-                  if err == null {
-                    .timestamp = parsed_timestamp
-                  } else {
-                    .errors = push(.errors, "Timestamp not parsable, trying current time instead: " + err)
-                  }
-                }
-
-                .logger, err = string(event.target)
-                if err != null || is_empty(.logger) {
-                  .errors = push(.errors, "Logger/target not found.")
-                }
-
-                level, err = string(event.level)
-                if err != null {
-                  .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                } else if !includes(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"], upcase(level)) {
-                  .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                } else {
-                  .level = upcase(level)
-                }
-
-                fields, err = object(event.fields)
-                if err != null {
-                  .errors = push(.errors, "Fields are not an object.")
-                }
-
-                .message, err = string(fields.message)
-                if err != null || is_empty(.message) {
-                  .errors = push(.errors, "Message not found.")
-                }
-
-                del(fields.message)
-
-                other_fields = encode_key_value(fields, field_delimiter: "\n")
-                .message = join!(compact([.message, other_fields]), "\n\n")
-              }
-
-          processed_files_opa_json:
-            inputs:
-              - files_opa_json
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              parsed_event, err = parse_json(raw_message)
-              if err != null {
-                error = "JSON not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else if !is_object(parsed_event) {
-                error = "Parsed event is not a JSON object."
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                event = object!(parsed_event)
-
-                property_timestamp_valid = false
-                timestamp_string, err = string(event.timestamp)
-                if err == null {
-                  parsed_timestamp, err = parse_timestamp(timestamp_string, "%Y-%m-%dT%H:%M:%S.%fZ")
-                  if err == null {
-                    .timestamp = parsed_timestamp
-                    property_timestamp_valid = true
-                  } else {
-                    .errors = push(.errors, "Timestamp not parsable, trying property time instead: " + err)
-                  }
-                }
-                if !property_timestamp_valid {
-                  time_string, err = string(event.time)
-                  if err == null {
-                    parsed_timestamp, err = parse_timestamp(time_string, "%Y-%m-%dT%H:%M:%SZ")
-                    if err == null {
-                      .timestamp = parsed_timestamp
-                    } else {
-                      .errors = push(.errors, "Time not parsable, using current time instead: " + err)
-                    }
-                  } else {
-                    .errors = push(.errors, "Time not found, using current time instead.")
-                  }
-                }
-
-                .logger, err = string(event.logger)
-                if err != null || is_empty(.logger) {
-                  .errors = push(.errors, "Logger not found.")
-                }
-
-                level, err = string(event.level)
-                if err != null {
-                  .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                } else if !includes(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"], upcase(level)) {
-                  .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                } else {
-                  .level = upcase(level)
-                }
-
-                .message, err = string(event.msg)
-                if err != null || is_empty(.message) {
-                  .errors = push(.errors, "Message not found.")
-                }
-
-                del(event.time)
-                del(event.timestamp)
-                del(event.level)
-                del(event.msg)
-
-                other_fields = encode_key_value(event, field_delimiter: "\n")
-                .message = join!(compact([.message, other_fields]), "\n\n")
-              }
-
           processed_files_stdout:
             inputs:
               - files_stdout
@@ -1289,75 +790,6 @@ commands:
             source: |
               .logger = "ROOT"
               .level = "ERROR"
-
-          processed_files_log4j:
-            inputs:
-              - files_log4j
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              # Wrap the event so that the log4j namespace is defined when parsing the event
-              wrapped_xml_event = "<root xmlns:log4j=\"http://jakarta.apache.org/log4j/\">" + raw_message + "</root>"
-              parsed_event, err = parse_xml(wrapped_xml_event)
-              if err != null {
-                error = "XML not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                root = object!(parsed_event.root)
-                if !is_object(root.event) {
-                  error = "Parsed event contains no \"event\" tag."
-                  .errors = push(.errors, error)
-                  log(error, level: "warn")
-                  .message = raw_message
-                } else {
-                  if keys(root) != ["event"] {
-                    .errors = push(.errors, "Parsed event contains multiple tags: " + join!(keys(root), ", "))
-                  }
-                  event = object!(root.event)
-
-                  epoch_milliseconds, err = to_int(event.@timestamp)
-                  if err == null && epoch_milliseconds != 0 {
-                    converted_timestamp, err = from_unix_timestamp(epoch_milliseconds, "milliseconds")
-                    if err == null {
-                      .timestamp = converted_timestamp
-                    } else {
-                      .errors = push(.errors, "Time not parsable, using current time instead: " + err)
-                    }
-                  } else {
-                    .errors = push(.errors, "Timestamp not found, using current time instead.")
-                  }
-
-                  .logger, err = string(event.@logger)
-                  if err != null || is_empty(.logger) {
-                    .errors = push(.errors, "Logger not found.")
-                  }
-
-                  level, err = string(event.@level)
-                  if err != null {
-                    .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                  } else if !includes(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"], level) {
-                    .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                  } else {
-                    .level = level
-                  }
-
-                  message, err = string(event.message)
-                  if err != null || is_empty(message) {
-                    .errors = push(.errors, "Message not found.")
-                  }
-                  throwable = string(event.throwable) ?? ""
-                  .message = join!(compact([message, throwable]), "\n")
-                }
-              }
 
           processed_files_log4j2:
             inputs:
@@ -1490,136 +922,7 @@ commands:
                 }
               }
 
-          processed_files_py:
-            inputs:
-              - files_py
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              parsed_event, err = parse_json(raw_message)
-              if err != null {
-                error = "JSON not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else if !is_object(parsed_event) {
-                error = "Parsed event is not a JSON object."
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                event = object!(parsed_event)
-
-                asctime, err = string(event.asctime)
-                if err == null {
-                  parsed_timestamp, err = parse_timestamp(asctime, "%F %T,%3f")
-                  if err == null {
-                    .timestamp = parsed_timestamp
-                  } else {
-                    .errors = push(.errors, "Timestamp not parsable, using current time instead: "+ err)
-                  }
-                } else {
-                  .errors = push(.errors, "Timestamp not found, using current time instead.")
-                }
-
-                .logger, err = string(event.name)
-                if err != null || is_empty(.logger) {
-                  .errors = push(.errors, "Logger not found.")
-                }
-
-                level, err = string(event.levelname)
-                if err != null {
-                  .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                } else if level == "DEBUG" {
-                  .level = "DEBUG"
-                } else if level == "INFO" {
-                  .level = "INFO"
-                } else if level == "WARNING" {
-                  .level = "WARN"
-                } else if level == "ERROR" {
-                  .level = "ERROR"
-                } else if level == "CRITICAL" {
-                  .level = "FATAL"
-                } else {
-                  .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                }
-
-                .message, err = string(event.message)
-                if err != null || is_empty(.message) {
-                  .errors = push(.errors, "Message not found.")
-                }
-              }
-
-          processed_files_airlift:
-            inputs:
-              - files_airlift
-            type: remap
-            source: |
-              raw_message = string!(.message)
-
-              .timestamp = now()
-              .logger = ""
-              .level = "INFO"
-              .message = ""
-              .errors = []
-
-              parsed_event, err = parse_json(raw_message)
-              if err != null {
-                error = "JSON not parsable: " + err
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else if !is_object(parsed_event) {
-                error = "Parsed event is not a JSON object."
-                .errors = push(.errors, error)
-                log(error, level: "warn")
-                .message = raw_message
-              } else {
-                event = object!(parsed_event)
-
-                timestamp_string, err = string(event.timestamp)
-                if err == null {
-                  parsed_timestamp, err = parse_timestamp(timestamp_string, "%Y-%m-%dT%H:%M:%S.%fZ")
-                  if err == null {
-                    .timestamp = parsed_timestamp
-                  } else {
-                    .errors = push(.errors, "Timestamp not parsable, using current time instead: " + err)
-                  }
-                } else {
-                  .errors = push(.errors, "Timestamp not found, using current time instead.")
-                }
-
-                .logger, err = string(event.logger)
-                if err != null || is_empty(.logger) {
-                  .errors = push(.errors, "Logger not found.")
-                }
-
-                level, err = string(event.level)
-                if err != null {
-                  .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
-                } else if !includes(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"], level) {
-                  .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
-                } else {
-                  .level = level
-                }
-
-                .thread = string(parsed_event.thread) ?? null
-
-                .message, err = string(event.message)
-                if err != null || is_empty(.message) {
-                  .errors = push(.errors, "Message not found.")
-                }
-                stacktrace = string(event.stackTrace) ?? ""
-                .message = join!(compact([.message, stacktrace]), "\n\n")
-              }
-
+          # Extends the processed files with the fields "container" and "file"
           extended_logs_files:
             inputs:
               - processed_files_*
@@ -1629,14 +932,21 @@ commands:
               if .errors == [] {
                 del(.errors)
               }
-              . |= parse_regex!(.file, r'^/stackable/log/(?P<container>.*?)/(?P<file>.*?)$')
+              . |= parse_regex!(.file, r'^${LOG_DIR}/(?P<container>.*?)/(?P<file>.*?)$')
 
+          # Filters the logs of the Vector agent according to the defined log level
           filtered_logs_vector:
             inputs:
               - vector
             type: filter
-            condition: '!includes(["TRACE", "DEBUG"], .metadata.level)'
+            condition: >
+              (.metadata.level == "TRACE" && "${VECTOR_FILE_LOG_LEVEL}" == "trace") ||
+              (.metadata.level == "DEBUG" && includes(["trace", "debug"], "${VECTOR_FILE_LOG_LEVEL}")) ||
+              (.metadata.level == "INFO" && includes(["trace", "debug", "info"], "${VECTOR_FILE_LOG_LEVEL}")) ||
+              (.metadata.level == "WARN" && includes(["trace", "debug", "info", "warn"], "${VECTOR_FILE_LOG_LEVEL}")) ||
+              (.metadata.level == "ERROR" && includes(["trace", "debug", "info", "warn", "error"], "${VECTOR_FILE_LOG_LEVEL}"))
 
+          # Aligns the logs of the Vector agent with the common format
           extended_logs_vector:
             inputs:
               - filtered_logs_vector
@@ -1650,22 +960,24 @@ commands:
               del(.pid)
               del(.source_type)
 
+          # Add the fields "namespace", "cluster", "role" and "roleGroup" to all logs
           extended_logs:
             inputs:
               - extended_logs_*
             type: remap
             source: |
-              .namespace = "__NAMESPACE__"
-              .cluster = "spark-pi-s3-1"
-              .role = ""
-              .roleGroup = ""
+              .namespace = "${NAMESPACE}"
+              .cluster = "${CLUSTER_NAME}"
+              .role = "${ROLE_NAME}"
+              .roleGroup = "${ROLE_GROUP_NAME}"
 
         sinks:
+          # Forward the logs to the Vector aggregator
           aggregator:
             inputs:
               - extended_logs
             type: vector
-            address: $VECTOR_AGGREGATOR_ADDRESS
+            address: ${VECTOR_AGGREGATOR_ADDRESS}
 {% endif %}
       YAMLEOF
       )

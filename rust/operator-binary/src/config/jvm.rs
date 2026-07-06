@@ -1,8 +1,4 @@
-use snafu::{ResultExt, Snafu};
-use stackable_operator::{
-    crd::s3,
-    role_utils::{self, JvmArgumentOverrides},
-};
+use stackable_operator::crd::s3;
 
 use crate::crd::{
     constants::{
@@ -14,20 +10,17 @@ use crate::crd::{
     v1alpha1::SparkApplication,
 };
 
-#[derive(Snafu, Debug)]
-pub enum Error {
-    #[snafu(display("failed to merge jvm argument overrides"))]
-    MergeJvmArgumentOverrides { source: role_utils::Error },
-}
-
 /// JVM arguments that go into
 /// 1. `spark.driver.extraJavaOptions`
 /// 2. `spark.executor.extraJavaOptions`
+///
+/// Returns `(driver, executor)`: the operator-generated base arguments with the role's
+/// `jvmArgumentOverrides` applied on top.
 pub fn construct_extra_java_options(
     spark_application: &SparkApplication,
     s3_conn: &Option<s3::v1alpha1::ConnectionSpec>,
     log_dir: &Option<ResolvedLogDir>,
-) -> Result<(String, String), Error> {
+) -> (String, String) {
     // Note (@sbernauer): As of 2025-03-04, we did not set any heap related JVM arguments, so I
     // kept the implementation as is. We can always re-visit this as needed.
 
@@ -43,36 +36,27 @@ pub fn construct_extra_java_options(
         ]);
     }
 
-    let operator_generated = JvmArgumentOverrides::new_with_only_additions(jvm_args);
-    let from_driver = match &spark_application.spec.driver {
-        Some(driver) => &driver.product_specific_common_config.jvm_argument_overrides,
-        None => &JvmArgumentOverrides::default(),
+    // The role's `jvmArgumentOverrides` are applied on top of the operator-generated arguments
+    // above. Note this is not purely additive: a role may also remove or replace operator-set
+    // arguments (e.g. a `removeRegex` dropping the `-Djava.security.properties` default) — see the
+    // unit tests below.
+    let driver = match &spark_application.spec.driver {
+        Some(driver) => driver
+            .product_specific_common_config
+            .jvm_argument_overrides
+            .apply_to(jvm_args.clone()),
+        None => jvm_args.clone(),
     };
-    let from_executor = match &spark_application.spec.executor {
-        Some(executor) => {
-            &executor
-                .config
-                .product_specific_common_config
-                .jvm_argument_overrides
-        }
-        None => &JvmArgumentOverrides::default(),
+    let executor = match &spark_application.spec.executor {
+        Some(executor) => executor
+            .config
+            .product_specific_common_config
+            .jvm_argument_overrides
+            .apply_to(jvm_args.clone()),
+        None => jvm_args.clone(),
     };
 
-    // Please note that the merge order is different than we normally do!
-    // This is not trivial, as the merge operation is not purely additive (as it is with e.g. `PodTemplateSpec).
-    let mut from_driver = from_driver.clone();
-    let mut from_executor = from_executor.clone();
-    from_driver
-        .try_merge(&operator_generated)
-        .context(MergeJvmArgumentOverridesSnafu)?;
-    from_executor
-        .try_merge(&operator_generated)
-        .context(MergeJvmArgumentOverridesSnafu)?;
-
-    Ok((
-        from_driver.effective_jvm_config_after_merging().join(" "),
-        from_executor.effective_jvm_config_after_merging().join(" "),
-    ))
+    (driver.join(" "), executor.join(" "))
 }
 
 #[cfg(test)]
@@ -97,7 +81,7 @@ mod tests {
         let spark_app: SparkApplication =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None).unwrap();
+            construct_extra_java_options(&spark_app, &None, &None);
 
         assert_eq!(
             driver_extra_java_options,
@@ -137,7 +121,7 @@ mod tests {
         let spark_app: SparkApplication =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None).unwrap();
+            construct_extra_java_options(&spark_app, &None, &None);
 
         assert_eq!(
             driver_extra_java_options,

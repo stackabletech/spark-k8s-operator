@@ -45,6 +45,9 @@ dimensions:
       - 4.1.1
       - 4.1.2
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
+  - name: spark-regression
+    values:
+      - 3.5.8
   - name: krb5
     values:
       - 1.21.1
@@ -137,6 +140,10 @@ tests:
       - hive-iceberg
       - openshift
       - s3-use-tls
+  - name: product-config-compat
+    dimensions:
+      - spark-regression
+      - openshift
   - name: spark-connect-kerberos
     dimensions:
       - spark-connect

@@ -1,0 +1,162 @@
+# Run tests with `./test-vector.sh`
+#
+# A downside of these test cases is that they compare the whole event and that the message can
+# contain source code positions in vector.yaml, e.g. "function call error for \"parse_xml\" at
+# (584:643)". Please adapt the tests if you change VRL code in vector.yaml.
+---
+tests:
+  - name: Test stdout log entry
+    inputs:
+      - type: log
+        insert_at: processed_files_stdout
+        log_fields:
+          file: /stackable/log/spark/spark.stdout.log
+          message: Starting Spark
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2025-10-02T09:27:28.582Z
+    outputs:
+      - extract_from: extended_logs
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "spark",
+                "file": "spark.stdout.log",
+                "level": "INFO",
+                "logger": "ROOT",
+                "message": "Starting Spark",
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default",
+                "timestamp": "2025-10-02T09:27:28.582Z"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test stderr log entry
+    inputs:
+      - type: log
+        insert_at: processed_files_stderr
+        log_fields:
+          file: /stackable/log/spark/spark.stderr.log
+          message: "Exception in thread \"main\""
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2025-10-02T09:27:28.582Z
+    outputs:
+      - extract_from: extended_logs
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "spark",
+                "file": "spark.stderr.log",
+                "level": "ERROR",
+                "logger": "ROOT",
+                "message": "Exception in thread \"main\"",
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default",
+                "timestamp": "2025-10-02T09:27:28.582Z"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test log4j2 XML log entry without stacktrace
+    inputs:
+      - type: log
+        insert_at: processed_files_log4j2
+        log_fields:
+          file: /stackable/log/spark/spark.log4j2.xml
+          message: >
+            <Event xmlns="http://logging.apache.org/log4j/2.0/events"
+            timeMillis="1759397248582" level="INFO"
+            loggerName="org.apache.spark.deploy.history.HistoryServer"
+            thread="main"><Message>Bound HistoryServer to 0.0.0.0, and started at
+            http://spark:18080</Message></Event>
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2025-10-02T09:27:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "spark",
+                "file": "spark.log4j2.xml",
+                "level": "INFO",
+                "logger": "org.apache.spark.deploy.history.HistoryServer",
+                "message": "Bound HistoryServer to 0.0.0.0, and started at http://spark:18080",
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default",
+                "timestamp": t'2025-10-02T09:27:28.582Z'
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test Vector internal logs
+    inputs:
+      - type: log
+        insert_at: filtered_logs_vector
+        log_fields:
+          arch: x86_64
+          message: Vector has started.
+          metadata:
+            kind: event
+            level: INFO
+            module_path: vector::internal_events::process
+            target: vector
+          pid: 14
+          pod: spark-node-default-0
+          source_type: internal_logs
+          timestamp: 2025-10-02T09:46:14.479381097Z
+          version: 0.49.0
+    outputs:
+      - extract_from: extended_logs
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "arch": "x86_64",
+                "cluster": "spark",
+                "container": "vector",
+                "level": "INFO",
+                "logger": "vector::internal_events::process",
+                "message": "Vector has started.",
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default",
+                "timestamp": "2025-10-02T09:46:14.479381097Z",
+                "version": "0.49.0"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test Vector internal log level filtering - INFO passes
+    inputs:
+      - type: log
+        insert_at: filtered_logs_vector
+        log_fields:
+          metadata:
+            level: INFO
+    outputs:
+      - extract_from: filtered_logs_vector
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!("INFO", .metadata.level)
+  - name: Test Vector internal log level filtering - DEBUG dropped
+    inputs:
+      - type: log
+        insert_at: filtered_logs_vector
+        log_fields:
+          metadata:
+            level: DEBUG
+    no_outputs_from:
+      - filtered_logs_vector

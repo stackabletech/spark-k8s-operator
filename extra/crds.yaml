@@ -692,22 +692,14 @@ spec:
                       security.properties:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       spark-env.sh:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -1489,22 +1481,14 @@ spec:
                       security.properties:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       spark-env.sh:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -1705,22 +1689,14 @@ spec:
                       security.properties:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       spark-env.sh:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -2207,7 +2183,10 @@ spec:
                   It must contain the key `ADDRESS` with the address of the Vector aggregator.
                   Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator)
                   to learn how to configure log aggregation with Vector.
+                maxLength: 253
+                minLength: 1
                 nullable: true
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                 type: string
               volumes:
                 default: []
@@ -2826,32 +2805,20 @@ spec:
                       security.properties:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       spark-defaults.conf:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       spark-env.sh:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -2919,6 +2886,9 @@ spec:
                         description: |-
                           This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html)
                           is used to expose the history server.
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                         type: string
                       podDisruptionBudget:
                         default:
@@ -3245,32 +3215,20 @@ spec:
                             security.properties:
                               additionalProperties:
                                 type: string
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
-                              nullable: true
+                              default: {}
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             spark-defaults.conf:
                               additionalProperties:
                                 type: string
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
-                              nullable: true
+                              default: {}
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                             spark-env.sh:
                               additionalProperties:
                                 type: string
-                              description: |-
-                                Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                                This is backwards-compatible with the existing flat key-value YAML format
-                                used by `HashMap<String, String>`.
-                              nullable: true
+                              default: {}
+                              description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                               type: object
                           type: object
                         envOverrides:
@@ -3360,7 +3318,10 @@ spec:
                 description: |-
                   Name of the Vector aggregator discovery ConfigMap.
                   It must contain the key `ADDRESS` with the address of the Vector aggregator.
+                maxLength: 253
+                minLength: 1
                 nullable: true
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                 type: string
             required:
             - image
@@ -4054,32 +4015,32 @@ spec:
                       metrics.properties:
                         additionalProperties:
                           type: string
+                        default: {}
                         description: |-
                           Flat key-value overrides for `*.properties`, Hadoop XML, etc.
 
                           This is backwards-compatible with the existing flat key-value YAML format
                           used by `HashMap<String, String>`.
-                        nullable: true
                         type: object
                       security.properties:
                         additionalProperties:
                           type: string
+                        default: {}
                         description: |-
                           Flat key-value overrides for `*.properties`, Hadoop XML, etc.
 
                           This is backwards-compatible with the existing flat key-value YAML format
                           used by `HashMap<String, String>`.
-                        nullable: true
                         type: object
                       spark-defaults.conf:
                         additionalProperties:
                           type: string
+                        default: {}
                         description: |-
                           Flat key-value overrides for `*.properties`, Hadoop XML, etc.
 
                           This is backwards-compatible with the existing flat key-value YAML format
                           used by `HashMap<String, String>`.
-                        nullable: true
                         type: object
                     type: object
                   envOverrides:
@@ -4473,32 +4434,32 @@ spec:
                       metrics.properties:
                         additionalProperties:
                           type: string
+                        default: {}
                         description: |-
                           Flat key-value overrides for `*.properties`, Hadoop XML, etc.
 
                           This is backwards-compatible with the existing flat key-value YAML format
                           used by `HashMap<String, String>`.
-                        nullable: true
                         type: object
                       security.properties:
                         additionalProperties:
                           type: string
+                        default: {}
                         description: |-
                           Flat key-value overrides for `*.properties`, Hadoop XML, etc.
 
                           This is backwards-compatible with the existing flat key-value YAML format
                           used by `HashMap<String, String>`.
-                        nullable: true
                         type: object
                       spark-defaults.conf:
                         additionalProperties:
                           type: string
+                        default: {}
                         description: |-
                           Flat key-value overrides for `*.properties`, Hadoop XML, etc.
 
                           This is backwards-compatible with the existing flat key-value YAML format
                           used by `HashMap<String, String>`.
-                        nullable: true
                         type: object
                     type: object
                   envOverrides:
@@ -4563,6 +4524,9 @@ spec:
                         description: |-
                           This field controls which [ListenerClass](https://docs.stackable.tech/home/nightly/listener-operator/listenerclass.html)
                           is used to expose the Spark Connect services.
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                         type: string
                     type: object
                 type: object
@@ -4570,7 +4534,10 @@ spec:
                 description: |-
                   Name of the Vector aggregator discovery ConfigMap.
                   It must contain the key `ADDRESS` with the address of the Vector aggregator.
+                maxLength: 253
+                minLength: 1
                 nullable: true
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                 type: string
             required:
             - image
@@ -5316,22 +5283,14 @@ spec:
                       security.properties:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       spark-env.sh:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -6113,22 +6072,14 @@ spec:
                       security.properties:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       spark-env.sh:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -6329,22 +6280,14 @@ spec:
                       security.properties:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                       spark-env.sh:
                         additionalProperties:
                           type: string
-                        description: |-
-                          Flat key-value overrides for `*.properties`, Hadoop XML, etc.
-
-                          This is backwards-compatible with the existing flat key-value YAML format
-                          used by `HashMap<String, String>`.
-                        nullable: true
+                        default: {}
+                        description: Flat key-value overrides for `*.properties`, Hadoop XML, etc.
                         type: object
                     type: object
                   envOverrides:
@@ -6831,7 +6774,10 @@ spec:
                   It must contain the key `ADDRESS` with the address of the Vector aggregator.
                   Follow the [logging tutorial](https://docs.stackable.tech/home/nightly/tutorials/logging-vector-aggregator)
                   to learn how to configure log aggregation with Vector.
+                maxLength: 253
+                minLength: 1
                 nullable: true
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                 type: string
               volumes:
                 default: []

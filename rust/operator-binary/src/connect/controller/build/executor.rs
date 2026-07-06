@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -6,28 +9,34 @@ use stackable_operator::{
         self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
-        pod::{PodBuilder, container::ContainerBuilder, volume::VolumeBuilder},
+        pod::{PodBuilder, volume::VolumeBuilder},
     },
-    commons::{
-        product_image_selection::ResolvedProductImage,
-        resources::{CpuLimits, MemoryLimits, Resources},
-    },
-    config_overrides::KeyValueConfigOverrides,
+    commons::resources::{CpuLimits, MemoryLimits, Resources},
     k8s_openapi::{
         DeepMerge,
         api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
     },
-    kube::{ResourceExt, runtime::reflector::ObjectRef},
-    product_logging::framework::calculate_log_volume_size_limit,
-    role_utils::RoleGroupRef,
+    kube::ResourceExt,
+    product_logging::framework::{VECTOR_CONFIG_FILE, calculate_log_volume_size_limit},
+    v2::{
+        builder::pod::container::{EnvVarSet, new_container_builder},
+        product_logging::framework::vector_container,
+        role_group_utils::ResourceNames,
+        role_utils::JavaCommonConfig,
+        types::operator::{RoleGroupName, RoleName},
+    },
 };
 
-use super::{
-    common::{SparkConnectRole, object_name},
-    crd::{DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer},
-};
 use crate::{
-    connect::{common, crd::v1alpha1, s3},
+    connect::{
+        common::{self, SparkConnectRole, object_name},
+        controller::validate::ValidatedSparkConnectServer,
+        crd::{
+            CONNECT_EXECUTOR_ROLE_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer,
+            v1alpha1,
+        },
+        s3,
+    },
     crd::constants::{
         JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
         METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, VOLUME_MOUNT_NAME_CONFIG,
@@ -40,19 +49,6 @@ use crate::{
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("object is missing metadata to build owner reference"))]
-    ObjectMissingMetadataForOwnerRef {
-        source: stackable_operator::builder::meta::Error,
-    },
-
-    #[snafu(display("failed to build metadata for spark connect executor pod template"))]
-    PodTemplateMetadataBuild { source: builder::meta::Error },
-
-    #[snafu(display("invalid connect container name"))]
-    InvalidContainerName {
-        source: builder::pod::container::Error,
-    },
-
     #[snafu(display("failed to add volume"))]
     AddVolume { source: builder::pod::Error },
 
@@ -61,25 +57,11 @@ pub enum Error {
         source: builder::pod::container::Error,
     },
 
-    #[snafu(display("failed build connect executor jvm args for {name}"))]
-    ExecutorJvmArgs { source: common::Error, name: String },
-
     #[snafu(display("failed build connect executor security properties"))]
     ExecutorJvmSecurityProperties { source: common::Error },
 
     #[snafu(display("executor metrics properties for spark connect {name}",))]
     MetricsProperties { source: common::Error, name: String },
-
-    #[snafu(display("failed build connect executor config map metadata"))]
-    ConfigMapMetadataBuild { source: builder::meta::Error },
-
-    #[snafu(display(
-        "failed to add the logging configuration to connect executor config map [{cm_name}]"
-    ))]
-    InvalidLoggingConfig {
-        source: product_logging::Error,
-        cm_name: String,
-    },
 
     #[snafu(display("failed to build connect executor config map [{cm_name}]"))]
     InvalidConfigMap {
@@ -89,9 +71,6 @@ pub enum Error {
 
     #[snafu(display("failed to build S3 volumes and mounts for executors"))]
     BuildS3VolumesAndMounts { source: s3::Error },
-
-    #[snafu(display("failed to add S3 secret volumes to executors"))]
-    AddS3Volume { source: s3::Error },
 
     #[snafu(display("failed to create the init container for the S3 truststore"))]
     TrustStoreInitContainer { source: s3::Error },
@@ -108,42 +87,30 @@ pub enum Error {
 //
 #[allow(clippy::result_large_err)]
 pub fn executor_pod_template(
-    scs: &v1alpha1::SparkConnectServer,
-    config: &v1alpha1::ExecutorConfig,
-    resolved_product_image: &ResolvedProductImage,
+    validated: &ValidatedSparkConnectServer,
     config_map: &ConfigMap,
-    resolved_s3: &s3::ResolvedS3,
 ) -> Result<PodTemplateSpec, Error> {
-    let container_env = executor_env(
-        scs.spec
-            .executor
-            .as_ref()
-            .map(|s| s.env_overrides.clone())
-            .as_ref(),
-    )?;
+    let config = &validated.executor_config;
+    let resolved_product_image = &validated.resolved_product_image;
+    let resolved_s3 = &validated.cluster_config.resolved_s3;
+    let container_env = executor_env(Some(&validated.executor_overrides.env_overrides))?;
 
     let (s3_volumes, s3_volume_mounts) = resolved_s3
         .volumes_and_mounts()
         .context(BuildS3VolumesAndMountsSnafu)?;
 
-    let mut container = ContainerBuilder::new(&SparkConnectContainer::Spark.to_string())
-        .context(InvalidContainerNameSnafu)?;
+    let mut container = new_container_builder(&SparkConnectContainer::Spark.to_container_name());
     container
         .add_env_vars(container_env)
-        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG)
+        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
         .context(AddVolumeMountSnafu)?
-        .add_volume_mount(VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_PATH_LOG)
+        .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
         .context(AddVolumeMountSnafu)?
         .add_volume_mounts(s3_volume_mounts)
         .context(AddVolumeMountSnafu)?;
 
     let metadata = ObjectMetaBuilder::new()
-        .with_recommended_labels(&common::labels(
-            scs,
-            &resolved_product_image.app_version_label_value,
-            &SparkConnectRole::Executor.to_string(),
-        ))
-        .context(PodTemplateMetadataBuildSnafu)?
+        .with_labels(validated.recommended_labels(SparkConnectRole::Executor))
         .build();
 
     let mut template = PodBuilder::new();
@@ -152,7 +119,7 @@ pub fn executor_pod_template(
         .image_pull_secrets_from_product_image(resolved_product_image)
         .affinity(&config.affinity)
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
                 .with_empty_dir(
                     None::<String>,
                     Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
@@ -161,7 +128,7 @@ pub fn executor_pod_template(
         )
         .context(AddVolumeSnafu)?
         .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG)
+            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
                 .with_config_map(config_map.name_unchecked())
                 .build(),
         )
@@ -185,24 +152,51 @@ pub fn executor_pod_template(
 
     if let Some(cm_name) = config.log_config_map() {
         container
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_LOG_CONFIG)
+            .add_volume_mount(
+                VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
+                VOLUME_MOUNT_PATH_LOG_CONFIG,
+            )
             .context(AddVolumeMountSnafu)?;
 
         template
             .add_volume(
-                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG)
+                VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
                     .with_config_map(cm_name)
                     .build(),
             )
             .context(AddVolumeSnafu)?;
     }
 
-    let mut result = template.add_container(container.build()).build_template();
+    template.add_container(container.build());
+
+    // Vector log-aggregation sidecar (symmetric with the server), added when the executor enables
+    // the Vector agent.
+    if let Some(vector_log_config) = &validated.executor_logging.vector_container {
+        // The Vector sidecar's `CLUSTER_NAME`/`ROLE_NAME`/`ROLE_GROUP_NAME` log-metadata env vars.
+        // These do NOT affect resource naming: Spark Connect keeps its `{cluster}-{role}` names.
+        let vector_resource_names = ResourceNames {
+            cluster_name: validated.name.clone(),
+            role_name: RoleName::from_str(CONNECT_EXECUTOR_ROLE_NAME)
+                .expect("CONNECT_EXECUTOR_ROLE_NAME is a valid role name"),
+            role_group_name: RoleGroupName::from_str(DEFAULT_SPARK_CONNECT_GROUP_NAME)
+                .expect("DEFAULT_SPARK_CONNECT_GROUP_NAME is a valid role group name"),
+        };
+
+        template.add_container(vector_container(
+            &SparkConnectContainer::Vector.to_container_name(),
+            resolved_product_image,
+            vector_log_config,
+            &vector_resource_names,
+            &VOLUME_MOUNT_NAME_CONFIG,
+            &VOLUME_MOUNT_NAME_LOG,
+            EnvVarSet::new(),
+        ));
+    }
+
+    let mut result = template.build_template();
 
     // Merge user provided pod spec if any
-    if let Some(pod_overrides_spec) = scs.spec.executor.as_ref().map(|s| s.pod_overrides.clone()) {
-        result.merge_from(pod_overrides_spec);
-    }
+    result.merge_from(validated.executor_overrides.pod_overrides.clone());
 
     Ok(result)
 }
@@ -233,10 +227,10 @@ fn executor_env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<E
 }
 
 pub(crate) fn executor_properties(
-    scs: &v1alpha1::SparkConnectServer,
-    config: &v1alpha1::ExecutorConfig,
-    resolved_product_image: &ResolvedProductImage,
+    validated: &ValidatedSparkConnectServer,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
+    let config = &validated.executor_config;
+    let resolved_product_image = &validated.resolved_product_image;
     let spark_image = resolved_product_image.image.clone();
 
     let mut result: BTreeMap<String, Option<String>> = [
@@ -246,7 +240,10 @@ pub(crate) fn executor_properties(
         ),
         (
             "spark.executor.defaultJavaOptions".to_string(),
-            Some(executor_jvm_args(scs, config)?),
+            Some(executor_jvm_args(
+                validated.executor_overrides.jvm_config.as_ref(),
+                config,
+            )),
         ),
         (
             "spark.kubernetes.executor.podTemplateFile".to_string(),
@@ -293,23 +290,22 @@ pub(crate) fn executor_properties(
     // ========================================
     // Add the user provided executor properties
 
-    let config_overrides = scs
-        .spec
-        .executor
-        .as_ref()
-        .and_then(|s| s.config_overrides.spark_defaults_conf.as_ref())
-        .map(KeyValueConfigOverrides::as_product_config_overrides)
-        .unwrap_or_default();
+    let config_overrides = validated
+        .executor_overrides
+        .config_overrides
+        .spark_defaults_conf
+        .overrides
+        .clone();
 
-    result.extend(config_overrides);
+    result.extend(config_overrides.into_iter().map(|(k, v)| (k, Some(v))));
 
     Ok(result)
 }
 
 fn executor_jvm_args(
-    scs: &v1alpha1::SparkConnectServer,
+    jvm_config: Option<&JavaCommonConfig>,
     config: &v1alpha1::ExecutorConfig,
-) -> Result<String, Error> {
+) -> String {
     let mut jvm_args = vec![format!(
         "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
     )];
@@ -320,16 +316,7 @@ fn executor_jvm_args(
         ));
     }
 
-    common::jvm_args(
-        &jvm_args,
-        scs.spec
-            .executor
-            .as_ref()
-            .map(|s| &s.product_specific_common_config),
-    )
-    .context(ExecutorJvmArgsSnafu {
-        name: scs.name_any(),
-    })
+    common::jvm_args(&jvm_args, jvm_config)
 }
 
 // Assemble the configuration of the spark-connect executor.
@@ -338,30 +325,26 @@ fn executor_jvm_args(
 // - log4j2.properties     : with logging configuration (if configured)
 //
 pub(crate) fn executor_config_map(
-    scs: &v1alpha1::SparkConnectServer,
-    config: &v1alpha1::ExecutorConfig,
-    resolved_product_image: &ResolvedProductImage,
+    validated: &ValidatedSparkConnectServer,
 ) -> Result<ConfigMap, Error> {
-    let cm_name = object_name(&scs.name_any(), SparkConnectRole::Executor);
-
-    let config_overrides = scs.spec.executor.as_ref().map(|s| &s.config_overrides);
+    let config = &validated.executor_config;
+    let config_overrides = Some(&validated.executor_overrides.config_overrides);
+    let cm_name = object_name(&validated.name_any(), SparkConnectRole::Executor);
 
     let security_properties_overrides = config_overrides
-        .and_then(|config_overrides| config_overrides.security_properties.as_ref())
-        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .map(|config_overrides| config_overrides.security_properties.overrides.clone())
         .unwrap_or_default();
 
     let jvm_sec_props = common::security_properties(security_properties_overrides)
         .context(ExecutorJvmSecurityPropertiesSnafu)?;
 
     let metrics_properties_overrides = config_overrides
-        .and_then(|config_overrides| config_overrides.metrics_properties.as_ref())
-        .map(KeyValueConfigOverrides::as_product_config_overrides)
+        .map(|config_overrides| config_overrides.metrics_properties.overrides.clone())
         .unwrap_or_default();
 
     let metrics_props = common::metrics_properties(metrics_properties_overrides).context(
         MetricsPropertiesSnafu {
-            name: scs.name_unchecked(),
+            name: validated.name_any(),
         },
     )?;
 
@@ -369,37 +352,24 @@ pub(crate) fn executor_config_map(
 
     cm_builder
         .metadata(
-            ObjectMetaBuilder::new()
-                .name_and_namespace(scs)
-                .name(&cm_name)
-                .ownerreference_from_resource(scs, None, Some(true))
-                .context(ObjectMissingMetadataForOwnerRefSnafu)?
-                .with_recommended_labels(&common::labels(
-                    scs,
-                    &resolved_product_image.app_version_label_value,
-                    &SparkConnectRole::Executor.to_string(),
-                ))
-                .context(ConfigMapMetadataBuildSnafu)?
+            validated
+                .object_meta(&cm_name, SparkConnectRole::Executor)
                 .build(),
         )
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 
-    let role_group_ref = RoleGroupRef {
-        cluster: ObjectRef::from_obj(scs),
-        role: SparkConnectRole::Executor.to_string(),
-        role_group: DEFAULT_SPARK_CONNECT_GROUP_NAME.to_string(),
-    };
-    product_logging::extend_config_map(
-        &role_group_ref,
-        &config.logging,
-        SparkConnectContainer::Spark,
-        SparkConnectContainer::Vector,
-        &mut cm_builder,
-    )
-    .context(InvalidLoggingConfigSnafu {
-        cm_name: cm_name.clone(),
-    })?;
+    if let Some(log4j2) =
+        product_logging::build_log4j2(&config.logging, SparkConnectContainer::Spark)
+    {
+        cm_builder.add_data(LOG4J2_CONFIG_FILE, log4j2);
+    }
+    if config.logging.enable_vector_agent {
+        cm_builder.add_data(
+            VECTOR_CONFIG_FILE,
+            product_logging::vector_config_file_content(),
+        );
+    }
 
     cm_builder
         .build()

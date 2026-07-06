@@ -1,0 +1,12 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+# Retry until the server and executor Vector sidecars have shipped log events to the
+# aggregator (and no malformed events were seen).
+timeout: 600
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+commands:
+  - script: >-
+      kubectl exec --namespace=$NAMESPACE python --
+      python /tmp/test_log_aggregation.py
+{% endif %}

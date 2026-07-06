@@ -19,6 +19,7 @@ spec:
 {% else %}
     productVersion: "{{ test_scenario['values']['spark'] }}"
 {% endif %}
+    pullPolicy: IfNotPresent
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: "/stackable/spark/examples/jars/spark-examples.jar"

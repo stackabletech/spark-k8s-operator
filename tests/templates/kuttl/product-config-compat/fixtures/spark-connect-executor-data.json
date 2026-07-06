@@ -1,0 +1,4 @@
+{
+  "metrics.properties": "*.sink.prometheusServlet.class=org.apache.spark.metrics.sink.PrometheusServlet\n*.sink.prometheusServlet.path=/metrics/prometheus\n",
+  "security.properties": "networkaddress.cache.negative.ttl=0\nnetworkaddress.cache.ttl=30\n"
+}

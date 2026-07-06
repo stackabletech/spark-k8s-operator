@@ -1,0 +1,67 @@
+---
+role: Aggregator
+service:
+  ports:
+  - name: api
+    port: 8686
+    protocol: TCP
+    targetPort: 8686
+  - name: vector
+    port: 6123
+    protocol: TCP
+    targetPort: 6000
+customConfig:
+  api:
+    address: 0.0.0.0:8686
+    enabled: true
+  sources:
+    vector:
+      address: 0.0.0.0:6000
+      type: vector
+      version: "2"
+  transforms:
+    validEvents:
+      type: filter
+      inputs: [vector]
+      condition: is_null(.errors)
+
+    # Spark Connect server (Vector sidecar)
+    filteredSparkConnectServerVector:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .cluster == "spark-connect" &&
+        .pod == "spark-connect-server-0" &&
+        .container == "vector"
+
+    # Spark Connect executor (Vector sidecar)
+    filteredSparkConnectExecutorVector:
+      type: filter
+      inputs: [validEvents]
+      condition: >-
+        .cluster == "spark-connect" &&
+        ends_with(string!(.pod), "-exec-1") &&
+        .container == "vector"
+
+    filteredInvalidEvents:
+      type: filter
+      inputs: [vector]
+      condition: |-
+        .timestamp == from_unix_timestamp!(0) ||
+        is_null(.level) ||
+        is_null(.logger) ||
+        is_null(.message)
+  sinks:
+    test:
+      inputs: [filtered*]
+      type: blackhole
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    aggregator:
+      inputs: [vector]
+      type: vector
+      address: {{ lookup('env', 'VECTOR_AGGREGATOR') }}
+      buffer:
+        # Avoid back pressure from VECTOR_AGGREGATOR. The test should
+        # not fail if the aggregator is not available.
+        when_full: drop_newest
+{% endif %}

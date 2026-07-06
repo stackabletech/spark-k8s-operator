@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use const_format::concatcp;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
@@ -27,10 +29,17 @@ use stackable_operator::{
             CustomContainerLogConfig, Logging,
         },
     },
-    role_utils::{CommonConfiguration, JavaCommonConfig},
+    role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
+    v2::{
+        role_utils::JavaCommonConfig,
+        types::{
+            common::Port,
+            kubernetes::{ConfigMapName, ContainerName, ListenerClassName},
+        },
+    },
     versioned::versioned,
 };
 use strum::{Display, EnumIter};
@@ -45,8 +54,8 @@ pub const CONNECT_FULL_CONTROLLER_NAME: &str = concatcp!(
 );
 pub const CONNECT_SERVER_ROLE_NAME: &str = "server";
 pub const CONNECT_EXECUTOR_ROLE_NAME: &str = "executor";
-pub const CONNECT_GRPC_PORT: i32 = 15002;
-pub const CONNECT_UI_PORT: i32 = 4040;
+pub const CONNECT_GRPC_PORT: Port = Port(15002);
+pub const CONNECT_UI_PORT: Port = Port(4040);
 
 pub const DEFAULT_SPARK_CONNECT_GROUP_NAME: &str = "default";
 
@@ -115,7 +124,7 @@ pub mod versioned {
         /// Name of the Vector aggregator discovery ConfigMap.
         /// It must contain the key `ADDRESS` with the address of the Vector aggregator.
         #[serde(skip_serializing_if = "Option::is_none")]
-        pub vector_aggregator_config_map_name: Option<String>,
+        pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
         /// A Spark Connect server definition.
         #[serde(default)]
@@ -145,7 +154,7 @@ pub mod versioned {
         /// This field controls which [ListenerClass](DOCS_BASE_URL_PLACEHOLDER/listener-operator/listenerclass.html)
         /// is used to expose the Spark Connect services.
         #[serde(default = "default_listener_class")]
-        pub listener_class: String,
+        pub listener_class: ListenerClassName,
     }
 
     #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -213,26 +222,14 @@ pub mod versioned {
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
     pub struct ConfigOverrides {
-        #[serde(
-            default,
-            rename = "spark-defaults.conf",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub spark_defaults_conf: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "spark-defaults.conf")]
+        pub spark_defaults_conf: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "metrics.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub metrics_properties: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "metrics.properties")]
+        pub metrics_properties: KeyValueConfigOverrides,
 
-        #[serde(
-            default,
-            rename = "security.properties",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub security_properties: Option<KeyValueConfigOverrides>,
+        #[serde(default, rename = "security.properties")]
+        pub security_properties: KeyValueConfigOverrides,
     }
 }
 
@@ -272,6 +269,14 @@ pub(crate) struct ConnectStorageConfig {}
 pub(crate) enum SparkConnectContainer {
     Spark,
     Vector,
+}
+
+impl SparkConnectContainer {
+    /// The type-safe container name for this variant (matching its lowercase serialization).
+    pub fn to_container_name(&self) -> ContainerName {
+        ContainerName::from_str(&self.to_string())
+            .expect("a SparkConnectContainer variant name is a valid container name")
+    }
 }
 
 impl v1alpha1::ServerConfig {
@@ -315,9 +320,8 @@ impl v1alpha1::ServerConfig {
     }
 }
 
-// This is the equivalent to merged_config() in other ops
-// only here we only need to merge operator defaults with
-// user configuration.
+// Merges the operator defaults with the user-provided configuration to produce the resolved
+// server and executor configs.
 impl v1alpha1::SparkConnectServer {
     pub fn server_config(&self) -> Result<v1alpha1::ServerConfig, Error> {
         let defaults = v1alpha1::ServerConfig::default_config();
@@ -358,8 +362,9 @@ impl Default for v1alpha1::SparkConnectServerRoleConfig {
     }
 }
 
-pub fn default_listener_class() -> String {
-    "cluster-internal".to_string()
+pub fn default_listener_class() -> ListenerClassName {
+    ListenerClassName::from_str(crate::crd::constants::DEFAULT_LISTENER_CLASS)
+        .expect("the default listener class is a valid listener class name")
 }
 
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Eq, Serialize)]

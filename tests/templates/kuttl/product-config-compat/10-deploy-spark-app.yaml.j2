@@ -1,0 +1,122 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: pyspark-pi
+spec:
+  sparkImage:
+{% if test_scenario['values']['spark-regression'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark-regression'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark-regression'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark-regression'] }}"
+{% endif %}
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/examples/src/main/python/pi.py
+  job:
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "2"
+        memory:
+          limit: "1Gi"
+  driver:
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "2"
+        memory:
+          limit: "1Gi"
+  executor:
+    replicas: 1
+    config:
+      resources:
+        cpu:
+          min: "1"
+          max: "2"
+        memory:
+          limit: "1Gi"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-history-log-config
+data:
+  log4j2.properties: |-
+    rootLogger.level=INFO
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkHistoryServer
+metadata:
+  name: spark-history
+spec:
+  image:
+{% if test_scenario['values']['spark-regression'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark-regression'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark-regression'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark-regression'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  logFileDirectory:
+    customLogDirectory: file:///tmp/
+  nodes:
+    roleGroups:
+      default:
+        replicas: 1
+        config:
+          cleaner: true
+    config:
+      logging:
+        containers:
+          spark-history:
+            custom:
+              configMap: spark-history-log-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-connect-log-config
+data:
+  log4j2.properties: |-
+    rootLogger.level=INFO
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkConnectServer
+metadata:
+  name: spark-connect
+spec:
+  image:
+{% if test_scenario['values']['spark-regression'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark-regression'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark-regression'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark-regression'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  server:
+    jvmArgumentOverrides:
+      add:
+        - -Dmy.custom.jvm.arg=customValue
+    config:
+      logging:
+        containers:
+          spark:
+            custom:
+              configMap: spark-connect-log-config
+    configOverrides:
+      spark-defaults.conf:
+        spark.driver.cores: "3"
+  executor:
+    configOverrides:
+      spark-defaults.conf:
+        spark.executor.memoryOverhead: "1m"
+        spark.executor.instances: "3"
+    config:
+      logging:
+        containers:
+          spark:
+            custom:
+              configMap: spark-connect-log-config

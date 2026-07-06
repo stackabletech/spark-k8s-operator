@@ -27,16 +27,26 @@ mod test {
     use std::collections::BTreeMap;
 
     use stackable_operator::{
-        commons::affinity::StackableAffinity,
+        cli::OperatorEnvironmentOptions,
+        commons::{affinity::StackableAffinity, tls_verification::TlsClientDetails},
+        crd::s3,
         k8s_openapi::{
             api::core::v1::{PodAffinityTerm, PodAntiAffinity, WeightedPodAffinityTerm},
             apimachinery::pkg::apis::meta::v1::LabelSelector,
         },
-        kube::runtime::reflector::ObjectRef,
-        role_utils::RoleGroupRef,
     };
 
-    use crate::crd::{constants::HISTORY_ROLE_NAME, history::v1alpha1};
+    use crate::{
+        crd::{
+            constants::HISTORY_ROLE_NAME,
+            history::v1alpha1,
+            logdir::{ResolvedLogDir, S3LogDir},
+        },
+        history::controller::{
+            dereference::DereferencedSparkHistoryServer,
+            validate::{ValidatedSparkHistoryServer, validate},
+        },
+    };
 
     #[test]
     pub fn test_history_affinity_defaults() {
@@ -45,6 +55,8 @@ mod test {
         kind: SparkHistoryServer
         metadata:
           name: spark-history
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
         spec:
           image:
             productVersion: 3.5.8
@@ -99,13 +111,40 @@ mod test {
             }),
         };
 
-        let rolegroup_ref = RoleGroupRef {
-            cluster: ObjectRef::from_obj(&history),
-            role: HISTORY_ROLE_NAME.to_string(),
-            role_group: "default".to_string(),
-        };
+        let validated: ValidatedSparkHistoryServer = validate(
+            &history,
+            DereferencedSparkHistoryServer {
+                log_dir: ResolvedLogDir::S3(S3LogDir {
+                    bucket: s3::v1alpha1::ResolvedBucket {
+                        bucket_name: "my-bucket".to_string(),
+                        connection: s3::v1alpha1::ConnectionSpec {
+                            host: "my-s3".to_string().try_into().unwrap(),
+                            port: None,
+                            access_style: Default::default(),
+                            credentials: None,
+                            tls: TlsClientDetails { tls: None },
+                            region: Default::default(),
+                        },
+                    },
+                    prefix: "prefix".to_string(),
+                }),
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "default".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.stackable.tech/sdp".to_string(),
+            },
+        )
+        .expect("validation should succeed");
 
-        let affinity = history.merged_config(&rolegroup_ref).unwrap().affinity;
+        let affinity = validated
+            .role_groups
+            .get(&"default".parse().expect("valid role group name"))
+            .expect("default role group should exist")
+            .config
+            .config
+            .affinity
+            .clone();
 
         assert_eq!(affinity, expected);
     }

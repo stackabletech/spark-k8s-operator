@@ -15,7 +15,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/EmbarkStudios/cargo-deny
-    rev: 8d76e7e991107da82c4a59cdc362a2739539f55d # 0.18.9
+    rev: 1c9ca2b643ee15722178c1350501aabb024dd6f3 # 0.19.9
     hooks:
       - id: cargo-deny
         args: ["--all-features", "check", "advisories", "bans", "licenses", "sources"]
@@ -27,7 +27,7 @@ repos:
         args: ["--strict"]
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: 192ad822316c3a22fb3d3cc8aa6eafa0b8488360 # 0.45.0
+    rev: a4d5d37e66ebcd6b3705204a1d6dbb56dea66338 # 0.49.0
     hooks:
       - id: markdownlint
         types: [text]
@@ -47,7 +47,7 @@ repos:
   # If you do not, you will need to delete the cached ruff binary shown in the
   # error message
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 3b4bc031619cde2e0a9f3c4441ac7cc8227245a4 # 0.14.1
+    rev: c59bba8fb259db0fec2bbb77ad8ba51ea7341b56 # 0.15.20
     hooks:
       # Run the linter.
       - id: ruff-check
@@ -55,7 +55,7 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/rhysd/actionlint
-    rev: e7d448ef7507c20fc4c88a95d0c448b848cd6127 # 1.7.8
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca # 1.7.12
     hooks:
       - id: actionlint
 
@@ -109,7 +109,7 @@ repos:
       - id: cargo-rustfmt
         name: cargo-rustfmt
         language: system
-        entry: cargo +nightly-2026-02-24 fmt --all -- --check
+        entry: cargo +nightly-2026-07-01 fmt --all -- --check
         stages: [pre-commit, pre-merge-commit]
         pass_filenames: false
         files: \.rs$

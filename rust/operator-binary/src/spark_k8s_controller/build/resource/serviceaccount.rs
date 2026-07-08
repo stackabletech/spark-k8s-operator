@@ -27,7 +27,7 @@ pub(crate) fn build_spark_role_serviceaccount(
     let binding = RoleBinding {
         metadata: validated.object_meta(binding_name, "role-binding").build(),
         role_ref: RoleRef {
-            api_group: ClusterRole::GROUP.to_string(),
+            api_group: Some(ClusterRole::GROUP.to_string()),
             kind: ClusterRole::KIND.to_string(),
             name: SPARK_CLUSTER_ROLE.to_string(),
         },

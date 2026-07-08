@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Bump stackable-operator to 0.113.3 ([#716]).
 - Document Helm deployed RBAC permissions and remove unnecessary permissions ([#674]).
 - Remove runtime usage of `product-config`. Default values that previously came from `deploy/config-spec/properties.yaml` are now defined in operator code and merged with CRD `configOverrides` ([#692]).
 - BREAKING: Values previously configured via `properties.yaml` (the `product-config` mechanism) are no longer read at runtime. Users who relied on this file to set configuration defaults must migrate those settings to the `configOverrides` field in their custom resources ([#692]).
@@ -42,6 +43,7 @@ All notable changes to this project will be documented in this file.
 [#696]: https://github.com/stackabletech/spark-k8s-operator/pull/696
 [#705]: https://github.com/stackabletech/spark-k8s-operator/pull/705
 [#708]: https://github.com/stackabletech/spark-k8s-operator/pull/708
+[#716]: https://github.com/stackabletech/spark-k8s-operator/pull/716
 
 ## [26.3.0] - 2026-03-16
 

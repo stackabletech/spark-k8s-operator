@@ -160,6 +160,7 @@ pub mod versioned {
     /// The SparkApplication CRD looks a little different than the CRDs of the other products on the
     /// Stackable Data Platform.
     #[versioned(crd(
+        doc = "A Spark application run on Kubernetes by the Stackable operator for Apache Spark.",
         group = "spark.stackable.tech",
         shortname = "sparkapp",
         status = "SparkApplicationStatus",

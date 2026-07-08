@@ -65,6 +65,7 @@ pub mod versioned {
     /// Find more information on how to use it and the resources that the operator generates in the
     /// [operator documentation](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/).
     #[versioned(crd(
+        doc = "A Spark application template. This resource is managed by the Stackable operator for Apache Spark.",
         group = "spark.stackable.tech",
         plural = "sparkapptemplates",
         shortname = "sparkapptemplate",

@@ -56,7 +56,7 @@ dimensions:
       - "CLUSTER.LOCAL"
   - name: hbase
     values:
-      - 2.6.4
+      - 2.6.6
   - name: hdfs-latest
     values:
       - 3.5.0

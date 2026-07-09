@@ -2,8 +2,8 @@ use stackable_operator::crd::s3;
 
 use crate::crd::{
     constants::{
-        JVM_SECURITY_PROPERTIES_FILE, STACKABLE_TLS_STORE_PASSWORD, STACKABLE_TRUST_STORE,
-        VOLUME_MOUNT_PATH_LOG_CONFIG,
+        JVM_SECURITY_PROPERTIES_FILE, OPENLINEAGE_ADD_OPENS, STACKABLE_TLS_STORE_PASSWORD,
+        STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     logdir::ResolvedLogDir,
     tlscerts::tls_secret_names,
@@ -34,6 +34,18 @@ pub fn construct_extra_java_options(
             format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
             "-Djavax.net.ssl.trustStoreType=pkcs12".to_string(),
         ]);
+    }
+
+    // OpenLineage on Spark 4.x needs `java.base/java.security` opened to the unnamed module,
+    // otherwise the driver throws a non-fatal `InaccessibleObjectException` and silently degrades
+    // extension-interface lineage (MVP §7). Added to both driver and executor.
+    if spark_application
+        .spec
+        .open_lineage
+        .as_ref()
+        .is_some_and(|open_lineage| open_lineage.enabled)
+    {
+        jvm_args.push(OPENLINEAGE_ADD_OPENS.to_string());
     }
 
     // The role's `jvmArgumentOverrides` are applied on top of the operator-generated arguments
@@ -131,5 +143,31 @@ mod tests {
             executor_extra_java_options,
             "-Dhttps.proxyHost=from-executor"
         );
+    }
+
+    #[test]
+    fn test_construct_jvm_arguments_openlineage_add_opens() {
+        let input = r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                enabled: true
+        "#;
+
+        let deserializer = serde_yaml::Deserializer::from_str(input);
+        let spark_app: SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+        let (driver_extra_java_options, executor_extra_java_options) =
+            construct_extra_java_options(&spark_app, &None, &None);
+
+        assert!(driver_extra_java_options.contains(OPENLINEAGE_ADD_OPENS));
+        assert!(executor_extra_java_options.contains(OPENLINEAGE_ADD_OPENS));
     }
 }

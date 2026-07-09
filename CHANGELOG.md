@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#684]).
 - Support for Spark `4.1.2` ([#708])
+- Add `spec.openLineage` to enable OpenLineage lineage emission: injects the OpenLineage Spark listener, HTTP transport (endpoint resolved from a discovery ConfigMap), a stable job name, and the required `--add-opens` JVM flag ([#XXXX]).
 
 ### Fixed
 
@@ -44,6 +45,7 @@ All notable changes to this project will be documented in this file.
 [#705]: https://github.com/stackabletech/spark-k8s-operator/pull/705
 [#708]: https://github.com/stackabletech/spark-k8s-operator/pull/708
 [#716]: https://github.com/stackabletech/spark-k8s-operator/pull/716
+[#XXXX]: https://github.com/stackabletech/spark-k8s-operator/pull/XXXX
 
 ## [26.3.0] - 2026-03-16
 

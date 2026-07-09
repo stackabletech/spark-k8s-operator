@@ -5,7 +5,7 @@
 
 - 4.1.2 (Hadoop 3.4.3, Scala 2.13, Python 3.12, Java 21) (LTS)
 - 4.1.1 (Hadoop 3.4.3, Scala 2.13, Python 3.12, Java 21) (Deprecated)
-- 3.5.8 (Hadoop 3.4.2, Scala 2.12, Python 3.11, Java 17) (Deprecated)
+- 3.5.8 (HBase 2.6.6, Hadoop 3.4.3, Scala 2.12, Python 3.11, Java 17) (Deprecated)
 
 Apache Spark 4.1.1 & 4.1.2 have the following known issues (as of July 2026):
 

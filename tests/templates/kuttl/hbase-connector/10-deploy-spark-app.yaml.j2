@@ -77,7 +77,11 @@ data:
     spark = SparkSession.builder.appName("test-hbase").getOrCreate()
 
     df = spark.createDataFrame(
-      [("row1", "Hello, Stackable!")],
+      [
+        ("row1", "Hello, Stackable!"),
+        ("row2", "Hello, HBase!"),
+        ("row3", "Hello, Spark!"),
+      ],
       "key: string, value: string"
     )
 
@@ -101,3 +105,53 @@ data:
       .option('catalog', catalog)\
       .option('newtable', '5')\
       .save()
+
+    # Read the whole table back and register it as a temporary view so we can
+    # run SQL queries against it.
+    #
+    # hbase.spark.pushdown.columnfilter=false disables server-side predicate
+    # pushdown: the connector would otherwise ship a SparkSQLPushDownFilter to
+    # the RegionServers, which requires the hbase-spark connector classes on
+    # the RegionServer classpath (not present in the Stackable HBase image).
+    # With pushdown off, WHERE clauses are evaluated Spark-side over a full
+    # scan, which is all this test needs.
+    read_df = spark\
+      .read\
+      .format("org.apache.hadoop.hbase.spark")\
+      .option('catalog', catalog)\
+      .option('hbase.spark.pushdown.columnfilter', 'false')\
+      .load()
+    read_df.createOrReplaceTempView("test_hbase")
+
+    # Full scan: all rows that were written must be readable again.
+    all_rows = spark.sql("SELECT key, value FROM test_hbase").collect()
+    actual = {row["key"]: row["value"] for row in all_rows}
+    expected = {
+      "row1": "Hello, Stackable!",
+      "row2": "Hello, HBase!",
+      "row3": "Hello, Spark!",
+    }
+    assert actual == expected, f"full scan mismatch: {actual} != {expected}"
+
+    # Row-key point lookup.
+    point = spark.sql("SELECT value FROM test_hbase WHERE key = 'row2'").collect()
+    assert len(point) == 1, f"point lookup returned {len(point)} rows, expected 1"
+    assert point[0]["value"] == "Hello, HBase!", f"unexpected value: {point[0]['value']}"
+
+    # Range scan on the row key.
+    range_rows = spark.sql(
+      "SELECT key FROM test_hbase WHERE key >= 'row2' ORDER BY key"
+    ).collect()
+    assert [r["key"] for r in range_rows] == ["row2", "row3"], \
+      f"unexpected range scan result: {[r['key'] for r in range_rows]}"
+
+    # Filter on a non-rowkey column value.
+    like_rows = spark.sql(
+      "SELECT key FROM test_hbase WHERE value LIKE 'Hello, S%' ORDER BY key"
+    ).collect()
+    assert [r["key"] for r in like_rows] == ["row1", "row3"], \
+      f"unexpected value filter result: {[r['key'] for r in like_rows]}"
+
+    # Aggregation over the scanned rows.
+    count = spark.sql("SELECT COUNT(*) AS c FROM test_hbase").collect()[0]["c"]
+    assert count == 3, f"expected 3 rows, got {count}"

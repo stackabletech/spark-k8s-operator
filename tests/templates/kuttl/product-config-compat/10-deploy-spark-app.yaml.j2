@@ -5,6 +5,7 @@ metadata:
   name: pyspark-pi
 spec:
   sparkImage:
+    pullPolicy: IfNotPresent
 {% if test_scenario['values']['spark-regression'].find(",") > 0 %}
     custom: "{{ test_scenario['values']['spark-regression'].split(',')[1] }}"
     productVersion: "{{ test_scenario['values']['spark-regression'].split(',')[0] }}"

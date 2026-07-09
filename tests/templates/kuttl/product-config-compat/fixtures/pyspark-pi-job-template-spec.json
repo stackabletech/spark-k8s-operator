@@ -31,7 +31,7 @@
         }
       ],
       "image": "oci.stackable.tech/sdp/spark-k8s:3.5.8-stackable0.0.0-dev",
-      "imagePullPolicy": "Always",
+      "imagePullPolicy": "IfNotPresent",
       "name": "spark-submit",
       "resources": {
         "limits": {

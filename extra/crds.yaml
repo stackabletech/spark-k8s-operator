@@ -4657,7 +4657,7 @@ spec:
     shortNames:
     - sparkapptemplate
     singular: sparkapplicationtemplate
-  scope: Cluster
+  scope: Namespaced
   versions:
   - additionalPrinterColumns: []
     name: v1alpha1

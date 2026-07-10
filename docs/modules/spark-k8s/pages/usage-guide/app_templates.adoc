@@ -5,13 +5,23 @@ Spark application templates are used to define reusable configurations for Spark
 When you have many applications with similar configurations, templates can help you avoid duplication by grouping common settings together.
 Application templates are available for the `v1alpha1` version of the SparkApplication custom resource and share the exact same structure as the SparkApplication resource, but with some differences in the way the operator handles them:
 
-1. Application templates are cluster wide resources, while Spark application resources are namespace-scoped.
-  This means that application templates can be used across multiple namespaces, while Spark application resources are limited to the namespace they are created in.
+1. Application templates are namespace-scoped resources, just like Spark applications.
+  This means that a SparkApplication can only reference templates from its own namespace.
 2. Application templates are not reconciled by the operator, but must be referenced from a SparkApplication resource to be applied. This means that changes to an application template will not automatically trigger updates to SparkApplication resources that reference it.
 3. An application can reference multiple application templates, and the settings from these templates will be merged together. The merging order of the templates is indicated by their index in the reference list. The application fields have the highest precedence and will override any conflicting settings from the templates. This allows you to have a base template with common settings and then override specific settings in the application resource as needed.
 4. Application template references are immutable in the sense that once applied to an application they cannot be changed again. Currently templates are applied upon the creation of the application, and any changes to the template references after that will be ignored.
 5. Application and template CRDs must have the exact same versions. Currently only `v1alpha1` is supported.
 
+== Migrating from cluster-scoped templates
+
+IMPORTANT: Application templates used to be cluster wide resources when they were first released. This was a mistake. Many users do not have the access rights to create cluster scoped resources and so the templates are now namespace scoped.
+
+If you are migrating from older installations where templates were treated as cluster-wide resources, account for the following:
+
+1. Recreate each template in every namespace where SparkApplications use it.
+2. Keep template names consistent per namespace if you want the same application annotations to continue working.
+3. Cross-namespace template references are no longer resolved; templates and applications must be in the same namespace.
+4. Update GitOps/automation manifests to create templates as namespace-targeted resources before reconciling dependent SparkApplications.
 == Examples
 
 Applications use `metadata.annotations` to reference application templates as shown below:

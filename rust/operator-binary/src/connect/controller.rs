@@ -4,6 +4,12 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cluster_resources::ClusterResourceApplyStrategy,
     commons::rbac::build_rbac_resources,
+    crd::listener,
+    k8s_openapi::api::{
+        apps::v1::StatefulSet,
+        core::v1::{ConfigMap, Service, ServiceAccount},
+        rbac::v1::RoleBinding,
+    },
     kube::{
         ResourceExt,
         core::{DeserializeGuard, error_boundary},
@@ -20,15 +26,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use super::crd::{CONNECT_APP_NAME, v1alpha1};
-use crate::{
-    Ctx,
-    connect::{
-        common,
-        controller::build::{executor, server, service},
-        crd::SparkConnectServerStatus,
-    },
-    crd::constants::OPERATOR_NAME,
-};
+use crate::{Ctx, connect::crd::SparkConnectServerStatus, crd::constants::OPERATOR_NAME};
 
 pub mod build;
 pub mod dereference;
@@ -38,57 +36,11 @@ pub mod validate;
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to apply spark connect listener"))]
-    ApplyListener {
-        source: stackable_operator::cluster_resources::Error,
-    },
+    #[snafu(display("failed to build the Kubernetes resources"))]
+    BuildResources { source: build::Error },
 
-    #[snafu(display("failed to serialize connect properties"))]
-    SerializeProperties { source: common::Error },
-
-    #[snafu(display("failed to build connect executor properties"))]
-    ExecutorProperties { source: executor::Error },
-
-    #[snafu(display("failed to build connect server properties"))]
-    ServerProperties { source: server::Error },
-
-    #[snafu(display("failed to build spark connect executor config map for {name}"))]
-    BuildExecutorConfigMap {
-        source: executor::Error,
-        name: String,
-    },
-
-    #[snafu(display("failed to build spark connect server config map for {name}"))]
-    BuildServerConfigMap { source: server::Error, name: String },
-
-    #[snafu(display("failed to build spark connect stateful set"))]
-    BuildServerStatefulSet { source: server::Error },
-
-    #[snafu(display("failed to update status of spark connect server {name}"))]
-    ApplyStatus {
-        source: stackable_operator::client::Error,
-        name: String,
-    },
-
-    #[snafu(display("failed to update the connect server stateful set"))]
-    ApplyStatefulSet {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to update connect executor config map for {name}"))]
-    ApplyExecutorConfigMap {
-        source: stackable_operator::cluster_resources::Error,
-        name: String,
-    },
-
-    #[snafu(display("failed to update connect server config map for {name}"))]
-    ApplyServerConfigMap {
-        source: stackable_operator::cluster_resources::Error,
-        name: String,
-    },
-
-    #[snafu(display("failed to update connect server service"))]
-    ApplyService {
+    #[snafu(display("failed to apply Kubernetes resource"))]
+    ApplyResource {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -100,6 +52,12 @@ pub enum Error {
     #[snafu(display("failed to apply global RoleBinding"))]
     ApplyRoleBinding {
         source: stackable_operator::cluster_resources::Error,
+    },
+
+    #[snafu(display("failed to update status of spark connect server {name}"))]
+    ApplyStatus {
+        source: stackable_operator::client::Error,
+        name: String,
     },
 
     #[snafu(display("failed to delete orphaned resources"))]
@@ -123,17 +81,6 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("failed to build connect executor pod template"))]
-    ExecutorPodTemplate {
-        source: crate::connect::controller::build::executor::Error,
-    },
-
-    #[snafu(display("failed to serialize executor pod template"))]
-    ExecutorPodTemplateSerde { source: serde_yaml::Error },
-
-    #[snafu(display("failed to build connect server S3 properties"))]
-    S3SparkProperties { source: crate::connect::s3::Error },
-
     #[snafu(display("failed to dereference SparkConnectServer"))]
     DereferenceSparkConnectServer { source: dereference::Error },
 
@@ -148,7 +95,22 @@ impl ReconcilerError for Error {
         ErrorDiscriminants::from(self).into()
     }
 }
-/// Updates the status of the SparkApplication that started the pod.
+
+/// Every Kubernetes resource produced by the build step for a SparkConnectServer.
+///
+/// Built without a Kubernetes client: all references are already dereferenced and validated by
+/// this point, so the only errors possible during assembly are resource-construction failures.
+pub struct SparkConnectResources {
+    pub service_account: ServiceAccount,
+    pub role_binding: RoleBinding,
+    /// The headless Service (for executors to reach the driver) and the metrics Service.
+    pub services: Vec<Service>,
+    /// The executor and server ConfigMaps.
+    pub config_maps: Vec<ConfigMap>,
+    pub listener: listener::v1alpha1::Listener,
+    pub stateful_set: StatefulSet,
+}
+
 pub async fn reconcile(
     scs: Arc<DeserializeGuard<v1alpha1::SparkConnectServer>>,
     ctx: Arc<Ctx>,
@@ -177,8 +139,6 @@ pub async fn reconcile(
         "Validated SparkConnectServer identity"
     );
 
-    let resolved_s3 = &validated.cluster_config.resolved_s3;
-
     let mut cluster_resources = cluster_resources_new(
         &validate::product_name(),
         &validate::operator_name(),
@@ -190,7 +150,9 @@ pub async fn reconcile(
         &scs.spec.object_overrides,
     );
 
-    // Use a dedicated service account for connect server pods.
+    // Use a dedicated service account for connect server pods. Building the RBAC resources needs
+    // the cluster-resource labels, so it stays in the reconcile step; the built objects (whose
+    // names are deterministic) are handed to the client-free build step.
     let (service_account, role_binding) = build_rbac_resources(
         scs,
         CONNECT_APP_NAME,
@@ -200,106 +162,43 @@ pub async fn reconcile(
     )
     .context(BuildRbacResourcesSnafu)?;
 
-    let service_account = cluster_resources
-        .add(client, service_account)
+    let resources = build::build(&validated, service_account, role_binding, &scs.spec.args)
+        .context(BuildResourcesSnafu)?;
+
+    // Apply order: ServiceAccount and RoleBinding first, then the Services, ConfigMaps and
+    // Listener, and finally the StatefulSet (it mounts the ConfigMaps and runs under the SA, so
+    // they must exist first).
+    cluster_resources
+        .add(client, resources.service_account)
         .await
         .context(ApplyServiceAccountSnafu)?;
     cluster_resources
-        .add(client, role_binding)
+        .add(client, resources.role_binding)
         .await
         .context(ApplyRoleBindingSnafu)?;
-
-    // Headless service used by executors connect back to the driver
-    let headless_service = service::build_headless_service(&validated);
-
-    let applied_headless_service = cluster_resources
-        .add(client, headless_service.clone())
-        .await
-        .context(ApplyServiceSnafu)?;
-
-    // Metrics service used for scraping
-    let metrics_service = service::build_metrics_service(&validated);
-
+    for service in resources.services {
+        cluster_resources
+            .add(client, service)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
+    for config_map in resources.config_maps {
+        cluster_resources
+            .add(client, config_map)
+            .await
+            .context(ApplyResourceSnafu)?;
+    }
     cluster_resources
-        .add(client, metrics_service.clone())
+        .add(client, resources.listener)
         .await
-        .context(ApplyServiceSnafu)?;
-
-    // ========================================
-    // Server config map
-
-    let spark_props = common::spark_properties(&[
-        resolved_s3
-            .spark_properties()
-            .context(S3SparkPropertiesSnafu)?,
-        server::server_properties(&validated, &applied_headless_service, &service_account)
-            .context(ServerPropertiesSnafu)?,
-        executor::executor_properties(&validated).context(ExecutorPropertiesSnafu)?,
-    ])
-    .context(SerializePropertiesSnafu)?;
-
-    // ========================================
-    // Executor config map and pod template
-    let executor_config_map =
-        executor::executor_config_map(&validated).context(BuildExecutorConfigMapSnafu {
-            name: validated.name_any(),
-        })?;
-    cluster_resources
-        .add(client, executor_config_map.clone())
-        .await
-        .context(ApplyExecutorConfigMapSnafu {
-            name: validated.name_any(),
-        })?;
-
-    let executor_pod_template = serde_yaml::to_string(
-        &executor::executor_pod_template(&validated, &executor_config_map)
-            .context(ExecutorPodTemplateSnafu)?,
-    )
-    .context(ExecutorPodTemplateSerdeSnafu)?;
-
-    // ========================================
-    // Server config map
-    let server_config_map =
-        server::server_config_map(&validated, &spark_props, &executor_pod_template).context(
-            BuildServerConfigMapSnafu {
-                name: validated.name_any(),
-            },
-        )?;
-    cluster_resources
-        .add(client, server_config_map.clone())
-        .await
-        .context(ApplyServerConfigMapSnafu {
-            name: validated.name_any(),
-        })?;
-
-    // ========================================
-    // Server listener
-    let listener = server::build_listener(&validated);
-
-    let applied_listener = cluster_resources
-        .add(client, listener)
-        .await
-        .context(ApplyListenerSnafu)?;
-
-    // ========================================
-    // Server stateful set
-    let args = server::command_args(&scs.spec.args);
-    let stateful_set = server::build_stateful_set(
-        &validated,
-        &service_account,
-        &server_config_map,
-        &applied_listener.name_any(),
-        args,
-    )
-    .context(BuildServerStatefulSetSnafu)?;
+        .context(ApplyResourceSnafu)?;
 
     let mut ss_cond_builder = StatefulSetConditionBuilder::default();
-
     ss_cond_builder.add(
         cluster_resources
-            .add(client, stateful_set)
+            .add(client, resources.stateful_set)
             .await
-            .context(ApplyStatefulSetSnafu)?,
+            .context(ApplyResourceSnafu)?,
     );
 
     cluster_resources

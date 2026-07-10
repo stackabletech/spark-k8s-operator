@@ -3,6 +3,11 @@ use std::sync::Arc;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{self},
+    k8s_openapi::api::{
+        batch::v1::Job,
+        core::v1::{ConfigMap, ServiceAccount},
+        rbac::v1::RoleBinding,
+    },
     kube::{
         ResourceExt,
         core::{DeserializeGuard, error_boundary},
@@ -115,6 +120,18 @@ impl ReconcilerError for Error {
     }
 }
 
+/// Every Kubernetes resource produced by the build step for a SparkApplication.
+///
+/// Built without a Kubernetes client: all references are already dereferenced and validated by
+/// this point, so the only errors possible during assembly are resource-construction failures.
+pub struct SparkResources {
+    pub service_account: ServiceAccount,
+    pub role_binding: RoleBinding,
+    /// Driver pod-template, executor pod-template, and submit-job ConfigMaps (in that order).
+    pub config_maps: Vec<ConfigMap>,
+    pub job: Job,
+}
+
 pub async fn reconcile(
     spark_application: Arc<DeserializeGuard<v1alpha1::SparkApplication>>,
     ctx: Arc<Ctx>,
@@ -147,117 +164,38 @@ pub async fn reconcile(
         .context(ValidateSparkApplicationSnafu)?;
 
     let spark_application = &validated.spark_application;
-    let opt_s3conn = &validated.cluster_config.s3_connection;
-    let logdir = &validated.cluster_config.log_dir;
-    let resolved_product_image = &validated.resolved_product_image;
     // This is the final version of the spark app to reconcile.
     // No more mutating operations after this point (except for status).
     tracing::debug!("reconciling spark application [{spark_application:?}]");
 
-    let (serviceaccount, rolebinding) =
-        build::resource::serviceaccount::build_spark_role_serviceaccount(&validated)?;
+    let resources = build::build(&validated)?;
+
+    // Apply the ServiceAccount and RoleBinding first, then the ConfigMaps, and finally the Job:
+    // the Job runs under the ServiceAccount and mounts the ConfigMaps, so they must exist first.
     client
-        .apply_patch(SPARK_CONTROLLER_NAME, &serviceaccount, &serviceaccount)
+        .apply_patch(
+            SPARK_CONTROLLER_NAME,
+            &resources.service_account,
+            &resources.service_account,
+        )
         .await
         .context(ApplyServiceAccountSnafu)?;
     client
-        .apply_patch(SPARK_CONTROLLER_NAME, &rolebinding, &rolebinding)
+        .apply_patch(
+            SPARK_CONTROLLER_NAME,
+            &resources.role_binding,
+            &resources.role_binding,
+        )
         .await
         .context(ApplyRoleBindingSnafu)?;
-
-    let env_vars = spark_application.env(opt_s3conn, logdir);
-
-    let driver_config = spark_application
-        .driver_config()
-        .context(FailedToResolveConfigSnafu)?;
-
-    let driver_config_overrides = spark_application
-        .spec
-        .driver
-        .as_ref()
-        .map(|driver| driver.config_overrides.clone())
-        .unwrap_or_default();
-
-    let driver_pod_template_config_map = build::resource::config_map::pod_template_config_map(
-        &validated,
-        SparkApplicationRole::Driver,
-        &driver_config,
-        &driver_config_overrides,
-        &env_vars,
-        &serviceaccount,
-    )?;
+    for config_map in &resources.config_maps {
+        client
+            .apply_patch(SPARK_CONTROLLER_NAME, config_map, config_map)
+            .await
+            .context(ApplyApplicationSnafu)?;
+    }
     client
-        .apply_patch(
-            SPARK_CONTROLLER_NAME,
-            &driver_pod_template_config_map,
-            &driver_pod_template_config_map,
-        )
-        .await
-        .context(ApplyApplicationSnafu)?;
-
-    let executor_config = spark_application
-        .executor_config()
-        .context(FailedToResolveConfigSnafu)?;
-
-    let executor_config_overrides = spark_application
-        .spec
-        .executor
-        .as_ref()
-        .map(|executor| executor.config.config_overrides.clone())
-        .unwrap_or_default();
-
-    let executor_pod_template_config_map = build::resource::config_map::pod_template_config_map(
-        &validated,
-        SparkApplicationRole::Executor,
-        &executor_config,
-        &executor_config_overrides,
-        &env_vars,
-        &serviceaccount,
-    )?;
-    client
-        .apply_patch(
-            SPARK_CONTROLLER_NAME,
-            &executor_pod_template_config_map,
-            &executor_pod_template_config_map,
-        )
-        .await
-        .context(ApplyApplicationSnafu)?;
-
-    let job_commands = spark_application
-        .build_command(opt_s3conn, logdir, &resolved_product_image.image)
-        .context(BuildCommandSnafu)?;
-
-    let submit_config = spark_application
-        .submit_config()
-        .context(SubmitConfigSnafu)?;
-
-    let submit_config_overrides = spark_application
-        .spec
-        .job
-        .as_ref()
-        .map(|job| job.config_overrides.clone())
-        .unwrap_or_default();
-
-    let submit_job_config_map =
-        build::resource::config_map::submit_job_config_map(&validated, &submit_config_overrides)?;
-    client
-        .apply_patch(
-            SPARK_CONTROLLER_NAME,
-            &submit_job_config_map,
-            &submit_job_config_map,
-        )
-        .await
-        .context(ApplyApplicationSnafu)?;
-
-    let job = build::resource::job::spark_job(
-        &validated,
-        &serviceaccount,
-        &env_vars,
-        &job_commands,
-        &submit_config,
-    )?;
-    client
-        .apply_patch(SPARK_CONTROLLER_NAME, &job, &job)
+        .apply_patch(SPARK_CONTROLLER_NAME, &resources.job, &resources.job)
         .await
         .context(ApplyApplicationSnafu)?;
 

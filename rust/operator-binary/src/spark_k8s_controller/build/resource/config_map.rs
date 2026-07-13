@@ -1,4 +1,4 @@
-use snafu::{OptionExt, ResultExt};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, pod::volume::VolumeBuilder},
     k8s_openapi::api::core::v1::{ConfigMap, EnvVar, ServiceAccount},
@@ -20,11 +20,38 @@ use crate::{
     },
     product_logging::{self},
     spark_k8s_controller::{
-        CreateVolumesSnafu, JvmSecurityPropertiesSnafu, MissingSecretLifetimeSnafu,
-        PodTemplateConfigMapSnafu, PodTemplateSerdeSnafu, Result, build::pod::pod_template,
+        build::pod::{self, pod_template},
         validate,
     },
 };
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("failed to build the pod template"))]
+    BuildPodTemplate { source: pod::Error },
+
+    #[snafu(display("pod template serialization"))]
+    PodTemplateSerde { source: serde_yaml::Error },
+
+    #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
+    JvmSecurityProperties {
+        source: stackable_operator::v2::config_file_writer::PropertiesWriterError,
+        role: SparkApplicationRole,
+    },
+
+    #[snafu(display("failed to build the pod template config map"))]
+    PodTemplateConfigMap {
+        source: stackable_operator::builder::configmap::Error,
+    },
+
+    #[snafu(display("missing secret lifetime"))]
+    MissingSecretLifetime,
+
+    #[snafu(display("failed to create Volumes for SparkApplication"))]
+    CreateVolumes { source: crate::crd::Error },
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub(crate) fn pod_template_config_map(
     validated: &validate::ValidatedSparkApplication,
@@ -75,7 +102,8 @@ pub(crate) fn pod_template_config_map(
         volumes.as_ref(),
         env,
         service_account,
-    )?;
+    )
+    .context(BuildPodTemplateSnafu)?;
 
     let mut cm_builder = ConfigMapBuilder::new();
 

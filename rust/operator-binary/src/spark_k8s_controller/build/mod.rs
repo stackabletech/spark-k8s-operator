@@ -1,15 +1,33 @@
 pub mod pod;
 pub mod resource;
 
-use snafu::ResultExt;
+use resource::{config_map, job};
+use snafu::{ResultExt, Snafu};
 
 use crate::{
     crd::roles::SparkApplicationRole,
-    spark_k8s_controller::{
-        BuildCommandSnafu, FailedToResolveConfigSnafu, Result, SparkResources, SubmitConfigSnafu,
-        validate::ValidatedSparkApplication,
-    },
+    spark_k8s_controller::{SparkResources, validate::ValidatedSparkApplication},
 };
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("failed to resolve and merge config"))]
+    FailedToResolveConfig { source: crate::crd::Error },
+
+    #[snafu(display("failed to build stark-submit command"))]
+    BuildCommand { source: crate::crd::Error },
+
+    #[snafu(display("invalid submit config"))]
+    SubmitConfig { source: crate::crd::Error },
+
+    #[snafu(display("failed to build ConfigMap"))]
+    BuildConfigMap { source: config_map::Error },
+
+    #[snafu(display("failed to build Job"))]
+    BuildJob { source: job::Error },
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builds every Kubernetes resource for the given validated SparkApplication.
 pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
@@ -19,7 +37,7 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
     let resolved_product_image = &validated.resolved_product_image;
 
     let (service_account, role_binding) =
-        resource::serviceaccount::build_spark_role_serviceaccount(validated)?;
+        resource::serviceaccount::build_spark_role_serviceaccount(validated);
 
     let env_vars = spark_application.env(opt_s3conn, logdir);
 
@@ -41,7 +59,8 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
         &driver_config_overrides,
         &env_vars,
         &service_account,
-    )?;
+    )
+    .context(BuildConfigMapSnafu)?;
 
     let executor_config = spark_application
         .executor_config()
@@ -61,7 +80,8 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
         &executor_config_overrides,
         &env_vars,
         &service_account,
-    )?;
+    )
+    .context(BuildConfigMapSnafu)?;
 
     let job_commands = spark_application
         .build_command(opt_s3conn, logdir, &resolved_product_image.image)
@@ -79,7 +99,8 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
         .unwrap_or_default();
 
     let submit_job_config_map =
-        resource::config_map::submit_job_config_map(validated, &submit_config_overrides)?;
+        resource::config_map::submit_job_config_map(validated, &submit_config_overrides)
+            .context(BuildConfigMapSnafu)?;
 
     let job = resource::job::spark_job(
         validated,
@@ -87,7 +108,8 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
         &env_vars,
         &job_commands,
         &submit_config,
-    )?;
+    )
+    .context(BuildJobSnafu)?;
 
     Ok(SparkResources {
         service_account,

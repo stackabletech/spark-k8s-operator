@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::{self},
     k8s_openapi::api::{
         batch::v1::Job,
         core::v1::{ConfigMap, ServiceAccount},
@@ -15,13 +14,12 @@ use stackable_operator::{
     },
     logging::controller::ReconcilerError,
     shared::time::Duration,
-    v2::config_file_writer::PropertiesWriterError,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     Ctx,
-    crd::{constants::*, roles::SparkApplicationRole, v1alpha1},
+    crd::{constants::*, v1alpha1},
 };
 
 pub mod build;
@@ -38,8 +36,8 @@ pub enum Error {
     #[snafu(display("failed to validate SparkApplication"))]
     ValidateSparkApplication { source: validate::Error },
 
-    #[snafu(display("missing secret lifetime"))]
-    MissingSecretLifetime,
+    #[snafu(display("failed to build SparkApplication resources"))]
+    BuildSparkApplication { source: build::Error },
 
     #[snafu(display("failed to apply role ServiceAccount"))]
     ApplyServiceAccount {
@@ -56,52 +54,10 @@ pub enum Error {
         source: stackable_operator::client::Error,
     },
 
-    #[snafu(display("failed to build stark-submit command"))]
-    BuildCommand { source: crate::crd::Error },
-
-    #[snafu(display("failed to build the pod template config map"))]
-    PodTemplateConfigMap {
-        source: stackable_operator::builder::configmap::Error,
-    },
-
-    #[snafu(display("pod template serialization"))]
-    PodTemplateSerde { source: serde_yaml::Error },
-
-    #[snafu(display("failed to resolve and merge config"))]
-    FailedToResolveConfig { source: crate::crd::Error },
-
-    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
-    VectorAggregatorConfigMapMissing,
-
-    #[snafu(display("failed to validate the logging configuration"))]
-    ValidateLoggingConfig {
-        source: stackable_operator::v2::product_logging::framework::Error,
-    },
-
-    #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
-    JvmSecurityProperties {
-        source: PropertiesWriterError,
-        role: SparkApplicationRole,
-    },
-
-    #[snafu(display("invalid submit config"))]
-    SubmitConfig { source: crate::crd::Error },
-
-    #[snafu(display("failed to create Volumes for SparkApplication"))]
-    CreateVolumes { source: crate::crd::Error },
-
     #[snafu(display("Failed to update status for application {name:?}"))]
     ApplySparkApplicationStatus {
         source: stackable_operator::client::Error,
         name: String,
-    },
-
-    #[snafu(display("failed to add needed volume"))]
-    AddVolume { source: builder::pod::Error },
-
-    #[snafu(display("failed to add needed volumeMount"))]
-    AddVolumeMount {
-        source: builder::pod::container::Error,
     },
 
     #[snafu(display("SparkApplication object is invalid"))]
@@ -168,7 +124,7 @@ pub async fn reconcile(
     // No more mutating operations after this point (except for status).
     tracing::debug!("reconciling spark application [{spark_application:?}]");
 
-    let resources = build::build(&validated)?;
+    let resources = build::build(&validated).context(BuildSparkApplicationSnafu)?;
 
     // Apply the ServiceAccount and RoleBinding first, then the ConfigMaps, and finally the Job:
     // the Job runs under the ServiceAccount and mounts the ConfigMaps, so they must exist first.

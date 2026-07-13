@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use snafu::{OptionExt, ResultExt};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         meta::ObjectMetaBuilder,
@@ -52,22 +52,40 @@ use crate::{
     history::{
         config::jvm::construct_history_jvm_args,
         controller::{
-            AddVolumeMountSnafu, AddVolumeSnafu, CreateLogDirVolumesSpecSnafu, Error,
-            MissingSecretLifetimeSnafu,
             build::resource::listener::group_listener_name,
             validate::{self, ValidatedHistoryRoleGroup},
         },
     },
 };
 
-#[allow(clippy::result_large_err)]
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("missing secret lifetime"))]
+    MissingSecretLifetime,
+
+    #[snafu(display("failed to create the log dir volumes specification"))]
+    CreateLogDirVolumesSpec { source: crate::crd::logdir::Error },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume {
+        source: stackable_operator::builder::pod::Error,
+    },
+
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: stackable_operator::builder::pod::container::Error,
+    },
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
+
 pub(crate) fn build_stateful_set(
     validated: &validate::ValidatedSparkHistoryServer,
     role_group_name: &RoleGroupName,
     rg: &ValidatedHistoryRoleGroup,
     log_dir: &ResolvedLogDir,
     serviceaccount: &ServiceAccount,
-) -> Result<StatefulSet, Error> {
+) -> Result<StatefulSet> {
     let resolved_product_image = &validated.resolved_product_image;
     let resource_names = validated.resource_names(role_group_name);
 

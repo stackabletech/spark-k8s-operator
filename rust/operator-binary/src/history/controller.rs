@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::{self},
     cluster_resources::ClusterResourceApplyStrategy,
     commons::rbac::build_rbac_resources,
     crd::listener,
@@ -18,16 +17,13 @@ use stackable_operator::{
     },
     logging::controller::ReconcilerError,
     shared::time::Duration,
-    v2::{cluster_resources::cluster_resources_new, config_file_writer::PropertiesWriterError},
+    v2::cluster_resources::cluster_resources_new,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     Ctx,
-    crd::{
-        constants::{HISTORY_APP_NAME, JVM_SECURITY_PROPERTIES_FILE},
-        history::v1alpha1,
-    },
+    crd::{constants::HISTORY_APP_NAME, history::v1alpha1},
 };
 
 pub mod build;
@@ -43,14 +39,8 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("missing secret lifetime"))]
-    MissingSecretLifetime,
-
-    #[snafu(display("invalid config map {name}"))]
-    InvalidConfigMap {
-        source: stackable_operator::builder::configmap::Error,
-        name: String,
-    },
+    #[snafu(display("failed to build SparkHistoryServer resources"))]
+    BuildSparkHistoryServer { source: build::Error },
 
     #[snafu(display("failed to apply Kubernetes resource"))]
     ApplyResource {
@@ -78,30 +68,10 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display(
-        "History server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
-        rolegroup
-    ))]
-    JvmSecurityProperties {
-        source: PropertiesWriterError,
-        rolegroup: String,
-    },
-
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {
         source:
             stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
-    },
-
-    #[snafu(display("failed to create the log dir volumes specification"))]
-    CreateLogDirVolumesSpec { source: crate::crd::logdir::Error },
-
-    #[snafu(display("failed to add needed volume"))]
-    AddVolume { source: builder::pod::Error },
-
-    #[snafu(display("failed to add needed volumeMount"))]
-    AddVolumeMount {
-        source: builder::pod::container::Error,
     },
 
     #[snafu(display("SparkHistoryServer object is invalid"))]
@@ -110,9 +80,6 @@ pub enum Error {
         #[snafu(source(from(error_boundary::InvalidObject, Box::new)))]
         source: Box<error_boundary::InvalidObject>,
     },
-
-    #[snafu(display("failed to serialize Spark default properties"))]
-    InvalidSparkDefaults { source: PropertiesWriterError },
 }
 
 impl ReconcilerError for Error {
@@ -180,7 +147,8 @@ pub async fn reconcile(
     )
     .context(BuildRbacResourcesSnafu)?;
 
-    let resources = build::build(&validated, service_account, role_binding)?;
+    let resources = build::build(&validated, service_account, role_binding)
+        .context(BuildSparkHistoryServerSnafu)?;
 
     // Apply order: ServiceAccount and RoleBinding first, then the ConfigMaps, metrics Services,
     // Listener and PodDisruptionBudget, and finally the StatefulSets (they mount the ConfigMaps

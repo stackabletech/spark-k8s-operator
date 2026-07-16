@@ -9,7 +9,7 @@ use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu, ensure};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::pod::volume::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
@@ -115,13 +115,6 @@ pub enum Error {
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
-
-    #[snafu(display(
-        "OpenLineage is enabled but no backend endpoint could be resolved: set \
-         `spec.openLineage.configMapName` (a discovery ConfigMap holding the `ADDRESS` key) or \
-         `spark.openlineage.transport.url` in `sparkConf`"
-    ))]
-    MissingOpenLineageEndpoint,
 }
 
 pub type SparkApplicationJobRoleType =
@@ -576,7 +569,6 @@ impl v1alpha1::SparkApplication {
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
         spark_image: &str,
-        openlineage_endpoint: Option<&str>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = &self.spec.mode;
@@ -754,26 +746,14 @@ impl v1alpha1::SparkApplication {
         // (`spark.jars`, `spark.extraListeners`) are handled AFTER the merge so a user value is
         // combined with — not clobbered by — ours. See the OpenLineage usage guide.
         if let Some(open_lineage) = &self.spec.open_lineage {
-            // Fail fast rather than emit a transport that silently drops every event.
-            let has_url_override = self
-                .spec
-                .spark_conf
-                .contains_key("spark.openlineage.transport.url");
-            ensure!(
-                openlineage_endpoint.is_some() || has_url_override,
-                MissingOpenLineageEndpointSnafu
-            );
-
             submit_conf.insert(
                 "spark.openlineage.transport.type".to_string(),
                 "http".to_string(),
             );
-            if let Some(endpoint) = openlineage_endpoint {
-                submit_conf.insert(
-                    "spark.openlineage.transport.url".to_string(),
-                    endpoint.to_string(),
-                );
-            }
+            submit_conf.insert(
+                "spark.openlineage.transport.url".to_string(),
+                open_lineage.transport_url(),
+            );
 
             let namespace = match &open_lineage.namespace {
                 Some(namespace) => namespace.clone(),
@@ -1640,13 +1620,11 @@ spec:
         assert_eq!(got, expected);
     }
 
-    /// Builds a `SparkApplication` from YAML and returns the assembled spark-submit command string,
-    /// with `openlineage_endpoint` standing in for the value the controller resolves from the
-    /// discovery ConfigMap.
-    fn build_command_with_openlineage(yaml: &str, openlineage_endpoint: Option<&str>) -> String {
+    /// Builds a `SparkApplication` from YAML and returns the assembled spark-submit command string.
+    fn build_command_with_openlineage(yaml: &str) -> String {
         let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(yaml).unwrap();
         spark_application
-            .build_command(&None, &None, "test-image", openlineage_endpoint)
+            .build_command(&None, &None, "test-image")
             .unwrap()
             .join(" ")
     }
@@ -1663,13 +1641,14 @@ spec:
           mainApplicationFile: test.py
           sparkImage:
             productVersion: 1.2.3
-          openLineage: {}
+          openLineage:
+            host: marquez
+            port: 5000
     "#};
 
     #[test]
     fn test_openlineage_injects_conf_when_enabled() {
-        let command =
-            build_command_with_openlineage(OPENLINEAGE_ENABLED_APP, Some("http://marquez:5000"));
+        let command = build_command_with_openlineage(OPENLINEAGE_ENABLED_APP);
 
         assert!(command.contains(r#"--conf "spark.openlineage.transport.type=http""#));
         assert!(
@@ -1709,8 +1688,7 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
         "#};
-        // Endpoint is supplied to prove it is ignored, not that it is simply missing.
-        let command = build_command_with_openlineage(yaml, Some("http://marquez:5000"));
+        let command = build_command_with_openlineage(yaml);
 
         assert!(!command.contains("openlineage"));
         assert!(!command.contains("OpenLineageSparkListener"));
@@ -1732,11 +1710,13 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage: {}
+              openLineage:
+                host: marquez
+                port: 5000
               sparkConf:
                 spark.extraListeners: com.example.CustomListener
         "#};
-        let command = build_command_with_openlineage(yaml, Some("http://marquez:5000"));
+        let command = build_command_with_openlineage(yaml);
 
         assert!(command.contains(&format!(
             r#"--conf "spark.extraListeners=com.example.CustomListener,{OPENLINEAGE_LISTENER_CLASS}""#
@@ -1757,50 +1737,18 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage: {}
+              openLineage:
+                host: marquez
+                port: 5000
               sparkConf:
                 spark.openlineage.transport.url: http://custom:1234
                 spark.openlineage.namespace: custom-ns
         "#};
-        let command = build_command_with_openlineage(yaml, Some("http://marquez:5000"));
+        let command = build_command_with_openlineage(yaml);
 
         assert!(command.contains(r#"--conf "spark.openlineage.transport.url=http://custom:1234""#));
         assert!(!command.contains("http://marquez:5000"));
         assert!(command.contains(r#"--conf "spark.openlineage.namespace=custom-ns""#));
-    }
-
-    #[test]
-    fn test_openlineage_fails_fast_without_endpoint() {
-        // Enabled, but neither a resolved endpoint nor a sparkConf transport.url override.
-        let spark_application =
-            serde_yaml::from_str::<v1alpha1::SparkApplication>(OPENLINEAGE_ENABLED_APP).unwrap();
-        let result = spark_application.build_command(&None, &None, "test-image", None);
-
-        assert!(matches!(result, Err(Error::MissingOpenLineageEndpoint)));
-    }
-
-    #[test]
-    fn test_openlineage_endpoint_from_spark_conf_satisfies_fail_fast() {
-        // No resolved endpoint, but a sparkConf override → must NOT fail.
-        let yaml = indoc! {r#"
-            ---
-            apiVersion: spark.stackable.tech/v1alpha1
-            kind: SparkApplication
-            metadata:
-              name: spark-examples
-              namespace: default
-            spec:
-              mode: cluster
-              mainApplicationFile: test.py
-              sparkImage:
-                productVersion: 1.2.3
-              openLineage: {}
-              sparkConf:
-                spark.openlineage.transport.url: http://custom:1234
-        "#};
-        let command = build_command_with_openlineage(yaml, None);
-
-        assert!(command.contains(r#"--conf "spark.openlineage.transport.url=http://custom:1234""#));
     }
 
     #[rstest]
@@ -1818,6 +1766,8 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
               openLineage:
+                host: marquez
+                port: 5000
                 appName: explicit-name
               sparkConf:
                 spark.app.name: spark-conf-name
@@ -1838,7 +1788,9 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage: {}
+              openLineage:
+                host: marquez
+                port: 5000
               sparkConf:
                 spark.app.name: spark-conf-name
         "#},
@@ -1858,7 +1810,9 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage: {}
+              openLineage:
+                host: marquez
+                port: 5000
         "#},
         "metadata-name",
         true

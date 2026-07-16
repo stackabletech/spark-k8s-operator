@@ -152,7 +152,9 @@ mod tests {
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage: {}
+              openLineage:
+                host: marquez
+                port: 5000
         "#;
 
         let deserializer = serde_yaml::Deserializer::from_str(input);

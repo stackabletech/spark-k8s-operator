@@ -1972,15 +1972,10 @@ spec:
                       `spark.app.name`, falling back to `metadata.name` (with a warning event).
                     nullable: true
                     type: string
-                  configMapName:
+                  host:
                     description: |-
-                      Name of the OpenLineage backend [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).
-                      It must contain the key `ADDRESS` with the base URL of the OpenLineage backend
-                      (e.g. `http://marquez:5000`). Mirrors the `vectorAggregatorConfigMapName` field on this CRD.
-                    maxLength: 253
-                    minLength: 1
-                    nullable: true
-                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                      Host of the OpenLineage backend the HTTP transport points at (e.g. `marquez`).
+                      Combined with `port` into the transport URL `http://<host>:<port>`.
                     type: string
                   namespace:
                     description: |-
@@ -1988,6 +1983,17 @@ spec:
                       Defaults to the application's Kubernetes namespace (`metadata.namespace`).
                     nullable: true
                     type: string
+                  port:
+                    description: |-
+                      Port of the OpenLineage backend (e.g. `5000`).
+                      Combined with `host` into the transport URL `http://<host>:<port>`.
+                    format: uint16
+                    maximum: 65535.0
+                    minimum: 0.0
+                    type: integer
+                required:
+                - host
+                - port
                 type: object
               s3connection:
                 description: |-
@@ -6610,15 +6616,10 @@ spec:
                       `spark.app.name`, falling back to `metadata.name` (with a warning event).
                     nullable: true
                     type: string
-                  configMapName:
+                  host:
                     description: |-
-                      Name of the OpenLineage backend [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).
-                      It must contain the key `ADDRESS` with the base URL of the OpenLineage backend
-                      (e.g. `http://marquez:5000`). Mirrors the `vectorAggregatorConfigMapName` field on this CRD.
-                    maxLength: 253
-                    minLength: 1
-                    nullable: true
-                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                      Host of the OpenLineage backend the HTTP transport points at (e.g. `marquez`).
+                      Combined with `port` into the transport URL `http://<host>:<port>`.
                     type: string
                   namespace:
                     description: |-
@@ -6626,6 +6627,17 @@ spec:
                       Defaults to the application's Kubernetes namespace (`metadata.namespace`).
                     nullable: true
                     type: string
+                  port:
+                    description: |-
+                      Port of the OpenLineage backend (e.g. `5000`).
+                      Combined with `host` into the transport URL `http://<host>:<port>`.
+                    format: uint16
+                    maximum: 65535.0
+                    minimum: 0.0
+                    type: integer
+                required:
+                - host
+                - port
                 type: object
               s3connection:
                 description: |-

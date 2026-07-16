@@ -6,24 +6,31 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use snafu::OptionExt;
-use stackable_operator::{
-    schemars::{self, JsonSchema},
-    v2::types::kubernetes::ConfigMapName,
-};
+use stackable_operator::schemars::{self, JsonSchema};
 
 use crate::crd::{Error, ObjectHasNoNameSnafu, v1alpha1};
 
 /// OpenLineage lineage emission for a [`SparkApplication`].
 ///
 /// Adding this block enables OpenLineage: the operator injects the OpenLineage Spark listener,
-/// points its HTTP transport at the backend resolved from the discovery ConfigMap, and sets a
-/// stable job name. Omit the block to leave OpenLineage off. All injected values are defaults:
-/// they can be overridden via `sparkConf`.
+/// points its HTTP transport at `http://<host>:<port>`, and sets a stable job name. Omit the block
+/// to leave OpenLineage off. The injected `namespace` and `appName` are defaults that can be
+/// overridden via `sparkConf`.
+///
+/// The transport protocol is always `http`; explicit `https` support will be added later.
 ///
 /// [`SparkApplication`]: crate::crd::v1alpha1::SparkApplication
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenLineageSpec {
+    /// Host of the OpenLineage backend the HTTP transport points at (e.g. `marquez`).
+    /// Combined with `port` into the transport URL `http://<host>:<port>`.
+    pub host: String,
+
+    /// Port of the OpenLineage backend (e.g. `5000`).
+    /// Combined with `host` into the transport URL `http://<host>:<port>`.
+    pub port: u16,
+
     /// The OpenLineage namespace lineage is reported under.
     /// Defaults to the application's Kubernetes namespace (`metadata.namespace`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -34,12 +41,14 @@ pub struct OpenLineageSpec {
     /// `spark.app.name`, falling back to `metadata.name` (with a warning event).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub app_name: Option<String>,
+}
 
-    /// Name of the OpenLineage backend [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
-    /// It must contain the key `ADDRESS` with the base URL of the OpenLineage backend
-    /// (e.g. `http://marquez:5000`). Mirrors the `vectorAggregatorConfigMapName` field on this CRD.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config_map_name: Option<ConfigMapName>,
+impl OpenLineageSpec {
+    /// The OpenLineage HTTP transport URL, built from `host` and `port`. The protocol is always
+    /// `http` (explicit `https` support will be added later).
+    pub fn transport_url(&self) -> String {
+        format!("http://{host}:{port}", host = self.host, port = self.port)
+    }
 }
 
 /// The resolved OpenLineage job/app name and where it came from.

@@ -118,10 +118,6 @@ pub const OPENLINEAGE_LISTENER_CLASS: &str = "io.openlineage.spark.agent.OpenLin
 pub const OPENLINEAGE_JAR_LOCAL_URI: &str =
     "local:///stackable/spark/openlineage/openlineage-spark_2.13-1.51.0.jar";
 
-/// The key the OpenLineage discovery ConfigMap must hold, carrying the backend base URL. Mirrors the
-/// `ADDRESS` contract of the existing `vectorAggregatorConfigMapName` discovery ConfigMap.
-pub const OPENLINEAGE_CONFIG_MAP_ADDRESS_KEY: &str = "ADDRESS";
-
 /// Java module-system flag OpenLineage requires on Spark 4.x: without it the driver throws a
 /// non-fatal `InaccessibleObjectException` and silently degrades extension-interface lineage.
 /// Appended to both driver and executor `extraJavaOptions`.

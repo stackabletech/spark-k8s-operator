@@ -13,8 +13,8 @@ When configured, the operator injects everything required to make the https://op
 
 == Enabling OpenLineage
 
-The backend endpoint is not configured on the `SparkApplication` directly.
-Instead, mirroring the xref:usage-guide/logging.adoc[vector aggregator discovery], the operator reads it from a discovery ConfigMap referenced by `configMapName`:
+The backend endpoint is configured directly on the `SparkApplication` through the `host` and `port` fields.
+The operator points the HTTP transport at `http://<host>:<port>`:
 
 [source,yaml]
 ----
@@ -24,34 +24,22 @@ metadata:
   name: orders-by-nation
 spec:
   openLineage: # <1>
-    configMapName: marquez-discovery # <2>
-    # namespace: orders-lineage # <3>
-    # appName: orders-by-nation # <4>
+    host: marquez # <2>
+    port: 5000 # <3>
+    # namespace: orders-lineage # <4>
+    # appName: orders-by-nation # <5>
   ...
 ----
 <1> Adding the `openLineage` block enables OpenLineage event emission. Omit it entirely to leave OpenLineage off (the default), in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
-<2> Name of a discovery ConfigMap holding the backend endpoint (see below).
-    Must be in the same namespace as the `SparkApplication`.
-<3> Optional. The OpenLineage namespace events are reported under.
+<2> Host of the OpenLineage backend, for example the Marquez API service. Required.
+<3> Port of the OpenLineage backend. Required.
+<4> Optional. The OpenLineage namespace events are reported under.
     Defaults to the application's Kubernetes namespace.
-<4> Optional. The stable OpenLineage job name (see <<job-name>>).
+<5> Optional. The stable OpenLineage job name (see <<job-name>>).
 
-The discovery ConfigMap holds the backend base URL under the `ADDRESS` key:
+The transport protocol is always `http`; explicit `https` support will be added later.
 
-.Example discovery ConfigMap
-[source,yaml]
-----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: marquez-discovery
-data:
-  ADDRESS: http://marquez:5000 # <1>
-----
-<1> Base URL of the OpenLineage backend, for example the Marquez API service.
-
-Alternatively, you can set the endpoint directly through `sparkConf` (`spark.openlineage.transport.url`).
-If the `openLineage` block is present and no endpoint can be resolved from either the discovery ConfigMap or `sparkConf`, reconciliation fails with a clear error rather than emitting a config that silently drops events.
+You can still override any of the injected values — including the full `spark.openlineage.transport.url` — through `sparkConf`.
 
 [#job-name]
 == Job name

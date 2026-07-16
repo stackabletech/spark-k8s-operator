@@ -39,12 +39,7 @@ pub fn construct_extra_java_options(
     // OpenLineage on Spark 4.x needs `java.base/java.security` opened to the unnamed module,
     // otherwise the driver throws a non-fatal `InaccessibleObjectException` and silently degrades
     // extension-interface lineage (MVP §7). Added to both driver and executor.
-    if spark_application
-        .spec
-        .open_lineage
-        .as_ref()
-        .is_some_and(|open_lineage| open_lineage.enabled)
-    {
+    if spark_application.spec.open_lineage.is_some() {
         jvm_args.push(OPENLINEAGE_ADD_OPENS.to_string());
     }
 
@@ -157,8 +152,7 @@ mod tests {
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
-                enabled: true
+              openLineage: {}
         "#;
 
         let deserializer = serde_yaml::Deserializer::from_str(input);

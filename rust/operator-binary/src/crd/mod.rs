@@ -753,9 +753,7 @@ impl v1alpha1::SparkApplication {
         // `sparkConf` (so it goes in BEFORE the merge below). The two append-merge keys
         // (`spark.jars`, `spark.extraListeners`) are handled AFTER the merge so a user value is
         // combined with — not clobbered by — ours. See the OpenLineage usage guide.
-        if let Some(open_lineage) = &self.spec.open_lineage
-            && open_lineage.enabled
-        {
+        if let Some(open_lineage) = &self.spec.open_lineage {
             // Fail fast rather than emit a transport that silently drops every event.
             let has_url_override = self
                 .spec
@@ -795,12 +793,7 @@ impl v1alpha1::SparkApplication {
 
         // OpenLineage append-merge keys: combine our values with any user-provided ones (already
         // merged into `submit_conf` above) so neither clobbers the other.
-        if self
-            .spec
-            .open_lineage
-            .as_ref()
-            .is_some_and(|open_lineage| open_lineage.enabled)
-        {
+        if self.spec.open_lineage.is_some() {
             append_conf_csv(
                 &mut submit_conf,
                 "spark.extraListeners",
@@ -1670,8 +1663,7 @@ spec:
           mainApplicationFile: test.py
           sparkImage:
             productVersion: 1.2.3
-          openLineage:
-            enabled: true
+          openLineage: {}
     "#};
 
     #[test]
@@ -1701,36 +1693,22 @@ spec:
         );
     }
 
-    #[rstest]
-    #[case::absent(indoc! {r#"
-        ---
-        apiVersion: spark.stackable.tech/v1alpha1
-        kind: SparkApplication
-        metadata:
-          name: spark-examples
-          namespace: default
-        spec:
-          mode: cluster
-          mainApplicationFile: test.py
-          sparkImage:
-            productVersion: 1.2.3
-    "#})]
-    #[case::disabled(indoc! {r#"
-        ---
-        apiVersion: spark.stackable.tech/v1alpha1
-        kind: SparkApplication
-        metadata:
-          name: spark-examples
-          namespace: default
-        spec:
-          mode: cluster
-          mainApplicationFile: test.py
-          sparkImage:
-            productVersion: 1.2.3
-          openLineage:
-            enabled: false
-    "#})]
-    fn test_openlineage_injects_nothing_when_absent_or_disabled(#[case] yaml: &str) {
+    #[test]
+    fn test_openlineage_injects_nothing_when_absent() {
+        // No `openLineage` block → OpenLineage is off (its absence is the disable switch).
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+        "#};
         // Endpoint is supplied to prove it is ignored, not that it is simply missing.
         let command = build_command_with_openlineage(yaml, Some("http://marquez:5000"));
 
@@ -1754,8 +1732,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
-                enabled: true
+              openLineage: {}
               sparkConf:
                 spark.extraListeners: com.example.CustomListener
         "#};
@@ -1780,8 +1757,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
-                enabled: true
+              openLineage: {}
               sparkConf:
                 spark.openlineage.transport.url: http://custom:1234
                 spark.openlineage.namespace: custom-ns
@@ -1818,8 +1794,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
-                enabled: true
+              openLineage: {}
               sparkConf:
                 spark.openlineage.transport.url: http://custom:1234
         "#};
@@ -1843,7 +1818,6 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
               openLineage:
-                enabled: true
                 appName: explicit-name
               sparkConf:
                 spark.app.name: spark-conf-name
@@ -1864,8 +1838,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
-                enabled: true
+              openLineage: {}
               sparkConf:
                 spark.app.name: spark-conf-name
         "#},
@@ -1885,8 +1858,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
-                enabled: true
+              openLineage: {}
         "#},
         "metadata-name",
         true

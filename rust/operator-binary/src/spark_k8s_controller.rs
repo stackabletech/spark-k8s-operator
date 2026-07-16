@@ -243,11 +243,7 @@ pub async fn reconcile(
     // warn if the job name falls back to `metadata.name` — both only matter when OpenLineage is
     // enabled.
     let openlineage_endpoint = resolve_openlineage_endpoint(client, spark_application).await?;
-    if spark_application
-        .spec
-        .open_lineage
-        .as_ref()
-        .is_some_and(|open_lineage| open_lineage.enabled)
+    if spark_application.spec.open_lineage.is_some()
         && spark_application
             .resolved_openlineage_app_name()
             .context(BuildCommandSnafu)?
@@ -341,8 +337,7 @@ async fn resolve_openlineage_endpoint(
     let Some(open_lineage) = &spark_application.spec.open_lineage else {
         return Ok(None);
     };
-    let (true, Some(config_map_name)) = (open_lineage.enabled, &open_lineage.config_map_name)
-    else {
+    let Some(config_map_name) = &open_lineage.config_map_name else {
         return Ok(None);
     };
 

@@ -3,7 +3,7 @@
 https://openlineage.io/[OpenLineage] is an open standard for data lineage collection.
 The Spark operator can automatically emit lineage events for a `SparkApplication` to an OpenLineage-compatible backend such as https://marquezproject.github.io/marquez/[Marquez], without any manual `sparkConf` wiring.
 
-When enabled, the operator injects everything required to make the https://openlineage.io/docs/integrations/spark/[OpenLineage Spark listener] work:
+When configured, the operator injects everything required to make the https://openlineage.io/docs/integrations/spark/[OpenLineage Spark listener] work:
 
 * the OpenLineage Spark listener (appended to `spark.extraListeners`, so any listener you configure yourself is preserved),
 * the OpenLineage jar baked into the Spark image, referenced via `spark.jars` so it shares the same classloader as connectors pulled in through xref:usage-guide/job-dependencies.adoc[`deps.packages`] (for example Apache Iceberg),
@@ -23,14 +23,13 @@ kind: SparkApplication
 metadata:
   name: orders-by-nation
 spec:
-  openLineage:
-    enabled: true # <1>
+  openLineage: # <1>
     configMapName: marquez-discovery # <2>
     # namespace: orders-lineage # <3>
     # appName: orders-by-nation # <4>
   ...
 ----
-<1> Enable OpenLineage event emission. Defaults to `false`, in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
+<1> Adding the `openLineage` block enables OpenLineage event emission. Omit it entirely to leave OpenLineage off (the default), in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
 <2> Name of a discovery ConfigMap holding the backend endpoint (see below).
     Must be in the same namespace as the `SparkApplication`.
 <3> Optional. The OpenLineage namespace events are reported under.
@@ -52,7 +51,7 @@ data:
 <1> Base URL of the OpenLineage backend, for example the Marquez API service.
 
 Alternatively, you can set the endpoint directly through `sparkConf` (`spark.openlineage.transport.url`).
-If `enabled: true` and no endpoint can be resolved from either the discovery ConfigMap or `sparkConf`, reconciliation fails with a clear error rather than emitting a config that silently drops events.
+If the `openLineage` block is present and no endpoint can be resolved from either the discovery ConfigMap or `sparkConf`, reconciliation fails with a clear error rather than emitting a config that silently drops events.
 
 [#job-name]
 == Job name

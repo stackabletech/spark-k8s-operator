@@ -15,18 +15,15 @@ use crate::crd::{Error, ObjectHasNoNameSnafu, v1alpha1};
 
 /// OpenLineage lineage emission for a [`SparkApplication`].
 ///
-/// When enabled, the operator injects the OpenLineage Spark listener, points its HTTP transport
-/// at the backend resolved from the discovery ConfigMap, and sets a stable job name. All injected
-/// values are defaults: they can be overridden via `sparkConf`.
+/// Adding this block enables OpenLineage: the operator injects the OpenLineage Spark listener,
+/// points its HTTP transport at the backend resolved from the discovery ConfigMap, and sets a
+/// stable job name. Omit the block to leave OpenLineage off. All injected values are defaults:
+/// they can be overridden via `sparkConf`.
 ///
 /// [`SparkApplication`]: crate::crd::v1alpha1::SparkApplication
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenLineageSpec {
-    /// Enable OpenLineage event emission. Defaults to `false` (nothing is injected).
-    #[serde(default)]
-    pub enabled: bool,
-
     /// The OpenLineage namespace lineage is reported under.
     /// Defaults to the application's Kubernetes namespace (`metadata.namespace`).
     #[serde(default, skip_serializing_if = "Option::is_none")]

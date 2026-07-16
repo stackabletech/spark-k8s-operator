@@ -1982,10 +1982,6 @@ spec:
                     nullable: true
                     pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                     type: string
-                  enabled:
-                    default: false
-                    description: Enable OpenLineage event emission. Defaults to `false` (nothing is injected).
-                    type: boolean
                   namespace:
                     description: |-
                       The OpenLineage namespace lineage is reported under.
@@ -6624,10 +6620,6 @@ spec:
                     nullable: true
                     pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                     type: string
-                  enabled:
-                    default: false
-                    description: Enable OpenLineage event emission. Defaults to `false` (nothing is injected).
-                    type: boolean
                   namespace:
                     description: |-
                       The OpenLineage namespace lineage is reported under.

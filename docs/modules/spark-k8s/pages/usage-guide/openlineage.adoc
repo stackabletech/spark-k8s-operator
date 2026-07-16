@@ -6,10 +6,10 @@ The Spark operator can automatically emit lineage events for a `SparkApplication
 When enabled, the operator injects everything required to make the https://openlineage.io/docs/integrations/spark/[OpenLineage Spark listener] work:
 
 * the OpenLineage Spark listener (appended to `spark.extraListeners`, so any listener you configure yourself is preserved),
-* the OpenLineage jar baked into the Spark image, referenced via `spark.jars` so it shares the same classloader as connectors pulled in through xref:usage-guide/job-dependencies.adoc[`deps.packages`] (for example Apache Iceberg),
+* the OpenLineage jar baked into the Spark image, referenced via `spark.jars` so it shares the same classloader as connectors pulled in through xref:usage-guide/job-dependencies.adoc[`deps.packages`] (for example Apache Iceberg). The operator selects the jar built for the image's Scala version automatically (Scala 2.13 for Spark 4.x, Scala 2.12 for Spark 3.5.x),
 * an HTTP transport pointing at the backend endpoint,
 * a stable lineage namespace and job name (see <<job-name>>), and
-* the `--add-opens java.base/java.security=ALL-UNNAMED` JVM flag the listener requires on the driver and executors.
+* on Spark 4.x only, the `--add-opens java.base/java.security=ALL-UNNAMED` JVM flag the listener requires on the driver and executors. This flag is not added on the Spark 3.5.x images, where it is unnecessary (and, on their JVM, potentially harmful).
 
 == Enabling OpenLineage
 

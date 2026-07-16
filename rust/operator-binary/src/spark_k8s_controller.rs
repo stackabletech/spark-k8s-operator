@@ -261,6 +261,7 @@ pub async fn reconcile(
             opt_s3conn,
             logdir,
             &resolved_product_image.image,
+            &resolved_product_image.product_version,
             openlineage_endpoint.as_deref(),
         )
         .context(BuildCommandSnafu)?;

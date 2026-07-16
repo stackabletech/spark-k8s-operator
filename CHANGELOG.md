@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#684]).
 - Support for Spark `4.1.2` ([#708])
-- Add `spec.openLineage` to enable OpenLineage lineage emission: injects the OpenLineage Spark listener, HTTP transport (endpoint resolved from a discovery ConfigMap) and a stable job name. The Scala build of the listener jar and the `--add-opens java.base/java.security` JVM flag are selected by the Spark version: the `--add-opens` flag is emitted only on Spark 4.x (it is unnecessary on the Spark 3.5.x images and must not be set there) ([#XXXX]).
+- Add `spec.openLineage` to enable OpenLineage lineage emission: injects the OpenLineage Spark listener, HTTP transport (endpoint resolved from a discovery ConfigMap) and a stable job name. The listener jar is referenced through a stable, version- and Scala-independent symlink maintained by the Spark image, so the operator tracks neither. The `--add-opens java.base/java.security` JVM flag is emitted only on Spark 4.x (it is unnecessary on the Spark 3.5.x images and must not be set there) ([#XXXX]).
 
 ### Fixed
 

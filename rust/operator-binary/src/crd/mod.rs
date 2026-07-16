@@ -892,20 +892,9 @@ impl v1alpha1::SparkApplication {
                 "spark.extraListeners",
                 OPENLINEAGE_LISTENER_CLASS,
             );
-            // Select the jar built for the image's Scala version: Stackable ships Spark 4.x as
-            // Scala 2.13 and Spark 3.5.x as Scala 2.12. Referencing the wrong build would leave a
-            // non-existent path in `spark.jars`, which Spark ignores silently (no listener, no
-            // events), so this must track the actual image.
-            let scala_binary_version = if spark_major_version(product_version)? >= 4 {
-                "2.13"
-            } else {
-                "2.12"
-            };
-            append_conf_csv(
-                &mut submit_conf,
-                "spark.jars",
-                &openlineage_jar_local_uri(scala_binary_version),
-            );
+            // Reference the stable symlink the image maintains; it points at the correct
+            // Scala/version build for this image, so the operator needs to know neither.
+            append_conf_csv(&mut submit_conf, "spark.jars", OPENLINEAGE_JAR_LOCAL_URI);
         }
 
         // ...before being added to the command collection
@@ -1836,10 +1825,9 @@ spec:
         assert!(command.contains(&format!(
             r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
         )));
-        // Spark 4.x is Scala 2.13, so the 2.13 build of the jar is referenced.
+        // The jar is referenced via the stable, Scala/version-independent image symlink.
         assert!(command.contains(&format!(
-            r#"--conf "spark.jars={}""#,
-            openlineage_jar_local_uri("2.13")
+            r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
         )));
         // --add-opens reaches both driver and executor on Spark 4.x.
         assert_eq!(
@@ -1850,9 +1838,9 @@ spec:
     }
 
     #[test]
-    fn test_openlineage_selects_scala_2_12_jar_and_no_add_opens_on_spark_3() {
-        // On the Scala 2.12 / JDK 17 Spark 3.5.x images, the operator must reference the 2.12 build
-        // of the jar (the 2.13 path would not exist in the image) and must NOT emit `--add-opens`.
+    fn test_openlineage_stable_jar_uri_and_no_add_opens_on_spark_3() {
+        // On the JDK 17 Spark 3.5.x images the operator references the same stable jar symlink (the
+        // image points it at the Scala 2.12 build) and must NOT emit `--add-opens`.
         let command = build_command_with_openlineage(
             OPENLINEAGE_ENABLED_APP,
             "3.5.8",
@@ -1860,8 +1848,7 @@ spec:
         );
 
         assert!(command.contains(&format!(
-            r#"--conf "spark.jars={}""#,
-            openlineage_jar_local_uri("2.12")
+            r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
         )));
         assert!(
             !command.contains(OPENLINEAGE_ADD_OPENS),

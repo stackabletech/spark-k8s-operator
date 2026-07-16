@@ -108,25 +108,17 @@ pub const DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT: u16 = 0;
 /// The OpenLineage Spark listener, appended to `spark.extraListeners` when OpenLineage is enabled.
 pub const OPENLINEAGE_LISTENER_CLASS: &str = "io.openlineage.spark.agent.OpenLineageSparkListener";
 
-/// Version of the OpenLineage Spark listener jar baked into the Spark images.
-///
-/// IMPORTANT: MUST stay in sync with the `openlineage-spark-version` build-argument in
-/// `docker-images/spark-k8s/boil-config.toml` (the image is what places the jar on disk).
-pub const OPENLINEAGE_SPARK_JAR_VERSION: &str = "1.51.0";
-
 /// `local://` URI of the OpenLineage jar baked into the Spark image, referenced via `spark.jars` so
 /// it shares the (child) classloader with `--packages` connectors. Delivering it this way — rather
 /// than on `extraClassPath` (system classloader) — is what lets OpenLineage's connector probes
 /// succeed; see the classpath discussion in the OpenLineage usage guide.
 ///
-/// The jar's Scala suffix depends on the Spark image: Stackable ships Spark 4.x as Scala 2.13 and
-/// Spark 3.5.x as Scala 2.12, so the operator selects the matching jar by Spark major version.
-/// `scala_binary_version` is e.g. `"2.13"` or `"2.12"`.
-pub fn openlineage_jar_local_uri(scala_binary_version: &str) -> String {
-    format!(
-        "local:///stackable/spark/openlineage/openlineage-spark_{scala_binary_version}-{OPENLINEAGE_SPARK_JAR_VERSION}.jar"
-    )
-}
+/// This is a stable, version- and Scala-independent symlink the image maintains (mirroring the
+/// `jmx_prometheus_javaagent.jar` pattern): the image bakes the correct `openlineage-spark_<scala>-<version>.jar`
+/// for its Spark build and symlinks it here. Referencing the symlink decouples the operator from the
+/// jar's version and Scala suffix, so bumping either only touches `docker-images/spark-k8s`.
+pub const OPENLINEAGE_JAR_LOCAL_URI: &str =
+    "local:///stackable/spark/openlineage/openlineage-spark.jar";
 
 /// The key the OpenLineage discovery ConfigMap must hold, carrying the backend base URL. Mirrors the
 /// `ADDRESS` contract of the existing `vectorAggregatorConfigMapName` discovery ConfigMap.

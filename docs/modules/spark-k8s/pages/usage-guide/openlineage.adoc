@@ -14,7 +14,7 @@ When configured, the operator injects everything required to make the https://op
 == Enabling OpenLineage
 
 The backend endpoint is configured directly on the `SparkApplication` through the `host` and `port` fields.
-The operator points the HTTP transport at `http://<host>:<port>`:
+The operator points the transport at `<scheme>://<host>:<port>`:
 
 [source,yaml]
 ----
@@ -28,6 +28,11 @@ spec:
     port: 5000 # <3>
     # namespace: orders-lineage # <4>
     # appName: orders-by-nation # <5>
+    # tls: # <6>
+    #   verification:
+    #     server:
+    #       caCert:
+    #         secretClass: marquez-ca
   ...
 ----
 <1> Adding the `openLineage` block enables OpenLineage event emission. Omit it entirely to leave OpenLineage off (the default), in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
@@ -36,8 +41,11 @@ spec:
 <4> Optional. The OpenLineage namespace events are reported under.
     Defaults to the application's Kubernetes namespace.
 <5> Optional. The stable OpenLineage job name (see <<job-name>>).
+<6> Optional. TLS configuration, mirroring the field of the same name on an S3 connection.
+    When `tls.verification.server` is set the transport uses `https` instead of `http`.
 
-The transport protocol is always `http`; explicit `https` support will be added later.
+The transport scheme is `https` when `tls.verification.server` is configured, otherwise `http`.
+Explicit certificate handling beyond selecting the scheme will be added later.
 
 You can still override any of the injected values — including the full `spark.openlineage.transport.url` — through `sparkConf`.
 

@@ -1751,6 +1751,65 @@ spec:
         assert!(command.contains(r#"--conf "spark.openlineage.namespace=custom-ns""#));
     }
 
+    #[test]
+    fn test_openlineage_uses_https_when_tls_verification_set() {
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                host: marquez
+                port: 5000
+                tls:
+                  verification:
+                    server:
+                      caCert:
+                        secretClass: marquez-ca
+        "#};
+        let command = build_command_with_openlineage(yaml);
+
+        assert!(
+            command.contains(r#"--conf "spark.openlineage.transport.url=https://marquez:5000""#)
+        );
+    }
+
+    #[test]
+    fn test_openlineage_stays_http_without_tls_verification() {
+        // TLS present but with `verification: none` → no server verification → still `http`.
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                host: marquez
+                port: 5000
+                tls:
+                  verification:
+                    none: {}
+        "#};
+        let command = build_command_with_openlineage(yaml);
+
+        assert!(
+            command.contains(r#"--conf "spark.openlineage.transport.url=http://marquez:5000""#)
+        );
+    }
+
     #[rstest]
     #[case::explicit_app_name(
         indoc! {r#"

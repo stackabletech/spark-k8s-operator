@@ -1,12 +1,16 @@
 use std::sync::Arc;
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{self},
+    k8s_openapi::api::core::v1::ConfigMap,
     kube::{
-        ResourceExt,
+        Resource, ResourceExt,
         core::{DeserializeGuard, error_boundary},
-        runtime::controller::Action,
+        runtime::{
+            controller::Action,
+            events::{Event, EventType, Recorder},
+        },
     },
     logging::controller::ReconcilerError,
     shared::time::Duration,
@@ -67,6 +71,18 @@ pub enum Error {
 
     #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
     VectorAggregatorConfigMapMissing,
+
+    #[snafu(display("failed to resolve the OpenLineage discovery ConfigMap {name:?}"))]
+    ResolveOpenLineageConfigMap {
+        source: stackable_operator::client::Error,
+        name: String,
+    },
+
+    #[snafu(display(
+        "the OpenLineage discovery ConfigMap {name:?} does not contain the required key \
+         {OPENLINEAGE_CONFIG_MAP_ADDRESS_KEY:?}"
+    ))]
+    OpenLineageConfigMapMissingAddress { name: String },
 
     #[snafu(display("failed to validate the logging configuration"))]
     ValidateLoggingConfig {
@@ -223,8 +239,31 @@ pub async fn reconcile(
         .await
         .context(ApplyApplicationSnafu)?;
 
+    // Resolve the OpenLineage backend endpoint from the discovery ConfigMap (if configured) and
+    // warn if the job name falls back to `metadata.name` — both only matter when OpenLineage is
+    // enabled.
+    let openlineage_endpoint = resolve_openlineage_endpoint(client, spark_application).await?;
+    if spark_application
+        .spec
+        .open_lineage
+        .as_ref()
+        .is_some_and(|open_lineage| open_lineage.enabled)
+        && spark_application
+            .resolved_openlineage_app_name()
+            .context(BuildCommandSnafu)?
+            .from_metadata_name
+    {
+        publish_openlineage_app_name_warning(&ctx.event_recorder, spark_application).await;
+    }
+
     let job_commands = spark_application
-        .build_command(opt_s3conn, logdir, &resolved_product_image.image)
+        .build_command(
+            opt_s3conn,
+            logdir,
+            &resolved_product_image.image,
+            &resolved_product_image.product_version,
+            openlineage_endpoint.as_deref(),
+        )
         .context(BuildCommandSnafu)?;
 
     let submit_config = spark_application
@@ -289,5 +328,77 @@ pub fn error_policy(
     match error {
         Error::InvalidSparkApplication { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
+    }
+}
+
+/// Resolves the OpenLineage backend base URL from the discovery ConfigMap referenced by
+/// `spec.openLineage.configMapName` (key [`OPENLINEAGE_CONFIG_MAP_ADDRESS_KEY`]). Returns `None`
+/// when OpenLineage is disabled/absent or no ConfigMap is referenced — in the latter case a
+/// `sparkConf` override is expected, which `build_command` enforces.
+async fn resolve_openlineage_endpoint(
+    client: &stackable_operator::client::Client,
+    spark_application: &v1alpha1::SparkApplication,
+) -> Result<Option<String>> {
+    let Some(open_lineage) = &spark_application.spec.open_lineage else {
+        return Ok(None);
+    };
+    let (true, Some(config_map_name)) = (open_lineage.enabled, &open_lineage.config_map_name)
+    else {
+        return Ok(None);
+    };
+
+    let name = config_map_name.as_ref();
+    let namespace = spark_application.namespace().unwrap_or_default();
+
+    let config_map = client.get::<ConfigMap>(name, &namespace).await.context(
+        ResolveOpenLineageConfigMapSnafu {
+            name: name.to_string(),
+        },
+    )?;
+
+    let address = config_map
+        .data
+        .as_ref()
+        .and_then(|data| data.get(OPENLINEAGE_CONFIG_MAP_ADDRESS_KEY))
+        .cloned()
+        .context(OpenLineageConfigMapMissingAddressSnafu {
+            name: name.to_string(),
+        })?;
+
+    Ok(Some(address))
+}
+
+/// Emits a Kubernetes warning event that the OpenLineage job name fell back to `metadata.name`,
+/// which fragments backend run history when that name is unique per run. Event-publishing failures
+/// are logged, not propagated — they must not fail reconciliation.
+async fn publish_openlineage_app_name_warning(
+    event_recorder: &Recorder,
+    spark_application: &v1alpha1::SparkApplication,
+) {
+    let name = spark_application.name_any();
+    let publish_result = event_recorder
+        .publish(
+            &Event {
+                type_: EventType::Warning,
+                reason: "OpenLineageAppNameFallback".into(),
+                note: Some(format!(
+                    "OpenLineage job name falls back to metadata.name ({name:?}) because neither \
+                     spec.openLineage.appName nor spark.app.name is set. If metadata.name is unique \
+                     per run (e.g. an orchestrator-generated -<timestamp> suffix), backend run \
+                     history will be fragmented into a new job per run. Set \
+                     spec.openLineage.appName to a stable value to avoid this."
+                )),
+                action: "ResolveOpenLineageAppName".into(),
+                secondary: None,
+            },
+            &spark_application.object_ref(&()),
+        )
+        .await;
+
+    if let Err(error) = publish_result {
+        tracing::warn!(
+            ?error,
+            "failed to publish OpenLineage app-name fallback warning event"
+        );
     }
 }

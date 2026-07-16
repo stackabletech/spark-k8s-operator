@@ -1957,6 +1957,42 @@ spec:
                 - cluster
                 - client
                 type: string
+              openLineage:
+                description: |-
+                  Emit [OpenLineage](https://openlineage.io/) lineage events for this application.
+                  The OpenLineage Spark listener runs on the driver and describes the whole application,
+                  so this is application-scoped config (not per driver/executor role).
+                  See the [OpenLineage usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/openlineage).
+                nullable: true
+                properties:
+                  appName:
+                    description: |-
+                      A stable OpenLineage job/application name. Setting this prevents fragmented run history
+                      (and the intermittent `unknown` job-name bug). If unset, the operator resolves it from
+                      `spark.app.name`, falling back to `metadata.name` (with a warning event).
+                    nullable: true
+                    type: string
+                  configMapName:
+                    description: |-
+                      Name of the OpenLineage backend [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).
+                      It must contain the key `ADDRESS` with the base URL of the OpenLineage backend
+                      (e.g. `http://marquez:5000`). Mirrors the `vectorAggregatorConfigMapName` field on this CRD.
+                    maxLength: 253
+                    minLength: 1
+                    nullable: true
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                    type: string
+                  enabled:
+                    default: false
+                    description: Enable OpenLineage event emission. Defaults to `false` (nothing is injected).
+                    type: boolean
+                  namespace:
+                    description: |-
+                      The OpenLineage namespace lineage is reported under.
+                      Defaults to the application's Kubernetes namespace (`metadata.namespace`).
+                    nullable: true
+                    type: string
+                type: object
               s3connection:
                 description: |-
                   Configure an S3 connection that the SparkApplication has access to.
@@ -6563,6 +6599,42 @@ spec:
                 - cluster
                 - client
                 type: string
+              openLineage:
+                description: |-
+                  Emit [OpenLineage](https://openlineage.io/) lineage events for this application.
+                  The OpenLineage Spark listener runs on the driver and describes the whole application,
+                  so this is application-scoped config (not per driver/executor role).
+                  See the [OpenLineage usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/openlineage).
+                nullable: true
+                properties:
+                  appName:
+                    description: |-
+                      A stable OpenLineage job/application name. Setting this prevents fragmented run history
+                      (and the intermittent `unknown` job-name bug). If unset, the operator resolves it from
+                      `spark.app.name`, falling back to `metadata.name` (with a warning event).
+                    nullable: true
+                    type: string
+                  configMapName:
+                    description: |-
+                      Name of the OpenLineage backend [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).
+                      It must contain the key `ADDRESS` with the base URL of the OpenLineage backend
+                      (e.g. `http://marquez:5000`). Mirrors the `vectorAggregatorConfigMapName` field on this CRD.
+                    maxLength: 253
+                    minLength: 1
+                    nullable: true
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                    type: string
+                  enabled:
+                    default: false
+                    description: Enable OpenLineage event emission. Defaults to `false` (nothing is injected).
+                    type: boolean
+                  namespace:
+                    description: |-
+                      The OpenLineage namespace lineage is reported under.
+                      Defaults to the application's Kubernetes namespace (`metadata.namespace`).
+                    nullable: true
+                    type: string
+                type: object
               s3connection:
                 description: |-
                   Configure an S3 connection that the SparkApplication has access to.

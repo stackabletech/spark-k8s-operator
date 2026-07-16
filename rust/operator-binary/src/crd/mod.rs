@@ -9,7 +9,7 @@ use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
     builder::pod::volume::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
@@ -114,6 +114,21 @@ pub enum Error {
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
+
+    #[snafu(display(
+        "OpenLineage is enabled but no backend endpoint could be resolved: set \
+         `spec.openLineage.configMapName` (a discovery ConfigMap holding the `ADDRESS` key) or \
+         `spark.openlineage.transport.url` in `sparkConf`"
+    ))]
+    MissingOpenLineageEndpoint,
+
+    #[snafu(display(
+        "failed to parse the Spark major version from the resolved product version {product_version:?}"
+    ))]
+    UnparseableSparkVersion {
+        source: std::num::ParseIntError,
+        product_version: String,
+    },
 }
 
 pub type SparkApplicationJobRoleType =
@@ -248,6 +263,43 @@ pub mod versioned {
         /// The log file directory definition used by the Spark history server.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub log_file_directory: Option<LogFileDirectorySpec>,
+
+        /// Emit [OpenLineage](https://openlineage.io/) lineage events for this application.
+        /// The OpenLineage Spark listener runs on the driver and describes the whole application,
+        /// so this is application-scoped config (not per driver/executor role).
+        /// See the [OpenLineage usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/openlineage).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub open_lineage: Option<OpenLineageSpec>,
+    }
+
+    /// OpenLineage lineage emission for a [`SparkApplication`].
+    ///
+    /// When enabled, the operator injects the OpenLineage Spark listener, points its HTTP transport
+    /// at the backend resolved from the discovery ConfigMap, and sets a stable job name. All injected
+    /// values are defaults: they can be overridden via `sparkConf`.
+    #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct OpenLineageSpec {
+        /// Enable OpenLineage event emission. Defaults to `false` (nothing is injected).
+        #[serde(default)]
+        pub enabled: bool,
+
+        /// The OpenLineage namespace lineage is reported under.
+        /// Defaults to the application's Kubernetes namespace (`metadata.namespace`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub namespace: Option<String>,
+
+        /// A stable OpenLineage job/application name. Setting this prevents fragmented run history
+        /// (and the intermittent `unknown` job-name bug). If unset, the operator resolves it from
+        /// `spark.app.name`, falling back to `metadata.name` (with a warning event).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub app_name: Option<String>,
+
+        /// Name of the OpenLineage backend [discovery ConfigMap](DOCS_BASE_URL_PLACEHOLDER/concepts/service_discovery).
+        /// It must contain the key `ADDRESS` with the base URL of the OpenLineage backend
+        /// (e.g. `http://marquez:5000`). Mirrors the `vectorAggregatorConfigMapName` field on this CRD.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub config_map_name: Option<ConfigMapName>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
@@ -258,6 +310,50 @@ pub mod versioned {
         #[serde(default, rename = "security.properties")]
         pub security_properties: KeyValueConfigOverrides,
     }
+}
+
+/// The resolved OpenLineage job/app name and where it came from.
+/// See [`v1alpha1::SparkApplication::resolved_openlineage_app_name`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedOpenLineageAppName {
+    /// The resolved, non-blank name written to `spark.openlineage.appName`.
+    pub name: String,
+    /// `true` when the name fell back to `metadata.name`; the controller then emits a warning event
+    /// because a per-run-unique name (e.g. an orchestrator-generated `-<timestamp>` suffix) fragments
+    /// backend run history.
+    pub from_metadata_name: bool,
+}
+
+/// Appends `value` to a comma-separated `--conf` value in `submit_conf`, preserving any existing
+/// (e.g. user-supplied) entries and skipping `value` if it is already present. Used for the
+/// OpenLineage keys that must accumulate rather than clobber (`spark.extraListeners`, `spark.jars`).
+fn append_conf_csv(submit_conf: &mut BTreeMap<String, String>, key: &str, value: &str) {
+    match submit_conf.get_mut(key) {
+        Some(existing) if !existing.is_empty() => {
+            if !existing.split(',').any(|entry| entry.trim() == value) {
+                existing.push(',');
+                existing.push_str(value);
+            }
+        }
+        _ => {
+            submit_conf.insert(key.to_string(), value.to_string());
+        }
+    }
+}
+
+/// Parses the Spark major version from a resolved product version string such as `4.1.2` or
+/// `3.5.8`. Used to gate version-specific OpenLineage wiring: the `--add-opens` JVM flag (only
+/// needed on the JDK 17+/Spark 4.x line) and the Scala build of the baked OpenLineage jar
+/// (Stackable ships Spark 4.x as Scala 2.13 and Spark 3.5.x as Scala 2.12).
+pub(crate) fn spark_major_version(product_version: &str) -> Result<u64, Error> {
+    product_version
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .parse::<u64>()
+        .context(UnparseableSparkVersionSnafu {
+            product_version: product_version.to_string(),
+        })
 }
 
 impl v1alpha1::SparkApplication {
@@ -556,11 +652,22 @@ impl v1alpha1::SparkApplication {
         mounts
     }
 
+    /// True when OpenLineage emission is configured and enabled. Off is expressible two ways:
+    /// the `openLineage` block absent, or present with `enabled: false`.
+    pub fn openlineage_enabled(&self) -> bool {
+        self.spec
+            .open_lineage
+            .as_ref()
+            .is_some_and(|open_lineage| open_lineage.enabled)
+    }
+
     pub fn build_command(
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
         spark_image: &str,
+        product_version: &str,
+        openlineage_endpoint: Option<&str>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = &self.spec.mode;
@@ -659,7 +766,7 @@ impl v1alpha1::SparkApplication {
         }
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(self, s3conn, log_dir);
+            construct_extra_java_options(self, s3conn, log_dir, product_version)?;
         submit_cmd.extend(vec![
             format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),
             format!("--conf spark.executor.extraJavaOptions=\"{executor_extra_java_options}\""),
@@ -733,8 +840,62 @@ impl v1alpha1::SparkApplication {
             submit_cmd.push(format!("--conf spark.jars.ivy={VOLUME_MOUNT_PATH_IVY2}"))
         }
 
+        // OpenLineage: inject the transport + job-name config that can be overridden by the user's
+        // `sparkConf` (so it goes in BEFORE the merge below). The two append-merge keys
+        // (`spark.jars`, `spark.extraListeners`) are handled AFTER the merge so a user value is
+        // combined with — not clobbered by — ours. See the OpenLineage usage guide.
+        if let Some(open_lineage) = &self.spec.open_lineage
+            && open_lineage.enabled
+        {
+            // Fail fast rather than emit a transport that silently drops every event.
+            let has_url_override = self
+                .spec
+                .spark_conf
+                .contains_key("spark.openlineage.transport.url");
+            ensure!(
+                openlineage_endpoint.is_some() || has_url_override,
+                MissingOpenLineageEndpointSnafu
+            );
+
+            submit_conf.insert(
+                "spark.openlineage.transport.type".to_string(),
+                "http".to_string(),
+            );
+            if let Some(endpoint) = openlineage_endpoint {
+                submit_conf.insert(
+                    "spark.openlineage.transport.url".to_string(),
+                    endpoint.to_string(),
+                );
+            }
+
+            let namespace = match &open_lineage.namespace {
+                Some(namespace) => namespace.clone(),
+                None => self.metadata.namespace.clone().context(NoNamespaceSnafu)?,
+            };
+            submit_conf.insert("spark.openlineage.namespace".to_string(), namespace);
+
+            // Stable job name — fixes the intermittent `unknown` bug (see the usage guide).
+            submit_conf.insert(
+                "spark.openlineage.appName".to_string(),
+                self.resolved_openlineage_app_name()?.name,
+            );
+        }
+
         // conf arguments: these should follow - and thus override - values set from resource limits above
         submit_conf.extend(self.spec.spark_conf.clone());
+
+        // OpenLineage append-merge keys: combine our values with any user-provided ones (already
+        // merged into `submit_conf` above) so neither clobbers the other.
+        if self.openlineage_enabled() {
+            append_conf_csv(
+                &mut submit_conf,
+                "spark.extraListeners",
+                OPENLINEAGE_LISTENER_CLASS,
+            );
+            // Reference the stable symlink the image maintains; it points at the correct
+            // Scala/version build for this image, so the operator needs to know neither.
+            append_conf_csv(&mut submit_conf, "spark.jars", OPENLINEAGE_JAR_LOCAL_URI);
+        }
 
         // ...before being added to the command collection
         for (key, value) in submit_conf {
@@ -754,6 +915,39 @@ impl v1alpha1::SparkApplication {
         submit_cmd.extend(self.spec.args.clone());
 
         Ok(vec![submit_cmd.join(" ")])
+    }
+
+    /// Resolves the stable OpenLineage job/app name and its provenance (MVP §5), in priority order:
+    /// 1. `spec.openLineage.appName`, else
+    /// 2. `spark.app.name` from `sparkConf`, else
+    /// 3. `metadata.name` (a fallback the controller flags with a warning event, because a
+    ///    per-run-unique name would fragment backend run history).
+    ///
+    /// Always yields a non-blank name — which is exactly what fixes the intermittent `unknown` bug.
+    pub fn resolved_openlineage_app_name(&self) -> Result<ResolvedOpenLineageAppName, Error> {
+        if let Some(app_name) = self
+            .spec
+            .open_lineage
+            .as_ref()
+            .and_then(|open_lineage| open_lineage.app_name.clone())
+        {
+            return Ok(ResolvedOpenLineageAppName {
+                name: app_name,
+                from_metadata_name: false,
+            });
+        }
+
+        if let Some(app_name) = self.spec.spark_conf.get("spark.app.name") {
+            return Ok(ResolvedOpenLineageAppName {
+                name: app_name.clone(),
+                from_metadata_name: false,
+            });
+        }
+
+        Ok(ResolvedOpenLineageAppName {
+            name: self.metadata.name.clone().context(ObjectHasNoNameSnafu)?,
+            from_metadata_name: true,
+        })
     }
 
     pub fn env(
@@ -1572,6 +1766,301 @@ spec:
         ];
 
         assert_eq!(got, expected);
+    }
+
+    /// Builds a `SparkApplication` from YAML and returns the assembled spark-submit command string.
+    /// `product_version` stands in for the resolved Spark product version (gates the version-specific
+    /// OpenLineage wiring) and `openlineage_endpoint` for the value the controller resolves from the
+    /// discovery ConfigMap.
+    fn build_command_with_openlineage(
+        yaml: &str,
+        product_version: &str,
+        openlineage_endpoint: Option<&str>,
+    ) -> String {
+        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(yaml).unwrap();
+        spark_application
+            .build_command(
+                &None,
+                &None,
+                "test-image",
+                product_version,
+                openlineage_endpoint,
+            )
+            .unwrap()
+            .join(" ")
+    }
+
+    const OPENLINEAGE_ENABLED_APP: &str = indoc! {r#"
+        ---
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkApplication
+        metadata:
+          name: spark-examples
+          namespace: default
+        spec:
+          mode: cluster
+          mainApplicationFile: test.py
+          sparkImage:
+            productVersion: 1.2.3
+          openLineage:
+            enabled: true
+    "#};
+
+    #[test]
+    fn test_openlineage_injects_conf_when_enabled() {
+        let command = build_command_with_openlineage(
+            OPENLINEAGE_ENABLED_APP,
+            "4.1.2",
+            Some("http://marquez:5000"),
+        );
+
+        assert!(command.contains(r#"--conf "spark.openlineage.transport.type=http""#));
+        assert!(
+            command.contains(r#"--conf "spark.openlineage.transport.url=http://marquez:5000""#)
+        );
+        // Namespace defaults to metadata.namespace.
+        assert!(command.contains(r#"--conf "spark.openlineage.namespace=default""#));
+        // appName falls back to metadata.name (no appName / spark.app.name set).
+        assert!(command.contains(r#"--conf "spark.openlineage.appName=spark-examples""#));
+        assert!(command.contains(&format!(
+            r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
+        )));
+        // The jar is referenced via the stable, Scala/version-independent image symlink.
+        assert!(command.contains(&format!(
+            r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
+        )));
+        // --add-opens reaches both driver and executor on Spark 4.x.
+        assert_eq!(
+            command.matches(OPENLINEAGE_ADD_OPENS).count(),
+            2,
+            "expected --add-opens on both driver and executor extraJavaOptions"
+        );
+    }
+
+    #[test]
+    fn test_openlineage_stable_jar_uri_and_no_add_opens_on_spark_3() {
+        // On the JDK 17 Spark 3.5.x images the operator references the same stable jar symlink (the
+        // image points it at the Scala 2.12 build) and must NOT emit `--add-opens`.
+        let command = build_command_with_openlineage(
+            OPENLINEAGE_ENABLED_APP,
+            "3.5.8",
+            Some("http://marquez:5000"),
+        );
+
+        assert!(command.contains(&format!(
+            r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
+        )));
+        assert!(
+            !command.contains(OPENLINEAGE_ADD_OPENS),
+            "--add-opens must not be emitted on Spark 3.x"
+        );
+        // The rest of the OpenLineage wiring is still present on Spark 3.x.
+        assert!(command.contains(&format!(
+            r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
+        )));
+        assert!(command.contains(r#"--conf "spark.openlineage.transport.type=http""#));
+    }
+
+    #[rstest]
+    #[case::absent(indoc! {r#"
+        ---
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkApplication
+        metadata:
+          name: spark-examples
+          namespace: default
+        spec:
+          mode: cluster
+          mainApplicationFile: test.py
+          sparkImage:
+            productVersion: 1.2.3
+    "#})]
+    #[case::disabled(indoc! {r#"
+        ---
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkApplication
+        metadata:
+          name: spark-examples
+          namespace: default
+        spec:
+          mode: cluster
+          mainApplicationFile: test.py
+          sparkImage:
+            productVersion: 1.2.3
+          openLineage:
+            enabled: false
+    "#})]
+    fn test_openlineage_injects_nothing_when_absent_or_disabled(#[case] yaml: &str) {
+        // Endpoint is supplied to prove it is ignored, not that it is simply missing.
+        let command = build_command_with_openlineage(yaml, "4.1.2", Some("http://marquez:5000"));
+
+        assert!(!command.contains("openlineage"));
+        assert!(!command.contains("OpenLineageSparkListener"));
+        assert!(!command.contains("--add-opens"));
+        assert!(!command.contains("spark.jars="));
+    }
+
+    #[test]
+    fn test_openlineage_appends_to_existing_extra_listeners() {
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                enabled: true
+              sparkConf:
+                spark.extraListeners: com.example.CustomListener
+        "#};
+        let command = build_command_with_openlineage(yaml, "4.1.2", Some("http://marquez:5000"));
+
+        assert!(command.contains(&format!(
+            r#"--conf "spark.extraListeners=com.example.CustomListener,{OPENLINEAGE_LISTENER_CLASS}""#
+        )));
+    }
+
+    #[test]
+    fn test_openlineage_conf_is_overridable_via_spark_conf() {
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                enabled: true
+              sparkConf:
+                spark.openlineage.transport.url: http://custom:1234
+                spark.openlineage.namespace: custom-ns
+        "#};
+        let command = build_command_with_openlineage(yaml, "4.1.2", Some("http://marquez:5000"));
+
+        assert!(command.contains(r#"--conf "spark.openlineage.transport.url=http://custom:1234""#));
+        assert!(!command.contains("http://marquez:5000"));
+        assert!(command.contains(r#"--conf "spark.openlineage.namespace=custom-ns""#));
+    }
+
+    #[test]
+    fn test_openlineage_fails_fast_without_endpoint() {
+        // Enabled, but neither a resolved endpoint nor a sparkConf transport.url override.
+        let spark_application =
+            serde_yaml::from_str::<v1alpha1::SparkApplication>(OPENLINEAGE_ENABLED_APP).unwrap();
+        let result = spark_application.build_command(&None, &None, "test-image", "4.1.2", None);
+
+        assert!(matches!(result, Err(Error::MissingOpenLineageEndpoint)));
+    }
+
+    #[test]
+    fn test_openlineage_endpoint_from_spark_conf_satisfies_fail_fast() {
+        // No resolved endpoint, but a sparkConf override → must NOT fail.
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                enabled: true
+              sparkConf:
+                spark.openlineage.transport.url: http://custom:1234
+        "#};
+        let command = build_command_with_openlineage(yaml, "4.1.2", None);
+
+        assert!(command.contains(r#"--conf "spark.openlineage.transport.url=http://custom:1234""#));
+    }
+
+    #[rstest]
+    #[case::explicit_app_name(
+        indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: metadata-name
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                enabled: true
+                appName: explicit-name
+              sparkConf:
+                spark.app.name: spark-conf-name
+        "#},
+        "explicit-name",
+        false
+    )]
+    #[case::spark_app_name(
+        indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: metadata-name
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                enabled: true
+              sparkConf:
+                spark.app.name: spark-conf-name
+        "#},
+        "spark-conf-name",
+        false
+    )]
+    #[case::metadata_name_fallback(
+        indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: metadata-name
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                enabled: true
+        "#},
+        "metadata-name",
+        true
+    )]
+    fn test_openlineage_app_name_resolution(
+        #[case] yaml: &str,
+        #[case] expected_name: &str,
+        #[case] expected_from_metadata_name: bool,
+    ) {
+        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(yaml).unwrap();
+        let resolved = spark_application.resolved_openlineage_app_name().unwrap();
+
+        assert_eq!(resolved.name, expected_name);
+        assert_eq!(resolved.from_metadata_name, expected_from_metadata_name);
     }
 
     impl RoundtripTestData for v1alpha1::SparkApplicationSpec {

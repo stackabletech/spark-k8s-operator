@@ -1,0 +1,73 @@
+= OpenLineage
+
+https://openlineage.io/[OpenLineage] is an open standard for data lineage collection.
+The Spark operator can automatically emit lineage events for a `SparkApplication` to an OpenLineage-compatible backend such as https://marquezproject.github.io/marquez/[Marquez], without any manual `sparkConf` wiring.
+
+When enabled, the operator injects everything required to make the https://openlineage.io/docs/integrations/spark/[OpenLineage Spark listener] work:
+
+* the OpenLineage Spark listener (appended to `spark.extraListeners`, so any listener you configure yourself is preserved),
+* the OpenLineage jar baked into the Spark image, referenced via `spark.jars` so it shares the same classloader as connectors pulled in through xref:usage-guide/job-dependencies.adoc[`deps.packages`] (for example Apache Iceberg). The operator references a stable symlink maintained by the image, which points at the correct build for that image's Spark version (Scala 2.13 for Spark 4.x, Scala 2.12 for Spark 3.5.x), so neither the jar version nor its Scala suffix has to be tracked in the operator,
+* an HTTP transport pointing at the backend endpoint,
+* a stable lineage namespace and job name (see <<job-name>>), and
+* on Spark 4.x only, the `--add-opens java.base/java.security=ALL-UNNAMED` JVM flag the listener requires on the driver and executors. This flag is not added on the Spark 3.5.x images, where it is unnecessary (and, on their JVM, potentially harmful).
+
+== Enabling OpenLineage
+
+The backend endpoint is not configured on the `SparkApplication` directly.
+Instead, mirroring the xref:usage-guide/logging.adoc[vector aggregator discovery], the operator reads it from a discovery ConfigMap referenced by `configMapName`:
+
+[source,yaml]
+----
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: orders-by-nation
+spec:
+  openLineage:
+    enabled: true # <1>
+    configMapName: marquez-discovery # <2>
+    # namespace: orders-lineage # <3>
+    # appName: orders-by-nation # <4>
+  ...
+----
+<1> Enable OpenLineage event emission. Defaults to `false`, in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
+<2> Name of a discovery ConfigMap holding the backend endpoint (see below).
+    Must be in the same namespace as the `SparkApplication`.
+<3> Optional. The OpenLineage namespace events are reported under.
+    Defaults to the application's Kubernetes namespace.
+<4> Optional. The stable OpenLineage job name (see <<job-name>>).
+
+The discovery ConfigMap holds the backend base URL under the `ADDRESS` key:
+
+.Example discovery ConfigMap
+[source,yaml]
+----
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: marquez-discovery
+data:
+  ADDRESS: http://marquez:5000 # <1>
+----
+<1> Base URL of the OpenLineage backend, for example the Marquez API service.
+
+Alternatively, you can set the endpoint directly through `sparkConf` (`spark.openlineage.transport.url`).
+If `enabled: true` and no endpoint can be resolved from either the discovery ConfigMap or `sparkConf`, reconciliation fails with a clear error rather than emitting a config that silently drops events.
+
+[#job-name]
+== Job name
+
+The OpenLineage job name is resolved in the following order:
+
+. `spec.openLineage.appName`, if set.
+. `spark.app.name` from `sparkConf`, if set.
+. `metadata.name` as a last resort.
+
+The last case additionally emits a Kubernetes warning event.
+Falling back to `metadata.name` is discouraged: if that name carries a timestamp or other run-specific suffix (as generated names often do), every run becomes a separate job in the backend and the run history fragments.
+Set `spec.openLineage.appName` (or `spark.app.name`) to a stable value to keep all runs of the same logical job together.
+
+== Overriding injected configuration
+
+Every injected value is a default that goes into the submit configuration *before* your xref:usage-guide/overrides.adoc[`sparkConf`] is merged, so any key you set yourself wins.
+`spark.extraListeners` and `spark.jars` are the exception: the operator *appends* to any value you provide (comma-merged) rather than overwriting it, so your own listeners and jars are kept alongside OpenLineage's.

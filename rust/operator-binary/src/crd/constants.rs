@@ -103,6 +103,32 @@ pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
 pub const DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT: u16 = 0;
 
+// --- OpenLineage (see the OpenLineage usage guide) ---
+
+/// The OpenLineage Spark listener, appended to `spark.extraListeners` when OpenLineage is enabled.
+pub const OPENLINEAGE_LISTENER_CLASS: &str = "io.openlineage.spark.agent.OpenLineageSparkListener";
+
+/// `local://` URI of the OpenLineage jar baked into the Spark image, referenced via `spark.jars` so
+/// it shares the (child) classloader with `--packages` connectors. Delivering it this way — rather
+/// than on `extraClassPath` (system classloader) — is what lets OpenLineage's connector probes
+/// succeed; see the classpath discussion in the OpenLineage usage guide.
+///
+/// This is a stable, version- and Scala-independent symlink the image maintains (mirroring the
+/// `jmx_prometheus_javaagent.jar` pattern): the image bakes the correct `openlineage-spark_<scala>-<version>.jar`
+/// for its Spark build and symlinks it here. Referencing the symlink decouples the operator from the
+/// jar's version and Scala suffix, so bumping either only touches `docker-images/spark-k8s`.
+pub const OPENLINEAGE_JAR_LOCAL_URI: &str =
+    "local:///stackable/spark/openlineage/openlineage-spark.jar";
+
+/// The key the OpenLineage discovery ConfigMap must hold, carrying the backend base URL. Mirrors the
+/// `ADDRESS` contract of the existing `vectorAggregatorConfigMapName` discovery ConfigMap.
+pub const OPENLINEAGE_CONFIG_MAP_ADDRESS_KEY: &str = "ADDRESS";
+
+/// Java module-system flag OpenLineage requires on Spark 4.x: without it the driver throws a
+/// non-fatal `InaccessibleObjectException` and silently degrades extension-interface lineage.
+/// Appended to both driver and executor `extraJavaOptions`.
+pub const OPENLINEAGE_ADD_OPENS: &str = "--add-opens java.base/java.security=ALL-UNNAMED";
+
 /// The JVM `security.properties` entries the operator sets by default (DNS cache TTLs).
 pub fn default_jvm_security_properties() -> BTreeMap<String, String> {
     [

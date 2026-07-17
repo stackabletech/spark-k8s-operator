@@ -13,7 +13,8 @@ When configured, the operator injects everything required to make the https://op
 
 == Enabling OpenLineage
 
-The backend endpoint is configured directly on the `SparkApplication` through the `host` and `port` fields.
+The backend is configured through the `openLineage.connection`, which either inlines an OpenLineage
+connection or references a standalone `OpenLineageConnection` resource by name.
 The operator points the transport at `<scheme>://<host>:<port>`:
 
 [source,yaml]
@@ -24,25 +25,41 @@ metadata:
   name: orders-by-nation
 spec:
   openLineage: # <1>
-    host: marquez # <2>
-    port: 5000 # <3>
-    # namespace: orders-lineage # <4>
-    # appName: orders-by-nation # <5>
-    # tls: # <6>
-    #   verification:
-    #     server:
-    #       caCert:
-    #         secretClass: marquez-ca
+    connection: # <2>
+      inline:
+        host: marquez
+        port: 5000
+        # tls:
+        #   verification:
+        #     server:
+        #       caCert:
+        #         secretClass: marquez-ca
+    # namespace: orders-lineage # <3>
+    # appName: orders-by-nation # <4>
   ...
 ----
 <1> Adding the `openLineage` block enables OpenLineage event emission. Omit it entirely to leave OpenLineage off (the default), in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
-<2> Host of the OpenLineage backend, for example the Marquez API service. Required.
-<3> Port of the OpenLineage backend. Required.
-<4> Optional. The OpenLineage namespace events are reported under.
+<2> The OpenLineage backend connection. Use `inline` (shown here) to define the connection directly,
+    or `reference: <name>` to point at an `OpenLineageConnection` resource in the same namespace.
+    Required.
+<3> Optional. The OpenLineage namespace events are reported under.
     Defaults to the application's Kubernetes namespace.
-<5> Optional. The stable OpenLineage job name (see <<job-name>>).
-<6> Optional. TLS configuration, mirroring the field of the same name on an S3 connection.
-    When `tls.verification.server` is set the transport uses `https` instead of `http`.
+<4> Optional. The stable OpenLineage job name (see <<job-name>>).
+
+The `OpenLineageConnection` resource (`openlineage.stackable.tech`) is a reusable definition of a
+connection to an OpenLineage backend, provided by the Stackable operator library. Reference it to
+share one backend definition across multiple applications:
+
+[source,yaml]
+----
+apiVersion: openlineage.stackable.tech/v1alpha1
+kind: OpenLineageConnection
+metadata:
+  name: marquez
+spec:
+  host: marquez
+  port: 5000
+----
 
 The transport scheme is `https` when `tls.verification.server` is configured, otherwise `http`.
 Explicit certificate handling beyond selecting the scheme will be added later.

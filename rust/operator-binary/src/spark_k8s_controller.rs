@@ -151,6 +151,7 @@ pub async fn reconcile(
 
     let spark_application = &validated.spark_application;
     let opt_s3conn = &validated.cluster_config.s3_connection;
+    let opt_open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let logdir = &validated.cluster_config.log_dir;
     let resolved_product_image = &validated.resolved_product_image;
     // This is the final version of the spark app to reconcile.
@@ -238,7 +239,12 @@ pub async fn reconcile(
     }
 
     let job_commands = spark_application
-        .build_command(opt_s3conn, logdir, &resolved_product_image.image)
+        .build_command(
+            opt_s3conn,
+            logdir,
+            &resolved_product_image.image,
+            opt_open_lineage_conn,
+        )
         .context(BuildCommandSnafu)?;
 
     let submit_config = spark_application

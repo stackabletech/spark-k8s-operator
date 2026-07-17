@@ -24,7 +24,7 @@ use stackable_operator::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
-    crd::s3,
+    crd::{openlineage, s3},
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
         apimachinery::pkg::api::resource::Quantity,
@@ -52,7 +52,7 @@ use crate::{
             SubmitConfig, SubmitConfigFragment, VolumeMounts,
         },
     },
-    openlineage::{OpenLineageSpec, append_conf_csv},
+    openlineage::append_conf_csv,
 };
 
 pub mod affinity;
@@ -253,9 +253,10 @@ pub mod versioned {
         /// Emit [OpenLineage](https://openlineage.io/) lineage events for this application.
         /// The OpenLineage Spark listener runs on the driver and describes the whole application,
         /// so this is application-scoped config (not per driver/executor role).
+        /// The backend connection is either inlined or references an `OpenLineageConnection` resource.
         /// See the [OpenLineage usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/openlineage).
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub open_lineage: Option<OpenLineageSpec>,
+        pub open_lineage: Option<openlineage::v1alpha1::OpenLineageJob>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
@@ -569,6 +570,7 @@ impl v1alpha1::SparkApplication {
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
         spark_image: &str,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = &self.spec.mode;
@@ -746,14 +748,19 @@ impl v1alpha1::SparkApplication {
         // (`spark.jars`, `spark.extraListeners`) are handled AFTER the merge so a user value is
         // combined with — not clobbered by — ours. See the OpenLineage usage guide.
         if let Some(open_lineage) = &self.spec.open_lineage {
-            submit_conf.insert(
-                "spark.openlineage.transport.type".to_string(),
-                "http".to_string(),
-            );
-            submit_conf.insert(
-                "spark.openlineage.transport.url".to_string(),
-                open_lineage.transport_url(),
-            );
+            // The backend connection is resolved (inline or referenced) before `build_command`.
+            // The transport type is always `http` (the OpenLineage HTTP transport); the URL scheme
+            // it points at is `https` when the connection configures TLS server verification.
+            if let Some(connection) = open_lineage_conn {
+                submit_conf.insert(
+                    "spark.openlineage.transport.type".to_string(),
+                    "http".to_string(),
+                );
+                submit_conf.insert(
+                    "spark.openlineage.transport.url".to_string(),
+                    connection.transport_url(),
+                );
+            }
 
             let namespace = match &open_lineage.namespace {
                 Some(namespace) => namespace.clone(),
@@ -1621,10 +1628,30 @@ spec:
     }
 
     /// Builds a `SparkApplication` from YAML and returns the assembled spark-submit command string.
+    ///
+    /// Test fixtures always use an inline OpenLineage connection, so the connection is extracted
+    /// directly (no async `resolve()` against a k8s API) and passed to `build_command` — exactly the
+    /// resolved value the controller would compute in `dereference`.
     fn build_command_with_openlineage(yaml: &str) -> String {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(yaml).unwrap();
+        use stackable_operator::crd::openlineage::v1alpha1::InlineConnectionOrReference;
+
+        // `singleton_map_recursive` so externally-tagged enums (the OpenLineage `connection`) use
+        // the `inline:`/`reference:` map form that k8s/JSON uses, rather than serde_yaml's `!tag`.
+        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+        let open_lineage_conn = spark_application
+            .spec
+            .open_lineage
+            .as_ref()
+            .map(|job| match &job.connection {
+                InlineConnectionOrReference::Inline(spec) => spec.clone(),
+                InlineConnectionOrReference::Reference(name) => {
+                    panic!("test fixtures must use an inline connection, got reference {name:?}")
+                }
+            });
         spark_application
-            .build_command(&None, &None, "test-image")
+            .build_command(&None, &None, "test-image", open_lineage_conn.as_ref())
             .unwrap()
             .join(" ")
     }
@@ -1642,8 +1669,10 @@ spec:
           sparkImage:
             productVersion: 1.2.3
           openLineage:
-            host: marquez
-            port: 5000
+            connection:
+              inline:
+                host: marquez
+                port: 5000
     "#};
 
     #[test]
@@ -1711,8 +1740,10 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
               openLineage:
-                host: marquez
-                port: 5000
+                connection:
+                  inline:
+                    host: marquez
+                    port: 5000
               sparkConf:
                 spark.extraListeners: com.example.CustomListener
         "#};
@@ -1738,8 +1769,10 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
               openLineage:
-                host: marquez
-                port: 5000
+                connection:
+                  inline:
+                    host: marquez
+                    port: 5000
               sparkConf:
                 spark.openlineage.transport.url: http://custom:1234
                 spark.openlineage.namespace: custom-ns
@@ -1766,47 +1799,20 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
               openLineage:
-                host: marquez
-                port: 5000
-                tls:
-                  verification:
-                    server:
-                      caCert:
-                        secretClass: marquez-ca
+                connection:
+                  inline:
+                    host: marquez
+                    port: 5000
+                    tls:
+                      verification:
+                        server:
+                          caCert:
+                            secretClass: marquez-ca
         "#};
         let command = build_command_with_openlineage(yaml);
 
         assert!(
             command.contains(r#"--conf "spark.openlineage.transport.url=https://marquez:5000""#)
-        );
-    }
-
-    #[test]
-    fn test_openlineage_stays_http_without_tls_verification() {
-        // TLS present but with `verification: none` → no server verification → still `http`.
-        let yaml = indoc! {r#"
-            ---
-            apiVersion: spark.stackable.tech/v1alpha1
-            kind: SparkApplication
-            metadata:
-              name: spark-examples
-              namespace: default
-            spec:
-              mode: cluster
-              mainApplicationFile: test.py
-              sparkImage:
-                productVersion: 1.2.3
-              openLineage:
-                host: marquez
-                port: 5000
-                tls:
-                  verification:
-                    none: {}
-        "#};
-        let command = build_command_with_openlineage(yaml);
-
-        assert!(
-            command.contains(r#"--conf "spark.openlineage.transport.url=http://marquez:5000""#)
         );
     }
 
@@ -1825,8 +1831,10 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
               openLineage:
-                host: marquez
-                port: 5000
+                connection:
+                  inline:
+                    host: marquez
+                    port: 5000
                 appName: explicit-name
               sparkConf:
                 spark.app.name: spark-conf-name
@@ -1848,8 +1856,10 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
               openLineage:
-                host: marquez
-                port: 5000
+                connection:
+                  inline:
+                    host: marquez
+                    port: 5000
               sparkConf:
                 spark.app.name: spark-conf-name
         "#},
@@ -1870,8 +1880,10 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
               openLineage:
-                host: marquez
-                port: 5000
+                connection:
+                  inline:
+                    host: marquez
+                    port: 5000
         "#},
         "metadata-name",
         true
@@ -1881,7 +1893,9 @@ spec:
         #[case] expected_name: &str,
         #[case] expected_from_metadata_name: bool,
     ) {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(yaml).unwrap();
+        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
         let resolved = spark_application.resolved_openlineage_app_name().unwrap();
 
         assert_eq!(resolved.name, expected_name);

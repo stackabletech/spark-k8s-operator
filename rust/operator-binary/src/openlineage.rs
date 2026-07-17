@@ -1,74 +1,17 @@
-//! OpenLineage lineage-emission types and helpers for [`SparkApplication`].
+//! Operator-side OpenLineage helpers for [`SparkApplication`].
+//!
+//! The reusable OpenLineage types (`OpenLineageConnectionSpec`, `InlineConnectionOrReference`,
+//! `OpenLineageJob`) live in the `stackable_operator::crd::openlineage` library module. This module
+//! only holds the bits that depend on the operator's own `SparkApplication` (job-name resolution)
+//! plus a spark-submit conf helper.
 //!
 //! [`SparkApplication`]: crate::crd::v1alpha1::SparkApplication
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
 use snafu::OptionExt;
-use stackable_operator::{
-    commons::tls_verification::TlsClientDetails,
-    schemars::{self, JsonSchema},
-};
 
 use crate::crd::{Error, ObjectHasNoNameSnafu, v1alpha1};
-
-/// OpenLineage lineage emission for a [`SparkApplication`].
-///
-/// Adding this block enables OpenLineage: the operator injects the OpenLineage Spark listener,
-/// points its transport at `<scheme>://<host>:<port>`, and sets a stable job name. Omit the block
-/// to leave OpenLineage off. The injected `namespace` and `appName` are defaults that can be
-/// overridden via `sparkConf`.
-///
-/// The transport scheme is `https` when `tls.verification.server` is configured, otherwise `http`.
-///
-/// [`SparkApplication`]: crate::crd::v1alpha1::SparkApplication
-#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OpenLineageSpec {
-    /// Host of the OpenLineage backend the transport points at (e.g. `marquez`).
-    /// Combined with `port` into the transport URL `<scheme>://<host>:<port>`.
-    pub host: String,
-
-    /// Port of the OpenLineage backend (e.g. `5000`).
-    /// Combined with `host` into the transport URL `<scheme>://<host>:<port>`.
-    pub port: u16,
-
-    /// TLS configuration for the connection to the OpenLineage backend. When
-    /// `tls.verification.server` is set, the transport uses `https` instead of `http`.
-    #[serde(flatten)]
-    pub tls: TlsClientDetails,
-
-    /// The OpenLineage namespace lineage is reported under.
-    /// Defaults to the application's Kubernetes namespace (`metadata.namespace`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-
-    /// A stable OpenLineage job/application name. Setting this prevents fragmented run history
-    /// (and the intermittent `unknown` job-name bug). If unset, the operator resolves it from
-    /// `spark.app.name`, falling back to `metadata.name` (with a warning event).
-    /// TODO: maybe rename to job_name as it would be more appropriate. Trino users can put
-    /// placeholders like $QUERY_ID, $USER, $SOURCE, $CLIENT_IP.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub app_name: Option<String>,
-}
-
-impl OpenLineageSpec {
-    /// The OpenLineage transport URL, built from `host` and `port`. The scheme is `https` when
-    /// `tls.verification.server` is configured, otherwise `http`.
-    pub fn transport_url(&self) -> String {
-        let scheme = if self.tls.uses_tls_verification() {
-            "https"
-        } else {
-            "http"
-        };
-        format!(
-            "{scheme}://{host}:{port}",
-            host = self.host,
-            port = self.port
-        )
-    }
-}
 
 /// The resolved OpenLineage job/app name and where it came from.
 /// See [`v1alpha1::SparkApplication::resolved_openlineage_app_name`].

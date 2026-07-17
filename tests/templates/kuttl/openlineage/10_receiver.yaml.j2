@@ -1,0 +1,157 @@
+# Lightweight OpenLineage receiver.
+#
+# Instead of a full Marquez, this is a plain nginx that accepts the OpenLineage HTTP transport's
+# `POST /api/v1/lineage` requests and persists each request body as a flat file. The assertion in
+# `30-assert.yaml` then greps those files to prove events were delivered (and, in the TLS scenario,
+# that the driver trusted the secret-operator-issued server cert end-to-end).
+#
+# nginx cannot write a request body to disk on a `return` (the body is discarded), so the receive
+# location sets `client_body_in_file_only on` and `proxy_pass`es to a local sink server; nginx then
+# buffers the full body to a file (kept, not cleaned) before forwarding. Bodies land in
+# `/tmp/lineage/`.
+#
+# `$NAMESPACE` is substituted by the `10-install-receiver` step via `envsubst` (kuttl assigns the
+# namespace at run time; beku leaves the literal in place).
+{% if test_scenario['values']['openlineage-use-tls'] == 'true' %}
+---
+# A genuine autoTls SecretClass: the secret operator generates the CA and issues the nginx server
+# cert. Suffixed with the (cluster-scoped) namespace to avoid collisions across parallel scenarios.
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: openlineage-tls-$NAMESPACE
+spec:
+  backend:
+    autoTls:
+      ca:
+        autoGenerate: true
+        secret:
+          name: openlineage-tls-ca
+          namespace: $NAMESPACE
+{% endif %}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openlineage-receiver-config
+data:
+  nginx.conf: |
+    worker_processes  1;
+    error_log  /dev/stderr notice;
+    pid        /tmp/nginx.pid;
+    events { worker_connections 1024; }
+    http {
+      access_log            /dev/stdout;
+      client_body_temp_path /tmp/nginx-body;
+      proxy_temp_path       /tmp/nginx-proxy;
+      fastcgi_temp_path     /tmp/nginx-fastcgi;
+      uwsgi_temp_path       /tmp/nginx-uwsgi;
+      scgi_temp_path        /tmp/nginx-scgi;
+
+      # Internal sink: acknowledges the forwarded lineage event.
+      server {
+        listen 127.0.0.1:8080;
+        location / { return 201; }
+      }
+
+      server {
+        listen 5000{% if test_scenario['values']['openlineage-use-tls'] == 'true' %} ssl{% endif %};
+{% if test_scenario['values']['openlineage-use-tls'] == 'true' %}
+        ssl_certificate     /stackable/tls/tls.crt;
+        ssl_certificate_key /stackable/tls/tls.key;
+{% endif %}
+        client_max_body_size 16m;
+
+        # Persist each OpenLineage event body to /tmp/lineage/, then acknowledge via the sink.
+        location = /api/v1/lineage {
+          client_body_in_file_only on;
+          client_body_temp_path    /tmp/lineage;
+          proxy_pass http://127.0.0.1:8080;
+        }
+
+        location / { return 204; }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openlineage-receiver
+  labels:
+    app: openlineage-receiver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openlineage-receiver
+  template:
+    metadata:
+      labels:
+        app: openlineage-receiver
+    spec:
+{% if test_scenario['values']['openshift'] != 'true' %}
+      # On plain Kubernetes, make mounted emptyDirs writable by the nginx-unprivileged group (101).
+      # On OpenShift this is omitted so the restricted SCC can assign an fsGroup from the project range.
+      securityContext:
+        fsGroup: 101
+{% endif %}
+      containers:
+        - name: nginx
+          image: docker.io/nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - containerPort: 5000
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: tmp
+              mountPath: /tmp
+{% if test_scenario['values']['openlineage-use-tls'] == 'true' %}
+            - name: tls
+              mountPath: /stackable/tls
+{% endif %}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: openlineage-receiver-config
+        - name: tmp
+          emptyDir: {}
+{% if test_scenario['values']['openlineage-use-tls'] == 'true' %}
+        - name: tls
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: openlineage-tls-$NAMESPACE
+                  # `service` scope puts openlineage-receiver.<ns>.svc.cluster.local in the cert SANs,
+                  # which is exactly the host the Spark driver dials (see the SparkApplication).
+                  secrets.stackable.tech/scope: service=openlineage-receiver
+                  secrets.stackable.tech/format: tls-pem
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: "1"
+                storageClassName: secrets.stackable.tech
+{% endif %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openlineage-receiver
+  labels:
+    app: openlineage-receiver
+spec:
+  selector:
+    app: openlineage-receiver
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000

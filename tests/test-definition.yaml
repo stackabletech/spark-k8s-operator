@@ -70,6 +70,10 @@ dimensions:
     values:
       - "false"
       - "true"
+  - name: openlineage-use-tls
+    values:
+      - "false"
+      - "true"
 tests:
   - name: smoke
     dimensions:
@@ -153,6 +157,11 @@ tests:
       - kerberos-realm
       - openshift
       - s3-use-tls
+  - name: openlineage
+    dimensions:
+      - spark
+      - openlineage-use-tls
+      - openshift
 
 suites:
   - name: nightly
@@ -160,6 +169,8 @@ suites:
       - dimensions:
           - expr: last
           - name: s3-use-tls
+            expr: "true"
+          - name: openlineage-use-tls
             expr: "true"
   - name: smoke-latest
     select:
@@ -174,4 +185,6 @@ suites:
           - name: openshift
             expr: "true"
           - name: s3-use-tls
+            expr: "true"
+          - name: openlineage-use-tls
             expr: "true"

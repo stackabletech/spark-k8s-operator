@@ -9,7 +9,7 @@ When configured, the operator injects everything required to make the https://op
 * the OpenLineage jar baked into the Spark image, referenced via `spark.jars` so it shares the same classloader as connectors pulled in through xref:usage-guide/job-dependencies.adoc[`deps.packages`] (for example Apache Iceberg),
 * an HTTP transport pointing at the backend endpoint,
 * a stable lineage namespace and job name (see <<job-name>>), and
-* the `--add-opens java.base/java.security=ALL-UNNAMED` JVM flag the listener requires on the driver and executors.
+* on Spark 4.x only, the `--add-opens java.base/java.security=ALL-UNNAMED` JVM flag the listener requires on the driver and executors. This flag is not added on the Spark 3.5.x images, where it is unnecessary (and, on their JVM, potentially harmful).
 
 == Enabling OpenLineage
 

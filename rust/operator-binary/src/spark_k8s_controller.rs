@@ -243,6 +243,7 @@ pub async fn reconcile(
             opt_s3conn,
             logdir,
             &resolved_product_image.image,
+            &resolved_product_image.product_version,
             opt_open_lineage_conn,
         )
         .context(BuildCommandSnafu)?;

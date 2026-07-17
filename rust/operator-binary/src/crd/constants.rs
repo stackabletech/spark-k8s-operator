@@ -113,10 +113,13 @@ pub const OPENLINEAGE_LISTENER_CLASS: &str = "io.openlineage.spark.agent.OpenLin
 /// than on `extraClassPath` (system classloader) — is what lets OpenLineage's connector probes
 /// succeed; see the classpath discussion in the OpenLineage usage guide.
 ///
-/// IMPORTANT: the version MUST stay in sync with the `openlineage-spark-version` build-argument in
-/// `docker-images/spark-k8s/boil-config.toml` (the image is what places the jar at this path).
+/// This is a stable, version- and Scala-independent symlink the image maintains (mirroring the
+/// `jmx_prometheus_javaagent.jar` pattern): each Spark image bakes the correct
+/// `openlineage-spark_<scala>-<version>.jar` for its build (Scala 2.13 for Spark 4.x, Scala 2.12 for
+/// Spark 3.5.x) and symlinks it here. Referencing the symlink decouples the operator from the jar's
+/// version and Scala suffix, so bumping either only touches `docker-images/spark-k8s`.
 pub const OPENLINEAGE_JAR_LOCAL_URI: &str =
-    "local:///stackable/spark/openlineage/openlineage-spark_2.13-1.51.0.jar";
+    "local:///stackable/spark/openlineage/openlineage-spark.jar";
 
 /// Java module-system flag OpenLineage requires on Spark 4.x: without it the driver throws a
 /// non-fatal `InaccessibleObjectException` and silently degrades extension-interface lineage.

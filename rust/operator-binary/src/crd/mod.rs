@@ -115,6 +115,28 @@ pub enum Error {
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
+
+    #[snafu(display(
+        "failed to parse the Spark major version from the resolved product version {product_version:?}"
+    ))]
+    UnparseableSparkVersion {
+        source: std::num::ParseIntError,
+        product_version: String,
+    },
+}
+
+/// Parses the Spark major version from a resolved product version string such as `4.1.2` or
+/// `3.5.8`. Used to gate version-specific OpenLineage wiring — the `--add-opens` JVM flag, which is
+/// only needed on (and safe for) the JDK 17+/Spark 4.x line and can break the Spark 3.5.x JVMs.
+pub(crate) fn spark_major_version(product_version: &str) -> Result<u64, Error> {
+    product_version
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .parse::<u64>()
+        .context(UnparseableSparkVersionSnafu {
+            product_version: product_version.to_string(),
+        })
 }
 
 pub type SparkApplicationJobRoleType =
@@ -565,11 +587,18 @@ impl v1alpha1::SparkApplication {
         mounts
     }
 
+    /// True when OpenLineage emission is configured for this application. OpenLineage is off exactly
+    /// when the `openLineage` block is absent — its presence is the enable switch.
+    pub fn openlineage_enabled(&self) -> bool {
+        self.spec.open_lineage.is_some()
+    }
+
     pub fn build_command(
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
         spark_image: &str,
+        product_version: &str,
         open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
@@ -669,7 +698,7 @@ impl v1alpha1::SparkApplication {
         }
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(self, s3conn, log_dir);
+            construct_extra_java_options(self, s3conn, log_dir, product_version)?;
         submit_cmd.extend(vec![
             format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),
             format!("--conf spark.executor.extraJavaOptions=\"{executor_extra_java_options}\""),
@@ -780,12 +809,15 @@ impl v1alpha1::SparkApplication {
 
         // OpenLineage append-merge keys: combine our values with any user-provided ones (already
         // merged into `submit_conf` above) so neither clobbers the other.
-        if self.spec.open_lineage.is_some() {
+        if self.openlineage_enabled() {
             append_conf_csv(
                 &mut submit_conf,
                 "spark.extraListeners",
                 OPENLINEAGE_LISTENER_CLASS,
             );
+            // Reference the stable symlink the image maintains; it points at the correct
+            // Scala/version build for this image (2.13 on Spark 4.x, 2.12 on Spark 3.5.x), so the
+            // operator needs to track neither the jar version nor its Scala suffix.
             append_conf_csv(&mut submit_conf, "spark.jars", OPENLINEAGE_JAR_LOCAL_URI);
         }
 
@@ -1632,7 +1664,7 @@ spec:
     /// Test fixtures always use an inline OpenLineage connection, so the connection is extracted
     /// directly (no async `resolve()` against a k8s API) and passed to `build_command` — exactly the
     /// resolved value the controller would compute in `dereference`.
-    fn build_command_with_openlineage(yaml: &str) -> String {
+    fn build_command_with_openlineage(yaml: &str, product_version: &str) -> String {
         use stackable_operator::crd::openlineage::v1alpha1::InlineConnectionOrReference;
 
         // `singleton_map_recursive` so externally-tagged enums (the OpenLineage `connection`) use
@@ -1651,7 +1683,13 @@ spec:
                 }
             });
         spark_application
-            .build_command(&None, &None, "test-image", open_lineage_conn.as_ref())
+            .build_command(
+                &None,
+                &None,
+                "test-image",
+                product_version,
+                open_lineage_conn.as_ref(),
+            )
             .unwrap()
             .join(" ")
     }
@@ -1677,7 +1715,7 @@ spec:
 
     #[test]
     fn test_openlineage_injects_conf_when_enabled() {
-        let command = build_command_with_openlineage(OPENLINEAGE_ENABLED_APP);
+        let command = build_command_with_openlineage(OPENLINEAGE_ENABLED_APP, "4.1.2");
 
         assert!(command.contains(r#"--conf "spark.openlineage.transport.type=http""#));
         assert!(
@@ -1690,15 +1728,36 @@ spec:
         assert!(command.contains(&format!(
             r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
         )));
+        // The jar is referenced via the stable, Scala/version-independent image symlink.
         assert!(command.contains(&format!(
             r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
         )));
-        // --add-opens reaches both driver and executor.
+        // --add-opens reaches both driver and executor on Spark 4.x.
         assert_eq!(
             command.matches(OPENLINEAGE_ADD_OPENS).count(),
             2,
             "expected --add-opens on both driver and executor extraJavaOptions"
         );
+    }
+
+    #[test]
+    fn test_openlineage_stable_jar_uri_and_no_add_opens_on_spark_3() {
+        // On the JDK 17 Spark 3.5.x images the operator references the same stable jar symlink (the
+        // image points it at the Scala 2.12 build) and must NOT emit `--add-opens`.
+        let command = build_command_with_openlineage(OPENLINEAGE_ENABLED_APP, "3.5.8");
+
+        assert!(command.contains(&format!(
+            r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
+        )));
+        assert!(
+            !command.contains(OPENLINEAGE_ADD_OPENS),
+            "--add-opens must not be emitted on Spark 3.x"
+        );
+        // The rest of the OpenLineage wiring is still present on Spark 3.x.
+        assert!(command.contains(&format!(
+            r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
+        )));
+        assert!(command.contains(r#"--conf "spark.openlineage.transport.type=http""#));
     }
 
     #[test]
@@ -1717,7 +1776,7 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
         "#};
-        let command = build_command_with_openlineage(yaml);
+        let command = build_command_with_openlineage(yaml, "4.1.2");
 
         assert!(!command.contains("openlineage"));
         assert!(!command.contains("OpenLineageSparkListener"));
@@ -1747,7 +1806,7 @@ spec:
               sparkConf:
                 spark.extraListeners: com.example.CustomListener
         "#};
-        let command = build_command_with_openlineage(yaml);
+        let command = build_command_with_openlineage(yaml, "4.1.2");
 
         assert!(command.contains(&format!(
             r#"--conf "spark.extraListeners=com.example.CustomListener,{OPENLINEAGE_LISTENER_CLASS}""#
@@ -1777,7 +1836,7 @@ spec:
                 spark.openlineage.transport.url: http://custom:1234
                 spark.openlineage.namespace: custom-ns
         "#};
-        let command = build_command_with_openlineage(yaml);
+        let command = build_command_with_openlineage(yaml, "4.1.2");
 
         assert!(command.contains(r#"--conf "spark.openlineage.transport.url=http://custom:1234""#));
         assert!(!command.contains("http://marquez:5000"));
@@ -1809,7 +1868,7 @@ spec:
                           caCert:
                             secretClass: marquez-ca
         "#};
-        let command = build_command_with_openlineage(yaml);
+        let command = build_command_with_openlineage(yaml, "4.1.2");
 
         assert!(
             command.contains(r#"--conf "spark.openlineage.transport.url=https://marquez:5000""#)

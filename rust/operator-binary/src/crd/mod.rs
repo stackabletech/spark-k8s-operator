@@ -800,7 +800,7 @@ impl v1alpha1::SparkApplication {
             // Stable job name — fixes the intermittent `unknown` bug (see the usage guide).
             submit_conf.insert(
                 "spark.openlineage.appName".to_string(),
-                self.resolved_openlineage_app_name()?.name,
+                self.resolved_openlineage_app_name()?,
             );
         }
 
@@ -1898,8 +1898,7 @@ spec:
               sparkConf:
                 spark.app.name: spark-conf-name
         "#},
-        "explicit-name",
-        false
+        "explicit-name"
     )]
     #[case::spark_app_name(
         indoc! {r#"
@@ -1922,8 +1921,7 @@ spec:
               sparkConf:
                 spark.app.name: spark-conf-name
         "#},
-        "spark-conf-name",
-        false
+        "spark-conf-name"
     )]
     #[case::metadata_name_fallback(
         indoc! {r#"
@@ -1944,21 +1942,15 @@ spec:
                     host: marquez
                     port: 5000
         "#},
-        "metadata-name",
-        true
+        "metadata-name"
     )]
-    fn test_openlineage_app_name_resolution(
-        #[case] yaml: &str,
-        #[case] expected_name: &str,
-        #[case] expected_from_metadata_name: bool,
-    ) {
+    fn test_openlineage_app_name_resolution(#[case] yaml: &str, #[case] expected_name: &str) {
         let deserializer = serde_yaml::Deserializer::from_str(yaml);
         let spark_application: v1alpha1::SparkApplication =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
         let resolved = spark_application.resolved_openlineage_app_name().unwrap();
 
-        assert_eq!(resolved.name, expected_name);
-        assert_eq!(resolved.from_metadata_name, expected_from_metadata_name);
+        assert_eq!(resolved, expected_name);
     }
 
     impl RoundtripTestData for v1alpha1::SparkApplicationSpec {

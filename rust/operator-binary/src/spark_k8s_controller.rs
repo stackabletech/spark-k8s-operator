@@ -4,12 +4,9 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{self},
     kube::{
-        Resource, ResourceExt,
+        ResourceExt,
         core::{DeserializeGuard, error_boundary},
-        runtime::{
-            controller::Action,
-            events::{Event, EventType, Recorder},
-        },
+        runtime::controller::Action,
     },
     logging::controller::ReconcilerError,
     shared::time::Duration,
@@ -227,17 +224,6 @@ pub async fn reconcile(
         .await
         .context(ApplyApplicationSnafu)?;
 
-    // Warn if the OpenLineage job name falls back to `metadata.name` — only matters when
-    // OpenLineage is enabled.
-    if spark_application.spec.open_lineage.is_some()
-        && spark_application
-            .resolved_openlineage_app_name()
-            .context(BuildCommandSnafu)?
-            .from_metadata_name
-    {
-        publish_openlineage_app_name_warning(&ctx.event_recorder, spark_application).await;
-    }
-
     let job_commands = spark_application
         .build_command(
             opt_s3conn,
@@ -310,40 +296,5 @@ pub fn error_policy(
     match error {
         Error::InvalidSparkApplication { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
-    }
-}
-
-/// Emits a Kubernetes warning event that the OpenLineage job name fell back to `metadata.name`,
-/// which fragments backend run history when that name is unique per run. Event-publishing failures
-/// are logged, not propagated — they must not fail reconciliation.
-async fn publish_openlineage_app_name_warning(
-    event_recorder: &Recorder,
-    spark_application: &v1alpha1::SparkApplication,
-) {
-    let name = spark_application.name_any();
-    let publish_result = event_recorder
-        .publish(
-            &Event {
-                type_: EventType::Warning,
-                reason: "OpenLineageAppNameFallback".into(),
-                note: Some(format!(
-                    "OpenLineage job name falls back to metadata.name ({name:?}) because neither \
-                     spec.openLineage.appName nor spark.app.name is set. If metadata.name is unique \
-                     per run (e.g. an orchestrator-generated -<timestamp> suffix), backend run \
-                     history will be fragmented into a new job per run. Set \
-                     spec.openLineage.appName to a stable value to avoid this."
-                )),
-                action: "ResolveOpenLineageAppName".into(),
-                secondary: None,
-            },
-            &spark_application.object_ref(&()),
-        )
-        .await;
-
-    if let Err(error) = publish_result {
-        tracing::warn!(
-            ?error,
-            "failed to publish OpenLineage app-name fallback warning event"
-        );
     }
 }

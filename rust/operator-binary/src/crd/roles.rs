@@ -28,7 +28,7 @@ use stackable_operator::{
         fragment::Fragment,
         merge::{Atomic, Merge},
     },
-    crd::s3,
+    crd::{openlineage, s3},
     k8s_openapi::{api::core::v1::VolumeMount, apimachinery::pkg::api::resource::Quantity},
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
@@ -167,9 +167,16 @@ impl RoleConfig {
         spark_application: &v1alpha1::SparkApplication,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Vec<VolumeMount> {
         let volume_mounts = self.volume_mounts.clone().into();
-        spark_application.add_common_volume_mounts(volume_mounts, s3conn, logdir, true)
+        spark_application.add_common_volume_mounts(
+            volume_mounts,
+            s3conn,
+            logdir,
+            true,
+            open_lineage_conn,
+        )
     }
 }
 

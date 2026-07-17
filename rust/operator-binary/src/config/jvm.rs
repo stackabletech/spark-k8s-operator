@@ -1,4 +1,4 @@
-use stackable_operator::crd::s3;
+use stackable_operator::crd::{openlineage, s3};
 
 use crate::crd::{
     Error,
@@ -26,6 +26,7 @@ pub fn construct_extra_java_options(
     s3_conn: &Option<s3::v1alpha1::ConnectionSpec>,
     log_dir: &Option<ResolvedLogDir>,
     product_version: &str,
+    open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
 ) -> Result<(String, String), Error> {
     // Note (@sbernauer): As of 2025-03-04, we did not set any heap related JVM arguments, so I
     // kept the implementation as is. We can always re-visit this as needed.
@@ -34,7 +35,7 @@ pub fn construct_extra_java_options(
         "-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
     )];
 
-    if tls_secret_names(s3_conn, log_dir).is_some() {
+    if tls_secret_names(s3_conn, log_dir, open_lineage_conn).is_some() {
         jvm_args.extend([
             format!("-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"),
             format!("-Djavax.net.ssl.trustStorePassword={STACKABLE_TLS_STORE_PASSWORD}"),
@@ -102,7 +103,7 @@ mod tests {
         "#,
         );
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None, "4.1.2").unwrap();
+            construct_extra_java_options(&spark_app, &None, &None, "4.1.2", None).unwrap();
 
         assert_eq!(
             driver_extra_java_options,
@@ -140,7 +141,7 @@ mod tests {
         "#,
         );
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None, "4.1.2").unwrap();
+            construct_extra_java_options(&spark_app, &None, &None, "4.1.2", None).unwrap();
 
         assert_eq!(
             driver_extra_java_options,
@@ -194,7 +195,7 @@ mod tests {
     ) {
         let spark_app = spark_app_from_yaml(&yaml_template.replace("PLACEHOLDER", product_version));
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None, product_version).unwrap();
+            construct_extra_java_options(&spark_app, &None, &None, product_version, None).unwrap();
 
         assert_eq!(
             driver_extra_java_options.contains(OPENLINEAGE_ADD_OPENS),

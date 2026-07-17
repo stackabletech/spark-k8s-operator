@@ -337,6 +337,7 @@ impl v1alpha1::SparkApplication {
         logdir: &Option<ResolvedLogDir>,
         log_config_map: Option<&str>,
         requested_secret_lifetime: &Duration,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Result<Vec<Volume>, Error> {
         // Collect the volumes in a map keyed by name to avoid duplicates.
         // Duplicates can happen when the the S3 credentials volume and the history server log directory use the same secret class.
@@ -417,7 +418,7 @@ impl v1alpha1::SparkApplication {
                     .build(),
             );
         }
-        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir) {
+        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn) {
             result.insert(
                 STACKABLE_TRUST_STORE_NAME.to_string(),
                 VolumeBuilder::new(STACKABLE_TRUST_STORE_NAME)
@@ -470,6 +471,7 @@ impl v1alpha1::SparkApplication {
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Vec<VolumeMount> {
         let mut tmpl_mounts = vec![
             VolumeMount {
@@ -484,7 +486,8 @@ impl v1alpha1::SparkApplication {
             },
         ];
 
-        tmpl_mounts = self.add_common_volume_mounts(tmpl_mounts, s3conn, logdir, false);
+        tmpl_mounts =
+            self.add_common_volume_mounts(tmpl_mounts, s3conn, logdir, false, open_lineage_conn);
 
         if let Some(CommonConfiguration {
             config:
@@ -510,6 +513,7 @@ impl v1alpha1::SparkApplication {
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
         logging_enabled: bool,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
             mounts.push(VolumeMount {
@@ -568,7 +572,7 @@ impl v1alpha1::SparkApplication {
                 ..VolumeMount::default()
             });
         }
-        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir) {
+        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn) {
             mounts.push(VolumeMount {
                 name: STACKABLE_TRUST_STORE_NAME.into(),
                 mount_path: STACKABLE_TRUST_STORE.into(),
@@ -606,17 +610,18 @@ impl v1alpha1::SparkApplication {
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
         // Commands needed to build the p12 trust store from the secret class certs configured for
-        // S3 connections.
-        let build_truststore_commands = match tlscerts::tls_secret_names(s3conn, log_dir) {
-            Some(cert_secrets) => {
-                let mut build_truststore_str =
-                    vec![tlscerts::convert_system_trust_store_to_pkcs12()];
-                build_truststore_str
-                    .extend(cert_secrets.into_iter().map(tlscerts::import_truststore));
-                format!("{};", build_truststore_str.join(" && "))
-            }
-            None => "".to_string(),
-        };
+        // S3 connections, the log directory, and the OpenLineage backend connection.
+        let build_truststore_commands =
+            match tlscerts::tls_secret_names(s3conn, log_dir, open_lineage_conn) {
+                Some(cert_secrets) => {
+                    let mut build_truststore_str =
+                        vec![tlscerts::convert_system_trust_store_to_pkcs12()];
+                    build_truststore_str
+                        .extend(cert_secrets.into_iter().map(tlscerts::import_truststore));
+                    format!("{};", build_truststore_str.join(" && "))
+                }
+                None => "".to_string(),
+            };
 
         let mut submit_cmd = vec![
             format!(
@@ -698,7 +703,13 @@ impl v1alpha1::SparkApplication {
         }
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(self, s3conn, log_dir, product_version)?;
+            construct_extra_java_options(
+                self,
+                s3conn,
+                log_dir,
+                product_version,
+                open_lineage_conn,
+            )?;
         submit_cmd.extend(vec![
             format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),
             format!("--conf spark.executor.extraJavaOptions=\"{executor_extra_java_options}\""),
@@ -845,6 +856,7 @@ impl v1alpha1::SparkApplication {
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Vec<EnvVar> {
         let mut e: Vec<EnvVar> = self.spec.env.clone();
 
@@ -877,7 +889,7 @@ impl v1alpha1::SparkApplication {
                 value_from: None,
             });
         }
-        if tlscerts::tls_secret_names(s3conn, logdir).is_some() {
+        if tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn).is_some() {
             e.push(EnvVar {
                 name: "STACKABLE_TLS_STORE_PASSWORD".to_string(),
                 value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),
@@ -1627,7 +1639,7 @@ spec:
         "#})
         .unwrap();
 
-        let got = spark_application.spark_job_volume_mounts(&None, &None);
+        let got = spark_application.spark_job_volume_mounts(&None, &None, None);
 
         let expected = vec![
             VolumeMount {
@@ -1873,6 +1885,63 @@ spec:
         assert!(
             command.contains(r#"--conf "spark.openlineage.transport.url=https://marquez:5000""#)
         );
+    }
+
+    /// The OpenLineage connection's `caCert.secretClass` must be wired into the driver truststore,
+    /// so the OpenLineage listener's HTTPS POST to the backend trusts the secret-operator cert.
+    /// Without this the `https` scheme above is unusable (handshake fails against the default JVM
+    /// truststore).
+    #[test]
+    fn test_openlineage_tls_secret_class_wired_into_truststore() {
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              openLineage:
+                connection:
+                  inline:
+                    host: marquez
+                    port: 5000
+                    tls:
+                      verification:
+                        server:
+                          caCert:
+                            secretClass: marquez-ca
+        "#};
+        let command = build_command_with_openlineage(yaml, "4.1.2");
+
+        // The mounted secret-operator truststore for `marquez-ca` is imported into the shared
+        // PKCS12 truststore.
+        assert!(command.contains(&format!(
+            "{STACKABLE_MOUNT_PATH_TLS}/marquez-ca/truststore.p12"
+        )));
+        // The driver + executor JVMs are pointed at that truststore.
+        assert_eq!(
+            command
+                .matches(&format!(
+                    "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"
+                ))
+                .count(),
+            2,
+        );
+    }
+
+    /// Without an OpenLineage TLS `secretClass` (and no S3/logdir), no truststore is built and the
+    /// driver JVM gets no truststore options.
+    #[test]
+    fn test_openlineage_without_tls_has_no_truststore() {
+        let command = build_command_with_openlineage(OPENLINEAGE_ENABLED_APP, "4.1.2");
+
+        assert!(!command.contains("-Djavax.net.ssl.trustStore="));
+        assert!(!command.contains(STACKABLE_MOUNT_PATH_TLS));
     }
 
     #[rstest]

@@ -166,7 +166,7 @@ pub async fn reconcile(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let env_vars = spark_application.env(opt_s3conn, logdir);
+    let env_vars = spark_application.env(opt_s3conn, logdir, opt_open_lineage_conn);
 
     let driver_config = spark_application
         .driver_config()

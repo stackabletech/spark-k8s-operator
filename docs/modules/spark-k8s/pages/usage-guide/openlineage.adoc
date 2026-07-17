@@ -62,7 +62,9 @@ spec:
 ----
 
 The transport scheme is `https` when `tls.verification.server` is configured, otherwise `http`.
-Explicit certificate handling beyond selecting the scheme will be added later.
+When the connection verifies the server against a `secretClass` CA (as in the commented `tls` block
+above), the operator mounts that SecretClass certificate into the driver and adds it to the driver's
+trust store, so the OpenLineage listener trusts the backend's certificate.
 
 You can still override any of the injected values — including the full `spark.openlineage.transport.url` — through `sparkConf`.
 

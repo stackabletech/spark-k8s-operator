@@ -126,6 +126,37 @@ pub const OPENLINEAGE_JAR_LOCAL_URI: &str =
 /// Appended to both driver and executor `extraJavaOptions`.
 pub const OPENLINEAGE_ADD_OPENS: &str = "--add-opens java.base/java.security=ALL-UNNAMED";
 
+/// Env vars delivering the OpenLineage HTTP transport config via the OpenLineage Java client's
+/// `OPENLINEAGE__` env-var configuration (`__` separates the config hierarchy).
+///
+/// When an `AuthenticationClass` is configured, the operator delivers the **whole** transport this
+/// way rather than via `spark.openlineage.transport.*` `--conf`. This is required, not cosmetic:
+/// OpenLineage resolves `transport` from a single source, so a `--conf`-defined transport would
+/// drop the env-provided `auth` sub-tree entirely (verified against openlineage-spark 1.51.0).
+/// Delivering the token as a `secretKeyRef` env var also keeps it out of the spark-submit args.
+pub const OPENLINEAGE_TRANSPORT_TYPE_ENV: &str = "OPENLINEAGE__TRANSPORT__TYPE";
+
+/// Env var carrying the OpenLineage HTTP transport URL. See [`OPENLINEAGE_TRANSPORT_TYPE_ENV`].
+pub const OPENLINEAGE_TRANSPORT_URL_ENV: &str = "OPENLINEAGE__TRANSPORT__URL";
+
+/// The OpenLineage transport type the operator uses (the HTTP transport).
+pub const OPENLINEAGE_TRANSPORT_TYPE_HTTP: &str = "http";
+
+/// Env var selecting the OpenLineage HTTP transport auth type. See [`OPENLINEAGE_TRANSPORT_TYPE_ENV`].
+pub const OPENLINEAGE_AUTH_TYPE_ENV: &str = "OPENLINEAGE__TRANSPORT__AUTH__TYPE";
+
+/// Env var carrying the OpenLineage HTTP transport bearer token. Sourced from the referenced
+/// Secret via `secretKeyRef` (key [`OPENLINEAGE_AUTH_SECRET_KEY`]), so the operator never reads
+/// the token and it stays out of the Job/pod spec.
+pub const OPENLINEAGE_AUTH_API_KEY_ENV: &str = "OPENLINEAGE__TRANSPORT__AUTH__API_KEY";
+
+/// The only OpenLineage HTTP transport auth type the operator supports: a static bearer token.
+pub const OPENLINEAGE_AUTH_TYPE_API_KEY: &str = "api_key";
+
+/// Fixed key that must hold the bearer token inside the Secret referenced by the Static
+/// `AuthenticationClass`.
+pub const OPENLINEAGE_AUTH_SECRET_KEY: &str = "apiKey";
+
 /// The JVM `security.properties` entries the operator sets by default (DNS cache TTLs).
 pub fn default_jvm_security_properties() -> BTreeMap<String, String> {
     [

@@ -96,6 +96,7 @@ pub struct ValidatedClusterConfig {
     pub resolved_template_refs: Vec<v1alpha1::ResolvedSparkApplicationTemplate>,
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
     pub open_lineage_connection: Option<openlineage::ResolvedOpenLineageConnection>,
+    pub open_lineage_auth: Option<crate::openlineage::ResolvedOpenLineageAuth>,
     pub log_dir: Option<ResolvedLogDir>,
 }
 
@@ -242,6 +243,7 @@ pub fn validate(
             resolved_template_refs: dereferenced.resolved_template_refs,
             s3_connection: dereferenced.s3_connection,
             open_lineage_connection: dereferenced.open_lineage_connection,
+            open_lineage_auth: dereferenced.open_lineage_auth,
             log_dir: dereferenced.log_dir,
         },
     })

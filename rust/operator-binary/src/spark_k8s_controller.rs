@@ -166,7 +166,13 @@ pub async fn reconcile(
         .await
         .context(ApplyRoleBindingSnafu)?;
 
-    let env_vars = spark_application.env(opt_s3conn, logdir, opt_open_lineage_conn);
+    let opt_open_lineage_auth = validated.cluster_config.open_lineage_auth.as_ref();
+    let env_vars = spark_application.env(
+        opt_s3conn,
+        logdir,
+        opt_open_lineage_conn,
+        opt_open_lineage_auth,
+    );
 
     let driver_config = spark_application
         .driver_config()
@@ -231,6 +237,7 @@ pub async fn reconcile(
             &resolved_product_image.image,
             &resolved_product_image.product_version,
             opt_open_lineage_conn,
+            opt_open_lineage_auth,
         )
         .context(BuildCommandSnafu)?;
 

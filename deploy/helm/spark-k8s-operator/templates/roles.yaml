@@ -193,6 +193,24 @@ rules:
       - get
       - list
       - watch
+  # OpenLineage backend connections referenced by SparkApplications.
+  - apiGroups:
+      - openlineage.stackable.tech
+    resources:
+      - openlineageconnections
+    verbs:
+      - get
+      - list
+      - watch
+  # AuthenticationClasses used to authenticate against an OpenLineage backend.
+  - apiGroups:
+      - authentication.stackable.tech
+    resources:
+      - authenticationclasses
+    verbs:
+      - get
+      - list
+      - watch
   # Required for managing how the History Server and Connect Server are exposed
   # outside of the cluster.
   - apiGroups:

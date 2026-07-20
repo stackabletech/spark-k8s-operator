@@ -52,7 +52,7 @@ use crate::{
             SubmitConfig, SubmitConfigFragment, VolumeMounts,
         },
     },
-    openlineage::append_conf_csv,
+    openlineage::{ResolvedOpenLineageAuth, append_conf_csv, openlineage_transport_env_vars},
 };
 
 pub mod affinity;
@@ -604,6 +604,7 @@ impl v1alpha1::SparkApplication {
         spark_image: &str,
         product_version: &str,
         open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
+        open_lineage_auth: Option<&ResolvedOpenLineageAuth>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = &self.spec.mode;
@@ -791,7 +792,13 @@ impl v1alpha1::SparkApplication {
             // The backend connection is resolved (inline or referenced) before `build_command`.
             // The transport type is always `http` (the OpenLineage HTTP transport); the URL scheme
             // it points at is `https` when the connection configures TLS server verification.
-            if let Some(connection) = open_lineage_conn {
+            //
+            // When an AuthenticationClass is configured, the transport is delivered entirely via
+            // `OPENLINEAGE__` env vars instead (see `env`) — it MUST come from a single source, or
+            // OpenLineage drops the env-provided `auth`. So skip the `--conf` transport in that case.
+            if let Some(connection) = open_lineage_conn
+                && open_lineage_auth.is_none()
+            {
                 submit_conf.insert(
                     "spark.openlineage.transport.type".to_string(),
                     "http".to_string(),
@@ -857,6 +864,7 @@ impl v1alpha1::SparkApplication {
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
         open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
+        open_lineage_auth: Option<&ResolvedOpenLineageAuth>,
     ) -> Vec<EnvVar> {
         let mut e: Vec<EnvVar> = self.spec.env.clone();
 
@@ -895,6 +903,18 @@ impl v1alpha1::SparkApplication {
                 value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),
                 value_from: None,
             });
+        }
+        // OpenLineage HTTP transport auth: when an AuthenticationClass is configured, deliver the
+        // WHOLE transport (type, URL and bearer-token auth) to the driver's OpenLineage listener via
+        // the client's `OPENLINEAGE__` env-var configuration — see `openlineage_transport_env_vars`
+        // and the matching skip of the `spark.openlineage.transport.*` `--conf` in `build_command`.
+        // The token is sourced from the referenced Secret, so it never lands in the `--conf` args.
+        if let (Some(connection), Some(open_lineage_auth)) = (open_lineage_conn, open_lineage_auth)
+        {
+            e.extend(openlineage_transport_env_vars(
+                &connection.transport_url(),
+                &open_lineage_auth.secret_name,
+            ));
         }
         e
     }
@@ -1701,9 +1721,143 @@ spec:
                 "test-image",
                 product_version,
                 open_lineage_conn.as_ref(),
+                None,
             )
             .unwrap()
             .join(" ")
+    }
+
+    const MINIMAL_APP: &str = indoc! {r#"
+        ---
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkApplication
+        metadata:
+          name: test
+          namespace: default
+        spec:
+          mode: cluster
+          mainApplicationFile: test.py
+          sparkImage:
+            productVersion: 1.2.3
+    "#};
+
+    fn test_openlineage_connection(
+        authentication_class_ref: Option<String>,
+    ) -> openlineage::ResolvedOpenLineageConnection {
+        openlineage::v1alpha1::OpenLineageConnectionSpec {
+            host: "marquez".to_string(),
+            port: 5000,
+            tls: stackable_operator::commons::tls_verification::TlsClientDetails { tls: None },
+            authentication_class_ref,
+        }
+    }
+
+    #[test]
+    fn test_openlineage_full_transport_delivered_via_env_when_authenticated() {
+        let spark_application =
+            serde_yaml::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
+        let connection = test_openlineage_connection(Some("ol-auth".to_string()));
+        let auth = ResolvedOpenLineageAuth {
+            secret_name: "ol-token".to_string(),
+        };
+
+        let env = spark_application.env(&None, &None, Some(&connection), Some(&auth));
+        let value = |name| {
+            env.iter()
+                .find(|v| v.name == name)
+                .and_then(|v| v.value.as_deref())
+        };
+
+        // The whole transport is delivered via env (not --conf) so OpenLineage keeps the auth.
+        assert_eq!(value(OPENLINEAGE_TRANSPORT_TYPE_ENV), Some("http"));
+        assert_eq!(
+            value(OPENLINEAGE_TRANSPORT_URL_ENV),
+            Some("http://marquez:5000")
+        );
+        assert_eq!(
+            value(OPENLINEAGE_AUTH_TYPE_ENV),
+            Some(OPENLINEAGE_AUTH_TYPE_API_KEY)
+        );
+
+        let key_var = env
+            .iter()
+            .find(|v| v.name == OPENLINEAGE_AUTH_API_KEY_ENV)
+            .expect("auth api key env var present");
+        assert!(
+            key_var.value.is_none(),
+            "the token must never be a literal env value"
+        );
+        let selector = key_var
+            .value_from
+            .as_ref()
+            .and_then(|source| source.secret_key_ref.as_ref())
+            .expect("api key sourced from a secretKeyRef");
+        assert_eq!(selector.name, "ol-token");
+        assert_eq!(selector.key, OPENLINEAGE_AUTH_SECRET_KEY);
+    }
+
+    #[test]
+    fn test_no_openlineage_transport_env_vars_when_unauthenticated() {
+        let spark_application =
+            serde_yaml::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
+        let connection = test_openlineage_connection(None);
+
+        // A connection but no AuthenticationClass: transport stays in --conf, no OL env vars.
+        let env = spark_application.env(&None, &None, Some(&connection), None);
+
+        for name in [
+            OPENLINEAGE_TRANSPORT_TYPE_ENV,
+            OPENLINEAGE_TRANSPORT_URL_ENV,
+            OPENLINEAGE_AUTH_TYPE_ENV,
+            OPENLINEAGE_AUTH_API_KEY_ENV,
+        ] {
+            assert!(
+                !env.iter().any(|v| v.name == name),
+                "unexpected OpenLineage env var {name} when unauthenticated"
+            );
+        }
+    }
+
+    #[test]
+    fn test_openlineage_authenticated_omits_transport_conf() {
+        // With auth present the transport moves to env vars, so build_command must NOT emit the
+        // `spark.openlineage.transport.*` --conf (that would make OpenLineage drop the env auth).
+        // namespace / appName / listener stay in --conf (OPENLINEAGE_ENABLED_APP has the block).
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(
+                serde_yaml::Deserializer::from_str(OPENLINEAGE_ENABLED_APP),
+            )
+            .unwrap();
+        let connection = test_openlineage_connection(Some("ol-auth".to_string()));
+        let auth = ResolvedOpenLineageAuth {
+            secret_name: "ol-token".to_string(),
+        };
+
+        let command = spark_application
+            .build_command(
+                &None,
+                &None,
+                "test-image",
+                "3.5.8",
+                Some(&connection),
+                Some(&auth),
+            )
+            .unwrap()
+            .join(" ");
+
+        assert!(
+            !command.contains("spark.openlineage.transport.type"),
+            "transport.type must not be in --conf when authenticated"
+        );
+        assert!(
+            !command.contains("spark.openlineage.transport.url"),
+            "transport.url must not be in --conf when authenticated"
+        );
+        assert!(command.contains(r#"--conf "spark.openlineage.namespace="#));
+        assert!(command.contains(r#"--conf "spark.openlineage.appName="#));
+        assert!(command.contains(&format!(
+            r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
+        )));
     }
 
     const OPENLINEAGE_ENABLED_APP: &str = indoc! {r#"

@@ -74,6 +74,10 @@ dimensions:
     values:
       - "false"
       - "true"
+  - name: openlineage-use-auth
+    values:
+      - "false"
+      - "true"
 tests:
   - name: smoke
     dimensions:
@@ -161,6 +165,7 @@ tests:
     dimensions:
       - spark
       - openlineage-use-tls
+      - openlineage-use-auth
       - openshift
 
 suites:

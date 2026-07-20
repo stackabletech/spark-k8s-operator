@@ -10,10 +10,13 @@ use stackable_operator::{
     crd::{openlineage, s3},
 };
 
-use crate::crd::{
-    logdir::ResolvedLogDir,
-    template_spec::{self},
-    v1alpha1,
+use crate::{
+    crd::{
+        logdir::ResolvedLogDir,
+        template_spec::{self},
+        v1alpha1,
+    },
+    openlineage::{ResolvedOpenLineageAuth, openlineage_auth_secret_name},
 };
 
 #[derive(Snafu, Debug)]
@@ -30,6 +33,16 @@ pub enum Error {
     ResolveOpenLineageConnection {
         source: stackable_operator::crd::openlineage::v1alpha1::OpenLineageError,
     },
+
+    #[snafu(display("failed to resolve the OpenLineage AuthenticationClass"))]
+    ResolveOpenLineageAuthClass {
+        source: stackable_operator::crd::openlineage::v1alpha1::OpenLineageError,
+    },
+
+    #[snafu(display(
+        "unsupported AuthenticationClass provider {provider:?} for OpenLineage; only the Static provider is supported"
+    ))]
+    UnsupportedOpenLineageAuthProvider { provider: String },
 
     #[snafu(display("failed to resolve log directory"))]
     LogDir { source: crate::crd::logdir::Error },
@@ -50,6 +63,8 @@ pub struct DereferencedSparkApplication {
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
     /// Resolved OpenLineage backend connection, if `spec.openLineage` is set.
     pub open_lineage_connection: Option<openlineage::ResolvedOpenLineageConnection>,
+    /// Resolved OpenLineage authentication, if the connection references an `AuthenticationClass`.
+    pub open_lineage_auth: Option<ResolvedOpenLineageAuth>,
     /// Resolved log directory, if `spec.log_file_directory` is set.
     pub log_dir: Option<ResolvedLogDir>,
 }
@@ -95,6 +110,28 @@ pub async fn dereference(
         None => None,
     };
 
+    // 3b. OpenLineage authentication: resolve the connection's `authenticationClassRef` (if any)
+    //     and extract the credentials Secret. Only the Static provider is supported.
+    let open_lineage_auth = match &open_lineage_connection {
+        Some(connection) => {
+            match connection
+                .resolve_authentication_class(client)
+                .await
+                .context(ResolveOpenLineageAuthClassSnafu)?
+            {
+                Some(auth_class) => {
+                    let secret_name =
+                        openlineage_auth_secret_name(&auth_class).map_err(|provider| {
+                            UnsupportedOpenLineageAuthProviderSnafu { provider }.build()
+                        })?;
+                    Some(ResolvedOpenLineageAuth { secret_name })
+                }
+                None => None,
+            }
+        }
+        None => None,
+    };
+
     // 4. Log directory (also pulls S3Bucket + TLS secret internally).
     let log_dir = match merged_app.spec.log_file_directory.as_ref() {
         Some(log_file_dir) => Some(
@@ -110,6 +147,7 @@ pub async fn dereference(
         resolved_template_refs,
         s3_connection,
         open_lineage_connection,
+        open_lineage_auth,
         log_dir,
     })
 }

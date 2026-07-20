@@ -7,6 +7,29 @@
 # `$NAMESPACE` is substituted by the `20-deploy-spark-app` step so the connection host is the fully
 # qualified Service DNS name — which is what the secret-operator `service` scope puts in the cert
 # SANs, so TLS hostname verification on the driver succeeds.
+{% if test_scenario['values']['openlineage-use-auth'] == 'true' %}
+---
+# Static AuthenticationClass + token Secret for the auth scenario. The AuthenticationClass is
+# cluster-scoped, so its name is suffixed with $NAMESPACE to avoid collisions across parallel
+# scenarios. The Secret is namespaced and must live in the workload namespace; the operator wires
+# its `apiKey` entry into the driver as the OpenLineage bearer token via a secretKeyRef env var.
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: openlineage-auth-$NAMESPACE
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: openlineage-token
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openlineage-token
+stringData:
+  apiKey: "openlineage-test-token"
+{% endif %}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -60,6 +83,9 @@ spec:
             server:
               caCert:
                 secretClass: openlineage-tls-$NAMESPACE
+{% endif %}
+{% if test_scenario['values']['openlineage-use-auth'] == 'true' %}
+        authenticationClassRef: openlineage-auth-$NAMESPACE
 {% endif %}
   driver:
     config:

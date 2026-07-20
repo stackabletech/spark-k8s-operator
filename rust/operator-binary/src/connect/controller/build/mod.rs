@@ -6,18 +6,20 @@
 //! together in one module is clearer than scattering them across per-kind modules.
 
 pub(crate) mod executor;
+pub(crate) mod rbac;
 pub(crate) mod server;
 pub(crate) mod service;
 
 use snafu::{ResultExt, Snafu};
-use stackable_operator::{
-    k8s_openapi::api::{core::v1::ServiceAccount, rbac::v1::RoleBinding},
-    kube::ResourceExt,
-};
+use stackable_operator::kube::ResourceExt;
 
 use crate::connect::{
     common,
-    controller::{SparkConnectResources, validate::ValidatedSparkConnectServer},
+    controller::{
+        SparkConnectResources,
+        build::rbac::{build_role_binding, build_service_account},
+        validate::ValidatedSparkConnectServer,
+    },
 };
 
 #[derive(Snafu, Debug)]
@@ -56,8 +58,6 @@ pub enum Error {
 /// Builds every Kubernetes resource for the given validated SparkConnectServer.
 pub(crate) fn build(
     validated: &ValidatedSparkConnectServer,
-    service_account: ServiceAccount,
-    role_binding: RoleBinding,
     user_args: &[String],
 ) -> Result<SparkConnectResources, Error> {
     let resolved_s3 = &validated.cluster_config.resolved_s3;
@@ -70,8 +70,7 @@ pub(crate) fn build(
         resolved_s3
             .spark_properties()
             .context(S3SparkPropertiesSnafu)?,
-        server::server_properties(validated, &headless_service, &service_account)
-            .context(ServerPropertiesSnafu)?,
+        server::server_properties(validated, &headless_service).context(ServerPropertiesSnafu)?,
         executor::executor_properties(validated).context(ExecutorPropertiesSnafu)?,
     ])
     .context(SerializePropertiesSnafu)?;
@@ -97,18 +96,13 @@ pub(crate) fn build(
     let listener = server::build_listener(validated);
 
     let args = server::command_args(user_args);
-    let stateful_set = server::build_stateful_set(
-        validated,
-        &service_account,
-        &server_config_map,
-        &listener.name_any(),
-        args,
-    )
-    .context(BuildServerStatefulSetSnafu)?;
+    let stateful_set =
+        server::build_stateful_set(validated, &server_config_map, &listener.name_any(), args)
+            .context(BuildServerStatefulSetSnafu)?;
 
     Ok(SparkConnectResources {
-        service_account,
-        role_binding,
+        service_account: build_service_account(validated),
+        role_binding: build_role_binding(validated),
         services: vec![headless_service, metrics_service],
         config_maps: vec![executor_config_map, server_config_map],
         listener,

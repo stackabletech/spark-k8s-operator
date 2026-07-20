@@ -22,7 +22,7 @@ use stackable_operator::{
         product_logging::framework::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
         },
-        role_utils::JavaCommonConfig,
+        role_utils::{self, JavaCommonConfig},
         types::{
             kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, Uid},
             operator::{
@@ -118,6 +118,10 @@ fn validate_logging(
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+stackable_operator::constant!(
+    DEFAULT_SPARK_CONNECT_ROLE_GROUP: RoleGroupName = DEFAULT_SPARK_CONNECT_GROUP_NAME
+);
+
 /// Validated logging configuration for the (optional) Vector container.
 ///
 /// Produced up-front by [`validate_logging`] so that an
@@ -134,6 +138,7 @@ pub struct ValidatedSparkConnectServer {
     pub name: ClusterName,
     pub namespace: NamespaceName,
     pub uid: Uid,
+    pub product_version: ProductVersion,
     pub resolved_product_image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
     pub role_config: ValidatedRoleConfig,
@@ -167,41 +172,56 @@ pub struct ValidatedRoleConfig {
 }
 
 impl ValidatedSparkConnectServer {
+    /// Recommended labels for a resource that is not tied to a concrete [`SparkConnectRole`]
+    /// (e.g. the cluster-shared RBAC resources), using a free-form role/role-group label value.
+    pub fn recommended_labels_for(
+        &self,
+        role_name: &RoleName,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
+        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
     /// Recommended labels for a resource of the given role.
-    pub(crate) fn recommended_labels(&self, role: SparkConnectRole) -> Labels {
-        // `app_version_label_value` is constructed to be a valid label value, so it is also a
-        // valid `ProductVersion`.
-        let product_version =
-            ProductVersion::from_str(&self.resolved_product_image.app_version_label_value)
-                .expect("the app version label value is a valid product version");
-        let role_group = RoleGroupName::from_str(DEFAULT_SPARK_CONNECT_GROUP_NAME)
-            .expect("DEFAULT_SPARK_CONNECT_GROUP_NAME is a valid role group name");
+    pub fn recommended_labels(&self, role: SparkConnectRole) -> Labels {
+        self.recommended_labels_for(&role_name(role), &DEFAULT_SPARK_CONNECT_ROLE_GROUP)
+    }
+
+    fn recommended_labels_with(
+        &self,
+        product_version: &ProductVersion,
+        role_name: &RoleName,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
         recommended_labels(
             self,
             &product_name(),
-            &product_version,
+            product_version,
             &operator_name(),
             &controller_name(),
-            &role_name(role),
-            &role_group,
+            role_name,
+            role_group_name,
         )
     }
 
     /// Selector labels matching the pods of the given role.
-    pub(crate) fn role_selector(&self, role: SparkConnectRole) -> Labels {
+    pub fn role_selector(&self, role: SparkConnectRole) -> Labels {
         role_selector(self, &product_name(), &role_name(role))
     }
 
     /// Selector labels matching the pods of the given role's (single) role group.
-    pub(crate) fn role_group_selector(&self, role: SparkConnectRole) -> Labels {
-        let role_group = RoleGroupName::from_str(DEFAULT_SPARK_CONNECT_GROUP_NAME)
-            .expect("DEFAULT_SPARK_CONNECT_GROUP_NAME is a valid role group name");
-        role_group_selector(self, &product_name(), &role_name(role), &role_group)
+    pub fn role_group_selector(&self, role: SparkConnectRole) -> Labels {
+        role_group_selector(
+            self,
+            &product_name(),
+            &role_name(role),
+            &DEFAULT_SPARK_CONNECT_ROLE_GROUP,
+        )
     }
 
     /// Object metadata for a child resource named `name`, owned by this SparkConnectServer and
     /// carrying the recommended labels for the given role.
-    pub(crate) fn object_meta(
+    pub fn object_meta(
         &self,
         name: impl Into<String>,
         role: SparkConnectRole,
@@ -214,20 +234,29 @@ impl ValidatedSparkConnectServer {
             .with_labels(self.recommended_labels(role));
         builder
     }
+
+    /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount,
+    /// its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
+    pub fn rbac_resource_names(&self) -> role_utils::ResourceNames {
+        role_utils::ResourceNames {
+            cluster_name: self.name.clone(),
+            product_name: product_name(),
+        }
+    }
 }
 
 /// The product name (`spark-connect`) as a type-safe label value.
-pub(crate) fn product_name() -> ProductName {
+pub fn product_name() -> ProductName {
     ProductName::from_str(CONNECT_APP_NAME).expect("CONNECT_APP_NAME is a valid product name")
 }
 
 /// The operator name as a type-safe label value.
-pub(crate) fn operator_name() -> OperatorName {
+pub fn operator_name() -> OperatorName {
     OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
 }
 
 /// The controller name as a type-safe label value.
-pub(crate) fn controller_name() -> ControllerName {
+pub fn controller_name() -> ControllerName {
     ControllerName::from_str(CONNECT_CONTROLLER_NAME)
         .expect("the controller name is a valid label value")
 }
@@ -304,6 +333,9 @@ pub fn validate(
         )
         .context(ResolveProductImageSnafu)?;
 
+    let product_version = ProductVersion::from_str(&resolved_product_image.app_version_label_value)
+        .expect("the app version label value is a valid product version");
+
     let server_config = scs.server_config().context(ServerConfigSnafu)?;
     let executor_config = scs.executor_config().context(ExecutorConfigSnafu)?;
 
@@ -350,6 +382,7 @@ pub fn validate(
         name,
         namespace,
         uid,
+        product_version,
         resolved_product_image,
         cluster_config: ValidatedClusterConfig {
             resolved_s3: dereferenced.resolved_s3,

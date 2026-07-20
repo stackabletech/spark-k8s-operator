@@ -23,10 +23,7 @@ use stackable_operator::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{
-                ConfigMap, EnvVar, HTTPGetAction, PodSecurityContext, Probe, Service,
-                ServiceAccount,
-            },
+            core::v1::{ConfigMap, EnvVar, HTTPGetAction, PodSecurityContext, Probe, Service},
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
@@ -176,7 +173,6 @@ pub(crate) fn server_config_map(
 
 pub(crate) fn build_stateful_set(
     validated: &ValidatedSparkConnectServer,
-    service_account: &ServiceAccount,
     config_map: &ConfigMap,
     listener_name: &str,
     args: Vec<String>,
@@ -194,7 +190,7 @@ pub(crate) fn build_stateful_set(
 
     let mut pb = PodBuilder::new();
 
-    pb.service_account_name(service_account.name_unchecked())
+    pb.service_account_name(validated.rbac_resource_names().service_account_name())
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
@@ -402,13 +398,12 @@ fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, E
 pub(crate) fn server_properties(
     validated: &ValidatedSparkConnectServer,
     driver_service: &Service,
-    service_account: &ServiceAccount,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
     let config = &validated.server_config;
     let resolved_product_image = &validated.resolved_product_image;
     let spark_image = resolved_product_image.image.clone();
     let spark_version = resolved_product_image.product_version.clone();
-    let service_account_name = service_account.name_unchecked();
+    let service_account_name = validated.rbac_resource_names().service_account_name();
     let namespace = driver_service
         .namespace()
         .context(ObjectHasNoNamespaceSnafu)?;
@@ -434,7 +429,7 @@ pub(crate) fn server_properties(
         ("spark.kubernetes.namespace".to_string(), Some(namespace)),
         (
             "spark.kubernetes.authenticate.driver.serviceAccountName".to_string(),
-            Some(service_account_name),
+            Some(service_account_name.to_string()),
         ),
         (
             "spark.kubernetes.driver.pod.name".to_string(),

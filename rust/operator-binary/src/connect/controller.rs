@@ -3,7 +3,6 @@ use std::sync::Arc;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cluster_resources::ClusterResourceApplyStrategy,
-    commons::rbac::build_rbac_resources,
     crd::listener,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -25,7 +24,7 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use super::crd::{CONNECT_APP_NAME, v1alpha1};
+use super::crd::v1alpha1;
 use crate::{Ctx, connect::crd::SparkConnectServerStatus, crd::constants::OPERATOR_NAME};
 
 pub mod build;
@@ -41,16 +40,6 @@ pub enum Error {
 
     #[snafu(display("failed to apply Kubernetes resource"))]
     ApplyResource {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to apply role ServiceAccount"))]
-    ApplyServiceAccount {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to apply global RoleBinding"))]
-    ApplyRoleBinding {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -150,20 +139,7 @@ pub async fn reconcile(
         &scs.spec.object_overrides,
     );
 
-    // Use a dedicated service account for connect server pods. Building the RBAC resources needs
-    // the cluster-resource labels, so it stays in the reconcile step; the built objects (whose
-    // names are deterministic) are handed to the client-free build step.
-    let (service_account, role_binding) = build_rbac_resources(
-        scs,
-        CONNECT_APP_NAME,
-        cluster_resources
-            .get_required_labels()
-            .context(GetRequiredLabelsSnafu)?,
-    )
-    .context(BuildRbacResourcesSnafu)?;
-
-    let resources = build::build(&validated, service_account, role_binding, &scs.spec.args)
-        .context(BuildResourcesSnafu)?;
+    let resources = build::build(&validated, &scs.spec.args).context(BuildResourcesSnafu)?;
 
     // Apply order: ServiceAccount and RoleBinding first, then the Services, ConfigMaps and
     // Listener, and finally the StatefulSet (it mounts the ConfigMaps and runs under the SA, so
@@ -171,11 +147,11 @@ pub async fn reconcile(
     cluster_resources
         .add(client, resources.service_account)
         .await
-        .context(ApplyServiceAccountSnafu)?;
+        .context(ApplyResourceSnafu)?;
     cluster_resources
         .add(client, resources.role_binding)
         .await
-        .context(ApplyRoleBindingSnafu)?;
+        .context(ApplyResourceSnafu)?;
     for service in resources.services {
         cluster_resources
             .add(client, service)

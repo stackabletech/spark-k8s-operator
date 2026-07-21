@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [26.7.0] - 2026-07-21
+
 ## [26.7.0-rc1] - 2026-07-16
 
 ### Added

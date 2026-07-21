@@ -65,11 +65,6 @@ pub enum Error {
         source: error_boundary::InvalidObject,
     },
 
-    #[snafu(display("failed to build RBAC resources"))]
-    BuildRbacResources {
-        source: stackable_operator::commons::rbac::Error,
-    },
-
     #[snafu(display("failed to dereference SparkConnectServer"))]
     DereferenceSparkConnectServer { source: dereference::Error },
 

@@ -30,7 +30,7 @@ use stackable_operator::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
         },
         role_group_utils::ResourceNames,
-        role_utils::{JavaCommonConfig, RoleGroupConfig, with_validated_config},
+        role_utils::{self, JavaCommonConfig, RoleGroupConfig, with_validated_config},
         types::{
             kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, Uid},
             operator::{
@@ -202,8 +202,17 @@ impl ValidatedSparkHistoryServer {
         RoleName::from_str(HISTORY_ROLE_NAME).expect("HISTORY_ROLE_NAME is a valid role name")
     }
 
+    /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount,
+    /// its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
+    pub fn rbac_resource_names(&self) -> role_utils::ResourceNames {
+        role_utils::ResourceNames {
+            cluster_name: self.name.clone(),
+            product_name: product_name(),
+        }
+    }
+
     /// Type-safe names for the resources of a given role group.
-    pub(crate) fn resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
+    pub fn resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
             role_name: Self::role_name(),
@@ -211,10 +220,25 @@ impl ValidatedSparkHistoryServer {
         }
     }
 
-    /// Recommended labels for a role-group resource, using the given product version.
-    fn recommended_labels_for(
+    /// Recommended labels for a resource of the given role.
+    pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
+        self.recommended_labels_for(&Self::role_name(), role_group_name)
+    }
+
+    /// Recommended labels for a resource that is not tied to a concrete role
+    /// (e.g. the cluster-shared RBAC resources), using a free-form role/role-group label value.
+    pub fn recommended_labels_for(
+        &self,
+        role_name: &RoleName,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
+        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
+    fn recommended_labels_with(
         &self,
         product_version: &ProductVersion,
+        role_name: &RoleName,
         role_group_name: &RoleGroupName,
     ) -> Labels {
         recommended_labels(
@@ -223,14 +247,9 @@ impl ValidatedSparkHistoryServer {
             product_version,
             &operator_name(),
             &controller_name(),
-            &Self::role_name(),
+            role_name,
             role_group_name,
         )
-    }
-
-    /// Recommended labels for a role-group resource.
-    pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_for(&self.product_version, role_group_name)
     }
 
     /// Selector labels matching the pods of a role group.
@@ -241,7 +260,7 @@ impl ValidatedSparkHistoryServer {
     /// Object metadata for a child resource named `name`, owned by this SparkHistoryServer and
     /// carrying the recommended labels for the given role group. Returns the builder so callers can
     /// add extra labels (e.g. Prometheus annotations) before building.
-    pub(crate) fn object_meta(
+    pub fn object_meta(
         &self,
         name: impl Into<String>,
         role_group_name: &RoleGroupName,
@@ -257,17 +276,17 @@ impl ValidatedSparkHistoryServer {
 }
 
 /// The product name (`spark-history`) as a type-safe label value.
-pub(crate) fn product_name() -> ProductName {
+pub fn product_name() -> ProductName {
     ProductName::from_str(HISTORY_APP_NAME).expect("HISTORY_APP_NAME is a valid product name")
 }
 
 /// The operator name as a type-safe label value.
-pub(crate) fn operator_name() -> OperatorName {
+pub fn operator_name() -> OperatorName {
     OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
 }
 
 /// The controller name as a type-safe label value.
-pub(crate) fn controller_name() -> ControllerName {
+pub fn controller_name() -> ControllerName {
     ControllerName::from_str(HISTORY_CONTROLLER_NAME)
         .expect("the controller name is a valid label value")
 }

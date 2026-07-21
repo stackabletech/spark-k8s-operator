@@ -10,11 +10,10 @@ use stackable_operator::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{PodSecurityContext, ServiceAccount},
+            core::v1::PodSecurityContext,
         },
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
-    kube::ResourceExt,
     product_logging::{
         framework::calculate_log_volume_size_limit,
         spec::{
@@ -84,7 +83,6 @@ pub(crate) fn build_stateful_set(
     role_group_name: &RoleGroupName,
     rg: &ValidatedHistoryRoleGroup,
     log_dir: &ResolvedLogDir,
-    serviceaccount: &ServiceAccount,
 ) -> Result<StatefulSet> {
     let resolved_product_image = &validated.resolved_product_image;
     let resource_names = validated.resource_names(role_group_name);
@@ -119,40 +117,45 @@ pub(crate) fn build_stateful_set(
         .config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
-    pb.service_account_name(serviceaccount.name_unchecked())
-        .metadata(pb_metadata)
-        .image_pull_secrets_from_product_image(resolved_product_image)
-        .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
-                .with_config_map(resource_names.role_group_config_map().to_string())
-                .build(),
-        )
-        .context(AddVolumeSnafu)?
-        .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
-                .with_config_map(log_config_map)
-                .build(),
-        )
-        .context(AddVolumeSnafu)?
-        .add_volume(
-            VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
-                .with_empty_dir(
-                    None::<String>,
-                    Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
-                )
-                .build(),
-        )
-        .context(AddVolumeSnafu)?
-        .add_volumes(
-            log_dir
-                .volumes(&requested_secret_lifetime)
-                .context(CreateLogDirVolumesSpecSnafu)?,
-        )
-        .context(AddVolumeSnafu)?
-        .security_context(PodSecurityContext {
-            fs_group: Some(1000),
-            ..PodSecurityContext::default()
-        });
+    pb.service_account_name(
+        validated
+            .rbac_resource_names()
+            .service_account_name()
+            .to_string(),
+    )
+    .metadata(pb_metadata)
+    .image_pull_secrets_from_product_image(resolved_product_image)
+    .add_volume(
+        VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
+            .with_config_map(resource_names.role_group_config_map().to_string())
+            .build(),
+    )
+    .context(AddVolumeSnafu)?
+    .add_volume(
+        VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
+            .with_config_map(log_config_map)
+            .build(),
+    )
+    .context(AddVolumeSnafu)?
+    .add_volume(
+        VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
+            .with_empty_dir(
+                None::<String>,
+                Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
+            )
+            .build(),
+    )
+    .context(AddVolumeSnafu)?
+    .add_volumes(
+        log_dir
+            .volumes(&requested_secret_lifetime)
+            .context(CreateLogDirVolumesSpecSnafu)?,
+    )
+    .context(AddVolumeSnafu)?
+    .security_context(PodSecurityContext {
+        fs_group: Some(1000),
+        ..PodSecurityContext::default()
+    });
 
     // Base environment variables, with the already-merged (role + role group) env overrides
     // layered on top (overrides win). The base names are static and known to be valid.

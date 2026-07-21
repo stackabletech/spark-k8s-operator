@@ -109,3 +109,98 @@ pub(crate) fn build(
         stateful_set,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use indoc::indoc;
+    use stackable_operator::{cli::OperatorEnvironmentOptions, utils::yaml_from_str_singleton_map};
+
+    use super::build;
+    use crate::connect::{
+        controller::{
+            dereference::DereferencedSparkConnectServer,
+            validate::{ValidatedSparkConnectServer, validate},
+        },
+        crd::v1alpha1,
+        s3::ResolvedS3,
+    };
+
+    /// Minimal S3-free `SparkConnectServer` fixture, keeping the dereference step client-free;
+    /// the `uid` allows owner references to be derived from it.
+    const CONNECT_YAML: &str = indoc! {r#"
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkConnectServer
+        metadata:
+          name: my-connect
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: 4.1.2
+        "#};
+
+    /// Runs the real validate step against the minimal fixture.
+    fn minimal_validated_cluster() -> ValidatedSparkConnectServer {
+        let scs: v1alpha1::SparkConnectServer = yaml_from_str_singleton_map(CONNECT_YAML)
+            .expect("invalid test SparkConnectServer YAML");
+        validate(
+            &scs,
+            DereferencedSparkConnectServer {
+                resolved_s3: ResolvedS3::none(),
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+        .expect("validate should succeed for the test fixture")
+    }
+
+    /// Locks the RBAC resource names, the roleRef, and the recommended label set against
+    /// accidental drift. The fixture's cluster name deliberately differs from the product name so
+    /// that swapped `name`/`instance` label values cannot pass unnoticed.
+    #[test]
+    fn build_produces_rbac() {
+        let resources = build(&minimal_validated_cluster(), &[]).expect("build succeeds");
+
+        assert_eq!(
+            resources.service_account.metadata.name.as_deref(),
+            Some("my-connect-serviceaccount")
+        );
+        assert_eq!(
+            resources.role_binding.metadata.name.as_deref(),
+            Some("my-connect-rolebinding")
+        );
+
+        let expected_labels = BTreeMap::from(
+            [
+                ("app.kubernetes.io/component", "none"),
+                ("app.kubernetes.io/instance", "my-connect"),
+                (
+                    "app.kubernetes.io/managed-by",
+                    "spark.stackable.tech_connect",
+                ),
+                ("app.kubernetes.io/name", "spark-connect"),
+                ("app.kubernetes.io/role-group", "none"),
+                ("app.kubernetes.io/version", "4.1.2-stackable0.0.0-dev"),
+                ("stackable.tech/vendor", "Stackable"),
+            ]
+            .map(|(key, value)| (key.to_string(), value.to_string())),
+        );
+        assert_eq!(
+            resources.service_account.metadata.labels,
+            Some(expected_labels.clone())
+        );
+        assert_eq!(
+            resources.role_binding.metadata.labels,
+            Some(expected_labels)
+        );
+        assert_eq!(
+            resources.role_binding.role_ref.name,
+            "spark-connect-clusterrole"
+        );
+    }
+}

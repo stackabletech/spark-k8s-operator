@@ -3,7 +3,6 @@ use std::sync::Arc;
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cluster_resources::ClusterResourceApplyStrategy,
-    commons::rbac::build_rbac_resources,
     crd::listener,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
@@ -21,10 +20,7 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::{
-    Ctx,
-    crd::{constants::HISTORY_APP_NAME, history::v1alpha1},
-};
+use crate::{Ctx, crd::history::v1alpha1};
 
 pub mod build;
 pub mod dereference;
@@ -34,26 +30,11 @@ pub mod validate;
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to build RBAC resources"))]
-    BuildRbacResources {
-        source: stackable_operator::commons::rbac::Error,
-    },
-
     #[snafu(display("failed to build SparkHistoryServer resources"))]
     BuildSparkHistoryServer { source: build::Error },
 
     #[snafu(display("failed to apply Kubernetes resource"))]
     ApplyResource {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to apply role ServiceAccount"))]
-    ApplyServiceAccount {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to apply global RoleBinding"))]
-    ApplyRoleBinding {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -66,12 +47,6 @@ pub enum Error {
     #[snafu(display("failed to delete orphaned resources"))]
     DeleteOrphanedResources {
         source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to get required Labels"))]
-    GetRequiredLabels {
-        source:
-            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
     },
 
     #[snafu(display("SparkHistoryServer object is invalid"))]
@@ -135,20 +110,7 @@ pub async fn reconcile(
         &shs.spec.object_overrides,
     );
 
-    // Use a dedicated service account for history server pods. Building the RBAC resources needs
-    // the cluster-resource labels, so it stays in the reconcile step; the built objects (whose
-    // names are deterministic) are handed to the client-free build step.
-    let (service_account, role_binding) = build_rbac_resources(
-        shs,
-        HISTORY_APP_NAME,
-        cluster_resources
-            .get_required_labels()
-            .context(GetRequiredLabelsSnafu)?,
-    )
-    .context(BuildRbacResourcesSnafu)?;
-
-    let resources = build::build(&validated, service_account, role_binding)
-        .context(BuildSparkHistoryServerSnafu)?;
+    let resources = build::build(&validated).context(BuildSparkHistoryServerSnafu)?;
 
     // Apply order: ServiceAccount and RoleBinding first, then the ConfigMaps, metrics Services,
     // Listener and PodDisruptionBudget, and finally the StatefulSets (they mount the ConfigMaps
@@ -156,11 +118,11 @@ pub async fn reconcile(
     cluster_resources
         .add(client, resources.service_account)
         .await
-        .context(ApplyServiceAccountSnafu)?;
+        .context(ApplyResourceSnafu)?;
     cluster_resources
         .add(client, resources.role_binding)
         .await
-        .context(ApplyRoleBindingSnafu)?;
+        .context(ApplyResourceSnafu)?;
     for config_map in resources.config_maps {
         cluster_resources
             .add(client, config_map)

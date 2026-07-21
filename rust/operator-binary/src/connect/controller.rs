@@ -54,12 +54,6 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display("failed to get required Labels"))]
-    GetRequiredLabels {
-        source:
-            stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
-    },
-
     #[snafu(display("SparkConnectServer object is invalid"))]
     InvalidSparkConnectServer {
         source: error_boundary::InvalidObject,

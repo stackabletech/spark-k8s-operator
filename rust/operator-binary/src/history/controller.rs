@@ -2,29 +2,28 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::{self},
     cluster_resources::ClusterResourceApplyStrategy,
     commons::rbac::build_rbac_resources,
+    crd::listener,
+    k8s_openapi::api::{
+        apps::v1::StatefulSet,
+        core::v1::{ConfigMap, Service, ServiceAccount},
+        policy::v1::PodDisruptionBudget,
+        rbac::v1::RoleBinding,
+    },
     kube::{
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
     logging::controller::ReconcilerError,
     shared::time::Duration,
-    v2::{cluster_resources::cluster_resources_new, config_file_writer::PropertiesWriterError},
+    v2::cluster_resources::cluster_resources_new,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     Ctx,
-    crd::{
-        constants::{HISTORY_APP_NAME, HISTORY_ROLE_NAME, JVM_SECURITY_PROPERTIES_FILE},
-        history::v1alpha1,
-    },
-    history::controller::build::resource::{
-        config_map::build_config_map, listener::build_group_listener, pdb::build_pdb,
-        service::build_rolegroup_metrics_service, statefulset::build_stateful_set,
-    },
+    crd::{constants::HISTORY_APP_NAME, history::v1alpha1},
 };
 
 pub mod build;
@@ -40,27 +39,11 @@ pub enum Error {
         source: stackable_operator::commons::rbac::Error,
     },
 
-    #[snafu(display("missing secret lifetime"))]
-    MissingSecretLifetime,
+    #[snafu(display("failed to build SparkHistoryServer resources"))]
+    BuildSparkHistoryServer { source: build::Error },
 
-    #[snafu(display("invalid config map {name}"))]
-    InvalidConfigMap {
-        source: stackable_operator::builder::configmap::Error,
-        name: String,
-    },
-
-    #[snafu(display("failed to update the history server stateful set"))]
-    ApplyStatefulSet {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to update history server config map"))]
-    ApplyConfigMap {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to update history server metrics service"))]
-    ApplyMetricsService {
+    #[snafu(display("failed to apply Kubernetes resource"))]
+    ApplyResource {
         source: stackable_operator::cluster_resources::Error,
     },
 
@@ -85,35 +68,10 @@ pub enum Error {
         source: stackable_operator::cluster_resources::Error,
     },
 
-    #[snafu(display(
-        "History server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
-        rolegroup
-    ))]
-    JvmSecurityProperties {
-        source: PropertiesWriterError,
-        rolegroup: String,
-    },
-
-    #[snafu(display("failed to apply PodDisruptionBudget"))]
-    ApplyPdb {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
     #[snafu(display("failed to get required Labels"))]
     GetRequiredLabels {
         source:
             stackable_operator::kvp::KeyValuePairError<stackable_operator::kvp::LabelValueError>,
-    },
-
-    #[snafu(display("failed to create the log dir volumes specification"))]
-    CreateLogDirVolumesSpec { source: crate::crd::logdir::Error },
-
-    #[snafu(display("failed to add needed volume"))]
-    AddVolume { source: builder::pod::Error },
-
-    #[snafu(display("failed to add needed volumeMount"))]
-    AddVolumeMount {
-        source: builder::pod::container::Error,
     },
 
     #[snafu(display("SparkHistoryServer object is invalid"))]
@@ -122,14 +80,6 @@ pub enum Error {
         #[snafu(source(from(error_boundary::InvalidObject, Box::new)))]
         source: Box<error_boundary::InvalidObject>,
     },
-
-    #[snafu(display("failed to apply group listener"))]
-    ApplyGroupListener {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to serialize Spark default properties"))]
-    InvalidSparkDefaults { source: PropertiesWriterError },
 }
 
 impl ReconcilerError for Error {
@@ -137,7 +87,22 @@ impl ReconcilerError for Error {
         ErrorDiscriminants::from(self).into()
     }
 }
-/// Updates the status of the SparkApplication that started the pod.
+
+/// Every Kubernetes resource produced by the build step for a SparkHistoryServer.
+///
+/// Built without a Kubernetes client: all references are already dereferenced and validated by
+/// this point, so the only errors possible during assembly are resource-construction failures.
+pub struct SparkHistoryResources {
+    pub service_account: ServiceAccount,
+    pub role_binding: RoleBinding,
+    /// One ConfigMap, metrics Service and StatefulSet per role group.
+    pub config_maps: Vec<ConfigMap>,
+    pub metrics_services: Vec<Service>,
+    pub stateful_sets: Vec<StatefulSet>,
+    pub listener: listener::v1alpha1::Listener,
+    pub pod_disruption_budget: Option<PodDisruptionBudget>,
+}
+
 pub async fn reconcile(
     shs: Arc<DeserializeGuard<v1alpha1::SparkHistoryServer>>,
     ctx: Arc<Ctx>,
@@ -170,9 +135,9 @@ pub async fn reconcile(
         &shs.spec.object_overrides,
     );
 
-    let log_dir = &validated.cluster_config.log_dir;
-
-    // Use a dedicated service account for history server pods.
+    // Use a dedicated service account for history server pods. Building the RBAC resources needs
+    // the cluster-resource labels, so it stays in the reconcile step; the built objects (whose
+    // names are deterministic) are handed to the client-free build step.
     let (service_account, role_binding) = build_rbac_resources(
         shs,
         HISTORY_APP_NAME,
@@ -181,52 +146,48 @@ pub async fn reconcile(
             .context(GetRequiredLabelsSnafu)?,
     )
     .context(BuildRbacResourcesSnafu)?;
-    let service_account = cluster_resources
-        .add(client, service_account)
+
+    let resources = build::build(&validated, service_account, role_binding)
+        .context(BuildSparkHistoryServerSnafu)?;
+
+    // Apply order: ServiceAccount and RoleBinding first, then the ConfigMaps, metrics Services,
+    // Listener and PodDisruptionBudget, and finally the StatefulSets (they mount the ConfigMaps
+    // and run under the SA, so those must exist first).
+    cluster_resources
+        .add(client, resources.service_account)
         .await
         .context(ApplyServiceAccountSnafu)?;
     cluster_resources
-        .add(client, role_binding)
+        .add(client, resources.role_binding)
         .await
         .context(ApplyRoleBindingSnafu)?;
-
-    for (role_group_name, rg) in &validated.role_groups {
-        let config_map = build_config_map(&validated, role_group_name, rg)?;
-
-        let metrics_service = build_rolegroup_metrics_service(&validated, role_group_name);
-
-        let sts = build_stateful_set(&validated, role_group_name, rg, log_dir, &service_account)?;
-
+    for config_map in resources.config_maps {
         cluster_resources
             .add(client, config_map)
             .await
-            .context(ApplyConfigMapSnafu)?;
+            .context(ApplyResourceSnafu)?;
+    }
+    for metrics_service in resources.metrics_services {
         cluster_resources
             .add(client, metrics_service)
             .await
-            .context(ApplyMetricsServiceSnafu)?;
-        cluster_resources
-            .add(client, sts)
-            .await
-            .context(ApplyStatefulSetSnafu)?;
+            .context(ApplyResourceSnafu)?;
     }
-
-    let rg_group_listener = build_group_listener(
-        &validated,
-        HISTORY_ROLE_NAME,
-        validated.role_config.listener_class.clone(),
-    );
-
     cluster_resources
-        .add(client, rg_group_listener)
+        .add(client, resources.listener)
         .await
-        .context(ApplyGroupListenerSnafu)?;
-
-    if let Some(pdb) = build_pdb(&validated.role_config.pdb, &validated) {
+        .context(ApplyResourceSnafu)?;
+    if let Some(pdb) = resources.pod_disruption_budget {
         cluster_resources
             .add(client, pdb)
             .await
-            .context(ApplyPdbSnafu)?;
+            .context(ApplyResourceSnafu)?;
+    }
+    for stateful_set in resources.stateful_sets {
+        cluster_resources
+            .add(client, stateful_set)
+            .await
+            .context(ApplyResourceSnafu)?;
     }
 
     cluster_resources

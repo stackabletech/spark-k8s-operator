@@ -202,15 +202,6 @@ rules:
       - get
       - list
       - watch
-  # AuthenticationClasses used to authenticate against an OpenLineage backend.
-  - apiGroups:
-      - authentication.stackable.tech
-    resources:
-      - authenticationclasses
-    verbs:
-      - get
-      - list
-      - watch
   # Required for managing how the History Server and Connect Server are exposed
   # outside of the cluster.
   - apiGroups:

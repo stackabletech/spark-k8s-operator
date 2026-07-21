@@ -10,10 +10,7 @@
 use std::collections::BTreeMap;
 
 use snafu::OptionExt;
-use stackable_operator::{
-    crd::authentication::core::v1alpha1::{AuthenticationClass, AuthenticationClassProvider},
-    k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector},
-};
+use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector};
 
 use crate::crd::{
     Error, ObjectHasNoNameSnafu,
@@ -42,37 +39,10 @@ pub(crate) fn append_conf_csv(submit_conf: &mut BTreeMap<String, String>, key: &
     }
 }
 
-/// Resolved OpenLineage authentication for a workload.
-///
-/// Holds the name of the Secret (in the workload's namespace) whose [`OPENLINEAGE_AUTH_SECRET_KEY`]
-/// entry carries the bearer token. Produced during dereferencing from the connection's
-/// `authenticationClassRef` (Static provider only) and consumed by
-/// [`SparkApplication::env`](crate::crd::v1alpha1::SparkApplication::env).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ResolvedOpenLineageAuth {
-    pub secret_name: String,
-}
-
-/// Extracts the credentials Secret name from a resolved OpenLineage [`AuthenticationClass`].
-///
-/// Only the `Static` provider is supported for OpenLineage (its Secret holds the bearer token
-/// under [`OPENLINEAGE_AUTH_SECRET_KEY`]). Any other provider returns `Err(provider_name)` so the
-/// caller can surface a clear error naming the offending provider.
-pub(crate) fn openlineage_auth_secret_name(
-    auth_class: &AuthenticationClass,
-) -> Result<String, String> {
-    match &auth_class.spec.provider {
-        AuthenticationClassProvider::Static(provider) => {
-            Ok(provider.user_credentials_secret.name.clone())
-        }
-        other => Err(other.to_string()),
-    }
-}
-
 /// Builds the driver env vars that deliver the **entire** OpenLineage HTTP transport — type, URL and
 /// bearer-token auth — via the OpenLineage Java client's `OPENLINEAGE__` env-var configuration.
 ///
-/// This is used only when an `AuthenticationClass` is configured. The whole transport must come from
+/// This is used only when `credentialsSecretName` is configured. The whole transport must come from
 /// one source: OpenLineage resolves `transport` as a unit, so if `spark.openlineage.transport.type`
 /// or `.url` were set via `--conf`, the transport would be taken entirely from SparkConf and the
 /// env-provided `auth` sub-tree would be silently dropped (verified against openlineage-spark
@@ -137,52 +107,7 @@ impl v1alpha1::SparkApplication {
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::{
-        crd::authentication::{
-            core::v1alpha1::{
-                AuthenticationClass, AuthenticationClassProvider, AuthenticationClassSpec,
-            },
-            r#static, tls,
-        },
-        k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
-    };
-
     use super::*;
-
-    fn auth_class(provider: AuthenticationClassProvider) -> AuthenticationClass {
-        AuthenticationClass {
-            metadata: ObjectMeta::default(),
-            spec: AuthenticationClassSpec { provider },
-        }
-    }
-
-    #[test]
-    fn secret_name_extracted_from_static_provider() {
-        let ac = auth_class(AuthenticationClassProvider::Static(
-            r#static::v1alpha1::AuthenticationProvider {
-                user_credentials_secret: r#static::v1alpha1::UserCredentialsSecretRef {
-                    name: "ol-token".to_string(),
-                },
-            },
-        ));
-
-        assert_eq!(openlineage_auth_secret_name(&ac).unwrap(), "ol-token");
-    }
-
-    #[test]
-    fn non_static_provider_is_rejected_naming_the_provider() {
-        let ac = auth_class(AuthenticationClassProvider::Tls(
-            tls::v1alpha1::AuthenticationProvider {
-                client_cert_secret_class: None,
-            },
-        ));
-
-        let err = openlineage_auth_secret_name(&ac).unwrap_err();
-        assert!(
-            err.to_lowercase().contains("tls"),
-            "error should name the offending provider, got: {err}"
-        );
-    }
 
     #[test]
     fn transport_env_vars_carry_full_transport_with_token_secret_ref() {

@@ -72,7 +72,7 @@ You can still override any of the injected values — including the full `spark.
 == Authentication
 
 Backends that require authentication (for example DataHub, or a Marquez instance behind a gateway) expect a bearer token on each request.
-Configure this by referencing an xref:concepts:authentication.adoc[`AuthenticationClass`] from the connection via `authenticationClassRef`:
+Configure this by setting `credentialsSecretName` on the connection to the name of a Secret holding the token:
 
 [source,yaml]
 ----
@@ -86,45 +86,33 @@ spec:
       inline:
         host: marquez
         port: 5000
-        authenticationClassRef: openlineage-auth # <1>
+        credentialsSecretName: openlineage-token # <1>
   ...
----
-apiVersion: authentication.stackable.tech/v1alpha1
-kind: AuthenticationClass
-metadata:
-  name: openlineage-auth
-spec:
-  provider:
-    static: # <2>
-      userCredentialsSecret:
-        name: openlineage-token # <3>
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: openlineage-token
-  namespace: default # <4>
+  namespace: default # <2>
 stringData:
-  apiKey: "s3cr3t-bearer-token" # <5>
+  apiKey: "s3cr3t-bearer-token" # <3>
 ----
-<1> References an `AuthenticationClass` by name (cluster-scoped). If omitted, no authentication is used.
-<2> Only the `static` provider is supported for OpenLineage. Other providers (LDAP, OIDC, TLS) are rejected with an error.
-<3> Name of the Secret holding the token. Must exist in the same namespace as the `SparkApplication`.
-<4> The Secret must be in the workload's namespace so it can be projected into the driver.
-<5> The token must be stored under the fixed key `apiKey`. The operator never reads the Secret; it is injected into the driver's OpenLineage listener via a `secretKeyRef` environment variable, so the token never appears in the spark-submit arguments or the pod spec.
+<1> Name of the Secret holding the token. If omitted, no authentication is used. The Secret must exist in the same namespace as the `SparkApplication`.
+<2> The Secret must be in the workload's namespace so it can be projected into the driver.
+<3> The token must be stored under the fixed key `apiKey`. The operator never reads the Secret; it is injected into the driver's OpenLineage listener via a `secretKeyRef` environment variable, so the token never appears in the spark-submit arguments or the pod spec.
 
 The operator translates this into the OpenLineage HTTP transport's `api_key` (bearer) authentication.
 Combine it with the `tls` block above when the backend also needs TLS server verification.
 
 [NOTE]
 ====
-When `authenticationClassRef` is set, the operator delivers the *entire* transport configuration
+When `credentialsSecretName` is set, the operator delivers the *entire* transport configuration
 (type, URL and auth) to the driver through `OPENLINEAGE__*` environment variables rather than
 `spark.openlineage.transport.*` `--conf` properties.
 This is required: OpenLineage resolves the `transport` from a single source, so a transport defined
 via `sparkConf` would discard the environment-provided authentication.
 Consequently, do **not** override `spark.openlineage.transport.*` via `sparkConf` when using
-`authenticationClassRef` — doing so drops the credentials and the backend will reject the events.
+`credentialsSecretName` — doing so drops the credentials and the backend will reject the events.
 ====
 
 [#job-name]

@@ -52,7 +52,7 @@ use crate::{
             SubmitConfig, SubmitConfigFragment, VolumeMounts,
         },
     },
-    openlineage::{ResolvedOpenLineageAuth, append_conf_csv, openlineage_transport_env_vars},
+    openlineage::{append_conf_csv, openlineage_transport_env_vars},
 };
 
 pub mod affinity;
@@ -604,7 +604,6 @@ impl v1alpha1::SparkApplication {
         spark_image: &str,
         product_version: &str,
         open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
-        open_lineage_auth: Option<&ResolvedOpenLineageAuth>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = &self.spec.mode;
@@ -793,11 +792,12 @@ impl v1alpha1::SparkApplication {
             // The transport type is always `http` (the OpenLineage HTTP transport); the URL scheme
             // it points at is `https` when the connection configures TLS server verification.
             //
-            // When an AuthenticationClass is configured, the transport is delivered entirely via
-            // `OPENLINEAGE__` env vars instead (see `env`) — it MUST come from a single source, or
-            // OpenLineage drops the env-provided `auth`. So skip the `--conf` transport in that case.
+            // When authentication is configured (the connection sets `credentialsSecretName`), the
+            // transport is delivered entirely via `OPENLINEAGE__` env vars instead (see `env`) — it
+            // MUST come from a single source, or OpenLineage drops the env-provided `auth`. So skip
+            // the `--conf` transport in that case.
             if let Some(connection) = open_lineage_conn
-                && open_lineage_auth.is_none()
+                && connection.credentials_secret_name.is_none()
             {
                 submit_conf.insert(
                     "spark.openlineage.transport.type".to_string(),
@@ -864,7 +864,6 @@ impl v1alpha1::SparkApplication {
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
         open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
-        open_lineage_auth: Option<&ResolvedOpenLineageAuth>,
     ) -> Vec<EnvVar> {
         let mut e: Vec<EnvVar> = self.spec.env.clone();
 
@@ -904,16 +903,17 @@ impl v1alpha1::SparkApplication {
                 value_from: None,
             });
         }
-        // OpenLineage HTTP transport auth: when an AuthenticationClass is configured, deliver the
-        // WHOLE transport (type, URL and bearer-token auth) to the driver's OpenLineage listener via
-        // the client's `OPENLINEAGE__` env-var configuration — see `openlineage_transport_env_vars`
+        // OpenLineage HTTP transport auth: when the connection sets `credentialsSecretName`, deliver
+        // the WHOLE transport (type, URL and bearer-token auth) to the driver's OpenLineage listener
+        // via the client's `OPENLINEAGE__` env-var configuration — see `openlineage_transport_env_vars`
         // and the matching skip of the `spark.openlineage.transport.*` `--conf` in `build_command`.
         // The token is sourced from the referenced Secret, so it never lands in the `--conf` args.
-        if let (Some(connection), Some(open_lineage_auth)) = (open_lineage_conn, open_lineage_auth)
+        if let Some(connection) = open_lineage_conn
+            && let Some(secret_name) = &connection.credentials_secret_name
         {
             e.extend(openlineage_transport_env_vars(
                 &connection.transport_url(),
-                &open_lineage_auth.secret_name,
+                secret_name,
             ));
         }
         e
@@ -1721,7 +1721,6 @@ spec:
                 "test-image",
                 product_version,
                 open_lineage_conn.as_ref(),
-                None,
             )
             .unwrap()
             .join(" ")
@@ -1742,13 +1741,13 @@ spec:
     "#};
 
     fn test_openlineage_connection(
-        authentication_class_ref: Option<String>,
+        credentials_secret_name: Option<String>,
     ) -> openlineage::ResolvedOpenLineageConnection {
         openlineage::v1alpha1::OpenLineageConnectionSpec {
             host: "marquez".to_string(),
             port: 5000,
             tls: stackable_operator::commons::tls_verification::TlsClientDetails { tls: None },
-            authentication_class_ref,
+            credentials_secret_name,
         }
     }
 
@@ -1756,12 +1755,9 @@ spec:
     fn test_openlineage_full_transport_delivered_via_env_when_authenticated() {
         let spark_application =
             serde_yaml::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
-        let connection = test_openlineage_connection(Some("ol-auth".to_string()));
-        let auth = ResolvedOpenLineageAuth {
-            secret_name: "ol-token".to_string(),
-        };
+        let connection = test_openlineage_connection(Some("ol-token".to_string()));
 
-        let env = spark_application.env(&None, &None, Some(&connection), Some(&auth));
+        let env = spark_application.env(&None, &None, Some(&connection));
         let value = |name| {
             env.iter()
                 .find(|v| v.name == name)
@@ -1802,8 +1798,8 @@ spec:
             serde_yaml::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
         let connection = test_openlineage_connection(None);
 
-        // A connection but no AuthenticationClass: transport stays in --conf, no OL env vars.
-        let env = spark_application.env(&None, &None, Some(&connection), None);
+        // A connection but no credentialsSecretName: transport stays in --conf, no OL env vars.
+        let env = spark_application.env(&None, &None, Some(&connection));
 
         for name in [
             OPENLINEAGE_TRANSPORT_TYPE_ENV,
@@ -1828,20 +1824,10 @@ spec:
                 serde_yaml::Deserializer::from_str(OPENLINEAGE_ENABLED_APP),
             )
             .unwrap();
-        let connection = test_openlineage_connection(Some("ol-auth".to_string()));
-        let auth = ResolvedOpenLineageAuth {
-            secret_name: "ol-token".to_string(),
-        };
+        let connection = test_openlineage_connection(Some("ol-token".to_string()));
 
         let command = spark_application
-            .build_command(
-                &None,
-                &None,
-                "test-image",
-                "3.5.8",
-                Some(&connection),
-                Some(&auth),
-            )
+            .build_command(&None, &None, "test-image", "3.5.8", Some(&connection))
             .unwrap()
             .join(" ");
 

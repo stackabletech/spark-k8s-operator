@@ -65,7 +65,7 @@ data:
         # Persist each OpenLineage event body to /tmp/lineage/, then acknowledge via the sink.
         location = /api/v1/lineage {
 {% if test_scenario['values']['openlineage-use-auth'] == 'true' %}
-          # Require the bearer token the operator wires in from the AuthenticationClass Secret.
+          # Require the bearer token the operator wires in from the credentialsSecretName Secret.
           # Without a valid token nginx returns 401 and never persists a body, so the 30-assert
           # event checks only pass if the driver actually authenticated.
           if ($http_authorization != "Bearer openlineage-test-token") { return 401; }

@@ -1,4 +1,4 @@
-use snafu::{OptionExt, ResultExt};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{meta::ObjectMetaBuilder, pod::volume::VolumeBuilder},
     k8s_openapi::{
@@ -17,11 +17,24 @@ use crate::{
         roles::{SparkApplicationRole, SparkContainer, SubmitConfig},
         tlscerts,
     },
-    spark_k8s_controller::{
-        AddVolumeMountSnafu, CreateVolumesSnafu, MissingSecretLifetimeSnafu, Result,
-        build::pod::security_context, validate,
-    },
+    spark_k8s_controller::{build::pod::security_context, validate},
 };
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: stackable_operator::builder::pod::container::Error,
+    },
+
+    #[snafu(display("missing secret lifetime"))]
+    MissingSecretLifetime,
+
+    #[snafu(display("failed to create Volumes for SparkApplication"))]
+    CreateVolumes { source: crate::crd::Error },
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub(crate) fn spark_job(
     validated: &validate::ValidatedSparkApplication,

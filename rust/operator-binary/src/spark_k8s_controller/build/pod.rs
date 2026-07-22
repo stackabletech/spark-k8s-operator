@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use snafu::{OptionExt, ResultExt};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         meta::ObjectMetaBuilder,
@@ -38,11 +38,31 @@ use crate::{
         roles::{RoleConfig, SparkApplicationRole, SparkContainer},
         tlscerts,
     },
-    spark_k8s_controller::{
-        AddVolumeMountSnafu, AddVolumeSnafu, Result, ValidateLoggingConfigSnafu,
-        VectorAggregatorConfigMapMissingSnafu, validate,
-    },
+    spark_k8s_controller::validate,
 };
+
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("failed to add needed volumeMount"))]
+    AddVolumeMount {
+        source: stackable_operator::builder::pod::container::Error,
+    },
+
+    #[snafu(display("failed to add needed volume"))]
+    AddVolume {
+        source: stackable_operator::builder::pod::Error,
+    },
+
+    #[snafu(display("failed to validate the logging configuration"))]
+    ValidateLoggingConfig {
+        source: stackable_operator::v2::product_logging::framework::Error,
+    },
+
+    #[snafu(display("vector agent is enabled but vector aggregator ConfigMap is missing"))]
+    VectorAggregatorConfigMapMissing,
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
 
 fn init_containers(
     validated: &validate::ValidatedSparkApplication,

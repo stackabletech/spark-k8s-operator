@@ -32,5 +32,4 @@ Part of <https://github.com/stackabletech/issues/issues/TRACKING_ISSUE>
 ### Bump Rust Dependencies
 
 - [ ] Bump `stackable-operator` and friends
-- [ ] Bump `product-config`
 - [ ] Bump all other dependencies

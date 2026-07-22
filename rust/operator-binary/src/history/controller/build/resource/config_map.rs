@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use snafu::ResultExt;
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, meta::ObjectMetaBuilder},
     k8s_openapi::api::core::v1::ConfigMap,
@@ -20,19 +20,40 @@ use crate::{
         history::SparkHistoryServerContainer,
         to_spark_env_sh_string,
     },
-    history::controller::{
-        Error, InvalidConfigMapSnafu, InvalidSparkDefaultsSnafu, JvmSecurityPropertiesSnafu,
-        validate::{self, ValidatedHistoryRoleGroup},
-    },
+    history::controller::validate::{self, ValidatedHistoryRoleGroup},
     product_logging::{self},
 };
 
-#[allow(clippy::result_large_err)]
+#[derive(Snafu, Debug)]
+pub enum Error {
+    #[snafu(display("invalid config map {name}"))]
+    InvalidConfigMap {
+        source: stackable_operator::builder::configmap::Error,
+        name: String,
+    },
+
+    #[snafu(display(
+        "History server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
+        rolegroup
+    ))]
+    JvmSecurityProperties {
+        source: stackable_operator::v2::config_file_writer::PropertiesWriterError,
+        rolegroup: String,
+    },
+
+    #[snafu(display("failed to serialize Spark default properties"))]
+    InvalidSparkDefaults {
+        source: stackable_operator::v2::config_file_writer::PropertiesWriterError,
+    },
+}
+
+type Result<T, E = Error> = std::result::Result<T, E>;
+
 pub(crate) fn build_config_map(
     validated: &validate::ValidatedSparkHistoryServer,
     role_group_name: &RoleGroupName,
     rg: &ValidatedHistoryRoleGroup,
-) -> Result<ConfigMap, Error> {
+) -> Result<ConfigMap> {
     let cm_name = validated
         .resource_names(role_group_name)
         .role_group_config_map()

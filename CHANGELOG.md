@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Internal operator refactoring: introduce a build() step in the history and connect
+  server reconcilers that assembles all relevant Kubernetes resources before anything
+  is applied ([#721]).
+
+[#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
+
+## [26.7.0] - 2026-07-21
+
+## [26.7.0-rc1] - 2026-07-16
+
 ### Added
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#684]).

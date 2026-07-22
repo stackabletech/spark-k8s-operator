@@ -151,12 +151,6 @@ rec {
       pkgsTarget.util-linuxMinimal
     ];
     config = {
-      Env =
-        let
-          fileRefVars = {
-            PRODUCT_CONFIG = deploy/config-spec/properties.yaml;
-          };
-        in lib.concatLists (lib.mapAttrsToList (env: path: lib.optional (lib.pathExists path) "${env}=${path}") fileRefVars);
       Entrypoint = [ entrypoint ];
       Cmd = [ "run" ];
     };

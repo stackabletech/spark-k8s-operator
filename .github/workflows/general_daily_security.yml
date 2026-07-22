@@ -20,5 +20,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        # Build against stable because cargo-audit sometimes depends on things
+        # that require a newer Rust version than our pinned toolchain. This does
+        # not influence the result, so it should be safe.
+        env:
+          RUSTUP_TOOLCHAIN: stable
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

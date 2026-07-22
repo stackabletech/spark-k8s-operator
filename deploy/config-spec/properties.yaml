@@ -1,5 +1,0 @@
----
-# Not used at runtime. Kept as a compatibility stub for external references.
-version: 0.1.0
-spec:
-  units: []

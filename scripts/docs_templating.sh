@@ -39,8 +39,8 @@ do
 done
 
 # Ensure this script is executable
-chmod +x "docs/modules/spark-k8s-operator/examples/getting_started/getting_started.sh" \
-  || chmod +x "docs/modules/spark-k8s-operator/examples/getting_started/code/getting_started.sh" \
+chmod +x "docs/modules/spark-k8s/examples/getting_started/getting_started.sh" \
+  || chmod +x "docs/modules/spark-k8s/examples/getting_started/code/getting_started.sh" \
   || true
 
 echo "done"

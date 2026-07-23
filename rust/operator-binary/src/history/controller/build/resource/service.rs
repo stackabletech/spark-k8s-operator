@@ -19,7 +19,7 @@ pub fn build_rolegroup_metrics_service(
         metadata: validated
             .object_meta(
                 validated
-                    .resource_names(role_group_name)
+                    .role_group_resource_names(role_group_name)
                     .metrics_service_name()
                     .to_string(),
                 role_group_name,

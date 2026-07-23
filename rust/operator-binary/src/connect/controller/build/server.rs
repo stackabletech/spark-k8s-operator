@@ -190,7 +190,7 @@ pub(crate) fn build_stateful_set(
 
     let mut pb = PodBuilder::new();
 
-    pb.service_account_name(validated.rbac_resource_names().service_account_name())
+    pb.service_account_name(validated.cluster_resource_names().service_account_name())
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
@@ -403,7 +403,7 @@ pub(crate) fn server_properties(
     let resolved_product_image = &validated.resolved_product_image;
     let spark_image = resolved_product_image.image.clone();
     let spark_version = resolved_product_image.product_version.clone();
-    let service_account_name = validated.rbac_resource_names().service_account_name();
+    let service_account_name = validated.cluster_resource_names().service_account_name();
     let namespace = driver_service
         .namespace()
         .context(ObjectHasNoNamespaceSnafu)?;

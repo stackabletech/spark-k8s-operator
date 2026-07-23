@@ -204,7 +204,7 @@ impl ValidatedSparkHistoryServer {
 
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount,
     /// its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
-    pub fn rbac_resource_names(&self) -> role_utils::ResourceNames {
+    pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
         role_utils::ResourceNames {
             cluster_name: self.name.clone(),
             product_name: product_name(),
@@ -212,7 +212,7 @@ impl ValidatedSparkHistoryServer {
     }
 
     /// Type-safe names for the resources of a given role group.
-    pub fn resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
+    pub fn role_group_resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
             role_name: Self::role_name(),

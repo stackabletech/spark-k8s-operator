@@ -237,7 +237,7 @@ impl ValidatedSparkConnectServer {
 
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount,
     /// its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
-    pub fn rbac_resource_names(&self) -> role_utils::ResourceNames {
+    pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
         role_utils::ResourceNames {
             cluster_name: self.name.clone(),
             product_name: product_name(),

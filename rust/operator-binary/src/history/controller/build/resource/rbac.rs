@@ -17,11 +17,19 @@ stackable_operator::constant!(NONE_ROLE_NAME: RoleName = "none");
 stackable_operator::constant!(NONE_ROLE_GROUP_NAME: RoleGroupName = "none");
 
 pub fn build_service_account(server: &ValidatedSparkHistoryServer) -> ServiceAccount {
-    rbac::build_service_account(server, &server.rbac_resource_names(), rbac_labels(server))
+    rbac::build_service_account(
+        server,
+        &server.cluster_resource_names(),
+        rbac_labels(server),
+    )
 }
 
 pub fn build_role_binding(server: &ValidatedSparkHistoryServer) -> RoleBinding {
-    rbac::build_role_binding(server, &server.rbac_resource_names(), rbac_labels(server))
+    rbac::build_role_binding(
+        server,
+        &server.cluster_resource_names(),
+        rbac_labels(server),
+    )
 }
 
 fn rbac_labels(server: &ValidatedSparkHistoryServer) -> Labels {

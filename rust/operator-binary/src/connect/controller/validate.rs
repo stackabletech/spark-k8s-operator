@@ -38,9 +38,8 @@ use crate::{
         common::SparkConnectRole,
         controller::dereference::DereferencedSparkConnectServer,
         crd::{
-            self, CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, CONNECT_EXECUTOR_ROLE_NAME,
-            CONNECT_SERVER_ROLE_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer,
-            v1alpha1,
+            self, CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME,
+            SparkConnectContainer, v1alpha1,
         },
         s3::ResolvedS3,
     },
@@ -184,7 +183,7 @@ impl ValidatedSparkConnectServer {
 
     /// Recommended labels for a resource of the given role.
     pub fn recommended_labels(&self, role: SparkConnectRole) -> Labels {
-        self.recommended_labels_for(&role_name(role), &DEFAULT_SPARK_CONNECT_ROLE_GROUP)
+        self.recommended_labels_for(&role.into(), &DEFAULT_SPARK_CONNECT_ROLE_GROUP)
     }
 
     fn recommended_labels_with(
@@ -206,7 +205,7 @@ impl ValidatedSparkConnectServer {
 
     /// Selector labels matching the pods of the given role.
     pub fn role_selector(&self, role: SparkConnectRole) -> Labels {
-        role_selector(self, &product_name(), &role_name(role))
+        role_selector(self, &product_name(), &role.into())
     }
 
     /// Selector labels matching the pods of the given role's (single) role group.
@@ -214,7 +213,7 @@ impl ValidatedSparkConnectServer {
         role_group_selector(
             self,
             &product_name(),
-            &role_name(role),
+            &role.into(),
             &DEFAULT_SPARK_CONNECT_ROLE_GROUP,
         )
     }
@@ -259,16 +258,6 @@ pub fn operator_name() -> OperatorName {
 pub fn controller_name() -> ControllerName {
     ControllerName::from_str(CONNECT_CONTROLLER_NAME)
         .expect("the controller name is a valid label value")
-}
-
-/// The role name for the given Spark Connect role as a type-safe label value.
-fn role_name(role: SparkConnectRole) -> RoleName {
-    match role {
-        SparkConnectRole::Server => RoleName::from_str(CONNECT_SERVER_ROLE_NAME)
-            .expect("CONNECT_SERVER_ROLE_NAME is a valid role name"),
-        SparkConnectRole::Executor => RoleName::from_str(CONNECT_EXECUTOR_ROLE_NAME)
-            .expect("CONNECT_EXECUTOR_ROLE_NAME is a valid role name"),
-    }
 }
 
 impl NameIsValidLabelValue for ValidatedSparkConnectServer {

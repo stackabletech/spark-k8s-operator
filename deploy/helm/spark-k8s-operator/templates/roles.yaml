@@ -195,7 +195,7 @@ rules:
       - watch
   # OpenLineage backend connections referenced by SparkApplications.
   - apiGroups:
-      - openlineage.stackable.tech
+      - lineage.stackable.tech
     resources:
       - openlineageconnections
     verbs:

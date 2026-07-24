@@ -1875,7 +1875,7 @@ spec:
         );
         // Namespace defaults to metadata.namespace.
         assert!(command.contains(r#"--conf "spark.openlineage.namespace=default""#));
-        // appName falls back to metadata.name (no appName / spark.app.name set).
+        // appName falls back to metadata.name (no jobName / spark.app.name set).
         assert!(command.contains(r#"--conf "spark.openlineage.appName=spark-examples""#));
         assert!(command.contains(&format!(
             r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
@@ -2103,7 +2103,7 @@ spec:
                   inline:
                     host: marquez
                     port: 5000
-                appName: explicit-name
+                jobName: explicit-name
               sparkConf:
                 spark.app.name: spark-conf-name
         "#},

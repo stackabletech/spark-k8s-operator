@@ -1966,12 +1966,6 @@ spec:
                   See the [OpenLineage usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/openlineage).
                 nullable: true
                 properties:
-                  appName:
-                    description: |-
-                      A stable OpenLineage job/application name. Setting this prevents fragmented run history.
-                      If unset, operators resolve a name from workload-specific configuration.
-                    nullable: true
-                    type: string
                   connection:
                     description: |-
                       The OpenLineage backend connection, either inlined or referencing an
@@ -2056,6 +2050,12 @@ spec:
                       reference:
                         type: string
                     type: object
+                  jobName:
+                    description: |-
+                      A stable OpenLineage job/application name. Setting this prevents fragmented run history.
+                      If unset, operators resolve a name from workload-specific configuration.
+                    nullable: true
+                    type: string
                   namespace:
                     description: |-
                       The OpenLineage namespace lineage is reported under.
@@ -6680,12 +6680,6 @@ spec:
                   See the [OpenLineage usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/openlineage).
                 nullable: true
                 properties:
-                  appName:
-                    description: |-
-                      A stable OpenLineage job/application name. Setting this prevents fragmented run history.
-                      If unset, operators resolve a name from workload-specific configuration.
-                    nullable: true
-                    type: string
                   connection:
                     description: |-
                       The OpenLineage backend connection, either inlined or referencing an
@@ -6770,6 +6764,12 @@ spec:
                       reference:
                         type: string
                     type: object
+                  jobName:
+                    description: |-
+                      A stable OpenLineage job/application name. Setting this prevents fragmented run history.
+                      If unset, operators resolve a name from workload-specific configuration.
+                    nullable: true
+                    type: string
                   namespace:
                     description: |-
                       The OpenLineage namespace lineage is reported under.

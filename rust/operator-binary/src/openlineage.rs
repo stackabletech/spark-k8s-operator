@@ -82,7 +82,7 @@ pub(crate) fn openlineage_transport_env_vars(
 
 impl v1alpha1::SparkApplication {
     /// Resolves the stable OpenLineage job/app name (MVP §5), in priority order:
-    /// 1. `spec.openLineage.appName`, else
+    /// 1. `spec.openLineage.jobName`, else
     /// 2. `spark.app.name` from `sparkConf`, else
     /// 3. `metadata.name`.
     ///
@@ -92,7 +92,7 @@ impl v1alpha1::SparkApplication {
             .spec
             .open_lineage
             .as_ref()
-            .and_then(|open_lineage| open_lineage.app_name.clone())
+            .and_then(|open_lineage| open_lineage.job_name.clone())
         {
             return Ok(app_name);
         }

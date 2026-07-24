@@ -52,7 +52,7 @@ use crate::{
             SubmitConfig, SubmitConfigFragment, VolumeMounts,
         },
     },
-    openlineage::{append_conf_csv, openlineage_transport_env_vars},
+    lineage::{append_conf_csv, openlineage_transport_env_vars},
 };
 
 pub mod affinity;
@@ -278,7 +278,7 @@ pub mod versioned {
         /// The backend connection is either inlined or references an `OpenLineageConnection` resource.
         /// See the [OpenLineage usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/openlineage).
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub open_lineage: Option<openlineage::v1alpha1::OpenLineageJob>,
+        pub lineage: Option<openlineage::v1alpha1::OpenLineageJob>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
@@ -592,9 +592,9 @@ impl v1alpha1::SparkApplication {
     }
 
     /// True when OpenLineage emission is configured for this application. OpenLineage is off exactly
-    /// when the `openLineage` block is absent — its presence is the enable switch.
-    pub fn openlineage_enabled(&self) -> bool {
-        self.spec.open_lineage.is_some()
+    /// when the `lineage` block is absent — its presence is the enable switch.
+    pub fn lineage_enabled(&self) -> bool {
+        self.spec.lineage.is_some()
     }
 
     pub fn build_command(
@@ -787,7 +787,7 @@ impl v1alpha1::SparkApplication {
         // `sparkConf` (so it goes in BEFORE the merge below). The two append-merge keys
         // (`spark.jars`, `spark.extraListeners`) are handled AFTER the merge so a user value is
         // combined with — not clobbered by — ours. See the OpenLineage usage guide.
-        if let Some(open_lineage) = &self.spec.open_lineage {
+        if let Some(lineage) = &self.spec.lineage {
             // The backend connection is resolved (inline or referenced) before `build_command`.
             // The transport type is always `http` (the OpenLineage HTTP transport); the URL scheme
             // it points at is `https` when the connection configures TLS server verification.
@@ -809,7 +809,7 @@ impl v1alpha1::SparkApplication {
                 );
             }
 
-            let namespace = match &open_lineage.namespace {
+            let namespace = match &lineage.namespace {
                 Some(namespace) => namespace.clone(),
                 None => self.metadata.namespace.clone().context(NoNamespaceSnafu)?,
             };
@@ -818,7 +818,7 @@ impl v1alpha1::SparkApplication {
             // Stable job name — fixes the intermittent `unknown` bug (see the usage guide).
             submit_conf.insert(
                 "spark.openlineage.appName".to_string(),
-                self.resolved_openlineage_app_name()?,
+                self.resolved_lineage_app_name()?,
             );
         }
 
@@ -827,7 +827,7 @@ impl v1alpha1::SparkApplication {
 
         // OpenLineage append-merge keys: combine our values with any user-provided ones (already
         // merged into `submit_conf` above) so neither clobbers the other.
-        if self.openlineage_enabled() {
+        if self.lineage_enabled() {
             append_conf_csv(
                 &mut submit_conf,
                 "spark.extraListeners",
@@ -1704,16 +1704,19 @@ spec:
         let deserializer = serde_yaml::Deserializer::from_str(yaml);
         let spark_application: v1alpha1::SparkApplication =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
-        let open_lineage_conn = spark_application
-            .spec
-            .open_lineage
-            .as_ref()
-            .map(|job| match &job.connection {
-                InlineConnectionOrReference::Inline(spec) => spec.clone(),
-                InlineConnectionOrReference::Reference(name) => {
-                    panic!("test fixtures must use an inline connection, got reference {name:?}")
-                }
-            });
+        let open_lineage_conn =
+            spark_application
+                .spec
+                .lineage
+                .as_ref()
+                .map(|job| match &job.connection {
+                    InlineConnectionOrReference::Inline(spec) => spec.clone(),
+                    InlineConnectionOrReference::Reference(name) => {
+                        panic!(
+                            "test fixtures must use an inline connection, got reference {name:?}"
+                        )
+                    }
+                });
         spark_application
             .build_command(
                 &None,
@@ -1858,7 +1861,7 @@ spec:
           mainApplicationFile: test.py
           sparkImage:
             productVersion: 1.2.3
-          openLineage:
+          lineage:
             connection:
               inline:
                 host: marquez
@@ -1914,7 +1917,7 @@ spec:
 
     #[test]
     fn test_openlineage_injects_nothing_when_absent() {
-        // No `openLineage` block → OpenLineage is off (its absence is the disable switch).
+        // No `lineage` block → OpenLineage is off (its absence is the disable switch).
         let yaml = indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
@@ -1950,7 +1953,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
+              lineage:
                 connection:
                   inline:
                     host: marquez
@@ -1979,7 +1982,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
+              lineage:
                 connection:
                   inline:
                     host: marquez
@@ -2009,7 +2012,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
+              lineage:
                 connection:
                   inline:
                     host: marquez
@@ -2045,7 +2048,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
+              lineage:
                 connection:
                   inline:
                     host: marquez
@@ -2098,7 +2101,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
+              lineage:
                 connection:
                   inline:
                     host: marquez
@@ -2122,7 +2125,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
+              lineage:
                 connection:
                   inline:
                     host: marquez
@@ -2145,7 +2148,7 @@ spec:
               mainApplicationFile: test.py
               sparkImage:
                 productVersion: 1.2.3
-              openLineage:
+              lineage:
                 connection:
                   inline:
                     host: marquez
@@ -2157,7 +2160,7 @@ spec:
         let deserializer = serde_yaml::Deserializer::from_str(yaml);
         let spark_application: v1alpha1::SparkApplication =
             serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
-        let resolved = spark_application.resolved_openlineage_app_name().unwrap();
+        let resolved = spark_application.resolved_lineage_app_name().unwrap();
 
         assert_eq!(resolved, expected_name);
     }

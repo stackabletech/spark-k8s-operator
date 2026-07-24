@@ -48,7 +48,7 @@ pub struct DereferencedSparkApplication {
     pub resolved_template_refs: Vec<v1alpha1::ResolvedSparkApplicationTemplate>,
     /// Resolved S3 connection, if `spec.s3connection` is set.
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
-    /// Resolved OpenLineage backend connection, if `spec.openLineage` is set. Its
+    /// Resolved OpenLineage backend connection, if `spec.lineage` is set. Its
     /// `credentialsSecretName` (when set) carries the bearer-token Secret for authentication.
     pub open_lineage_connection: Option<openlineage::ResolvedOpenLineageConnection>,
     /// Resolved log directory, if `spec.log_file_directory` is set.
@@ -85,7 +85,7 @@ pub async fn dereference(
     };
 
     // 3. OpenLineage connection (inline or referenced `OpenLineageConnection`).
-    let open_lineage_connection = match merged_app.spec.open_lineage.as_ref() {
+    let open_lineage_connection = match merged_app.spec.lineage.as_ref() {
         Some(job) => Some(
             job.connection
                 .clone()

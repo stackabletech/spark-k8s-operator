@@ -2,7 +2,7 @@
 #
 # The job reads/writes a small DataFrame so the OpenLineage Spark listener emits START/COMPLETE run
 # events. The operator injects the listener, the jar, and the `spark.openlineage.*` config from the
-# `openLineage` block below; the events are POSTed to the nginx receiver.
+# `lineage` block below; the events are POSTed to the nginx receiver.
 #
 # `$NAMESPACE` is substituted by the `20-deploy-spark-app` step so the connection host is the fully
 # qualified Service DNS name — which is what the secret-operator `service` scope puts in the cert
@@ -60,7 +60,7 @@ spec:
     pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: "local:///stackable/spark/jobs/openlineage-job.py"
-  openLineage:
+  lineage:
     jobName: openlineage-test-app
     connection:
       inline:

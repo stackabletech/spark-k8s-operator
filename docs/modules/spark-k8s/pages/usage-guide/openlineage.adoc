@@ -13,7 +13,7 @@ When configured, the operator injects everything required to make the https://op
 
 == Enabling OpenLineage
 
-The backend is configured through the `openLineage.connection`, which either inlines an OpenLineage
+The backend is configured through the `lineage.connection`, which either inlines an OpenLineage
 connection or references a standalone `OpenLineageConnection` resource by name.
 The operator points the transport at `<scheme>://<host>:<port>`:
 
@@ -24,7 +24,7 @@ kind: SparkApplication
 metadata:
   name: orders-by-nation
 spec:
-  openLineage: # <1>
+  lineage: # <1>
     connection: # <2>
       inline:
         host: marquez
@@ -38,7 +38,7 @@ spec:
     # jobName: orders-by-nation # <4>
   ...
 ----
-<1> Adding the `openLineage` block enables OpenLineage event emission. Omit it entirely to leave OpenLineage off (the default), in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
+<1> Adding the `lineage` block enables OpenLineage event emission. Omit it entirely to leave OpenLineage off (the default), in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
 <2> The OpenLineage backend connection. Use `inline` (shown here) to define the connection directly,
     or `reference: <name>` to point at an `OpenLineageConnection` resource in the same namespace.
     Required.
@@ -81,7 +81,7 @@ kind: SparkApplication
 metadata:
   name: orders-by-nation
 spec:
-  openLineage:
+  lineage:
     connection:
       inline:
         host: marquez
@@ -120,13 +120,13 @@ Consequently, do **not** override `spark.openlineage.transport.*` via `sparkConf
 
 The OpenLineage job name is resolved in the following order:
 
-. `spec.openLineage.jobName`, if set.
+. `spec.lineage.jobName`, if set.
 . `spark.app.name` from `sparkConf`, if set.
 . `metadata.name` as a last resort.
 
 The last case additionally emits a Kubernetes warning event.
 Falling back to `metadata.name` is discouraged: if that name carries a timestamp or other run-specific suffix (as generated names often do), every run becomes a separate job in the backend and the run history fragments.
-Set `spec.openLineage.jobName` (or `spark.app.name`) to a stable value to keep all runs of the same logical job together.
+Set `spec.lineage.jobName` (or `spark.app.name`) to a stable value to keep all runs of the same logical job together.
 
 == Overriding injected configuration
 

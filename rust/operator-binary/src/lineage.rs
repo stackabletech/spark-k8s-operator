@@ -82,17 +82,17 @@ pub(crate) fn openlineage_transport_env_vars(
 
 impl v1alpha1::SparkApplication {
     /// Resolves the stable OpenLineage job/app name (MVP §5), in priority order:
-    /// 1. `spec.openLineage.jobName`, else
+    /// 1. `spec.lineage.jobName`, else
     /// 2. `spark.app.name` from `sparkConf`, else
     /// 3. `metadata.name`.
     ///
     /// Always yields a non-blank name — which is exactly what fixes the intermittent `unknown` bug.
-    pub fn resolved_openlineage_app_name(&self) -> Result<String, Error> {
+    pub fn resolved_lineage_app_name(&self) -> Result<String, Error> {
         if let Some(app_name) = self
             .spec
-            .open_lineage
+            .lineage
             .as_ref()
-            .and_then(|open_lineage| open_lineage.job_name.clone())
+            .and_then(|lineage| lineage.job_name.clone())
         {
             return Ok(app_name);
         }

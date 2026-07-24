@@ -49,7 +49,7 @@ pub fn construct_extra_java_options(
     //
     // This is scoped to Spark 4.x: the flag is unnecessary — and on the JDK 17 Spark 3.5.x images the
     // operator also ships, potentially a startup error — so it must not be emitted there.
-    if spark_application.openlineage_enabled() && spark_major_version(product_version)? >= 4 {
+    if spark_application.lineage_enabled() && spark_major_version(product_version)? >= 4 {
         jvm_args.push(OPENLINEAGE_ADD_OPENS.to_string());
     }
 
@@ -163,7 +163,7 @@ mod tests {
           mainApplicationFile: test.py
           sparkImage:
             productVersion: PLACEHOLDER
-          openLineage:
+          lineage:
             connection:
               inline:
                 host: marquez

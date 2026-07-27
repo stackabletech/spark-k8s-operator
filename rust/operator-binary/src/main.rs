@@ -54,6 +54,8 @@ mod history;
 mod pod_driver_controller;
 mod product_logging;
 mod spark_k8s_controller;
+#[cfg(test)]
+pub(crate) mod test_support;
 mod webhooks;
 
 mod built_info {

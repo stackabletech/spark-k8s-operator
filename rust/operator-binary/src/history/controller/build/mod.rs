@@ -67,13 +67,10 @@ pub fn build(validated: &ValidatedSparkHistoryServer) -> Result<SparkHistoryReso
 }
 
 #[cfg(test)]
-mod tests {
-    use std::collections::BTreeMap;
-
+pub(crate) mod test_support {
     use indoc::indoc;
     use stackable_operator::{cli::OperatorEnvironmentOptions, utils::yaml_from_str_singleton_map};
 
-    use super::build;
     use crate::{
         crd::{history::v1alpha1, logdir::ResolvedLogDir},
         history::controller::{
@@ -84,7 +81,11 @@ mod tests {
 
     /// Minimal custom-log-dir `SparkHistoryServer` fixture. The custom log directory keeps the
     /// dereference step client-free; the `uid` allows owner references to be derived from it.
-    const HISTORY_YAML: &str = indoc! {r#"
+    ///
+    /// The cluster name (`my-history`) deliberately differs from the product name
+    /// (`spark-history`), so tests asserting recommended labels catch swapped `name`/`instance`
+    /// values.
+    pub const HISTORY_YAML: &str = indoc! {r#"
         apiVersion: spark.stackable.tech/v1alpha1
         kind: SparkHistoryServer
         metadata:
@@ -103,7 +104,7 @@ mod tests {
         "#};
 
     /// Runs the real validate step against the minimal fixture.
-    fn minimal_validated_cluster() -> ValidatedSparkHistoryServer {
+    pub fn minimal_validated_cluster() -> ValidatedSparkHistoryServer {
         let shs: v1alpha1::SparkHistoryServer = yaml_from_str_singleton_map(HISTORY_YAML)
             .expect("invalid test SparkHistoryServer YAML");
         validate(
@@ -118,50 +119,5 @@ mod tests {
             },
         )
         .expect("validate should succeed for the test fixture")
-    }
-
-    /// Locks the RBAC resource names, the roleRef, and the recommended label set against
-    /// accidental drift. The fixture's cluster name deliberately differs from the product name so
-    /// that swapped `name`/`instance` label values cannot pass unnoticed.
-    #[test]
-    fn build_produces_rbac() {
-        let resources = build(&minimal_validated_cluster()).expect("build succeeds");
-
-        assert_eq!(
-            resources.service_account.metadata.name.as_deref(),
-            Some("my-history-serviceaccount")
-        );
-        assert_eq!(
-            resources.role_binding.metadata.name.as_deref(),
-            Some("my-history-rolebinding")
-        );
-
-        let expected_labels = BTreeMap::from(
-            [
-                ("app.kubernetes.io/component", "none"),
-                ("app.kubernetes.io/instance", "my-history"),
-                (
-                    "app.kubernetes.io/managed-by",
-                    "spark.stackable.tech_history",
-                ),
-                ("app.kubernetes.io/name", "spark-history"),
-                ("app.kubernetes.io/role-group", "none"),
-                ("app.kubernetes.io/version", "3.5.8-stackable0.0.0-dev"),
-                ("stackable.tech/vendor", "Stackable"),
-            ]
-            .map(|(key, value)| (key.to_string(), value.to_string())),
-        );
-        assert_eq!(
-            resources.service_account.metadata.labels,
-            Some(expected_labels.clone())
-        );
-        assert_eq!(
-            resources.role_binding.metadata.labels,
-            Some(expected_labels)
-        );
-        assert_eq!(
-            resources.role_binding.role_ref.name,
-            "spark-history-clusterrole"
-        );
     }
 }

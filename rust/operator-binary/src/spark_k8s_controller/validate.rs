@@ -241,3 +241,76 @@ fn reject_tls_no_verification(conn: &s3::v1alpha1::ConnectionSpec, context: &str
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+    use stackable_operator::cli::OperatorEnvironmentOptions;
+
+    use super::*;
+    use crate::test_support::app_version_label;
+
+    /// Locks every value the validate step itself derives from the minimal fixture. The raw
+    /// `SparkApplication` is deliberately retained on the validated type (see the field docs),
+    /// so only the resolved identity, image and cluster config are derived here.
+    #[test]
+    fn validate_ok_derives_expected_values() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+        "#};
+        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test SparkApplication YAML");
+
+        let validated = validate(
+            DereferencedSparkApplication {
+                spark_application,
+                resolved_template_refs: Vec::new(),
+                s3_connection: None,
+                log_dir: None,
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+        .expect("the minimal fixture validates");
+
+        assert_eq!(validated.name.to_string(), "spark-example");
+        assert_eq!(validated.namespace.to_string(), "default");
+        assert_eq!(
+            validated.uid.to_string(),
+            "12345678-1234-1234-1234-123456789012"
+        );
+        assert_eq!(
+            validated.resolved_product_image.image,
+            format!(
+                "oci.example.org/sdp/spark-k8s:{}",
+                app_version_label("1.2.3")
+            )
+        );
+        assert_eq!(validated.resolved_product_image.product_version, "1.2.3");
+
+        // The minimal fixture references no templates, no S3 connection and no log directory,
+        // and the raw spec is retained for the pod builders.
+        assert!(validated.cluster_config.resolved_template_refs.is_empty());
+        assert!(validated.cluster_config.s3_connection.is_none());
+        assert!(validated.cluster_config.log_dir.is_none());
+        assert_eq!(
+            validated.spark_application.metadata.name.as_deref(),
+            Some("spark-example")
+        );
+    }
+}

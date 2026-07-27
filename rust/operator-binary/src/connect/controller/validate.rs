@@ -369,3 +369,54 @@ pub fn validate(
         executor_logging,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        connect::controller::build::test_support::minimal_validated_cluster,
+        test_support::app_version_label,
+    };
+
+    /// Locks every value the validate step itself derives from the minimal fixture — so a
+    /// validation regression fails here, with a validate-shaped message, instead of surfacing as
+    /// a confusing build-test failure downstream.
+    #[test]
+    fn validate_ok_derives_expected_values() {
+        let validated = minimal_validated_cluster();
+
+        assert_eq!(validated.name.to_string(), "my-connect");
+        assert_eq!(validated.namespace.to_string(), "default");
+        assert_eq!(
+            validated.uid.to_string(),
+            "12345678-1234-1234-1234-123456789012"
+        );
+        assert_eq!(
+            validated.resolved_product_image.image,
+            format!(
+                "oci.example.org/sdp/spark-k8s:{}",
+                app_version_label("4.1.2")
+            )
+        );
+        assert_eq!(validated.resolved_product_image.product_version, "4.1.2");
+        assert_eq!(
+            validated.product_version.to_string(),
+            app_version_label("4.1.2")
+        );
+
+        // The role config falls back to the default cluster-internal listener.
+        assert_eq!(
+            validated.role_config.listener_class.to_string(),
+            "cluster-internal"
+        );
+
+        // The minimal fixture has no overrides and no Vector agent for either role.
+        for overrides in [&validated.server_overrides, &validated.executor_overrides] {
+            assert!(overrides.env_overrides.is_empty());
+            assert_eq!(overrides.jvm_config, None);
+        }
+        for logging in [&validated.server_logging, &validated.executor_logging] {
+            assert!(!logging.enable_vector_agent);
+            assert_eq!(logging.vector_container, None);
+        }
+    }
+}

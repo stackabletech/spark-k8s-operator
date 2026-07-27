@@ -434,3 +434,84 @@ pub fn validate(
         role_groups,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        history::controller::build::test_support::minimal_validated_cluster,
+        test_support::app_version_label,
+    };
+
+    /// Locks every value the validate step itself derives from the minimal fixture — so a
+    /// validation regression fails here, with a validate-shaped message, instead of surfacing as
+    /// a confusing build-test failure downstream.
+    ///
+    /// The merged per-role-group config is produced by the config merge machinery, whose
+    /// contracts are tested in operator-rs; only the values this module derives on top are
+    /// re-asserted here.
+    #[test]
+    fn validate_ok_derives_expected_values() {
+        let validated = minimal_validated_cluster();
+
+        assert_eq!(validated.name.to_string(), "my-history");
+        assert_eq!(validated.namespace.to_string(), "default");
+        assert_eq!(
+            validated.uid.to_string(),
+            "12345678-1234-1234-1234-123456789012"
+        );
+        assert_eq!(
+            validated.resolved_product_image.image,
+            format!(
+                "oci.example.org/sdp/spark-k8s:{}",
+                app_version_label("3.5.8")
+            )
+        );
+        assert_eq!(validated.resolved_product_image.product_version, "3.5.8");
+        assert_eq!(
+            validated.product_version.to_string(),
+            app_version_label("3.5.8")
+        );
+
+        // The custom log directory is carried through, along with the event-log settings the
+        // history server derives from it; no cleaner role group and no extra Spark config.
+        let cluster_config = &validated.cluster_config;
+        assert!(matches!(
+            &cluster_config.log_dir,
+            ResolvedLogDir::Custom(dir) if dir == "file:///stackable/spark/logs"
+        ));
+        assert_eq!(cluster_config.cleaner_rolegroup_name, None);
+        assert!(cluster_config.spark_conf.is_empty());
+        assert_eq!(
+            cluster_config.log_dir_settings,
+            BTreeMap::from([(
+                "spark.history.fs.logDirectory".to_string(),
+                "file:///stackable/spark/logs".to_string(),
+            )])
+        );
+
+        // The role config falls back to its defaults: PDBs enabled, cluster-internal listener.
+        assert!(validated.role_config.pdb.enabled);
+        assert_eq!(validated.role_config.pdb.max_unavailable, None);
+        assert_eq!(
+            validated.role_config.listener_class.to_string(),
+            "cluster-internal"
+        );
+
+        // The single `default` role group; the Vector agent is off.
+        let role_group_names: Vec<String> = validated
+            .role_groups
+            .keys()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(role_group_names, ["default"]);
+        let role_group = validated
+            .role_groups
+            .values()
+            .next()
+            .expect("the default role group exists");
+        assert_eq!(role_group.config.replicas, Some(1));
+        assert!(!role_group.logging.enable_vector_agent);
+        assert_eq!(role_group.logging.vector_container, None);
+    }
+}

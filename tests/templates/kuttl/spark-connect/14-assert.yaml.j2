@@ -1,0 +1,228 @@
+---
+# Snapshot assert for the executor Pod that Spark Connect created.
+# The `template.yaml` entry in the ConfigMap value cannot be asserted declaratively.
+#
+# kuttl mechanics that shape this file:
+#
+#  * Spark names executor pods `<server>-<hash>-exec-N`, so there is no
+#    deterministic `metadata.name`. Omitting the name makes kuttl use
+#    `metadata.labels` as a label selector, and it then passes if ANY listed Pod
+#    is a subset match -- hence `status.phase: Running`, so a terminating
+#    executor from an earlier reconcile cannot produce a false pass.
+#  * kuttl requires every array to have the SAME LENGTH as the live object and
+#    compares arrays positionally (`IsSubset` -> "slice length mismatch"). Every
+#    container, volume and volumeMount below must therefore be listed, including
+#    the ones Spark and Kubernetes inject. Array *elements* are maps and are
+#    subset-matched, so volatile fields inside an element are simply omitted;
+#    each such omission is called out inline.
+#  * Live container order is [vector, spark] -- the reverse of the template.
+#    Spark extracts the container named by
+#    `spark.kubernetes.executor.podTemplateContainerName` and re-appends it last.
+#
+# Deliberately not asserted:
+#  * every container `image` -- the reason the ConfigMap snapshot was dropped.
+#  * `containers[spark].env` -- Spark injects ~40 variables and emits
+#    `SPARK_JAVA_OPT_*` in a different order on every run, so a positional
+#    comparison can never pass reliably.
+#  * `containers[spark].args` / `.ports` -- Spark-owned, would couple this assert
+#    to the Spark version for no operator coverage.
+#  * `app.kubernetes.io/version` (changes on a release build) and the `spark-*`
+#    labels carrying generated ids.
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  # No name on purpose: these labels are the selector (see header).
+  labels:
+    app.kubernetes.io/component: executor
+    app.kubernetes.io/instance: spark-connect
+    app.kubernetes.io/managed-by: spark.stackable.tech_connect
+    app.kubernetes.io/name: spark-connect
+    app.kubernetes.io/role-group: default
+    spark-role: executor
+    stackable.tech/vendor: Stackable
+spec:
+  # Comes from spark.kubernetes.authenticate.driver.serviceAccountName; the
+  # operator's pod template does not set it.
+  serviceAccountName: spark-connect-serviceaccount
+  enableServiceLinks: false
+  securityContext:
+    # Required so the spark container can read the truststore the init container
+    # writes into the shared emptyDir.
+    fsGroup: 1000
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: executor
+                app.kubernetes.io/instance: spark-connect
+                app.kubernetes.io/name: spark-connect
+            topologyKey: kubernetes.io/hostname
+          weight: 70
+  containers:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+    # Spark passes non-primary template containers through untouched.
+    - name: vector
+      command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+      env:
+        - name: CLUSTER_NAME
+          value: spark-connect
+        - name: DATA_DIR
+          value: /stackable/log/_vector-state
+        - name: LOG_DIR
+          value: /stackable/log
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ROLE_GROUP_NAME
+          value: default
+        - name: ROLE_NAME
+          value: executor
+        - name: VECTOR_AGGREGATOR_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              key: ADDRESS
+              name: vector-aggregator-discovery
+        - name: VECTOR_CONFIG_YAML
+          value: /stackable/config/vector.yaml
+        - name: VECTOR_FILE_LOG_LEVEL
+          value: info
+        - name: VECTOR_LOG
+          value: info
+      resources:
+        limits:
+          cpu: 500m
+          memory: 128Mi
+        requests:
+          cpu: 250m
+          memory: 128Mi
+      volumeMounts:
+        - name: config
+          mountPath: /stackable/config/vector.yaml
+          subPath: vector.yaml
+          readOnly: true
+        - name: log
+          mountPath: /stackable/log
+        # name is kube-api-access-<random>, injected by Kubernetes
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+{% endif %}
+    - name: spark
+      resources:
+        # Set by Spark from spark.executor.* -- 1024M plus the 1m
+        # memoryOverhead the test scenario overrides.
+        limits:
+          cpu: "1"
+          memory: 1025Mi
+        requests:
+          cpu: "1"
+          memory: 1025Mi
+      volumeMounts:
+        - name: config
+          mountPath: /stackable/spark/conf
+        - name: log
+          mountPath: /stackable/log
+        - name: minio-credentials-class-s3-credentials
+          mountPath: /stackable/secrets/minio-credentials-class
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+        - name: minio-tls-ca-ca-cert
+          mountPath: /stackable/secrets/minio-tls-ca
+{% endif %}
+        - name: stackable-truststore
+          mountPath: /stackable/truststore
+        - name: log-config
+          mountPath: /stackable/log_config
+        - name: spark-conf-volume-exec
+          mountPath: /opt/spark/conf
+        # mountPath is /var/data/spark-<uuid>, generated per run
+        - name: spark-local-dir-1
+        # name is kube-api-access-<random>, injected by Kubernetes
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+  initContainers:
+    - name: tls-truststore-init
+      command:
+        - /bin/bash
+        - -x
+        - -euo
+        - pipefail
+        - -c
+        - cert-tools generate-pkcs12-truststore --pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem --out /stackable/truststore/truststore.p12 --out-password changeit && cert-tools generate-pkcs12-truststore --out /stackable/truststore/truststore.p12 --out-password changeit --pkcs12 /stackable/truststore/truststore.p12:changeit --pem /stackable/secrets/minio-tls-ca/ca.crt
+      resources:
+        limits:
+          cpu: 10m
+          memory: 128Mi
+        requests:
+          cpu: 10m
+          memory: 128Mi
+      volumeMounts:
+        - name: minio-credentials-class-s3-credentials
+          mountPath: /stackable/secrets/minio-credentials-class
+        - name: minio-tls-ca-ca-cert
+          mountPath: /stackable/secrets/minio-tls-ca
+        - name: stackable-truststore
+          mountPath: /stackable/truststore
+        # name is kube-api-access-<random>, injected by Kubernetes
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+{% endif %}
+  volumes:
+    - name: log
+      emptyDir:
+        sizeLimit: 30Mi
+    - name: config
+      configMap:
+        name: spark-connect-executor
+    - name: minio-credentials-class-s3-credentials
+      ephemeral:
+        volumeClaimTemplate:
+          metadata:
+            annotations:
+              secrets.stackable.tech/class: minio-credentials-class
+              secrets.stackable.tech/provision-parts: public-private
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: "1"
+            storageClassName: secrets.stackable.tech
+{% if test_scenario['values']['s3-use-tls'] == 'true' %}
+    - name: minio-tls-ca-ca-cert
+      ephemeral:
+        volumeClaimTemplate:
+          metadata:
+            annotations:
+              secrets.stackable.tech/class: minio-tls-ca
+              secrets.stackable.tech/provision-parts: public
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: "1"
+            storageClassName: secrets.stackable.tech
+{% endif %}
+    - name: stackable-truststore
+      emptyDir: {}
+    - name: log-config
+      configMap:
+        name: spark-connect-log-config
+    # configMap.name is spark-exec-<hash>-conf-map, generated per run
+    - name: spark-conf-volume-exec
+    - name: spark-local-dir-1
+      emptyDir: {}
+    # name is kube-api-access-<random>, injected by Kubernetes
+    - projected:
+        defaultMode: 420
+status:
+  phase: Running

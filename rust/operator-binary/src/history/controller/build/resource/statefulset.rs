@@ -51,7 +51,7 @@ use crate::{
     history::{
         config::jvm::construct_history_jvm_args,
         controller::{
-            build::resource::listener::group_listener_name,
+            build::{object_meta, resource::listener::group_listener_name},
             validate::{self, ValidatedHistoryRoleGroup},
         },
     },
@@ -247,12 +247,12 @@ pub(crate) fn build_stateful_set(
     let mut pod_template = pb.build_template();
     pod_template.merge_from(rg.config.pod_overrides.clone());
 
-    let sts_metadata = validated
-        .object_meta(
-            resource_names.stateful_set_name().to_string(),
-            role_group_name,
-        )
-        .build();
+    let sts_metadata = object_meta(
+        validated,
+        resource_names.stateful_set_name().to_string(),
+        role_group_name,
+    )
+    .build();
 
     Ok(StatefulSet {
         metadata: sts_metadata,

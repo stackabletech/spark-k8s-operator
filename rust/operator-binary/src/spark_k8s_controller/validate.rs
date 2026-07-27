@@ -7,7 +7,6 @@ use std::{borrow::Cow, str::FromStr};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
     cli::OperatorEnvironmentOptions,
     commons::{
         product_image_selection::{self, ResolvedProductImage},
@@ -19,7 +18,6 @@ use stackable_operator::{
     kvp::Labels,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::meta::ownerreference_from_resource,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         kvp::label::recommended_labels,
         types::{
@@ -169,19 +167,6 @@ impl ValidatedSparkApplication {
             &role_name,
             &role_group,
         )
-    }
-
-    /// Object metadata for a child resource named `name`, owned by this SparkApplication and
-    /// carrying the recommended labels for the given `role`. Returns the builder so callers can add
-    /// extra labels before building.
-    pub(crate) fn object_meta(&self, name: impl Into<String>, role: &str) -> ObjectMetaBuilder {
-        let mut builder = ObjectMetaBuilder::new();
-        builder
-            .namespace(self.namespace.clone())
-            .name(name)
-            .ownerreference(ownerreference_from_resource(self, None, Some(true)))
-            .with_labels(self.recommended_labels(role));
-        builder
     }
 }
 

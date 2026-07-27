@@ -1,6 +1,10 @@
 pub mod resource;
 
 use snafu::{ResultExt, Snafu};
+use stackable_operator::{
+    builder::meta::ObjectMetaBuilder,
+    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
+};
 
 use crate::{
     crd::constants::HISTORY_ROLE_NAME,
@@ -64,6 +68,23 @@ pub fn build(validated: &ValidatedSparkHistoryServer) -> Result<SparkHistoryReso
         listener,
         pod_disruption_budget,
     })
+}
+
+/// Object metadata for a child resource named `name`, owned by the SparkHistoryServer and
+/// carrying the recommended labels for the given role group. Returns the builder so callers can
+/// add extra labels (e.g. Prometheus annotations) before building.
+pub(crate) fn object_meta(
+    validated: &ValidatedSparkHistoryServer,
+    name: impl Into<String>,
+    role_group_name: &RoleGroupName,
+) -> ObjectMetaBuilder {
+    let mut builder = ObjectMetaBuilder::new();
+    builder
+        .name_and_namespace(validated)
+        .name(name)
+        .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
+        .with_labels(validated.recommended_labels(role_group_name));
+    builder
 }
 
 #[cfg(test)]

@@ -7,7 +7,8 @@ use stackable_operator::{
 };
 
 use crate::{
-    crd::constants::METRICS_PORT, history::controller::validate::ValidatedSparkHistoryServer,
+    crd::constants::METRICS_PORT,
+    history::controller::{build::object_meta, validate::ValidatedSparkHistoryServer},
 };
 
 /// The rolegroup metrics [`Service`] is a service that exposes metrics and a prometheus scraping label
@@ -16,22 +17,22 @@ pub fn build_rolegroup_metrics_service(
     role_group_name: &RoleGroupName,
 ) -> Service {
     Service {
-        metadata: validated
-            .object_meta(
-                validated
-                    .role_group_resource_names(role_group_name)
-                    .metrics_service_name()
-                    .to_string(),
-                role_group_name,
-            )
-            .with_labels(prometheus_labels(&Scraping::Enabled))
-            .with_annotations(prometheus_annotations(
-                &Scraping::Enabled,
-                &Scheme::Http,
-                "/metrics",
-                &METRICS_PORT,
-            ))
-            .build(),
+        metadata: object_meta(
+            validated,
+            validated
+                .role_group_resource_names(role_group_name)
+                .metrics_service_name()
+                .to_string(),
+            role_group_name,
+        )
+        .with_labels(prometheus_labels(&Scraping::Enabled))
+        .with_annotations(prometheus_annotations(
+            &Scraping::Enabled,
+            &Scheme::Http,
+            "/metrics",
+            &METRICS_PORT,
+        ))
+        .build(),
         spec: Some(ServiceSpec {
             // Internal communication does not need to be exposed
             type_: Some("ClusterIP".to_string()),

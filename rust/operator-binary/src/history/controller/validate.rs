@@ -7,7 +7,6 @@ use std::{borrow::Cow, collections::BTreeMap, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
     cli::OperatorEnvironmentOptions,
     commons::{
         pdb::PdbConfig,
@@ -20,10 +19,7 @@ use stackable_operator::{
     product_logging::spec::Logging,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::{
-            meta::ownerreference_from_resource,
-            pod::container::{EnvVarName, EnvVarSet},
-        },
+        builder::pod::container::{EnvVarName, EnvVarSet},
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         kvp::label::{recommended_labels, role_group_selector},
         product_logging::framework::{
@@ -255,23 +251,6 @@ impl ValidatedSparkHistoryServer {
     /// Selector labels matching the pods of a role group.
     pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
         role_group_selector(self, &product_name(), &Self::role_name(), role_group_name)
-    }
-
-    /// Object metadata for a child resource named `name`, owned by this SparkHistoryServer and
-    /// carrying the recommended labels for the given role group. Returns the builder so callers can
-    /// add extra labels (e.g. Prometheus annotations) before building.
-    pub fn object_meta(
-        &self,
-        name: impl Into<String>,
-        role_group_name: &RoleGroupName,
-    ) -> ObjectMetaBuilder {
-        let mut builder = ObjectMetaBuilder::new();
-        builder
-            .name_and_namespace(self)
-            .name(name)
-            .ownerreference(ownerreference_from_resource(self, None, Some(true)))
-            .with_labels(self.recommended_labels(role_group_name));
-        builder
     }
 }
 

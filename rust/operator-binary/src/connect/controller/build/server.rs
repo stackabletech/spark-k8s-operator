@@ -45,7 +45,7 @@ use crate::{
     connect::{
         GRPC, HTTP,
         common::{self, SparkConnectRole, object_name},
-        controller::validate::ValidatedSparkConnectServer,
+        controller::{build::object_meta, validate::ValidatedSparkConnectServer},
         crd::{
             CONNECT_GRPC_PORT, CONNECT_SERVER_ROLE_NAME, CONNECT_UI_PORT,
             DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer, v1alpha1,
@@ -144,11 +144,7 @@ pub(crate) fn server_config_map(
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
-        .metadata(
-            validated
-                .object_meta(&cm_name, SparkConnectRole::Server)
-                .build(),
-        )
+        .metadata(object_meta(validated, &cm_name, SparkConnectRole::Server).build())
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_properties)
         .add_data(POD_TEMPLATE_FILE, executor_pod_template_spec)
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
@@ -319,12 +315,12 @@ pub(crate) fn build_stateful_set(
     pod_template.merge_from(validated.server_overrides.pod_overrides.clone());
 
     Ok(StatefulSet {
-        metadata: validated
-            .object_meta(
-                object_name(&validated.name_any(), SparkConnectRole::Server),
-                SparkConnectRole::Server,
-            )
-            .build(),
+        metadata: object_meta(
+            validated,
+            object_name(&validated.name_any(), SparkConnectRole::Server),
+            SparkConnectRole::Server,
+        )
+        .build(),
         spec: Some(StatefulSetSpec {
             template: pod_template,
             replicas: Some(1),

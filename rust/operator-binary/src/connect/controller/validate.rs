@@ -7,7 +7,6 @@ use std::{borrow::Cow, collections::HashMap, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
     k8s_openapi::{api::core::v1::PodTemplateSpec, apimachinery::pkg::apis::meta::v1::ObjectMeta},
@@ -16,7 +15,6 @@ use stackable_operator::{
     product_logging::spec::Logging,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::meta::ownerreference_from_resource,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         kvp::label::{recommended_labels, role_group_selector, role_selector},
         product_logging::framework::{
@@ -216,22 +214,6 @@ impl ValidatedSparkConnectServer {
             &role.into(),
             &DEFAULT_SPARK_CONNECT_ROLE_GROUP,
         )
-    }
-
-    /// Object metadata for a child resource named `name`, owned by this SparkConnectServer and
-    /// carrying the recommended labels for the given role.
-    pub fn object_meta(
-        &self,
-        name: impl Into<String>,
-        role: SparkConnectRole,
-    ) -> ObjectMetaBuilder {
-        let mut builder = ObjectMetaBuilder::new();
-        builder
-            .name_and_namespace(self)
-            .name(name)
-            .ownerreference(ownerreference_from_resource(self, None, Some(true)))
-            .with_labels(self.recommended_labels(role));
-        builder
     }
 
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount,

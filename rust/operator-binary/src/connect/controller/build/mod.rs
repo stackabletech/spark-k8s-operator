@@ -11,10 +11,13 @@ pub(crate) mod server;
 pub(crate) mod service;
 
 use snafu::{ResultExt, Snafu};
-use stackable_operator::kube::ResourceExt;
+use stackable_operator::{
+    builder::meta::ObjectMetaBuilder, kube::ResourceExt,
+    v2::builder::meta::ownerreference_from_resource,
+};
 
 use crate::connect::{
-    common,
+    common::{self, SparkConnectRole},
     controller::{
         SparkConnectResources,
         build::rbac::{build_role_binding, build_service_account},
@@ -108,6 +111,22 @@ pub(crate) fn build(
         listener,
         stateful_set,
     })
+}
+
+/// Object metadata for a child resource named `name`, owned by the SparkConnectServer and
+/// carrying the recommended labels for the given role.
+pub(crate) fn object_meta(
+    validated: &ValidatedSparkConnectServer,
+    name: impl Into<String>,
+    role: SparkConnectRole,
+) -> ObjectMetaBuilder {
+    let mut builder = ObjectMetaBuilder::new();
+    builder
+        .name_and_namespace(validated)
+        .name(name)
+        .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
+        .with_labels(validated.recommended_labels(role));
+    builder
 }
 
 #[cfg(test)]

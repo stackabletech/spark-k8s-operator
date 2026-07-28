@@ -23,10 +23,7 @@ use stackable_operator::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{
-                ConfigMap, EnvVar, HTTPGetAction, PodSecurityContext, Probe, Service,
-                ServiceAccount,
-            },
+            core::v1::{ConfigMap, EnvVar, HTTPGetAction, PodSecurityContext, Probe, Service},
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
@@ -48,7 +45,7 @@ use crate::{
     connect::{
         GRPC, HTTP,
         common::{self, SparkConnectRole, object_name},
-        controller::validate::ValidatedSparkConnectServer,
+        controller::{build::object_meta, validate::ValidatedSparkConnectServer},
         crd::{
             CONNECT_GRPC_PORT, CONNECT_SERVER_ROLE_NAME, CONNECT_UI_PORT,
             DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer, v1alpha1,
@@ -147,11 +144,7 @@ pub(crate) fn server_config_map(
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
-        .metadata(
-            validated
-                .object_meta(&cm_name, SparkConnectRole::Server)
-                .build(),
-        )
+        .metadata(object_meta(validated, &cm_name, SparkConnectRole::Server).build())
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_properties)
         .add_data(POD_TEMPLATE_FILE, executor_pod_template_spec)
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
@@ -176,7 +169,6 @@ pub(crate) fn server_config_map(
 
 pub(crate) fn build_stateful_set(
     validated: &ValidatedSparkConnectServer,
-    service_account: &ServiceAccount,
     config_map: &ConfigMap,
     listener_name: &str,
     args: Vec<String>,
@@ -194,7 +186,7 @@ pub(crate) fn build_stateful_set(
 
     let mut pb = PodBuilder::new();
 
-    pb.service_account_name(service_account.name_unchecked())
+    pb.service_account_name(validated.cluster_resource_names().service_account_name())
         .metadata(metadata)
         .image_pull_secrets_from_product_image(resolved_product_image)
         .add_volume(
@@ -323,12 +315,12 @@ pub(crate) fn build_stateful_set(
     pod_template.merge_from(validated.server_overrides.pod_overrides.clone());
 
     Ok(StatefulSet {
-        metadata: validated
-            .object_meta(
-                object_name(&validated.name_any(), SparkConnectRole::Server),
-                SparkConnectRole::Server,
-            )
-            .build(),
+        metadata: object_meta(
+            validated,
+            object_name(&validated.name_any(), SparkConnectRole::Server),
+            SparkConnectRole::Server,
+        )
+        .build(),
         spec: Some(StatefulSetSpec {
             template: pod_template,
             replicas: Some(1),
@@ -402,13 +394,12 @@ fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, E
 pub(crate) fn server_properties(
     validated: &ValidatedSparkConnectServer,
     driver_service: &Service,
-    service_account: &ServiceAccount,
 ) -> Result<BTreeMap<String, Option<String>>, Error> {
     let config = &validated.server_config;
     let resolved_product_image = &validated.resolved_product_image;
     let spark_image = resolved_product_image.image.clone();
     let spark_version = resolved_product_image.product_version.clone();
-    let service_account_name = service_account.name_unchecked();
+    let service_account_name = validated.cluster_resource_names().service_account_name();
     let namespace = driver_service
         .namespace()
         .context(ObjectHasNoNamespaceSnafu)?;
@@ -434,7 +425,7 @@ pub(crate) fn server_properties(
         ("spark.kubernetes.namespace".to_string(), Some(namespace)),
         (
             "spark.kubernetes.authenticate.driver.serviceAccountName".to_string(),
-            Some(service_account_name),
+            Some(service_account_name.to_string()),
         ),
         (
             "spark.kubernetes.driver.pod.name".to_string(),

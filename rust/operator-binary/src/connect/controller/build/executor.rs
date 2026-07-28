@@ -30,7 +30,7 @@ use stackable_operator::{
 use crate::{
     connect::{
         common::{self, SparkConnectRole, object_name},
-        controller::validate::ValidatedSparkConnectServer,
+        controller::{build::object_meta, validate::ValidatedSparkConnectServer},
         crd::{
             CONNECT_EXECUTOR_ROLE_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer,
             v1alpha1,
@@ -351,11 +351,7 @@ pub(crate) fn executor_config_map(
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
-        .metadata(
-            validated
-                .object_meta(&cm_name, SparkConnectRole::Executor)
-                .build(),
-        )
+        .metadata(object_meta(validated, &cm_name, SparkConnectRole::Executor).build())
         .add_data(JVM_SECURITY_PROPERTIES_FILE, jvm_sec_props)
         .add_data(METRICS_PROPERTIES_FILE, metrics_props);
 

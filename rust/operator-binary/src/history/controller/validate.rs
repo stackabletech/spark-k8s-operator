@@ -7,7 +7,6 @@ use std::{borrow::Cow, collections::BTreeMap, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder,
     cli::OperatorEnvironmentOptions,
     commons::{
         pdb::PdbConfig,
@@ -20,17 +19,14 @@ use stackable_operator::{
     product_logging::spec::Logging,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::{
-            meta::ownerreference_from_resource,
-            pod::container::{EnvVarName, EnvVarSet},
-        },
+        builder::pod::container::{EnvVarName, EnvVarSet},
         controller_utils::{get_cluster_name, get_namespace, get_uid},
         kvp::label::{recommended_labels, role_group_selector},
         product_logging::framework::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
         },
         role_group_utils::ResourceNames,
-        role_utils::{JavaCommonConfig, RoleGroupConfig, with_validated_config},
+        role_utils::{self, JavaCommonConfig, RoleGroupConfig, with_validated_config},
         types::{
             kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, Uid},
             operator::{
@@ -202,8 +198,17 @@ impl ValidatedSparkHistoryServer {
         RoleName::from_str(HISTORY_ROLE_NAME).expect("HISTORY_ROLE_NAME is a valid role name")
     }
 
+    /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount,
+    /// its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
+    pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
+        role_utils::ResourceNames {
+            cluster_name: self.name.clone(),
+            product_name: product_name(),
+        }
+    }
+
     /// Type-safe names for the resources of a given role group.
-    pub(crate) fn resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
+    pub fn role_group_resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
             role_name: Self::role_name(),
@@ -211,10 +216,25 @@ impl ValidatedSparkHistoryServer {
         }
     }
 
-    /// Recommended labels for a role-group resource, using the given product version.
-    fn recommended_labels_for(
+    /// Recommended labels for a resource of the given role.
+    pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
+        self.recommended_labels_for(&Self::role_name(), role_group_name)
+    }
+
+    /// Recommended labels for a resource that is not tied to a concrete role
+    /// (e.g. the cluster-shared RBAC resources), using a free-form role/role-group label value.
+    pub fn recommended_labels_for(
+        &self,
+        role_name: &RoleName,
+        role_group_name: &RoleGroupName,
+    ) -> Labels {
+        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
+    fn recommended_labels_with(
         &self,
         product_version: &ProductVersion,
+        role_name: &RoleName,
         role_group_name: &RoleGroupName,
     ) -> Labels {
         recommended_labels(
@@ -223,51 +243,29 @@ impl ValidatedSparkHistoryServer {
             product_version,
             &operator_name(),
             &controller_name(),
-            &Self::role_name(),
+            role_name,
             role_group_name,
         )
-    }
-
-    /// Recommended labels for a role-group resource.
-    pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_for(&self.product_version, role_group_name)
     }
 
     /// Selector labels matching the pods of a role group.
     pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
         role_group_selector(self, &product_name(), &Self::role_name(), role_group_name)
     }
-
-    /// Object metadata for a child resource named `name`, owned by this SparkHistoryServer and
-    /// carrying the recommended labels for the given role group. Returns the builder so callers can
-    /// add extra labels (e.g. Prometheus annotations) before building.
-    pub(crate) fn object_meta(
-        &self,
-        name: impl Into<String>,
-        role_group_name: &RoleGroupName,
-    ) -> ObjectMetaBuilder {
-        let mut builder = ObjectMetaBuilder::new();
-        builder
-            .name_and_namespace(self)
-            .name(name)
-            .ownerreference(ownerreference_from_resource(self, None, Some(true)))
-            .with_labels(self.recommended_labels(role_group_name));
-        builder
-    }
 }
 
 /// The product name (`spark-history`) as a type-safe label value.
-pub(crate) fn product_name() -> ProductName {
+pub fn product_name() -> ProductName {
     ProductName::from_str(HISTORY_APP_NAME).expect("HISTORY_APP_NAME is a valid product name")
 }
 
 /// The operator name as a type-safe label value.
-pub(crate) fn operator_name() -> OperatorName {
+pub fn operator_name() -> OperatorName {
     OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
 }
 
 /// The controller name as a type-safe label value.
-pub(crate) fn controller_name() -> ControllerName {
+pub fn controller_name() -> ControllerName {
     ControllerName::from_str(HISTORY_CONTROLLER_NAME)
         .expect("the controller name is a valid label value")
 }
@@ -435,4 +433,85 @@ pub fn validate(
         },
         role_groups,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        history::controller::build::test_support::minimal_validated_cluster,
+        test_support::app_version_label,
+    };
+
+    /// Locks every value the validate step itself derives from the minimal fixture — so a
+    /// validation regression fails here, with a validate-shaped message, instead of surfacing as
+    /// a confusing build-test failure downstream.
+    ///
+    /// The merged per-role-group config is produced by the config merge machinery, whose
+    /// contracts are tested in operator-rs; only the values this module derives on top are
+    /// re-asserted here.
+    #[test]
+    fn validate_ok_derives_expected_values() {
+        let validated = minimal_validated_cluster();
+
+        assert_eq!(validated.name.to_string(), "my-history");
+        assert_eq!(validated.namespace.to_string(), "default");
+        assert_eq!(
+            validated.uid.to_string(),
+            "12345678-1234-1234-1234-123456789012"
+        );
+        assert_eq!(
+            validated.resolved_product_image.image,
+            format!(
+                "oci.example.org/sdp/spark-k8s:{}",
+                app_version_label("3.5.8")
+            )
+        );
+        assert_eq!(validated.resolved_product_image.product_version, "3.5.8");
+        assert_eq!(
+            validated.product_version.to_string(),
+            app_version_label("3.5.8")
+        );
+
+        // The custom log directory is carried through, along with the event-log settings the
+        // history server derives from it; no cleaner role group and no extra Spark config.
+        let cluster_config = &validated.cluster_config;
+        assert!(matches!(
+            &cluster_config.log_dir,
+            ResolvedLogDir::Custom(dir) if dir == "file:///stackable/spark/logs"
+        ));
+        assert_eq!(cluster_config.cleaner_rolegroup_name, None);
+        assert!(cluster_config.spark_conf.is_empty());
+        assert_eq!(
+            cluster_config.log_dir_settings,
+            BTreeMap::from([(
+                "spark.history.fs.logDirectory".to_string(),
+                "file:///stackable/spark/logs".to_string(),
+            )])
+        );
+
+        // The role config falls back to its defaults: PDBs enabled, cluster-internal listener.
+        assert!(validated.role_config.pdb.enabled);
+        assert_eq!(validated.role_config.pdb.max_unavailable, None);
+        assert_eq!(
+            validated.role_config.listener_class.to_string(),
+            "cluster-internal"
+        );
+
+        // The single `default` role group; the Vector agent is off.
+        let role_group_names: Vec<String> = validated
+            .role_groups
+            .keys()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(role_group_names, ["default"]);
+        let role_group = validated
+            .role_groups
+            .values()
+            .next()
+            .expect("the default role group exists");
+        assert_eq!(role_group.config.replicas, Some(1));
+        assert!(!role_group.logging.enable_vector_agent);
+        assert_eq!(role_group.logging.vector_container, None);
+    }
 }

@@ -54,6 +54,16 @@ pub(crate) struct ResolvedS3 {
 }
 
 impl ResolvedS3 {
+    /// The resolved form of a SparkConnectServer without any S3 connectors, for tests that must
+    /// stay client-free.
+    #[cfg(test)]
+    pub(crate) fn none() -> Self {
+        Self {
+            s3_buckets: Vec::new(),
+            s3_connection: None,
+        }
+    }
+
     pub(crate) async fn resolve(
         client: &stackable_operator::client::Client,
         connect_server: &crd::v1alpha1::SparkConnectServer,

@@ -55,7 +55,7 @@ pub(crate) fn build_config_map(
     rg: &ValidatedHistoryRoleGroup,
 ) -> Result<ConfigMap> {
     let cm_name = validated
-        .resource_names(role_group_name)
+        .role_group_resource_names(role_group_name)
         .role_group_config_map()
         .to_string();
 

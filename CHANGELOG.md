@@ -10,8 +10,11 @@ All notable changes to this project will be documented in this file.
   server reconcilers that assembles all relevant Kubernetes resources before anything
   is applied ([#721]).
 - Bump stackable-operator to 0.114.0 ([#732]).
+- The RBAC ServiceAccounts and RoleBindings of the history and connect servers are now
+  built with the operator-rs `v2::rbac` functions and carry the recommended labels ([#727]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
+[#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
 [#732]: https://github.com/stackabletech/spark-k8s-operator/pull/732
 
 ## [26.7.0] - 2026-07-21

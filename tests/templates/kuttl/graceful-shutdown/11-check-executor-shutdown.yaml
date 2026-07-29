@@ -13,7 +13,6 @@ commands:
       set -eu
 
       selector="spark-role=executor,app.kubernetes.io/instance=graceful-shutdown"
-      # A signalled container is gone in 1-2s, an unsignalled one at the grace period (30s).
       budget_seconds=20
 
       victim=$(kubectl -n "$NAMESPACE" get pods -o name -l "$selector" | head -1 | cut -d/ -f2)
@@ -22,19 +21,7 @@ commands:
         exit 1
       fi
 
-      grace=$(kubectl -n "$NAMESPACE" get pod "$victim" -o jsonpath='{.spec.terminationGracePeriodSeconds}')
-      # The budget has to stay inside the grace period. Otherwise the kubelet SIGKILLs the container
-      # before the budget expires, the Pod disappears, and the wait below reads that as a graceful
-      # stop -- the test would pass for exactly the behaviour it is meant to catch.
-      if [ -z "$grace" ] || [ "$grace" -le "$budget_seconds" ]; then
-        if [ -n "$grace" ]; then grace="${grace}s"; else grace="unset"; fi
-        echo "FAIL: the executor's termination grace period ($grace) is not above this"
-        echo "test's ${budget_seconds}s budget, so a SIGKILL cannot be told apart from a graceful"
-        echo "stop. Lower budget_seconds in this file."
-        exit 1
-      fi
-
-      echo "stopping executor $victim (grace period: ${grace}s)"
+      echo "stopping executor $victim"
 
       # The log cannot be read once the Pod object is gone, so stream it away first.
       log=$(mktemp)
@@ -42,37 +29,33 @@ commands:
       logs_pid=$!
       sleep 2
 
+      if ! grep -q 'Running task' "$log"; then
+        echo "FAIL: could not stream the log of $victim, so its shutdown cannot be observed"
+        tail -5 "$log"
+        exit 1
+      fi
+
       kubectl -n "$NAMESPACE" delete pod "$victim" --wait=false
 
       start=$(date +%s)
       stopped=no
       while [ $(( $(date +%s) - start )) -lt "$budget_seconds" ]; do
-        terminated=$(kubectl -n "$NAMESPACE" get pod "$victim" \
-          -o jsonpath='{.status.containerStatuses[?(@.name=="spark")].state.terminated.reason}' 2>/dev/null) \
-          || { stopped=yes; break; }  # Pod already removed
-        if [ -n "$terminated" ]; then
+        if grep -q 'shutdown-hook' "$log"; then
           stopped=yes
           break
         fi
         sleep 1
       done
       elapsed=$(( $(date +%s) - start ))
-      sleep 1
       kill "$logs_pid" 2>/dev/null || true
 
       if [ "$stopped" != yes ]; then
-        echo "FAIL: the executor was still running ${elapsed}s after its Pod was deleted, so"
-        echo "SIGTERM did not reach the JVM and the kubelet will SIGKILL it after ${grace}s."
-        tail -5 "$log"
-        exit 1
-      fi
-
-      # Only a JVM that ran its shutdown hooks logs from `shutdown-hook-*` threads.
-      if ! grep -q 'shutdown-hook' "$log"; then
-        echo "FAIL: the executor stopped after ${elapsed}s but ran no shutdown hook."
+        echo "FAIL: ${elapsed}s after its Pod was deleted the executor had run no shutdown hook,"
+        echo "so SIGTERM did not reach the JVM and the kubelet will SIGKILL it at the end of the"
+        echo "grace period, killing the task it is running."
         tail -5 "$log"
         exit 1
       fi
 
       rm -f "$log"
-      echo "OK: the executor shut down gracefully after ${elapsed}s"
+      echo "OK: the executor ran its shutdown hooks ${elapsed}s after its Pod was deleted"

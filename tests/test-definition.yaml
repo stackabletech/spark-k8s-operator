@@ -93,6 +93,10 @@ tests:
     dimensions:
       - spark
       - openshift
+  - name: failure-propagation
+    dimensions:
+      - spark
+      - openshift
   - name: pyspark-ny-public-s3
     dimensions:
       - spark

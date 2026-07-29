@@ -1,0 +1,55 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: failing-job
+data:
+  # A job that starts up correctly, runs a real Spark action, and only then fails.
+  # This makes sure we are testing the exit code of a genuinely failing application
+  # and not a startup or submission error.
+  failing-job.py: |
+    from pyspark.sql import SparkSession
+
+    spark = SparkSession.builder.appName("failing-job").getOrCreate()
+
+    # forces an actual computation
+    print(f"count = {spark.range(1000).count()}")
+
+    raise RuntimeError("deliberate failure to test exit code propagation")
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: failure-propagation
+spec:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  mode: cluster
+  mainApplicationFile: "local:///stackable/spark/jobs/failing-job.py"
+  driver:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: script
+          mountPath: /stackable/spark/jobs
+  # The executors only run the tasks of the range/count job, they never read the script,
+  # so they do not need the volume mounted.
+  executor:
+    replicas: 1
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+  volumes:
+    - name: script
+      configMap:
+        name: failing-job

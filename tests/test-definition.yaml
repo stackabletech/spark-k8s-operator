@@ -97,6 +97,10 @@ tests:
     dimensions:
       - spark
       - openshift
+  - name: graceful-shutdown
+    dimensions:
+      - spark
+      - openshift
   - name: pyspark-ny-public-s3
     dimensions:
       - spark

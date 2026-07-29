@@ -1,0 +1,62 @@
+---
+# An executor whose Pod is deleted (node drain, eviction, downscale) has to be told to stop while
+# it is running a task. If SIGTERM is not forwarded to the JVM, the container ignores it and is
+# SIGKILLed when the grace period expires, taking the running task with it (docker-images#1564).
+#
+# TestStep and not TestAssert: kuttl retries asserts until they time out, which would turn every
+# failure into a generic timeout.
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - timeout: 600
+    script: |
+      set -eu
+
+      selector="spark-role=executor,app.kubernetes.io/instance=graceful-shutdown"
+      # A signalled container is gone in 1-2s, an unsignalled one at the grace period (30s).
+      budget_seconds=20
+
+      victim=$(kubectl -n "$NAMESPACE" get pods -o name -l "$selector" | head -1 | cut -d/ -f2)
+      grace=$(kubectl -n "$NAMESPACE" get pod "$victim" -o jsonpath='{.spec.terminationGracePeriodSeconds}')
+      echo "stopping executor $victim (grace period: ${grace}s)"
+
+      # The log cannot be read once the Pod object is gone, so stream it away first.
+      log=$(mktemp)
+      kubectl -n "$NAMESPACE" logs -f "$victim" -c spark >"$log" 2>&1 &
+      logs_pid=$!
+      sleep 2
+
+      kubectl -n "$NAMESPACE" delete pod "$victim" --wait=false
+
+      start=$(date +%s)
+      stopped=no
+      while [ $(( $(date +%s) - start )) -lt "$budget_seconds" ]; do
+        terminated=$(kubectl -n "$NAMESPACE" get pod "$victim" \
+          -o jsonpath='{.status.containerStatuses[?(@.name=="spark")].state.terminated.reason}' 2>/dev/null) \
+          || { stopped=yes; break; }  # Pod already removed
+        if [ -n "$terminated" ]; then
+          stopped=yes
+          break
+        fi
+        sleep 1
+      done
+      elapsed=$(( $(date +%s) - start ))
+      sleep 1
+      kill "$logs_pid" 2>/dev/null || true
+
+      if [ "$stopped" != yes ]; then
+        echo "FAIL: the executor was still running ${elapsed}s after its Pod was deleted, so"
+        echo "SIGTERM did not reach the JVM and the kubelet will SIGKILL it after ${grace}s."
+        tail -5 "$log"
+        exit 1
+      fi
+
+      # Only a JVM that ran its shutdown hooks logs from `shutdown-hook-*` threads.
+      if ! grep -q 'shutdown-hook' "$log"; then
+        echo "FAIL: the executor stopped after ${elapsed}s but ran no shutdown hook."
+        tail -5 "$log"
+        exit 1
+      fi
+
+      rm -f "$log"
+      echo "OK: the executor shut down gracefully after ${elapsed}s"

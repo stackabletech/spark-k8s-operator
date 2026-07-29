@@ -93,7 +93,7 @@ tests:
     dimensions:
       - spark
       - openshift
-  - name: failure-propagation
+  - name: signal-propagation
     dimensions:
       - spark
       - openshift

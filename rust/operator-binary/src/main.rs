@@ -91,7 +91,6 @@ async fn main() -> anyhow::Result<()> {
         Command::Run(RunArguments {
             operator_environment,
             watch_namespace,
-            product_config: _,
             maintenance,
             common,
         }) => {

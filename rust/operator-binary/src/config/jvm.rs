@@ -166,8 +166,9 @@ mod tests {
           lineage:
             connection:
               inline:
-                host: marquez
-                port: 5000
+                http:
+                  host: marquez
+                  port: 5000
     "#;
 
     const OPENLINEAGE_ABSENT: &str = r#"

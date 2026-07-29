@@ -27,13 +27,15 @@ spec:
   lineage: # <1>
     connection: # <2>
       inline:
-        host: marquez
-        port: 5000
-        # tls:
-        #   verification:
-        #     server:
-        #       caCert:
-        #         secretClass: marquez-ca
+        http:
+          host: marquez
+          port: 5000
+          # path: /api/v1/lineage
+          # tls:
+          #   verification:
+          #     server:
+          #       caCert:
+          #         secretClass: marquez-ca
     # namespace: orders-lineage # <3>
     # jobName: orders-by-nation # <4>
   ...
@@ -41,9 +43,9 @@ spec:
 <1> Adding the `lineage` block enables OpenLineage event emission. Omit it entirely to leave OpenLineage off (the default), in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
 <2> The OpenLineage backend connection. Use `inline` (shown here) to define the connection directly,
     or `reference: <name>` to point at an `OpenLineageConnection` resource in the same namespace.
-    Required.
+    Required. The connection selects a transport; `http` is currently the only one supported.
 <3> Optional. The OpenLineage namespace events are reported under.
-    Defaults to the application's Kubernetes namespace.
+    Defaults to `default`.
 <4> Optional. The stable OpenLineage job name (see <<job-name>>).
 
 The `OpenLineageConnection` resource (`lineage.stackable.tech`) is a reusable definition of a
@@ -57,8 +59,9 @@ kind: OpenLineageConnection
 metadata:
   name: marquez
 spec:
-  host: marquez
-  port: 5000
+  http:
+    host: marquez
+    port: 5000
 ----
 
 The transport scheme is `https` when `tls.verification.server` is configured, otherwise `http`.
@@ -84,9 +87,10 @@ spec:
   lineage:
     connection:
       inline:
-        host: marquez
-        port: 5000
-        credentialsSecretName: openlineage-token # <1>
+        http:
+          host: marquez
+          port: 5000
+          credentialsSecretName: openlineage-token # <1>
   ...
 ---
 apiVersion: v1

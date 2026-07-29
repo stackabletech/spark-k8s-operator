@@ -64,17 +64,18 @@ spec:
     jobName: openlineage-test-app
     connection:
       inline:
-        host: openlineage-receiver.$NAMESPACE.svc.cluster.local
-        port: 5000
+        http:
+          host: openlineage-receiver.$NAMESPACE.svc.cluster.local
+          port: 5000
 {% if test_scenario['values']['openlineage-use-tls'] == 'true' %}
-        tls:
-          verification:
-            server:
-              caCert:
-                secretClass: openlineage-tls-$NAMESPACE
+          tls:
+            verification:
+              server:
+                caCert:
+                  secretClass: openlineage-tls-$NAMESPACE
 {% endif %}
 {% if test_scenario['values']['openlineage-use-auth'] == 'true' %}
-        credentialsSecretName: openlineage-token
+          credentialsSecretName: openlineage-token
 {% endif %}
   driver:
     config:

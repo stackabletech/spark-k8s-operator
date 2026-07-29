@@ -1,7 +1,7 @@
 //! Operator-side OpenLineage helpers for [`SparkApplication`].
 //!
 //! The reusable OpenLineage types (`OpenLineageConnectionSpec`, `InlineConnectionOrReference`,
-//! `OpenLineageJob`) live in the `stackable_operator::crd::openlineage` library module. This module
+//! `OpenLineageConfig`) live in the `stackable_operator::crd::openlineage` library module. This module
 //! only holds the bits that depend on the operator's own `SparkApplication` (job-name resolution)
 //! plus a spark-submit conf helper.
 //!
@@ -10,17 +10,34 @@
 use std::collections::BTreeMap;
 
 use snafu::OptionExt;
-use stackable_operator::k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector};
+use stackable_operator::{
+    crd::openlineage::{
+        ResolvedOpenLineageConnection,
+        v1alpha1::{HttpTransport, OpenLineageTransport},
+    },
+    k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector},
+};
 
 use crate::crd::{
     Error, ObjectHasNoNameSnafu,
     constants::{
         OPENLINEAGE_AUTH_API_KEY_ENV, OPENLINEAGE_AUTH_SECRET_KEY, OPENLINEAGE_AUTH_TYPE_API_KEY,
-        OPENLINEAGE_AUTH_TYPE_ENV, OPENLINEAGE_TRANSPORT_TYPE_ENV, OPENLINEAGE_TRANSPORT_TYPE_HTTP,
+        OPENLINEAGE_AUTH_TYPE_ENV, OPENLINEAGE_TRANSPORT_ENDPOINT_ENV,
+        OPENLINEAGE_TRANSPORT_TYPE_ENV, OPENLINEAGE_TRANSPORT_TYPE_HTTP,
         OPENLINEAGE_TRANSPORT_URL_ENV,
     },
     v1alpha1,
 };
+
+/// Returns the HTTP transport of a resolved OpenLineage connection.
+///
+/// `http` is currently the only [`OpenLineageTransport`] variant, so this cannot fail. When further
+/// transports (for example Apache Kafka) are added upstream, this stops compiling and every caller
+/// has to decide what the new transport means for Spark.
+pub(crate) fn http_transport(conn: &ResolvedOpenLineageConnection) -> &HttpTransport {
+    let OpenLineageTransport::Http(http) = &conn.transport;
+    http
+}
 
 /// Appends `value` to a comma-separated `--conf` value in `submit_conf`, preserving any existing
 /// (e.g. user-supplied) entries and skipping `value` if it is already present. Used for the
@@ -50,6 +67,7 @@ pub(crate) fn append_conf_csv(submit_conf: &mut BTreeMap<String, String>, key: &
 /// args and the Job/pod spec — the operator never reads it.
 pub(crate) fn openlineage_transport_env_vars(
     transport_url: &str,
+    endpoint: &str,
     secret_name: &str,
 ) -> Vec<EnvVar> {
     let literal = |name: &str, value: &str| EnvVar {
@@ -64,6 +82,7 @@ pub(crate) fn openlineage_transport_env_vars(
             OPENLINEAGE_TRANSPORT_TYPE_HTTP,
         ),
         literal(OPENLINEAGE_TRANSPORT_URL_ENV, transport_url),
+        literal(OPENLINEAGE_TRANSPORT_ENDPOINT_ENV, endpoint),
         literal(OPENLINEAGE_AUTH_TYPE_ENV, OPENLINEAGE_AUTH_TYPE_API_KEY),
         EnvVar {
             name: OPENLINEAGE_AUTH_API_KEY_ENV.to_string(),
@@ -111,7 +130,11 @@ mod tests {
 
     #[test]
     fn transport_env_vars_carry_full_transport_with_token_secret_ref() {
-        let vars = openlineage_transport_env_vars("https://marquez:5000", "my-secret");
+        let vars = openlineage_transport_env_vars(
+            "https://marquez:5000",
+            HttpTransport::DEFAULT_PATH,
+            "my-secret",
+        );
 
         let get = |name: &str| {
             vars.iter()
@@ -127,6 +150,10 @@ mod tests {
         assert_eq!(
             get(OPENLINEAGE_TRANSPORT_URL_ENV).value.as_deref(),
             Some("https://marquez:5000")
+        );
+        assert_eq!(
+            get(OPENLINEAGE_TRANSPORT_ENDPOINT_ENV).value.as_deref(),
+            Some(HttpTransport::DEFAULT_PATH)
         );
         assert_eq!(
             get(OPENLINEAGE_AUTH_TYPE_ENV).value.as_deref(),

@@ -139,6 +139,10 @@ pub const OPENLINEAGE_TRANSPORT_TYPE_ENV: &str = "OPENLINEAGE__TRANSPORT__TYPE";
 /// Env var carrying the OpenLineage HTTP transport URL. See [`OPENLINEAGE_TRANSPORT_TYPE_ENV`].
 pub const OPENLINEAGE_TRANSPORT_URL_ENV: &str = "OPENLINEAGE__TRANSPORT__URL";
 
+/// Env var carrying the OpenLineage HTTP transport endpoint path, set from the connection's `path`.
+/// See [`OPENLINEAGE_TRANSPORT_TYPE_ENV`].
+pub const OPENLINEAGE_TRANSPORT_ENDPOINT_ENV: &str = "OPENLINEAGE__TRANSPORT__ENDPOINT";
+
 /// The OpenLineage transport type the operator uses (the HTTP transport).
 pub const OPENLINEAGE_TRANSPORT_TYPE_HTTP: &str = "http";
 

@@ -47,7 +47,7 @@ pub fn openlineage_tls_secret_name(
                         ca_cert: CaCert::SecretClass(secret_name),
                     }),
             }),
-    } = &conn.tls
+    } = &crate::lineage::http_transport(conn).tls
     {
         return Some(secret_name);
     }

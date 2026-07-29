@@ -278,7 +278,7 @@ pub mod versioned {
         /// The backend connection is either inlined or references an `OpenLineageConnection` resource.
         /// See the [OpenLineage usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/openlineage).
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub lineage: Option<openlineage::v1alpha1::OpenLineageJob>,
+        pub lineage: Option<openlineage::v1alpha1::OpenLineageConfig>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
@@ -797,23 +797,29 @@ impl v1alpha1::SparkApplication {
             // MUST come from a single source, or OpenLineage drops the env-provided `auth`. So skip
             // the `--conf` transport in that case.
             if let Some(connection) = open_lineage_conn
-                && connection.credentials_secret_name.is_none()
+                && crate::lineage::http_transport(connection)
+                    .credentials_secret_name
+                    .is_none()
             {
+                let http = crate::lineage::http_transport(connection);
                 submit_conf.insert(
                     "spark.openlineage.transport.type".to_string(),
                     "http".to_string(),
                 );
                 submit_conf.insert(
                     "spark.openlineage.transport.url".to_string(),
-                    connection.transport_url(),
+                    http.transport_url(),
+                );
+                submit_conf.insert(
+                    "spark.openlineage.transport.endpoint".to_string(),
+                    http.path.clone(),
                 );
             }
 
-            let namespace = match &lineage.namespace {
-                Some(namespace) => namespace.clone(),
-                None => self.metadata.namespace.clone().context(NoNamespaceSnafu)?,
-            };
-            submit_conf.insert("spark.openlineage.namespace".to_string(), namespace);
+            submit_conf.insert(
+                "spark.openlineage.namespace".to_string(),
+                lineage.namespace.clone(),
+            );
 
             // Stable job name — fixes the intermittent `unknown` bug (see the usage guide).
             submit_conf.insert(
@@ -908,13 +914,15 @@ impl v1alpha1::SparkApplication {
         // via the client's `OPENLINEAGE__` env-var configuration — see `openlineage_transport_env_vars`
         // and the matching skip of the `spark.openlineage.transport.*` `--conf` in `build_command`.
         // The token is sourced from the referenced Secret, so it never lands in the `--conf` args.
-        if let Some(connection) = open_lineage_conn
-            && let Some(secret_name) = &connection.credentials_secret_name
-        {
-            e.extend(openlineage_transport_env_vars(
-                &connection.transport_url(),
-                secret_name,
-            ));
+        if let Some(connection) = open_lineage_conn {
+            let http = crate::lineage::http_transport(connection);
+            if let Some(secret_name) = &http.credentials_secret_name {
+                e.extend(openlineage_transport_env_vars(
+                    &http.transport_url(),
+                    &http.path,
+                    secret_name,
+                ));
+            }
         }
         e
     }
@@ -1747,10 +1755,17 @@ spec:
         credentials_secret_name: Option<String>,
     ) -> openlineage::ResolvedOpenLineageConnection {
         openlineage::v1alpha1::OpenLineageConnectionSpec {
-            host: "marquez".to_string(),
-            port: 5000,
-            tls: stackable_operator::commons::tls_verification::TlsClientDetails { tls: None },
-            credentials_secret_name,
+            transport: openlineage::v1alpha1::OpenLineageTransport::Http(
+                openlineage::v1alpha1::HttpTransport {
+                    host: "marquez".to_string(),
+                    port: 5000,
+                    path: openlineage::v1alpha1::HttpTransport::DEFAULT_PATH.to_string(),
+                    tls: stackable_operator::commons::tls_verification::TlsClientDetails {
+                        tls: None,
+                    },
+                    credentials_secret_name,
+                },
+            ),
         }
     }
 
@@ -1864,8 +1879,9 @@ spec:
           lineage:
             connection:
               inline:
-                host: marquez
-                port: 5000
+                http:
+                  host: marquez
+                  port: 5000
     "#};
 
     #[test]
@@ -1876,8 +1892,12 @@ spec:
         assert!(
             command.contains(r#"--conf "spark.openlineage.transport.url=http://marquez:5000""#)
         );
-        // Namespace defaults to metadata.namespace.
+        // Namespace comes from the CRD, which defaults it to `default`.
         assert!(command.contains(r#"--conf "spark.openlineage.namespace=default""#));
+        // The endpoint path comes from the connection, defaulting to /api/v1/lineage.
+        assert!(
+            command.contains(r#"--conf "spark.openlineage.transport.endpoint=/api/v1/lineage""#)
+        );
         // appName falls back to metadata.name (no jobName / spark.app.name set).
         assert!(command.contains(r#"--conf "spark.openlineage.appName=spark-examples""#));
         assert!(command.contains(&format!(
@@ -1956,8 +1976,9 @@ spec:
               lineage:
                 connection:
                   inline:
-                    host: marquez
-                    port: 5000
+                    http:
+                      host: marquez
+                      port: 5000
               sparkConf:
                 spark.extraListeners: com.example.CustomListener
         "#};
@@ -1985,8 +2006,9 @@ spec:
               lineage:
                 connection:
                   inline:
-                    host: marquez
-                    port: 5000
+                    http:
+                      host: marquez
+                      port: 5000
               sparkConf:
                 spark.openlineage.transport.url: http://custom:1234
                 spark.openlineage.namespace: custom-ns
@@ -2015,13 +2037,14 @@ spec:
               lineage:
                 connection:
                   inline:
-                    host: marquez
-                    port: 5000
-                    tls:
-                      verification:
-                        server:
-                          caCert:
-                            secretClass: marquez-ca
+                    http:
+                      host: marquez
+                      port: 5000
+                      tls:
+                        verification:
+                          server:
+                            caCert:
+                              secretClass: marquez-ca
         "#};
         let command = build_command_with_openlineage(yaml, "4.1.2");
 
@@ -2051,13 +2074,14 @@ spec:
               lineage:
                 connection:
                   inline:
-                    host: marquez
-                    port: 5000
-                    tls:
-                      verification:
-                        server:
-                          caCert:
-                            secretClass: marquez-ca
+                    http:
+                      host: marquez
+                      port: 5000
+                      tls:
+                        verification:
+                          server:
+                            caCert:
+                              secretClass: marquez-ca
         "#};
         let command = build_command_with_openlineage(yaml, "4.1.2");
 
@@ -2104,8 +2128,9 @@ spec:
               lineage:
                 connection:
                   inline:
-                    host: marquez
-                    port: 5000
+                    http:
+                      host: marquez
+                      port: 5000
                 jobName: explicit-name
               sparkConf:
                 spark.app.name: spark-conf-name
@@ -2128,8 +2153,9 @@ spec:
               lineage:
                 connection:
                   inline:
-                    host: marquez
-                    port: 5000
+                    http:
+                      host: marquez
+                      port: 5000
               sparkConf:
                 spark.app.name: spark-conf-name
         "#},
@@ -2151,8 +2177,9 @@ spec:
               lineage:
                 connection:
                   inline:
-                    host: marquez
-                    port: 5000
+                    http:
+                      host: marquez
+                      port: 5000
         "#},
         "metadata-name"
     )]

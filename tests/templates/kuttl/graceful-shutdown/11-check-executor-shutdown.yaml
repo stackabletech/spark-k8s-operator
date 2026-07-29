@@ -17,7 +17,23 @@ commands:
       budget_seconds=20
 
       victim=$(kubectl -n "$NAMESPACE" get pods -o name -l "$selector" | head -1 | cut -d/ -f2)
+      if [ -z "$victim" ]; then
+        echo "FAIL: no executor Pod found to stop"
+        exit 1
+      fi
+
       grace=$(kubectl -n "$NAMESPACE" get pod "$victim" -o jsonpath='{.spec.terminationGracePeriodSeconds}')
+      # The budget has to stay inside the grace period. Otherwise the kubelet SIGKILLs the container
+      # before the budget expires, the Pod disappears, and the wait below reads that as a graceful
+      # stop -- the test would pass for exactly the behaviour it is meant to catch.
+      if [ -z "$grace" ] || [ "$grace" -le "$budget_seconds" ]; then
+        if [ -n "$grace" ]; then grace="${grace}s"; else grace="unset"; fi
+        echo "FAIL: the executor's termination grace period ($grace) is not above this"
+        echo "test's ${budget_seconds}s budget, so a SIGKILL cannot be told apart from a graceful"
+        echo "stop. Lower budget_seconds in this file."
+        exit 1
+      fi
+
       echo "stopping executor $victim (grace period: ${grace}s)"
 
       # The log cannot be read once the Pod object is gone, so stream it away first.

@@ -1,0 +1,93 @@
+= SDP upgrade notes
+:description: Instructions for upgrading the SDP versions.
+
+== Upgrade from SDP 26.3 to 26.7
+
+=== Application templates changed from cluster-scoped to namespace-scoped
+
+`SparkApplicationTemplate` was a cluster-scoped resource when it was first released in SDP 26.3.
+As of SDP 26.7 the resource is namespace-scoped because many users do not have the access rights to create cluster-scoped resources.
+
+WARNING: This change requires manual intervention *before* the upgrade.
+A Kubernetes CustomResourceDefinition cannot change its scope in place, so the 26.7 operator cannot perform this migration for you, and it does not start until the old CustomResourceDefinition is gone.
+
+==== What you see if you upgrade without preparing
+
+The operator maintains its own CustomResourceDefinitions.
+On startup it tries to reconcile `sparkapptemplates.spark.stackable.tech` to the namespace-scoped definition, the API server rejects the change because `spec.scope` is immutable, and the operator exits:
+
+[source]
+----
+Error: failed to run webhook server
+
+Caused by:
+    0: failed to update certificate
+    1: conversion webhook error
+    2: failed to patch CRD "sparkapptemplates.spark.stackable.tech"
+    3: ApiError: CustomResourceDefinition.apiextensions.k8s.io
+       "sparkapptemplates.spark.stackable.tech" is invalid:
+       spec.scope: Invalid value: "Namespaced": field is immutable: Invalid
+----
+
+The operator Pod then enters `CrashLoopBackOff` and no Spark resources are reconciled — not just templates, but `SparkApplication`, `SparkConnectServer` and `SparkHistoryServer` as well, because the operator never finishes starting.
+
+When installed through OLM on OpenShift, the ClusterServiceVersion stays in the `Installing` phase with `waiting for deployment spark-k8s-operator-deployment to become ready`.
+
+=== Migration procedure
+
+Deleting the CustomResourceDefinition deletes every `SparkApplicationTemplate` in the cluster.
+Export them first if you want to keep them.
+
+. Export the existing templates, while the 26.3 operator is still running:
++
+[source,shell]
+----
+kubectl get sparkapptemplates.spark.stackable.tech -o yaml > spark-app-templates.yaml
+----
++
+NOTE: Because the resource is still cluster-scoped at this point, this single command captures every template in the cluster.
+Note which namespaces the SparkApplications that reference them live in — you need that in step 4.
+
+. Delete the CustomResourceDefinition.
+This also deletes all `SparkApplicationTemplate` objects:
++
+[source,shell]
+----
+kubectl delete crd sparkapptemplates.spark.stackable.tech
+----
+
+. Upgrade the operator to 26.7.
+It recreates `sparkapptemplates.spark.stackable.tech` as a namespace-scoped resource on startup.
+Confirm it did:
++
+[source,shell]
+----
+kubectl get crd sparkapptemplates.spark.stackable.tech -o jsonpath='{.spec.scope}'
+----
++
+This must print `Namespaced`.
+
+. Recreate the templates from your export, once per namespace that needs them.
+Strip the `metadata.resourceVersion`, `metadata.uid` and `metadata.creationTimestamp` fields first, otherwise the apply is rejected.
+The target namespace comes from `-n`, so the manifests themselves do not need a `metadata.namespace`:
++
+[source,shell]
+----
+kubectl apply -n <namespace> -f spark-app-templates.yaml
+----
++
+If only some templates belong in a given namespace, split the exported file accordingly rather than applying all of them everywhere.
+
+If the operator is already crashlooping because the upgrade happened first, the recovery is the same, except that the templates are no longer readable and cannot be exported.
+Delete the CustomResourceDefinition, let the operator restart, and recreate the templates from your source manifests or GitOps repository.
+
+=== Consequences for existing manifests
+
+A template must now exist in the same namespace as the SparkApplications that reference it:
+
+. Recreate each template in every namespace where SparkApplications use it.
+. Keep template names consistent per namespace if you want the same application annotations to keep working.
+. Cross-namespace template references are no longer resolved; templates and applications must be in the same namespace.
+. Update GitOps and automation manifests to create templates as namespace-targeted resources before reconciling dependent SparkApplications.
+
+See xref:usage-guide/app_templates.adoc[] for the current behaviour of application templates.

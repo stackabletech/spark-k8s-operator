@@ -12,16 +12,10 @@ Application templates are available for the `v1alpha1` version of the SparkAppli
 4. Application template references are immutable in the sense that once applied to an application they cannot be changed again. Currently templates are applied upon the creation of the application, and any changes to the template references after that will be ignored.
 5. Application and template CRDs must have the exact same versions. Currently only `v1alpha1` is supported.
 
-== Migrating from cluster-scoped templates
+IMPORTANT: Application templates were cluster-scoped when they were first released in SDP 26.3, and are namespace-scoped from SDP 26.7 onwards.
+Upgrading across that change requires manual steps, because a CustomResourceDefinition cannot change its scope in place.
+See xref:usage-guide/upgrade.adoc[] before upgrading.
 
-IMPORTANT: Application templates used to be cluster wide resources when they were first released. This was a mistake. Many users do not have the access rights to create cluster scoped resources and so the templates are now namespace scoped.
-
-If you are migrating from older installations where templates were treated as cluster-wide resources, account for the following:
-
-1. Recreate each template in every namespace where SparkApplications use it.
-2. Keep template names consistent per namespace if you want the same application annotations to continue working.
-3. Cross-namespace template references are no longer resolved; templates and applications must be in the same namespace.
-4. Update GitOps/automation manifests to create templates as namespace-targeted resources before reconciling dependent SparkApplications.
 == Examples
 
 Applications use `metadata.annotations` to reference application templates as shown below:

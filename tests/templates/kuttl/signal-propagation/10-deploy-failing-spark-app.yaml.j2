@@ -22,7 +22,7 @@ kind: SparkApplication
 metadata:
   name: failure-propagation
 spec:
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+{% if test_scenario['values']['vector'] == 'true' %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
 {% endif %}
   sparkImage:
@@ -38,7 +38,7 @@ spec:
   driver:
     config:
       logging:
-        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        enableVectorAgent: {{ test_scenario['values']['vector'] }}
       volumeMounts:
         - name: script
           mountPath: /stackable/spark/jobs
@@ -48,7 +48,7 @@ spec:
     replicas: 1
     config:
       logging:
-        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        enableVectorAgent: {{ test_scenario['values']['vector'] }}
   volumes:
     - name: script
       configMap:

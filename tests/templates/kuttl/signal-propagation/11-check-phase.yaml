@@ -14,9 +14,20 @@ commands:
 
       timeout_seconds=900
       interval_seconds=5
+      # How long the application may still take to reach a terminal phase after the Spark
+      # container itself has terminated. The post hook sleeps 10 seconds before telling Vector
+      # to shut down, so this only has to be comfortably above that.
+      grace_seconds=120
+
+      driver_containers() {
+        kubectl -n "$NAMESPACE" get pods -l spark-role=driver \
+          -o jsonpath='{range .items[*].status.containerStatuses[*]}{.name}={.state}{"\n"}{end}' \
+          2>/dev/null || true
+      }
 
       phase=""
       elapsed=0
+      spark_done_at=-1
       while [ "$elapsed" -lt "$timeout_seconds" ]; do
         phase=$(kubectl -n "$NAMESPACE" get sparkapplication failure-propagation \
           -o jsonpath='{.status.phase}' 2>/dev/null || true)
@@ -34,9 +45,30 @@ commands:
             ;;
         esac
 
+        # Once the Spark container has terminated, the Pod has to follow shortly after.
+        # If it does not, the entrypoint skipped its post hook after the Spark process
+        # exited, so a sidecar was never told to shut down and the Pod can never reach
+        # a terminal phase at all.
+        containers=$(driver_containers)
+        if echo "$containers" | grep -q '^spark=.*terminated'; then
+          if [ "$spark_done_at" -lt 0 ]; then
+            spark_done_at="$elapsed"
+          elif [ "$((elapsed - spark_done_at))" -ge "$grace_seconds" ]; then
+            echo "FAIL: the Spark container terminated ${grace_seconds}s ago, but the application"
+            echo "is still in phase '${phase}'. The entrypoint did not run its post hook after the"
+            echo "Spark process exited, so a sidecar was never told to shut down and the Pod cannot"
+            echo "terminate (see spark-k8s/stackable/run-spark.sh)."
+            echo "Driver container states:"
+            echo "$containers" | sed 's/^/  /'
+            exit 1
+          fi
+        fi
+
         sleep "$interval_seconds"
         elapsed=$((elapsed + interval_seconds))
       done
 
       echo "FAIL: no terminal phase after ${timeout_seconds}s (last seen: '${phase}')"
+      echo "Driver container states:"
+      driver_containers | sed 's/^/  /'
       exit 1

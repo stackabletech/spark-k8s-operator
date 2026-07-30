@@ -1,9 +1,12 @@
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+{% if test_scenario['values']['vector'] == 'true' %}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: vector-aggregator-discovery
 data:
-  ADDRESS: {{ lookup('env', 'VECTOR_AGGREGATOR') }}
+  # This test only asserts that the Vector agent is shut down again, not that the log events
+  # arrive anywhere, so it does not need a reachable aggregator. If one is provided it is used,
+  # otherwise the agent runs and logs connection errors, which does not affect the assertions.
+  ADDRESS: {{ lookup('env', 'VECTOR_AGGREGATOR') or 'localhost:6123' }}
 {% endif %}

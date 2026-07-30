@@ -1,7 +1,7 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+{% if test_scenario['values']['vector'] == 'true' %}
 ---
 apiVersion: v1
 kind: ConfigMap

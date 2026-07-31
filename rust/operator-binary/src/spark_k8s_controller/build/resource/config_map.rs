@@ -20,7 +20,10 @@ use crate::{
     },
     product_logging::{self},
     spark_k8s_controller::{
-        build::pod::{self, pod_template},
+        build::{
+            object_meta,
+            pod::{self, pod_template},
+        },
         validate,
     },
 };
@@ -110,7 +113,7 @@ pub(crate) fn pod_template_config_map(
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
-        .metadata(validated.object_meta(&cm_name, "pod-templates").build())
+        .metadata(object_meta(validated, &cm_name, "pod-templates").build())
         .add_data(
             POD_TEMPLATE_FILE,
             serde_yaml::to_string(&template).context(PodTemplateSerdeSnafu)?,
@@ -154,7 +157,7 @@ pub(crate) fn submit_job_config_map(
 
     let mut cm_builder = ConfigMapBuilder::new();
 
-    cm_builder.metadata(validated.object_meta(&cm_name, "spark-submit").build());
+    cm_builder.metadata(object_meta(validated, &cm_name, "spark-submit").build());
 
     cm_builder.add_data(
         SPARK_ENV_SH_FILE_NAME,

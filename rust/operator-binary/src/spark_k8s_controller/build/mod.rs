@@ -3,6 +3,9 @@ pub mod resource;
 
 use resource::{config_map, job};
 use snafu::{ResultExt, Snafu};
+use stackable_operator::{
+    builder::meta::ObjectMetaBuilder, v2::builder::meta::ownerreference_from_resource,
+};
 
 use crate::{
     crd::roles::SparkApplicationRole,
@@ -128,4 +131,21 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
         ],
         job,
     })
+}
+
+/// Object metadata for a child resource named `name`, owned by the SparkApplication and
+/// carrying the recommended labels for the given `role`. Returns the builder so callers can add
+/// extra labels before building.
+pub(crate) fn object_meta(
+    validated: &ValidatedSparkApplication,
+    name: impl Into<String>,
+    role: &str,
+) -> ObjectMetaBuilder {
+    let mut builder = ObjectMetaBuilder::new();
+    builder
+        .namespace(validated.namespace.clone())
+        .name(name)
+        .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
+        .with_labels(validated.recommended_labels(role));
+    builder
 }

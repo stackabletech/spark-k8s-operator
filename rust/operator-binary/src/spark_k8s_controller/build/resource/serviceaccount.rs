@@ -6,7 +6,10 @@ use stackable_operator::k8s_openapi::{
     },
 };
 
-use crate::{crd::constants::*, spark_k8s_controller::validate};
+use crate::{
+    crd::constants::*,
+    spark_k8s_controller::{build::object_meta, validate},
+};
 
 /// For a given SparkApplication, we create a ServiceAccount with a RoleBinding to the ClusterRole
 /// that allows the driver to create pods etc.
@@ -17,12 +20,12 @@ pub(crate) fn build_spark_role_serviceaccount(
 ) -> (ServiceAccount, RoleBinding) {
     let sa_name = validated.name.to_string();
     let sa = ServiceAccount {
-        metadata: validated.object_meta(&sa_name, "service-account").build(),
+        metadata: object_meta(validated, &sa_name, "service-account").build(),
         ..ServiceAccount::default()
     };
     let binding_name = &sa_name;
     let binding = RoleBinding {
-        metadata: validated.object_meta(binding_name, "role-binding").build(),
+        metadata: object_meta(validated, binding_name, "role-binding").build(),
         role_ref: RoleRef {
             api_group: Some(ClusterRole::GROUP.to_string()),
             kind: ClusterRole::KIND.to_string(),

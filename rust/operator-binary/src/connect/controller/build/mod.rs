@@ -6,18 +6,23 @@
 //! together in one module is clearer than scattering them across per-kind modules.
 
 pub(crate) mod executor;
+pub(crate) mod rbac;
 pub(crate) mod server;
 pub(crate) mod service;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    k8s_openapi::api::{core::v1::ServiceAccount, rbac::v1::RoleBinding},
-    kube::ResourceExt,
+    builder::meta::ObjectMetaBuilder, kube::ResourceExt,
+    v2::builder::meta::ownerreference_from_resource,
 };
 
 use crate::connect::{
-    common,
-    controller::{SparkConnectResources, validate::ValidatedSparkConnectServer},
+    common::{self, SparkConnectRole},
+    controller::{
+        SparkConnectResources,
+        build::rbac::{build_role_binding, build_service_account},
+        validate::ValidatedSparkConnectServer,
+    },
 };
 
 #[derive(Snafu, Debug)]
@@ -56,8 +61,6 @@ pub enum Error {
 /// Builds every Kubernetes resource for the given validated SparkConnectServer.
 pub(crate) fn build(
     validated: &ValidatedSparkConnectServer,
-    service_account: ServiceAccount,
-    role_binding: RoleBinding,
     user_args: &[String],
 ) -> Result<SparkConnectResources, Error> {
     let resolved_s3 = &validated.cluster_config.resolved_s3;
@@ -70,8 +73,7 @@ pub(crate) fn build(
         resolved_s3
             .spark_properties()
             .context(S3SparkPropertiesSnafu)?,
-        server::server_properties(validated, &headless_service, &service_account)
-            .context(ServerPropertiesSnafu)?,
+        server::server_properties(validated, &headless_service).context(ServerPropertiesSnafu)?,
         executor::executor_properties(validated).context(ExecutorPropertiesSnafu)?,
     ])
     .context(SerializePropertiesSnafu)?;
@@ -97,21 +99,83 @@ pub(crate) fn build(
     let listener = server::build_listener(validated);
 
     let args = server::command_args(user_args);
-    let stateful_set = server::build_stateful_set(
-        validated,
-        &service_account,
-        &server_config_map,
-        &listener.name_any(),
-        args,
-    )
-    .context(BuildServerStatefulSetSnafu)?;
+    let stateful_set =
+        server::build_stateful_set(validated, &server_config_map, &listener.name_any(), args)
+            .context(BuildServerStatefulSetSnafu)?;
 
     Ok(SparkConnectResources {
-        service_account,
-        role_binding,
+        service_account: build_service_account(validated),
+        role_binding: build_role_binding(validated),
         services: vec![headless_service, metrics_service],
         config_maps: vec![executor_config_map, server_config_map],
         listener,
         stateful_set,
     })
+}
+
+/// Object metadata for a child resource named `name`, owned by the SparkConnectServer and
+/// carrying the recommended labels for the given role.
+pub(crate) fn object_meta(
+    validated: &ValidatedSparkConnectServer,
+    name: impl Into<String>,
+    role: SparkConnectRole,
+) -> ObjectMetaBuilder {
+    let mut builder = ObjectMetaBuilder::new();
+    builder
+        .name_and_namespace(validated)
+        .name(name)
+        .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
+        .with_labels(validated.recommended_labels(role));
+    builder
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use indoc::indoc;
+    use stackable_operator::{cli::OperatorEnvironmentOptions, utils::yaml_from_str_singleton_map};
+
+    use crate::connect::{
+        controller::{
+            dereference::DereferencedSparkConnectServer,
+            validate::{ValidatedSparkConnectServer, validate},
+        },
+        crd::v1alpha1,
+        s3::ResolvedS3,
+    };
+
+    /// Minimal S3-free `SparkConnectServer` fixture, keeping the dereference step client-free;
+    /// the `uid` allows owner references to be derived from it.
+    ///
+    /// The cluster name (`my-connect`) deliberately differs from the product name
+    /// (`spark-connect`), so tests asserting recommended labels catch swapped `name`/`instance`
+    /// values.
+    pub const CONNECT_YAML: &str = indoc! {r#"
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkConnectServer
+        metadata:
+          name: my-connect
+          namespace: default
+          uid: 12345678-1234-1234-1234-123456789012
+        spec:
+          image:
+            productVersion: 4.1.2
+        "#};
+
+    /// Runs the real validate step against the minimal fixture.
+    pub fn minimal_validated_cluster() -> ValidatedSparkConnectServer {
+        let scs: v1alpha1::SparkConnectServer = yaml_from_str_singleton_map(CONNECT_YAML)
+            .expect("invalid test SparkConnectServer YAML");
+        validate(
+            &scs,
+            DereferencedSparkConnectServer {
+                resolved_s3: ResolvedS3::none(),
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+        .expect("validate should succeed for the test fixture")
+    }
 }

@@ -17,7 +17,10 @@ use crate::{
         roles::{SparkApplicationRole, SparkContainer, SubmitConfig},
         tlscerts,
     },
-    spark_k8s_controller::{build::pod::security_context, validate},
+    spark_k8s_controller::{
+        build::{object_meta, pod::security_context},
+        validate,
+    },
 };
 
 #[derive(Snafu, Debug)]
@@ -150,9 +153,7 @@ pub(crate) fn spark_job(
     }
 
     let job = Job {
-        metadata: validated
-            .object_meta(validated.name.to_string(), "spark-job")
-            .build(),
+        metadata: object_meta(validated, validated.name.to_string(), "spark-job").build(),
         spec: Some(JobSpec {
             template: pod,
             ttl_seconds_after_finished: Some(600),

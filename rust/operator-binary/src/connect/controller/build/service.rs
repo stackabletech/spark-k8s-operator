@@ -7,7 +7,7 @@ use stackable_operator::{
 use crate::connect::{
     GRPC, HTTP,
     common::SparkConnectRole,
-    controller::validate::ValidatedSparkConnectServer,
+    controller::{build::object_meta, validate::ValidatedSparkConnectServer},
     crd::{CONNECT_GRPC_PORT, CONNECT_UI_PORT},
 };
 
@@ -23,9 +23,7 @@ pub(crate) fn build_headless_service(validated: &ValidatedSparkConnectServer) ->
     let selector = validated.role_selector(SparkConnectRole::Server).into();
 
     Service {
-        metadata: validated
-            .object_meta(service_name, SparkConnectRole::Server)
-            .build(),
+        metadata: object_meta(validated, service_name, SparkConnectRole::Server).build(),
         spec: Some(ServiceSpec {
             type_: Some("ClusterIP".to_owned()),
             cluster_ip: Some("None".to_owned()),
@@ -63,8 +61,7 @@ pub(crate) fn build_metrics_service(validated: &ValidatedSparkConnectServer) -> 
     let selector = validated.role_selector(SparkConnectRole::Server).into();
 
     Service {
-        metadata: validated
-            .object_meta(service_name, SparkConnectRole::Server)
+        metadata: object_meta(validated, service_name, SparkConnectRole::Server)
             .with_labels(prometheus_labels(&Scraping::Enabled))
             .with_annotations(prometheus_annotations(
                 &Scraping::Enabled,

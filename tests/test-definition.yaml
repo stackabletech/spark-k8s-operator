@@ -11,13 +11,6 @@ dimensions:
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
-  # Whether the Vector agent is enabled. With it enabled the operator sets a post hook on the
-  # product container, which the entrypoint has to run even when the application failed. If it
-  # does not, the agent is never shut down and the Pod cannot reach a terminal phase.
-  - name: vector
-    values:
-      - "false"
-      - "true"
   - name: spark-logging
     values:
       - 3.5.8
@@ -103,7 +96,6 @@ tests:
   - name: signal-propagation
     dimensions:
       - spark
-      - vector
       - openshift
   - name: graceful-shutdown
     dimensions:

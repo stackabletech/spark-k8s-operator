@@ -15,8 +15,9 @@ commands:
       timeout_seconds=900
       interval_seconds=5
       # How long the application may still take to reach a terminal phase after the Spark
-      # container itself has terminated. The post hook sleeps 10 seconds before telling Vector
-      # to shut down, so this only has to be comfortably above that.
+      # container itself has terminated. Without a sidecar the Pod follows within seconds;
+      # with the Vector agent enabled the post hook sleeps 10 seconds before shutting it
+      # down, so this only has to be comfortably above that.
       grace_seconds=120
 
       driver_containers() {

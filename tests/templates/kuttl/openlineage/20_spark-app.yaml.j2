@@ -1,0 +1,98 @@
+# The SparkApplication under test plus its PySpark job.
+#
+# The job reads/writes a small DataFrame so the OpenLineage Spark listener emits START/COMPLETE run
+# events. The operator injects the listener, the jar, and the `spark.openlineage.*` config from the
+# `lineage` block below; the events are POSTed to the nginx receiver.
+#
+# `$NAMESPACE` is substituted by the `20-deploy-spark-app` step so the connection host is the fully
+# qualified Service DNS name — which is what the secret-operator `service` scope puts in the cert
+# SANs, so TLS hostname verification on the driver succeeds.
+{% if test_scenario['values']['openlineage-use-auth'] == 'true' %}
+---
+# Token Secret for the auth scenario. The Secret is namespaced and must live in the workload
+# namespace; the operator wires its `apiKey` entry into the driver as the OpenLineage bearer token
+# via a secretKeyRef env var (referenced by `credentialsSecretName` on the connection).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openlineage-token
+stringData:
+  apiKey: "openlineage-test-token"
+{% endif %}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openlineage-job
+data:
+  openlineage-job.py: |
+    from pyspark.sql import SparkSession
+
+    spark = SparkSession.builder.appName("openlineage-test-app").getOrCreate()
+
+    df = spark.createDataFrame(
+        [(1, "a"), (2, "b"), (2, "c"), (3, "d")],
+        ["id", "grp"],
+    )
+    # An aggregation + collect triggers a SQL execution, which makes the OpenLineage listener emit
+    # START/COMPLETE run events. We deliberately avoid a filesystem write: in cluster mode the driver
+    # and executors have separate local filesystems, so a write to a local path would fail the commit.
+    result = df.groupBy("grp").count().collect()
+    print(f"aggregation result: {result}")
+
+    spark.stop()
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: openlineage
+spec:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  mode: cluster
+  mainApplicationFile: "local:///stackable/spark/jobs/openlineage-job.py"
+  lineage:
+    jobName: openlineage-test-app
+    connection:
+      inline:
+        http:
+          host: openlineage-receiver.$NAMESPACE.svc.cluster.local
+          port: 5000
+{% if test_scenario['values']['openlineage-use-tls'] == 'true' %}
+          tls:
+            verification:
+              server:
+                caCert:
+                  secretClass: openlineage-tls-$NAMESPACE
+{% endif %}
+{% if test_scenario['values']['openlineage-use-auth'] == 'true' %}
+          credentialsSecretName: openlineage-token
+{% endif %}
+  driver:
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: script
+          mountPath: /stackable/spark/jobs
+  executor:
+    replicas: 1
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+      volumeMounts:
+        - name: script
+          mountPath: /stackable/spark/jobs
+  volumes:
+    - name: script
+      configMap:
+        name: openlineage-job

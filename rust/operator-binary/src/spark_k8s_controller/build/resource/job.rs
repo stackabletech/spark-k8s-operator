@@ -50,6 +50,7 @@ pub(crate) fn spark_job(
     let spark_image = &validated.resolved_product_image;
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
+    let open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let mut cb = new_container_builder(&SparkContainer::SparkSubmit.to_container_name());
 
     let merged_env = spark_application.merged_env(SparkApplicationRole::Submit, env);
@@ -61,7 +62,7 @@ pub(crate) fn spark_job(
     let mut spark_submit_opts_env = vec![format!(
         "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
     )];
-    if tlscerts::tls_secret_names(s3conn, logdir).is_some() {
+    if tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn).is_some() {
         spark_submit_opts_env.push(format!(
             "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"
         ));
@@ -79,7 +80,11 @@ pub(crate) fn spark_job(
         ])
         .args(vec![job_commands.join("\n")])
         .resources(job_config.resources.clone().into())
-        .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, logdir))
+        .add_volume_mounts(spark_application.spark_job_volume_mounts(
+            s3conn,
+            logdir,
+            open_lineage_conn,
+        ))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env)
         .add_env_var("SPARK_SUBMIT_OPTS", spark_submit_opts_env.join(" "))
@@ -106,7 +111,13 @@ pub(crate) fn spark_job(
         .context(MissingSecretLifetimeSnafu)?;
     volumes.extend(
         spark_application
-            .volumes(s3conn, logdir, None, &requested_secret_lifetime)
+            .volumes(
+                s3conn,
+                logdir,
+                None,
+                &requested_secret_lifetime,
+                open_lineage_conn,
+            )
             .context(CreateVolumesSnafu)?,
     );
 

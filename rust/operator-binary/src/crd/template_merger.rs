@@ -55,6 +55,11 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
             .vector_aggregator_config_map_name
             .clone()
             .or_else(|| base.spec.vector_aggregator_config_map_name.clone()),
+        lineage: overlay
+            .spec
+            .lineage
+            .clone()
+            .or_else(|| base.spec.lineage.clone()),
         s3connection: overlay
             .spec
             .s3connection

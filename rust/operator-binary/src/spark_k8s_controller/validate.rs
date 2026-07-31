@@ -12,7 +12,7 @@ use stackable_operator::{
         product_image_selection::{self, ResolvedProductImage},
         tls_verification::TlsVerification,
     },
-    crd::s3,
+    crd::{openlineage, s3},
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
     kvp::Labels,
@@ -93,6 +93,7 @@ pub struct ValidatedSparkApplication {
 pub struct ValidatedClusterConfig {
     pub resolved_template_refs: Vec<v1alpha1::ResolvedSparkApplicationTemplate>,
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
+    pub open_lineage_connection: Option<openlineage::ResolvedOpenLineageConnection>,
     pub log_dir: Option<ResolvedLogDir>,
 }
 
@@ -225,6 +226,7 @@ pub fn validate(
         cluster_config: ValidatedClusterConfig {
             resolved_template_refs: dereferenced.resolved_template_refs,
             s3_connection: dereferenced.s3_connection,
+            open_lineage_connection: dereferenced.open_lineage_connection,
             log_dir: dereferenced.log_dir,
         },
     })
@@ -279,6 +281,7 @@ mod tests {
                 resolved_template_refs: Vec::new(),
                 s3_connection: None,
                 log_dir: None,
+                open_lineage_connection: None,
             },
             &OperatorEnvironmentOptions {
                 operator_namespace: "stackable-operators".to_string(),

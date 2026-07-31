@@ -24,7 +24,7 @@ use stackable_operator::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
-    crd::s3,
+    crd::{openlineage, s3},
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
         apimachinery::pkg::api::resource::Quantity,
@@ -52,6 +52,7 @@ use crate::{
             SubmitConfig, SubmitConfigFragment, VolumeMounts,
         },
     },
+    lineage::{append_conf_csv, openlineage_transport_env_vars},
 };
 
 pub mod affinity;
@@ -76,7 +77,7 @@ pub enum Error {
     #[snafu(display("object defines no application artifact"))]
     ObjectHasNoArtifact,
 
-    #[snafu(display("object has no name"))]
+    #[snafu(display("object has no name"), visibility(pub(crate)))]
     ObjectHasNoName,
 
     #[snafu(display("application has no Spark image"))]
@@ -114,6 +115,28 @@ pub enum Error {
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
+
+    #[snafu(display(
+        "failed to parse the Spark major version from the resolved product version {product_version:?}"
+    ))]
+    UnparseableSparkVersion {
+        source: std::num::ParseIntError,
+        product_version: String,
+    },
+}
+
+/// Parses the Spark major version from a resolved product version string such as `4.1.2` or
+/// `3.5.8`. Used to gate version-specific OpenLineage wiring — the `--add-opens` JVM flag, which is
+/// only needed on (and safe for) the JDK 17+/Spark 4.x line and can break the Spark 3.5.x JVMs.
+pub(crate) fn spark_major_version(product_version: &str) -> Result<u64, Error> {
+    product_version
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .parse::<u64>()
+        .context(UnparseableSparkVersionSnafu {
+            product_version: product_version.to_string(),
+        })
 }
 
 pub type SparkApplicationJobRoleType =
@@ -248,6 +271,14 @@ pub mod versioned {
         /// The log file directory definition used by the Spark history server.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub log_file_directory: Option<LogFileDirectorySpec>,
+
+        /// Emit [OpenLineage](https://openlineage.io/) lineage events for this application.
+        /// The OpenLineage Spark listener runs on the driver and describes the whole application,
+        /// so this is application-scoped config (not per driver/executor role).
+        /// The backend connection is either inlined or references an `OpenLineageConnection` resource.
+        /// See the [OpenLineage usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/openlineage).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub lineage: Option<openlineage::v1alpha1::OpenLineageConfig>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
@@ -306,6 +337,7 @@ impl v1alpha1::SparkApplication {
         logdir: &Option<ResolvedLogDir>,
         log_config_map: Option<&str>,
         requested_secret_lifetime: &Duration,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Result<Vec<Volume>, Error> {
         // Collect the volumes in a map keyed by name to avoid duplicates.
         // Duplicates can happen when the the S3 credentials volume and the history server log directory use the same secret class.
@@ -386,7 +418,7 @@ impl v1alpha1::SparkApplication {
                     .build(),
             );
         }
-        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir) {
+        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn) {
             result.insert(
                 STACKABLE_TRUST_STORE_NAME.to_string(),
                 VolumeBuilder::new(STACKABLE_TRUST_STORE_NAME)
@@ -439,6 +471,7 @@ impl v1alpha1::SparkApplication {
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Vec<VolumeMount> {
         let mut tmpl_mounts = vec![
             VolumeMount {
@@ -453,7 +486,8 @@ impl v1alpha1::SparkApplication {
             },
         ];
 
-        tmpl_mounts = self.add_common_volume_mounts(tmpl_mounts, s3conn, logdir, false);
+        tmpl_mounts =
+            self.add_common_volume_mounts(tmpl_mounts, s3conn, logdir, false, open_lineage_conn);
 
         if let Some(CommonConfiguration {
             config:
@@ -479,6 +513,7 @@ impl v1alpha1::SparkApplication {
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
         logging_enabled: bool,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Vec<VolumeMount> {
         if self.spec.image.is_some() {
             mounts.push(VolumeMount {
@@ -537,7 +572,7 @@ impl v1alpha1::SparkApplication {
                 ..VolumeMount::default()
             });
         }
-        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir) {
+        if let Some(cert_secrets) = tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn) {
             mounts.push(VolumeMount {
                 name: STACKABLE_TRUST_STORE_NAME.into(),
                 mount_path: STACKABLE_TRUST_STORE.into(),
@@ -556,28 +591,37 @@ impl v1alpha1::SparkApplication {
         mounts
     }
 
+    /// True when OpenLineage emission is configured for this application. OpenLineage is off exactly
+    /// when the `lineage` block is absent — its presence is the enable switch.
+    pub fn lineage_enabled(&self) -> bool {
+        self.spec.lineage.is_some()
+    }
+
     pub fn build_command(
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
         spark_image: &str,
+        product_version: &str,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = &self.spec.mode;
         let name = self.metadata.name.clone().context(ObjectHasNoNameSnafu)?;
 
         // Commands needed to build the p12 trust store from the secret class certs configured for
-        // S3 connections.
-        let build_truststore_commands = match tlscerts::tls_secret_names(s3conn, log_dir) {
-            Some(cert_secrets) => {
-                let mut build_truststore_str =
-                    vec![tlscerts::convert_system_trust_store_to_pkcs12()];
-                build_truststore_str
-                    .extend(cert_secrets.into_iter().map(tlscerts::import_truststore));
-                format!("{};", build_truststore_str.join(" && "))
-            }
-            None => "".to_string(),
-        };
+        // S3 connections, the log directory, and the OpenLineage backend connection.
+        let build_truststore_commands =
+            match tlscerts::tls_secret_names(s3conn, log_dir, open_lineage_conn) {
+                Some(cert_secrets) => {
+                    let mut build_truststore_str =
+                        vec![tlscerts::convert_system_trust_store_to_pkcs12()];
+                    build_truststore_str
+                        .extend(cert_secrets.into_iter().map(tlscerts::import_truststore));
+                    format!("{};", build_truststore_str.join(" && "))
+                }
+                None => "".to_string(),
+            };
 
         let mut submit_cmd = vec![
             format!(
@@ -659,7 +703,13 @@ impl v1alpha1::SparkApplication {
         }
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(self, s3conn, log_dir);
+            construct_extra_java_options(
+                self,
+                s3conn,
+                log_dir,
+                product_version,
+                open_lineage_conn,
+            )?;
         submit_cmd.extend(vec![
             format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),
             format!("--conf spark.executor.extraJavaOptions=\"{executor_extra_java_options}\""),
@@ -733,8 +783,67 @@ impl v1alpha1::SparkApplication {
             submit_cmd.push(format!("--conf spark.jars.ivy={VOLUME_MOUNT_PATH_IVY2}"))
         }
 
+        // OpenLineage: inject the transport + job-name config that can be overridden by the user's
+        // `sparkConf` (so it goes in BEFORE the merge below). The two append-merge keys
+        // (`spark.jars`, `spark.extraListeners`) are handled AFTER the merge so a user value is
+        // combined with — not clobbered by — ours. See the OpenLineage usage guide.
+        if let Some(lineage) = &self.spec.lineage {
+            // The backend connection is resolved (inline or referenced) before `build_command`.
+            // The transport type is always `http` (the OpenLineage HTTP transport); the URL scheme
+            // it points at is `https` when the connection configures TLS server verification.
+            //
+            // When authentication is configured (the connection sets `credentialsSecretName`), the
+            // transport is delivered entirely via `OPENLINEAGE__` env vars instead (see `env`) — it
+            // MUST come from a single source, or OpenLineage drops the env-provided `auth`. So skip
+            // the `--conf` transport in that case.
+            if let Some(connection) = open_lineage_conn
+                && crate::lineage::http_transport(connection)
+                    .credentials_secret_name
+                    .is_none()
+            {
+                let http = crate::lineage::http_transport(connection);
+                submit_conf.insert(
+                    "spark.openlineage.transport.type".to_string(),
+                    "http".to_string(),
+                );
+                submit_conf.insert(
+                    "spark.openlineage.transport.url".to_string(),
+                    http.transport_url(),
+                );
+                submit_conf.insert(
+                    "spark.openlineage.transport.endpoint".to_string(),
+                    http.path.clone(),
+                );
+            }
+
+            submit_conf.insert(
+                "spark.openlineage.namespace".to_string(),
+                lineage.namespace.clone(),
+            );
+
+            // Stable job name — fixes the intermittent `unknown` bug (see the usage guide).
+            submit_conf.insert(
+                "spark.openlineage.appName".to_string(),
+                self.resolved_lineage_app_name()?,
+            );
+        }
+
         // conf arguments: these should follow - and thus override - values set from resource limits above
         submit_conf.extend(self.spec.spark_conf.clone());
+
+        // OpenLineage append-merge keys: combine our values with any user-provided ones (already
+        // merged into `submit_conf` above) so neither clobbers the other.
+        if self.lineage_enabled() {
+            append_conf_csv(
+                &mut submit_conf,
+                "spark.extraListeners",
+                OPENLINEAGE_LISTENER_CLASS,
+            );
+            // Reference the stable symlink the image maintains; it points at the correct
+            // Scala/version build for this image (2.13 on Spark 4.x, 2.12 on Spark 3.5.x), so the
+            // operator needs to track neither the jar version nor its Scala suffix.
+            append_conf_csv(&mut submit_conf, "spark.jars", OPENLINEAGE_JAR_LOCAL_URI);
+        }
 
         // ...before being added to the command collection
         for (key, value) in submit_conf {
@@ -760,6 +869,7 @@ impl v1alpha1::SparkApplication {
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Vec<EnvVar> {
         let mut e: Vec<EnvVar> = self.spec.env.clone();
 
@@ -792,12 +902,27 @@ impl v1alpha1::SparkApplication {
                 value_from: None,
             });
         }
-        if tlscerts::tls_secret_names(s3conn, logdir).is_some() {
+        if tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn).is_some() {
             e.push(EnvVar {
                 name: "STACKABLE_TLS_STORE_PASSWORD".to_string(),
                 value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),
                 value_from: None,
             });
+        }
+        // OpenLineage HTTP transport auth: when the connection sets `credentialsSecretName`, deliver
+        // the WHOLE transport (type, URL and bearer-token auth) to the driver's OpenLineage listener
+        // via the client's `OPENLINEAGE__` env-var configuration — see `openlineage_transport_env_vars`
+        // and the matching skip of the `spark.openlineage.transport.*` `--conf` in `build_command`.
+        // The token is sourced from the referenced Secret, so it never lands in the `--conf` args.
+        if let Some(connection) = open_lineage_conn {
+            let http = crate::lineage::http_transport(connection);
+            if let Some(secret_name) = &http.credentials_secret_name {
+                e.extend(openlineage_transport_env_vars(
+                    &http.transport_url(),
+                    &http.path,
+                    secret_name,
+                ));
+            }
         }
         e
     }
@@ -1542,7 +1667,7 @@ spec:
         "#})
         .unwrap();
 
-        let got = spark_application.spark_job_volume_mounts(&None, &None);
+        let got = spark_application.spark_job_volume_mounts(&None, &None, None);
 
         let expected = vec![
             VolumeMount {
@@ -1572,6 +1697,499 @@ spec:
         ];
 
         assert_eq!(got, expected);
+    }
+
+    /// Builds a `SparkApplication` from YAML and returns the assembled spark-submit command string.
+    ///
+    /// Test fixtures always use an inline OpenLineage connection, so the connection is extracted
+    /// directly (no async `resolve()` against a k8s API) and passed to `build_command` — exactly the
+    /// resolved value the controller would compute in `dereference`.
+    fn build_command_with_openlineage(yaml: &str, product_version: &str) -> String {
+        use stackable_operator::crd::openlineage::v1alpha1::InlineConnectionOrReference;
+
+        // `singleton_map_recursive` so externally-tagged enums (the OpenLineage `connection`) use
+        // the `inline:`/`reference:` map form that k8s/JSON uses, rather than serde_yaml's `!tag`.
+        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+        let open_lineage_conn =
+            spark_application
+                .spec
+                .lineage
+                .as_ref()
+                .map(|job| match &job.connection {
+                    InlineConnectionOrReference::Inline(spec) => spec.clone(),
+                    InlineConnectionOrReference::Reference(name) => {
+                        panic!(
+                            "test fixtures must use an inline connection, got reference {name:?}"
+                        )
+                    }
+                });
+        spark_application
+            .build_command(
+                &None,
+                &None,
+                "test-image",
+                product_version,
+                open_lineage_conn.as_ref(),
+            )
+            .unwrap()
+            .join(" ")
+    }
+
+    const MINIMAL_APP: &str = indoc! {r#"
+        ---
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkApplication
+        metadata:
+          name: test
+          namespace: default
+        spec:
+          mode: cluster
+          mainApplicationFile: test.py
+          sparkImage:
+            productVersion: 1.2.3
+    "#};
+
+    fn test_openlineage_connection(
+        credentials_secret_name: Option<String>,
+    ) -> openlineage::ResolvedOpenLineageConnection {
+        openlineage::v1alpha1::OpenLineageConnectionSpec {
+            transport: openlineage::v1alpha1::OpenLineageTransport::Http(
+                openlineage::v1alpha1::HttpTransport {
+                    host: "marquez".to_string(),
+                    port: 5000,
+                    path: openlineage::v1alpha1::HttpTransport::DEFAULT_PATH.to_string(),
+                    tls: stackable_operator::commons::tls_verification::TlsClientDetails {
+                        tls: None,
+                    },
+                    credentials_secret_name,
+                },
+            ),
+        }
+    }
+
+    #[test]
+    fn test_openlineage_full_transport_delivered_via_env_when_authenticated() {
+        let spark_application =
+            serde_yaml::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
+        let connection = test_openlineage_connection(Some("ol-token".to_string()));
+
+        let env = spark_application.env(&None, &None, Some(&connection));
+        let value = |name| {
+            env.iter()
+                .find(|v| v.name == name)
+                .and_then(|v| v.value.as_deref())
+        };
+
+        // The whole transport is delivered via env (not --conf) so OpenLineage keeps the auth.
+        assert_eq!(value(OPENLINEAGE_TRANSPORT_TYPE_ENV), Some("http"));
+        assert_eq!(
+            value(OPENLINEAGE_TRANSPORT_URL_ENV),
+            Some("http://marquez:5000")
+        );
+        assert_eq!(
+            value(OPENLINEAGE_AUTH_TYPE_ENV),
+            Some(OPENLINEAGE_AUTH_TYPE_API_KEY)
+        );
+
+        let key_var = env
+            .iter()
+            .find(|v| v.name == OPENLINEAGE_AUTH_API_KEY_ENV)
+            .expect("auth api key env var present");
+        assert!(
+            key_var.value.is_none(),
+            "the token must never be a literal env value"
+        );
+        let selector = key_var
+            .value_from
+            .as_ref()
+            .and_then(|source| source.secret_key_ref.as_ref())
+            .expect("api key sourced from a secretKeyRef");
+        assert_eq!(selector.name, "ol-token");
+        assert_eq!(selector.key, OPENLINEAGE_AUTH_SECRET_KEY);
+    }
+
+    #[test]
+    fn test_no_openlineage_transport_env_vars_when_unauthenticated() {
+        let spark_application =
+            serde_yaml::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
+        let connection = test_openlineage_connection(None);
+
+        // A connection but no credentialsSecretName: transport stays in --conf, no OL env vars.
+        let env = spark_application.env(&None, &None, Some(&connection));
+
+        for name in [
+            OPENLINEAGE_TRANSPORT_TYPE_ENV,
+            OPENLINEAGE_TRANSPORT_URL_ENV,
+            OPENLINEAGE_AUTH_TYPE_ENV,
+            OPENLINEAGE_AUTH_API_KEY_ENV,
+        ] {
+            assert!(
+                !env.iter().any(|v| v.name == name),
+                "unexpected OpenLineage env var {name} when unauthenticated"
+            );
+        }
+    }
+
+    #[test]
+    fn test_openlineage_authenticated_omits_transport_conf() {
+        // With auth present the transport moves to env vars, so build_command must NOT emit the
+        // `spark.openlineage.transport.*` --conf (that would make OpenLineage drop the env auth).
+        // namespace / appName / listener stay in --conf (OPENLINEAGE_ENABLED_APP has the block).
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(
+                serde_yaml::Deserializer::from_str(OPENLINEAGE_ENABLED_APP),
+            )
+            .unwrap();
+        let connection = test_openlineage_connection(Some("ol-token".to_string()));
+
+        let command = spark_application
+            .build_command(&None, &None, "test-image", "3.5.8", Some(&connection))
+            .unwrap()
+            .join(" ");
+
+        assert!(
+            !command.contains("spark.openlineage.transport.type"),
+            "transport.type must not be in --conf when authenticated"
+        );
+        assert!(
+            !command.contains("spark.openlineage.transport.url"),
+            "transport.url must not be in --conf when authenticated"
+        );
+        assert!(command.contains(r#"--conf "spark.openlineage.namespace="#));
+        assert!(command.contains(r#"--conf "spark.openlineage.appName="#));
+        assert!(command.contains(&format!(
+            r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
+        )));
+    }
+
+    const OPENLINEAGE_ENABLED_APP: &str = indoc! {r#"
+        ---
+        apiVersion: spark.stackable.tech/v1alpha1
+        kind: SparkApplication
+        metadata:
+          name: spark-examples
+          namespace: default
+        spec:
+          mode: cluster
+          mainApplicationFile: test.py
+          sparkImage:
+            productVersion: 1.2.3
+          lineage:
+            connection:
+              inline:
+                http:
+                  host: marquez
+                  port: 5000
+    "#};
+
+    #[test]
+    fn test_openlineage_injects_conf_when_enabled() {
+        let command = build_command_with_openlineage(OPENLINEAGE_ENABLED_APP, "4.1.2");
+
+        assert!(command.contains(r#"--conf "spark.openlineage.transport.type=http""#));
+        assert!(
+            command.contains(r#"--conf "spark.openlineage.transport.url=http://marquez:5000""#)
+        );
+        // Namespace comes from the CRD, which defaults it to `default`.
+        assert!(command.contains(r#"--conf "spark.openlineage.namespace=default""#));
+        // The endpoint path comes from the connection, defaulting to /api/v1/lineage.
+        assert!(
+            command.contains(r#"--conf "spark.openlineage.transport.endpoint=/api/v1/lineage""#)
+        );
+        // appName falls back to metadata.name (no jobName / spark.app.name set).
+        assert!(command.contains(r#"--conf "spark.openlineage.appName=spark-examples""#));
+        assert!(command.contains(&format!(
+            r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
+        )));
+        // The jar is referenced via the stable, Scala/version-independent image symlink.
+        assert!(command.contains(&format!(
+            r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
+        )));
+        // --add-opens reaches both driver and executor on Spark 4.x.
+        assert_eq!(
+            command.matches(OPENLINEAGE_ADD_OPENS).count(),
+            2,
+            "expected --add-opens on both driver and executor extraJavaOptions"
+        );
+    }
+
+    #[test]
+    fn test_openlineage_stable_jar_uri_and_no_add_opens_on_spark_3() {
+        // On the JDK 17 Spark 3.5.x images the operator references the same stable jar symlink (the
+        // image points it at the Scala 2.12 build) and must NOT emit `--add-opens`.
+        let command = build_command_with_openlineage(OPENLINEAGE_ENABLED_APP, "3.5.8");
+
+        assert!(command.contains(&format!(
+            r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
+        )));
+        assert!(
+            !command.contains(OPENLINEAGE_ADD_OPENS),
+            "--add-opens must not be emitted on Spark 3.x"
+        );
+        // The rest of the OpenLineage wiring is still present on Spark 3.x.
+        assert!(command.contains(&format!(
+            r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#
+        )));
+        assert!(command.contains(r#"--conf "spark.openlineage.transport.type=http""#));
+    }
+
+    #[test]
+    fn test_openlineage_injects_nothing_when_absent() {
+        // No `lineage` block → OpenLineage is off (its absence is the disable switch).
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+        "#};
+        let command = build_command_with_openlineage(yaml, "4.1.2");
+
+        assert!(!command.contains("openlineage"));
+        assert!(!command.contains("OpenLineageSparkListener"));
+        assert!(!command.contains("--add-opens"));
+        assert!(!command.contains("spark.jars="));
+    }
+
+    #[test]
+    fn test_openlineage_appends_to_existing_extra_listeners() {
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              lineage:
+                connection:
+                  inline:
+                    http:
+                      host: marquez
+                      port: 5000
+              sparkConf:
+                spark.extraListeners: com.example.CustomListener
+        "#};
+        let command = build_command_with_openlineage(yaml, "4.1.2");
+
+        assert!(command.contains(&format!(
+            r#"--conf "spark.extraListeners=com.example.CustomListener,{OPENLINEAGE_LISTENER_CLASS}""#
+        )));
+    }
+
+    #[test]
+    fn test_openlineage_conf_is_overridable_via_spark_conf() {
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              lineage:
+                connection:
+                  inline:
+                    http:
+                      host: marquez
+                      port: 5000
+              sparkConf:
+                spark.openlineage.transport.url: http://custom:1234
+                spark.openlineage.namespace: custom-ns
+        "#};
+        let command = build_command_with_openlineage(yaml, "4.1.2");
+
+        assert!(command.contains(r#"--conf "spark.openlineage.transport.url=http://custom:1234""#));
+        assert!(!command.contains("http://marquez:5000"));
+        assert!(command.contains(r#"--conf "spark.openlineage.namespace=custom-ns""#));
+    }
+
+    #[test]
+    fn test_openlineage_uses_https_when_tls_verification_set() {
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              lineage:
+                connection:
+                  inline:
+                    http:
+                      host: marquez
+                      port: 5000
+                      tls:
+                        verification:
+                          server:
+                            caCert:
+                              secretClass: marquez-ca
+        "#};
+        let command = build_command_with_openlineage(yaml, "4.1.2");
+
+        assert!(
+            command.contains(r#"--conf "spark.openlineage.transport.url=https://marquez:5000""#)
+        );
+    }
+
+    /// The OpenLineage connection's `caCert.secretClass` must be wired into the driver truststore,
+    /// so the OpenLineage listener's HTTPS POST to the backend trusts the secret-operator cert.
+    /// Without this the `https` scheme above is unusable (handshake fails against the default JVM
+    /// truststore).
+    #[test]
+    fn test_openlineage_tls_secret_class_wired_into_truststore() {
+        let yaml = indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-examples
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              lineage:
+                connection:
+                  inline:
+                    http:
+                      host: marquez
+                      port: 5000
+                      tls:
+                        verification:
+                          server:
+                            caCert:
+                              secretClass: marquez-ca
+        "#};
+        let command = build_command_with_openlineage(yaml, "4.1.2");
+
+        // The mounted secret-operator truststore for `marquez-ca` is imported into the shared
+        // PKCS12 truststore.
+        assert!(command.contains(&format!(
+            "{STACKABLE_MOUNT_PATH_TLS}/marquez-ca/truststore.p12"
+        )));
+        // The driver + executor JVMs are pointed at that truststore.
+        assert_eq!(
+            command
+                .matches(&format!(
+                    "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"
+                ))
+                .count(),
+            2,
+        );
+    }
+
+    /// Without an OpenLineage TLS `secretClass` (and no S3/logdir), no truststore is built and the
+    /// driver JVM gets no truststore options.
+    #[test]
+    fn test_openlineage_without_tls_has_no_truststore() {
+        let command = build_command_with_openlineage(OPENLINEAGE_ENABLED_APP, "4.1.2");
+
+        assert!(!command.contains("-Djavax.net.ssl.trustStore="));
+        assert!(!command.contains(STACKABLE_MOUNT_PATH_TLS));
+    }
+
+    #[rstest]
+    #[case::explicit_app_name(
+        indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: metadata-name
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              lineage:
+                connection:
+                  inline:
+                    http:
+                      host: marquez
+                      port: 5000
+                jobName: explicit-name
+              sparkConf:
+                spark.app.name: spark-conf-name
+        "#},
+        "explicit-name"
+    )]
+    #[case::spark_app_name(
+        indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: metadata-name
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              lineage:
+                connection:
+                  inline:
+                    http:
+                      host: marquez
+                      port: 5000
+              sparkConf:
+                spark.app.name: spark-conf-name
+        "#},
+        "spark-conf-name"
+    )]
+    #[case::metadata_name_fallback(
+        indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: metadata-name
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              lineage:
+                connection:
+                  inline:
+                    http:
+                      host: marquez
+                      port: 5000
+        "#},
+        "metadata-name"
+    )]
+    fn test_openlineage_app_name_resolution(#[case] yaml: &str, #[case] expected_name: &str) {
+        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+        let resolved = spark_application.resolved_lineage_app_name().unwrap();
+
+        assert_eq!(resolved, expected_name);
     }
 
     impl RoundtripTestData for v1alpha1::SparkApplicationSpec {

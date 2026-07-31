@@ -67,6 +67,7 @@ pub(crate) fn pod_template_config_map(
     let spark_application = &validated.spark_application;
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
+    let open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let cm_name = spark_application.pod_template_config_map_name(role.clone());
 
     let log_config_map = if let Some(ContainerLogConfig {
@@ -90,6 +91,7 @@ pub(crate) fn pod_template_config_map(
             logdir,
             Some(&log_config_map),
             &requested_secret_lifetime,
+            open_lineage_conn,
         )
         .context(CreateVolumesSnafu)?;
     volumes.push(

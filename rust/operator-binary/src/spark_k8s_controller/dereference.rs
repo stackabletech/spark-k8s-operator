@@ -5,7 +5,10 @@
 //! Synchronous validation belongs in the sibling [`super::validate`] module.
 
 use snafu::{ResultExt, Snafu};
-use stackable_operator::{client::Client, crd::s3};
+use stackable_operator::{
+    client::Client,
+    crd::{openlineage, s3},
+};
 
 use crate::crd::{
     logdir::ResolvedLogDir,
@@ -21,6 +24,11 @@ pub enum Error {
     #[snafu(display("failed to configure S3 connection"))]
     ConfigureS3Connection {
         source: stackable_operator::crd::s3::v1alpha1::ConnectionError,
+    },
+
+    #[snafu(display("failed to resolve OpenLineage connection"))]
+    ResolveOpenLineageConnection {
+        source: stackable_operator::crd::openlineage::v1alpha1::OpenLineageError,
     },
 
     #[snafu(display("failed to resolve log directory"))]
@@ -40,6 +48,9 @@ pub struct DereferencedSparkApplication {
     pub resolved_template_refs: Vec<v1alpha1::ResolvedSparkApplicationTemplate>,
     /// Resolved S3 connection, if `spec.s3connection` is set.
     pub s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
+    /// Resolved OpenLineage backend connection, if `spec.lineage` is set. Its
+    /// `credentialsSecretName` (when set) carries the bearer-token Secret for authentication.
+    pub open_lineage_connection: Option<openlineage::ResolvedOpenLineageConnection>,
     /// Resolved log directory, if `spec.log_file_directory` is set.
     pub log_dir: Option<ResolvedLogDir>,
 }
@@ -73,7 +84,19 @@ pub async fn dereference(
         None => None,
     };
 
-    // 3. Log directory (also pulls S3Bucket + TLS secret internally).
+    // 3. OpenLineage connection (inline or referenced `OpenLineageConnection`).
+    let open_lineage_connection = match merged_app.spec.lineage.as_ref() {
+        Some(job) => Some(
+            job.connection
+                .clone()
+                .resolve(client, namespace)
+                .await
+                .context(ResolveOpenLineageConnectionSnafu)?,
+        ),
+        None => None,
+    };
+
+    // 4. Log directory (also pulls S3Bucket + TLS secret internally).
     let log_dir = match merged_app.spec.log_file_directory.as_ref() {
         Some(log_file_dir) => Some(
             ResolvedLogDir::resolve(log_file_dir, merged_app.metadata.namespace.clone(), client)
@@ -87,6 +110,7 @@ pub async fn dereference(
         spark_application: merged_app,
         resolved_template_refs,
         s3_connection,
+        open_lineage_connection,
         log_dir,
     })
 }

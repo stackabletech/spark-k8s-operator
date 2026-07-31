@@ -1,0 +1,138 @@
+= OpenLineage
+
+https://openlineage.io/[OpenLineage] is an open standard for data lineage collection.
+The Spark operator can automatically emit lineage events for a `SparkApplication` to an OpenLineage-compatible backend such as https://marquezproject.github.io/marquez/[Marquez], without any manual `sparkConf` wiring.
+
+When configured, the operator injects everything required to make the https://openlineage.io/docs/integrations/spark/[OpenLineage Spark listener] work:
+
+* the OpenLineage Spark listener (appended to `spark.extraListeners`, so any listener you configure yourself is preserved),
+* the OpenLineage jar baked into the Spark image, referenced via `spark.jars` so it shares the same classloader as connectors pulled in through xref:usage-guide/job-dependencies.adoc[`deps.packages`] (for example Apache Iceberg),
+* an HTTP transport pointing at the backend endpoint,
+* a stable lineage namespace and job name (see <<job-name>>), and
+* on Spark 4.x only, the `--add-opens java.base/java.security=ALL-UNNAMED` JVM flag the listener requires on the driver and executors. This flag is not added on the Spark 3.5.x images, where it is unnecessary (and, on their JVM, potentially harmful).
+
+== Enabling OpenLineage
+
+The backend is configured through the `lineage.connection`, which either inlines an OpenLineage
+connection or references a standalone `OpenLineageConnection` resource by name.
+The operator points the transport at `<scheme>://<host>:<port>`:
+
+[source,yaml]
+----
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: orders-by-nation
+spec:
+  lineage: # <1>
+    connection: # <2>
+      inline:
+        http:
+          host: marquez
+          port: 5000
+          # path: /api/v1/lineage
+          # tls:
+          #   verification:
+          #     server:
+          #       caCert:
+          #         secretClass: marquez-ca
+    # namespace: orders-lineage # <3>
+    # jobName: orders-by-nation # <4>
+  ...
+----
+<1> Adding the `lineage` block enables OpenLineage event emission. Omit it entirely to leave OpenLineage off (the default), in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
+<2> The OpenLineage backend connection. Use `inline` (shown here) to define the connection directly,
+    or `reference: <name>` to point at an `OpenLineageConnection` resource in the same namespace.
+    Required. The connection selects a transport; `http` is currently the only one supported.
+<3> Optional. The OpenLineage namespace events are reported under.
+    Defaults to `default`.
+<4> Optional. The stable OpenLineage job name (see <<job-name>>).
+
+The `OpenLineageConnection` resource (`lineage.stackable.tech`) is a reusable definition of a
+connection to an OpenLineage backend, provided by the Stackable operator library. Reference it to
+share one backend definition across multiple applications:
+
+[source,yaml]
+----
+apiVersion: lineage.stackable.tech/v1alpha1
+kind: OpenLineageConnection
+metadata:
+  name: marquez
+spec:
+  http:
+    host: marquez
+    port: 5000
+----
+
+The transport scheme is `https` when `tls.verification.server` is configured, otherwise `http`.
+When the connection verifies the server against a `secretClass` CA (as in the commented `tls` block
+above), the operator mounts that SecretClass certificate into the driver and adds it to the driver's
+trust store, so the OpenLineage listener trusts the backend's certificate.
+
+You can still override any of the injected values — including the full `spark.openlineage.transport.url` — through `sparkConf`.
+
+[#authentication]
+== Authentication
+
+Backends that require authentication (for example DataHub, or a Marquez instance behind a gateway) expect a bearer token on each request.
+Configure this by setting `credentialsSecretName` on the connection to the name of a Secret holding the token:
+
+[source,yaml]
+----
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: orders-by-nation
+spec:
+  lineage:
+    connection:
+      inline:
+        http:
+          host: marquez
+          port: 5000
+          credentialsSecretName: openlineage-token # <1>
+  ...
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openlineage-token
+  namespace: default # <2>
+stringData:
+  apiKey: "s3cr3t-bearer-token" # <3>
+----
+<1> Name of the Secret holding the token. If omitted, no authentication is used. The Secret must exist in the same namespace as the `SparkApplication`.
+<2> The Secret must be in the workload's namespace so it can be projected into the driver.
+<3> The token must be stored under the fixed key `apiKey`. The operator never reads the Secret; it is injected into the driver's OpenLineage listener via a `secretKeyRef` environment variable, so the token never appears in the spark-submit arguments or the pod spec.
+
+The operator translates this into the OpenLineage HTTP transport's `api_key` (bearer) authentication.
+Combine it with the `tls` block above when the backend also needs TLS server verification.
+
+[NOTE]
+====
+When `credentialsSecretName` is set, the operator delivers the *entire* transport configuration
+(type, URL and auth) to the driver through `OPENLINEAGE__*` environment variables rather than
+`spark.openlineage.transport.*` `--conf` properties.
+This is required: OpenLineage resolves the `transport` from a single source, so a transport defined
+via `sparkConf` would discard the environment-provided authentication.
+Consequently, do **not** override `spark.openlineage.transport.*` via `sparkConf` when using
+`credentialsSecretName` — doing so drops the credentials and the backend will reject the events.
+====
+
+[#job-name]
+== Job name
+
+The OpenLineage job name is resolved in the following order:
+
+. `spec.lineage.jobName`, if set.
+. `spark.app.name` from `sparkConf`, if set.
+. `metadata.name` as a last resort.
+
+The last case additionally emits a Kubernetes warning event.
+Falling back to `metadata.name` is discouraged: if that name carries a timestamp or other run-specific suffix (as generated names often do), every run becomes a separate job in the backend and the run history fragments.
+Set `spec.lineage.jobName` (or `spark.app.name`) to a stable value to keep all runs of the same logical job together.
+
+== Overriding injected configuration
+
+Every injected value is a default that goes into the submit configuration *before* your xref:usage-guide/overrides.adoc[`sparkConf`] is merged, so any key you set yourself wins.
+`spark.extraListeners` and `spark.jars` are the exception: the operator *appends* to any value you provide (comma-merged) rather than overwriting it, so your own listeners and jars are kept alongside OpenLineage's.

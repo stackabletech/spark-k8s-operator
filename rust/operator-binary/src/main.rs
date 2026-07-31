@@ -51,6 +51,7 @@ mod config;
 mod connect;
 mod crd;
 mod history;
+mod lineage;
 mod pod_driver_controller;
 mod product_logging;
 mod spark_k8s_controller;
@@ -72,6 +73,7 @@ struct Opts {
 pub struct Ctx {
     pub client: stackable_operator::client::Client,
     pub operator_environment: OperatorEnvironmentOptions,
+    pub event_recorder: Recorder,
 }
 
 #[tokio::main]
@@ -137,11 +139,6 @@ async fn main() -> anyhow::Result<()> {
                 .run(sigterm_watcher.handle())
                 .map_err(|err| anyhow!(err).context("failed to run webhook server"));
 
-            let ctx = Ctx {
-                client: client.clone(),
-                operator_environment: operator_environment.clone(),
-            };
-
             let spark_event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
                 Reporter {
@@ -149,6 +146,14 @@ async fn main() -> anyhow::Result<()> {
                     instance: None,
                 },
             ));
+
+            let ctx = Ctx {
+                client: client.clone(),
+                operator_environment: operator_environment.clone(),
+                // Shares the recorder (and thus its event-aggregation cache) with the
+                // report_controller_reconciled reporting stream below; `Recorder` is `Clone`.
+                event_recorder: (*spark_event_recorder).clone(),
+            };
             let app_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<crd::v1alpha1::SparkApplication>>(&client),
@@ -225,11 +230,6 @@ async fn main() -> anyhow::Result<()> {
                 },
             ).map(anyhow::Ok);
 
-            // Create new object because Ctx cannot be cloned
-            let ctx = Ctx {
-                client: client.clone(),
-                operator_environment: operator_environment.clone(),
-            };
             let history_event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
                 Reporter {
@@ -237,6 +237,12 @@ async fn main() -> anyhow::Result<()> {
                     instance: None,
                 },
             ));
+            // Create new object because Ctx cannot be cloned
+            let ctx = Ctx {
+                client: client.clone(),
+                operator_environment: operator_environment.clone(),
+                event_recorder: (*history_event_recorder).clone(),
+            };
             let history_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<crd::history::v1alpha1::SparkHistoryServer>>(
@@ -290,11 +296,6 @@ async fn main() -> anyhow::Result<()> {
             .map(anyhow::Ok);
 
             // ==============================
-            // Create new object because Ctx cannot be cloned
-            let ctx = Ctx {
-                client: client.clone(),
-                operator_environment,
-            };
             let connect_event_recorder = Arc::new(Recorder::new(
                 client.as_kube_client(),
                 Reporter {
@@ -302,6 +303,12 @@ async fn main() -> anyhow::Result<()> {
                     instance: None,
                 },
             ));
+            // Create new object because Ctx cannot be cloned
+            let ctx = Ctx {
+                client: client.clone(),
+                operator_environment,
+                event_recorder: (*connect_event_recorder).clone(),
+            };
             let connect_controller = Controller::new(
                 watch_namespace
                     .get_api::<DeserializeGuard<connect::crd::v1alpha1::SparkConnectServer>>(

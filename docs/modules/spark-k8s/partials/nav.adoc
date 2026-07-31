@@ -9,6 +9,7 @@
 ** xref:spark-k8s:usage-guide/app_templates.adoc[]
 ** xref:spark-k8s:usage-guide/security.adoc[]
 ** xref:spark-k8s:usage-guide/logging.adoc[]
+** xref:spark-k8s:usage-guide/openlineage.adoc[]
 ** xref:spark-k8s:usage-guide/history-server.adoc[]
 ** xref:spark-k8s:usage-guide/spark-connect.adoc[]
 ** xref:spark-k8s:usage-guide/examples.adoc[]

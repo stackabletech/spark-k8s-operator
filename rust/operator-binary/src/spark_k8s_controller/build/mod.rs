@@ -36,13 +36,14 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
     let spark_application = &validated.spark_application;
     let opt_s3conn = &validated.cluster_config.s3_connection;
+    let opt_open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let logdir = &validated.cluster_config.log_dir;
     let resolved_product_image = &validated.resolved_product_image;
 
     let (service_account, role_binding) =
         resource::serviceaccount::build_spark_role_serviceaccount(validated);
 
-    let env_vars = spark_application.env(opt_s3conn, logdir);
+    let env_vars = spark_application.env(opt_s3conn, logdir, opt_open_lineage_conn);
 
     let driver_config = spark_application
         .driver_config()
@@ -87,7 +88,13 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
     .context(BuildConfigMapSnafu)?;
 
     let job_commands = spark_application
-        .build_command(opt_s3conn, logdir, &resolved_product_image.image)
+        .build_command(
+            opt_s3conn,
+            logdir,
+            &resolved_product_image.image,
+            &resolved_product_image.product_version,
+            opt_open_lineage_conn,
+        )
         .context(BuildCommandSnafu)?;
 
     let submit_config = spark_application

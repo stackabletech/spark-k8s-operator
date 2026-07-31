@@ -71,6 +71,7 @@ fn init_containers(
     let spark_application = &validated.spark_application;
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
+    let open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let spark_image = &validated.resolved_product_image;
     let mut jcb = new_container_builder(&SparkContainer::Job.to_container_name());
     let job_container = match &spark_application.spec.image {
@@ -173,7 +174,7 @@ fn init_containers(
     let mut tcb = new_container_builder(&SparkContainer::Tls.to_container_name());
     let mut args = Vec::new();
 
-    let tls_container = match tlscerts::tls_secret_names(s3conn, logdir) {
+    let tls_container = match tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn) {
         Some(cert_secrets) => {
             args.push(tlscerts::convert_system_trust_store_to_pkcs12());
             for cert_secret in cert_secrets {
@@ -227,16 +228,22 @@ pub(crate) fn pod_template(
     let spark_application = &validated.spark_application;
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
+    let open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let spark_image = &validated.resolved_product_image;
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = new_container_builder(&SparkContainer::Spark.to_container_name());
     let merged_env = spark_application.merged_env(role.clone(), env);
 
-    cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
-        .context(AddVolumeMountSnafu)?
-        .add_env_vars(merged_env)
-        .resources(config.resources.clone().into())
-        .image_from_product_image(spark_image);
+    cb.add_volume_mounts(config.volume_mounts(
+        spark_application,
+        s3conn,
+        logdir,
+        open_lineage_conn,
+    ))
+    .context(AddVolumeMountSnafu)?
+    .add_env_vars(merged_env)
+    .resources(config.resources.clone().into())
+    .image_from_product_image(spark_image);
 
     if config.logging.enable_vector_agent {
         cb.add_env_var(

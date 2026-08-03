@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -41,6 +42,14 @@ class TestConstants:
     # Regex patterns
     NAMESPACE_PATTERN = r"Creating namespace: (kuttl-test-[^\s]+)"
     FAILED_TEST_PATTERN = r"--- FAIL: kuttl/harness/([^\s]+)"
+
+
+class InitOutcome(Enum):
+    """Outcome of the initialization phase, i.e. what the retry logic should do next."""
+
+    RETRY = "retry"  # There are failed tests to retry
+    DONE = "done"  # Nothing left to do, the run succeeded
+    ABORTED = "aborted"  # The run could not be completed (setup/infrastructure error)
 
 
 @dataclass
@@ -1047,7 +1056,7 @@ class AutoRetryTestRunner:
         self.test_summaries[test_name] = summary
         return summary
 
-    def initialize_run_mode(self) -> bool:
+    def initialize_run_mode(self) -> InitOutcome:
         """Initialize the test run based on mode (resume, rerun, or fresh)."""
         # Check if we're resuming from a previous state
         if self.failed_tests:  # This will be populated if we loaded state
@@ -1055,7 +1064,7 @@ class AutoRetryTestRunner:
             print(f"Found {len(self.failed_tests)} failed tests to continue with:")
             for i, test in enumerate(self.failed_tests, 1):
                 print(f"  {i}. {test}")
-            return True
+            return InitOutcome.RETRY
 
         # Check if we're rerunning only failed tests
         elif self.args.rerun_failed:
@@ -1066,7 +1075,7 @@ class AutoRetryTestRunner:
             # Run initial test suite
             return self._run_initial_test_suite()
 
-    def _load_failed_tests_for_rerun(self) -> bool:
+    def _load_failed_tests_for_rerun(self) -> InitOutcome:
         """Load failed tests for rerun mode."""
         # Load failed tests from the specified state file
         failed_tests = self.state_manager.load_failed_tests_from_state(
@@ -1075,7 +1084,7 @@ class AutoRetryTestRunner:
 
         if not failed_tests:
             print("❌ No failed tests found to rerun")
-            return False
+            return InitOutcome.ABORTED
 
         print(f"Found {len(failed_tests)} failed tests to rerun:")
         for i, test in enumerate(failed_tests, 1):
@@ -1083,9 +1092,9 @@ class AutoRetryTestRunner:
 
         # Store failed tests for the retry process
         self.failed_tests = failed_tests
-        return True
+        return InitOutcome.RETRY
 
-    def _run_initial_test_suite(self) -> bool:
+    def _run_initial_test_suite(self) -> InitOutcome:
         """Run the initial test suite."""
         print("\nStep 1: Running initial full test suite...")
         initial_result = self.test_executor.run_single_test_suite(
@@ -1095,7 +1104,7 @@ class AutoRetryTestRunner:
         if initial_result.success:
             print("  All tests passed on initial run!")
             self.report_generator.generate_and_save_final_report(self, self.start_time)
-            return False  # No need to continue
+            return InitOutcome.DONE  # No need to continue
 
         # Parse failed tests
         print("\nStep 2: Parsing failed tests...")
@@ -1104,7 +1113,7 @@ class AutoRetryTestRunner:
         )
 
         if not failed_tests:
-            print("  No failed tests found in output but run-tests exited with code 1")
+            print("❌ No failed tests found in output but run-tests exited with code 1")
             print(
                 "  This indicates an infrastructure or setup issue that prevents tests from running"
             )
@@ -1112,7 +1121,7 @@ class AutoRetryTestRunner:
                 "  Check the log file for connection errors, missing dependencies, or cluster issues"
             )
             print(f"  Log file: {initial_result.log_file}")
-            return False
+            return InitOutcome.ABORTED
 
         print(f"  Found {len(failed_tests)} failed tests:")
         for i, test in enumerate(failed_tests, 1):
@@ -1121,7 +1130,7 @@ class AutoRetryTestRunner:
         # Store failed tests and initial result log for state persistence
         self.failed_tests = failed_tests
         self.initial_result_log = initial_result.log_file
-        return True
+        return InitOutcome.RETRY
 
     def execute_parallel_retries(self) -> Dict[str, List[TestResult]]:
         """Execute parallel retry attempts for failed tests."""
@@ -1263,8 +1272,14 @@ class AutoRetryTestRunner:
         print("=" * 46)
 
         # Initialize based on run mode
-        if not self.initialize_run_mode():
-            return 0  # Early exit (e.g., all tests passed initially)
+        outcome = self.initialize_run_mode()
+        if outcome is InitOutcome.DONE:
+            return 0  # All tests passed initially
+        if outcome is InitOutcome.ABORTED:
+            # The test run never got to a point where retrying makes sense
+            # (e.g. release installation or test generation failed).
+            print("\n❌ Test run aborted, see above for details.")
+            return 1
 
         # Execute test retries
         if not self.execute_test_retries():

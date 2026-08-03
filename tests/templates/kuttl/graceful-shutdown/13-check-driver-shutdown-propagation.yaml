@@ -1,0 +1,77 @@
+---
+# Deleting the driver Pod has to let the driver JVM stop the SparkContext, which is what asks the
+# executors to shut down. Without SIGTERM reaching the driver it is SIGKILLed at the end of its
+# grace period, the executors are never asked, and they keep working until the driver's RPC
+# connection dies.
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - timeout: 600
+    script: |
+      set -eu
+
+      app=graceful-shutdown
+      # The stop command reaches registered executors about a second after the driver is signalled.
+      budget_seconds=20
+
+      capture=$(mktemp -d)
+      driver=$(kubectl -n "$NAMESPACE" get pods -o name \
+        -l "spark-role=driver,app.kubernetes.io/instance=$app" | head -1 | cut -d/ -f2)
+      executors=$(kubectl -n "$NAMESPACE" get pods -o name \
+        -l "spark-role=executor,app.kubernetes.io/instance=$app" | cut -d/ -f2)
+
+      # Without these the loop below has nothing to wait for and would report success while having
+      # checked nothing at all.
+      if [ -z "$driver" ]; then
+        echo "FAIL: no driver Pod found for $app"
+        exit 1
+      fi
+      if [ -z "$executors" ]; then
+        echo "FAIL: no executor Pods found for $app, so no shutdown can be propagated to any"
+        exit 1
+      fi
+
+      echo "stopping driver $driver, expecting a shutdown at: $(echo "$executors" | tr '\n' ' ')"
+
+      log_pids=""
+      for pod in $driver $executors; do
+        kubectl -n "$NAMESPACE" logs -f "$pod" -c spark >"$capture/$pod.log" 2>&1 &
+        log_pids="$log_pids $!"
+      done
+      sleep 2
+
+      kubectl -n "$NAMESPACE" delete pod "$driver" --wait=false
+
+      start=$(date +%s)
+      missing=$executors
+      while [ $(( $(date +%s) - start )) -lt "$budget_seconds" ]; do
+        missing=""
+        for pod in $executors; do
+          grep -q 'Driver commanded a shutdown' "$capture/$pod.log" || missing="$missing $pod"
+        done
+        if [ -z "$missing" ]; then
+          break
+        fi
+        sleep 1
+      done
+      elapsed=$(( $(date +%s) - start ))
+      sleep 1
+      kill $log_pids 2>/dev/null || true
+
+      if [ -n "$missing" ]; then
+        echo "FAIL: ${elapsed}s after the driver was stopped, these executors had not been asked"
+        echo "to shut down:$missing"
+        if grep -q 'Asking each executor to shut down' "$capture/$driver.log"; then
+          echo "The driver did ask, so the request was lost on the way to the executors:"
+          for pod in $missing; do
+            tail -3 "$capture/$pod.log"
+          done
+        else
+          echo "The driver ran no shutdown hook, so SIGTERM did not reach the driver JVM:"
+          tail -5 "$capture/$driver.log"
+        fi
+        exit 1
+      fi
+
+      rm -rf "$capture"
+      echo "OK: every executor was asked to shut down ${elapsed}s after the driver was stopped"

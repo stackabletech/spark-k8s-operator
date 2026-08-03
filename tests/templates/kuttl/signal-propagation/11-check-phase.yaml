@@ -1,0 +1,75 @@
+---
+# This is a TestStep and not a TestAssert on purpose. kuttl retries an assert until it
+# times out, so a wrong-but-terminal phase could only ever be reported after the full
+# timeout. A TestStep command runs once, which lets us fail as soon as the application
+# reaches a terminal phase and say why.
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # Deliberately above the script's own budget below, so that on a timeout the script
+  # reports the last phase it saw instead of kuttl killing it with a generic message.
+  - timeout: 960
+    script: |
+      set -eu
+
+      timeout_seconds=900
+      interval_seconds=5
+      # How long the application may still take to reach a terminal phase after the Spark
+      # container itself has terminated. Without a sidecar the Pod follows within seconds;
+      # with the Vector agent enabled the post hook sleeps 10 seconds before shutting it
+      # down, so this only has to be comfortably above that.
+      grace_seconds=120
+
+      driver_containers() {
+        kubectl -n "$NAMESPACE" get pods -l spark-role=driver \
+          -o jsonpath='{range .items[*].status.containerStatuses[*]}{.name}={.state}{"\n"}{end}' \
+          2>/dev/null || true
+      }
+
+      phase=""
+      elapsed=0
+      spark_done_at=-1
+      while [ "$elapsed" -lt "$timeout_seconds" ]; do
+        phase=$(kubectl -n "$NAMESPACE" get sparkapplication failure-propagation \
+          -o jsonpath='{.status.phase}' 2>/dev/null || true)
+
+        case "$phase" in
+          Failed)
+            echo "OK: the failing application was reported as Failed"
+            exit 0
+            ;;
+          Succeeded)
+            echo "FAIL: the application failed at runtime but was reported as Succeeded."
+            echo "The driver container exit code was masked between the Spark process and"
+            echo "the container entrypoint (see spark-k8s/stackable/run-spark.sh)."
+            exit 1
+            ;;
+        esac
+
+        # Once the Spark container has terminated, the Pod has to follow shortly after.
+        # If it does not, the entrypoint skipped its post hook after the Spark process
+        # exited, so a sidecar was never told to shut down and the Pod can never reach
+        # a terminal phase at all.
+        containers=$(driver_containers)
+        if echo "$containers" | grep -q '^spark=.*terminated'; then
+          if [ "$spark_done_at" -lt 0 ]; then
+            spark_done_at="$elapsed"
+          elif [ "$((elapsed - spark_done_at))" -ge "$grace_seconds" ]; then
+            echo "FAIL: the Spark container terminated ${grace_seconds}s ago, but the application"
+            echo "is still in phase '${phase}'. The entrypoint did not run its post hook after the"
+            echo "Spark process exited, so a sidecar was never told to shut down and the Pod cannot"
+            echo "terminate (see spark-k8s/stackable/run-spark.sh)."
+            echo "Driver container states:"
+            echo "$containers" | sed 's/^/  /'
+            exit 1
+          fi
+        fi
+
+        sleep "$interval_seconds"
+        elapsed=$((elapsed + interval_seconds))
+      done
+
+      echo "FAIL: no terminal phase after ${timeout_seconds}s (last seen: '${phase}')"
+      echo "Driver container states:"
+      driver_containers | sed 's/^/  /'
+      exit 1

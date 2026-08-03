@@ -1,0 +1,19 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 600
+commands:
+  # Same check as in step 10: the replacement for the stopped executor has to be registered and
+  # working before the driver is stopped, otherwise it is not in the driver's list yet.
+  - script: |
+      set -eu
+
+      registered=0
+      for pod in $(kubectl -n "$NAMESPACE" get pods -o name \
+        -l spark-role=executor,app.kubernetes.io/instance=graceful-shutdown | cut -d/ -f2); do
+        log=$(kubectl -n "$NAMESPACE" logs --tail=-1 "$pod" -c spark)
+        echo "$log" | grep -q 'Successfully registered with driver'
+        echo "$log" | grep -q 'Running task'
+        registered=$(( registered + 1 ))
+      done
+      test "$registered" -eq 2

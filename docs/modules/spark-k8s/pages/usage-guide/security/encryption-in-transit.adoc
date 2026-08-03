@@ -58,48 +58,38 @@ Only the parts that differ from the <<complete-example,complete example>> are sh
 
 [source,yaml]
 ----
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: spark-rpc-tls-pass
-stringData:
-  password: "changeit" # <1>
----
 # SparkApplication, showing only what differs from the complete example
 spec:
   sparkConf:
     spark.authenticate: "true"
-    spark.ssl.rpc.enabled: "true" # <2>
+    spark.ssl.rpc.enabled: "true" # <1>
     spark.ssl.rpc.keyStore: /stackable/tls/keystore.p12
     spark.ssl.rpc.keyStoreType: PKCS12
     spark.ssl.rpc.trustStore: /stackable/tls/truststore.p12
     spark.ssl.rpc.trustStoreType: PKCS12
-    spark.ssl.rpc.protocol: TLSv1.3 # <3>
-  env: # <4>
+    spark.ssl.rpc.protocol: TLSv1.3 # <2>
+  env: # <3>
     - name: _SPARK_SSL_RPC_KEY_STORE_PASSWORD
-      valueFrom: &pass
-        secretKeyRef:
-          name: spark-rpc-tls-pass
-          key: password
+      value: "changeit" # <4>
     - name: _SPARK_SSL_RPC_KEY_PASSWORD
-      valueFrom: *pass
+      value: "changeit" # <4>
     - name: _SPARK_SSL_RPC_TRUST_STORE_PASSWORD
-      valueFrom: *pass
+      value: "changeit" # <4>
   volumes:
     - name: tls
       ephemeral:
         volumeClaimTemplate:
           metadata:
             annotations:
-              secrets.stackable.tech/format.compatibility.tls-pkcs12.password: "changeit" # <5>
+              secrets.stackable.tech/format.compatibility.tls-pkcs12.password: "changeit" # <4>
 ----
-<1> The PKCS#12 passphrase. Must be non-empty and must match the volume annotation below.
-<2> Covers RPC and block transfer. Do not combine with `spark.network.crypto.enabled`.
-<3> `spark.ssl.rpc.protocol` has no default and must be set explicitly.
-<4> The store passwords, delivered to the job pod and to both the driver and the executor pods.
-<5> Forces a non-empty passphrase on the generated stores. Without it the TLS handshake fails.
-    If you enable the Web UI over TLS as well, `spark.ssl.ui.keyStorePassword` must carry this same passphrase.
+<1> Covers RPC and block transfer. Do not combine with `spark.network.crypto.enabled`.
+<2> `spark.ssl.rpc.protocol` has no default and must be set explicitly.
+<3> The store passwords, delivered to the job pod and to both the driver and the executor pods.
+<4> The PKCS#12 passphrase. Must be non-empty and identical in all four places.
+    It is hardcoded on purpose: the volume annotation only accepts a literal value, so the passphrase is visible in the `SparkApplication` either way.
+    Reading only the environment variables from a `Secret` would suggest a confidentiality that is not there.
+    If you also enable the Web UI over TLS, `spark.ssl.ui.keyStorePassword` must carry this same passphrase.
 
 === Verifying that it took effect
 

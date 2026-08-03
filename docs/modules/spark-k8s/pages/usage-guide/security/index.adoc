@@ -1,5 +1,6 @@
 = Security
 :description: Learn how to configure Apache Spark applications with Kerberos authentication using Stackable Secret Operator for secure data access in HDFS.
+:page-aliases: usage-guide/security.adoc
 
 == Authentication
 
@@ -9,7 +10,7 @@ Kerberos is a network authentication protocol that works on the basis of "ticket
 
 In this guide we show how to configure Spark applications to use Kerberos while accessing data in an HDFS cluster. The Stackable Secret Operator is used to generate the keytab files. In production environments, users might have different means to provision the keytab files.
 
-This page covers authentication against external services only. To encrypt traffic between the Spark components themselves, see xref:usage-guide/encryption-in-transit.adoc[].
+This page covers authentication against external services only. To encrypt traffic between the Spark components themselves, see xref:usage-guide/security/encryption-in-transit.adoc[].
 
 
 == Prerequisites

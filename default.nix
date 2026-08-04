@@ -133,6 +133,12 @@ rec {
     ${entrypoint} crd > $out
   '';
 
+  # The unprivileged user that the operator runs as.
+  # These values must be kept in sync with docker/Dockerfile!
+  stackableUserName = "stackable";
+  stackableUserUid = 782252253;
+  stackableUserGid = 574654813;
+
   # We're building the docker image *for* Linux, but we need to
   # build it in the local environment so that the generated load-image
   # can run locally.
@@ -150,9 +156,37 @@ rec {
       pkgsTarget.coreutils
       pkgsTarget.util-linuxMinimal
     ];
+
+    # Nix images don't contain a user database, so create a minimal one containing the same user
+    # that docker/Dockerfile creates via groupadd/useradd. Without it the UID cannot be resolved to
+    # a name and a home directory, which breaks tools such as `whoami` and makes for a confusing
+    # shell prompt when using `kubectl exec`.
+    extraCommands = ''
+      mkdir -p etc stackable
+      cat > etc/passwd <<EOF
+      root:x:0:0:root:/root:/bin/bash
+      ${stackableUserName}:x:${toString stackableUserUid}:${toString stackableUserGid}:${stackableUserName}:/stackable:/bin/bash
+      EOF
+      cat > etc/group <<EOF
+      root:x:0:
+      ${stackableUserName}:x:${toString stackableUserGid}:
+      EOF
+    '';
+    # All files and folders are owned by the root group to support running as arbitrary users.
+    # This is best practice as all container users will belong to the root group (0).
+    # Same as in docker/Dockerfile.
+    fakeRootCommands = ''
+      chown -R ${toString stackableUserUid}:0 stackable
+      chmod -R g=u stackable
+    '';
+
     config = {
       Entrypoint = [ entrypoint ];
       Cmd = [ "run" ];
+      # Mirrors the `USER` instruction in docker/Dockerfile. Besides not running as root, this is
+      # also required for Pods that set `runAsNonRoot: true` without an explicit `runAsUser`,
+      # because the kubelet refuses to start containers whose image would run as root.
+      User = toString stackableUserUid;
     };
   };
   docker = pkgsLocal.linkFarm "${dockerImage.name}-docker" [

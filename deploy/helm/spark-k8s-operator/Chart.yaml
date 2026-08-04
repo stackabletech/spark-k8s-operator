@@ -3,8 +3,21 @@ apiVersion: v2
 name: spark-k8s-operator
 version: "0.0.0-dev"
 appVersion: "0.0.0-dev"
-description: The Stackable Operator for Apache Spark-on-Kubernetes
+description: "Kubernetes operator for Apache Spark. Run Spark applications on Kubernetes with the Stackable Data Platform (SDP)."
 home: https://github.com/stackabletech/spark-k8s-operator
+sources:
+  - https://github.com/stackabletech/spark-k8s-operator
+keywords: ["apache-spark", "spark", "spark-on-kubernetes", "kubernetes", "operator", "big-data"]
 maintainers:
   - name: Stackable
     url: https://www.stackable.tech
+# Consumed by Artifact Hub, see https://artifacthub.io/docs/topics/annotations/helm/
+annotations:
+  # The chart package ships no LICENSE file, so Artifact Hub cannot detect this itself.
+  artifacthub.io/license: OSL-3.0
+  # A link named "support" is rendered highlighted by Artifact Hub. Keep it lowercase.
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://docs.stackable.tech/home/stable/spark-k8s/
+    - name: support
+      url: https://github.com/stackabletech/spark-k8s-operator/issues

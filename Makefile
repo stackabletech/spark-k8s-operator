@@ -30,9 +30,6 @@ docker-build:
 ## Chart related targets
 compile-chart: version crds
 
-chart-clean:
-	rm -rf "deploy/helm/${OPERATOR_NAME}/crds"
-
 version:
 	cat "deploy/helm/${OPERATOR_NAME}/Chart.yaml" | yq ".version = \"${VERSION}\" | .appVersion = \"${VERSION}\"" > "deploy/helm/${OPERATOR_NAME}/Chart.yaml.new"
 	mv "deploy/helm/${OPERATOR_NAME}/Chart.yaml.new" "deploy/helm/${OPERATOR_NAME}/Chart.yaml"
@@ -46,11 +43,11 @@ crds:
 chart-lint: compile-chart
 	docker run -it -v $(shell pwd):/build/helm-charts -w /build/helm-charts quay.io/helmpack/chart-testing:v3.5.0  ct lint --config deploy/helm/ct.yaml
 
-clean: chart-clean
+clean:
 	cargo clean
 	docker rmi --force '${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}'
 
-regenerate-charts: chart-clean compile-chart
+regenerate-charts: compile-chart
 
 regenerate-nix:
 	nix run --extra-experimental-features "nix-command flakes" -f . regenerateNixLockfiles

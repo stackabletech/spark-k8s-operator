@@ -1,0 +1,54 @@
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-encryption-crypto
+spec:
+  sparkImage:
+    productVersion: 4.1.2
+  mode: cluster
+  mainApplicationFile: local:///stackable/spark/jobs/my-job.py
+  sparkConf:
+    spark.authenticate: "true" # <1>
+    spark.network.crypto.enabled: "true" # <2>
+    spark.io.encryption.enabled: "true" # <3>
+    spark.io.encryption.keySizeBits: "256"
+    spark.ssl.ui.enabled: "true" # <4>
+    spark.ssl.ui.keyStore: /stackable/tls/keystore.p12
+    spark.ssl.ui.keyStorePassword: ""
+    spark.ssl.ui.keyStoreType: PKCS12
+    spark.ssl.ui.protocol: TLSv1.3
+  job:
+    config:
+      volumeMounts:
+        - name: jobs
+          mountPath: /stackable/spark/jobs
+  driver:
+    config:
+      volumeMounts: &mounts
+        - name: jobs
+          mountPath: /stackable/spark/jobs
+        - name: tls
+          mountPath: /stackable/tls
+  executor:
+    replicas: 2
+    config:
+      volumeMounts: *mounts
+  volumes:
+    - name: jobs
+      configMap:
+        name: my-job
+    - name: tls # <5>
+      ephemeral:
+        volumeClaimTemplate:
+          metadata:
+            annotations:
+              secrets.stackable.tech/class: tls
+              secrets.stackable.tech/scope: pod
+              secrets.stackable.tech/format: tls-pkcs12
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: "1"
+            storageClassName: secrets.stackable.tech

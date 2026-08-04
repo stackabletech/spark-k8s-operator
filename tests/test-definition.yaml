@@ -114,6 +114,10 @@ tests:
     dimensions:
       - spark
       - openshift
+  - name: transit-encryption
+    dimensions:
+      - spark
+      - openshift
   - name: logging
     dimensions:
       - spark-logging

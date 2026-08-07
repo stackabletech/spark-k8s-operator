@@ -5,8 +5,7 @@ use stackable_operator::{
     builder::{
         meta::ObjectMetaBuilder,
         pod::{
-            PodBuilder, resources::ResourceRequirementsBuilder,
-            security::PodSecurityContextBuilder,
+            PodBuilder, resources::ResourceRequirementsBuilder, security::PodSecurityContextBuilder,
         },
     },
     k8s_openapi::{

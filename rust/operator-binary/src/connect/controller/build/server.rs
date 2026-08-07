@@ -12,6 +12,7 @@ use stackable_operator::{
         meta::ObjectMetaBuilder,
         pod::{
             PodBuilder,
+            security::PodSecurityContextBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
                 ListenerReference, VolumeBuilder,
@@ -23,7 +24,7 @@ use stackable_operator::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{ConfigMap, EnvVar, HTTPGetAction, PodSecurityContext, Probe, Service},
+            core::v1::{ConfigMap, EnvVar, HTTPGetAction, Probe, Service},
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
@@ -206,10 +207,11 @@ pub(crate) fn build_stateful_set(
         .context(AddVolumeSnafu)?
         // This is needed for shared enpryDir volumes with other containers like the truststore
         // init container.
-        .security_context(PodSecurityContext {
-            fs_group: Some(1000),
-            ..PodSecurityContext::default()
-        });
+        .security_context(
+            PodSecurityContextBuilder::with_stackable_defaults()
+                .fs_group(1000)
+                .build(),
+        );
 
     let container_env = env(Some(&validated.server_overrides.env_overrides))?;
 

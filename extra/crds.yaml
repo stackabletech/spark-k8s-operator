@@ -6,7 +6,6 @@ metadata:
 spec:
   group: spark.stackable.tech
   names:
-    categories: []
     kind: SparkApplication
     plural: sparkapplications
     shortNames:
@@ -14,8 +13,7 @@ spec:
     singular: sparkapplication
   scope: Namespaced
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: A Spark application run on Kubernetes by the Stackable operator for Apache Spark.
@@ -2236,7 +2234,6 @@ metadata:
 spec:
   group: spark.stackable.tech
   names:
-    categories: []
     kind: SparkHistoryServer
     plural: sparkhistoryservers
     shortNames:
@@ -2246,8 +2243,7 @@ spec:
     singular: sparkhistoryserver
   scope: Namespaced
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: A Spark history server component. This resource is managed by the Stackable operator for Apache Spark.
@@ -3349,7 +3345,6 @@ spec:
         type: object
     served: true
     storage: true
-    subresources: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -3358,7 +3353,6 @@ metadata:
 spec:
   group: spark.stackable.tech
   names:
-    categories: []
     kind: SparkConnectServer
     plural: sparkconnectservers
     shortNames:
@@ -3366,8 +3360,7 @@ spec:
     singular: sparkconnectserver
   scope: Namespaced
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: An Apache Spark Connect server component. This resource is managed by the Stackable operator for Apache Spark.
@@ -4615,7 +4608,6 @@ metadata:
 spec:
   group: spark.stackable.tech
   names:
-    categories: []
     kind: SparkApplicationTemplate
     plural: sparkapptemplates
     shortNames:
@@ -4623,8 +4615,7 @@ spec:
     singular: sparkapplicationtemplate
   scope: Namespaced
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: A Spark application template. This resource is managed by the Stackable operator for Apache Spark.
@@ -6812,4 +6803,3 @@ spec:
         type: object
     served: true
     storage: true
-    subresources: {}

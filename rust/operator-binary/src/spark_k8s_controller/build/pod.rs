@@ -4,7 +4,10 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         meta::ObjectMetaBuilder,
-        pod::{PodBuilder, resources::ResourceRequirementsBuilder},
+        pod::{
+            PodBuilder, resources::ResourceRequirementsBuilder,
+            security::PodSecurityContextBuilder,
+        },
     },
     k8s_openapi::{
         DeepMerge,
@@ -337,8 +340,7 @@ pub(crate) fn pod_template(
 }
 
 pub(crate) fn security_context() -> PodSecurityContext {
-    PodSecurityContext {
-        fs_group: Some(1000),
-        ..PodSecurityContext::default()
-    }
+    PodSecurityContextBuilder::with_stackable_defaults()
+        .fs_group(1000)
+        .build()
 }

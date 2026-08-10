@@ -70,10 +70,13 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
         spark_image: overlay.spec.spark_image.clone(),
 
         // Merge job configuration
-        job: merge_common_config(base.spec.job.as_ref(), overlay.spec.job.as_ref()),
+        job: merge_optional_common_config(base.spec.job.as_ref(), overlay.spec.job.as_ref()),
 
         // Merge driver configuration
-        driver: merge_common_config(base.spec.driver.as_ref(), overlay.spec.driver.as_ref()),
+        driver: merge_optional_common_config(
+            base.spec.driver.as_ref(),
+            overlay.spec.driver.as_ref(),
+        ),
 
         // Merge executor configuration (RoleGroup)
         executor: merge_role_group(base.spec.executor.as_ref(), overlay.spec.executor.as_ref()),
@@ -174,69 +177,77 @@ fn merge_vec<T: Clone>(base: &[T], overlay: &[T]) -> Vec<T> {
     merged
 }
 
-/// Merge CommonConfiguration using the Merge trait
-fn merge_common_config<Config, CommonConfig, ConfigOverrides>(
+/// Merge two optional CommonConfigurations, see [`merge_common_config`] for the precedence rules.
+fn merge_optional_common_config<Config, CommonConfig, ConfigOverrides>(
     base: Option<&CommonConfiguration<Config, CommonConfig, ConfigOverrides>>,
     overlay: Option<&CommonConfiguration<Config, CommonConfig, ConfigOverrides>>,
 ) -> Option<CommonConfiguration<Config, CommonConfig, ConfigOverrides>>
 where
     Config: Clone + Merge,
-    CommonConfig: Clone,
+    CommonConfig: Clone + Merge,
     ConfigOverrides: Clone + Merge,
 {
     match (base, overlay) {
         (None, None) => None,
         (Some(b), None) => Some(b.clone()),
         (None, Some(o)) => Some(o.clone()),
-        (Some(b), Some(o)) => {
-            // Clone the base and merge the overlay config into it
-            let mut merged = b.clone();
-            merged.config.merge(&o.config);
-            // Merge with overlay precedence: keep overlay values for conflicts,
-            // fill missing keys from base.
-            let mut config_overrides = o.config_overrides.clone();
-            config_overrides.merge(&b.config_overrides);
-            merged.config_overrides = config_overrides;
-            merged.env_overrides = merge_hashmap(&b.env_overrides, &o.env_overrides);
-            merged.pod_overrides = merge_pod_template_spec(&b.pod_overrides, &o.pod_overrides);
-            Some(merged)
-        }
+        (Some(b), Some(o)) => Some(merge_common_config(b, o)),
     }
 }
 
-/// Merge RoleGroup
+/// Overlay values win conflicts and values missing from the overlay are filled in from the base.
+fn merge_common_config<Config, CommonConfig, ConfigOverrides>(
+    base: &CommonConfiguration<Config, CommonConfig, ConfigOverrides>,
+    overlay: &CommonConfiguration<Config, CommonConfig, ConfigOverrides>,
+) -> CommonConfiguration<Config, CommonConfig, ConfigOverrides>
+where
+    Config: Clone + Merge,
+    CommonConfig: Clone + Merge,
+    ConfigOverrides: Clone + Merge,
+{
+    let mut config = overlay.config.clone();
+    config.merge(&base.config);
+
+    let mut config_overrides = overlay.config_overrides.clone();
+    config_overrides.merge(&base.config_overrides);
+
+    let mut cli_overrides = base.cli_overrides.clone();
+    cli_overrides.extend(overlay.cli_overrides.clone());
+
+    // Note that this does not overwrite anything for `JavaCommonConfig`, which is what all roles
+    // of a SparkApplication use: merging registers the JVM argument overrides of the base as
+    // preceding ones, so that they are applied first and the ones of the overlay on top of them.
+    let mut product_specific_common_config = overlay.product_specific_common_config.clone();
+    product_specific_common_config.merge(&base.product_specific_common_config);
+
+    CommonConfiguration {
+        config,
+        config_overrides,
+        env_overrides: merge_hashmap(&base.env_overrides, &overlay.env_overrides),
+        cli_overrides,
+        pod_overrides: merge_pod_template_spec(&base.pod_overrides, &overlay.pod_overrides),
+        product_specific_common_config,
+    }
+}
+
+/// Merge two optional RoleGroups, see [`merge_common_config`] for the precedence rules.
 fn merge_role_group<Config, CommonConfig, ConfigOverrides>(
     base: Option<&RoleGroup<Config, CommonConfig, ConfigOverrides>>,
     overlay: Option<&RoleGroup<Config, CommonConfig, ConfigOverrides>>,
 ) -> Option<RoleGroup<Config, CommonConfig, ConfigOverrides>>
 where
     Config: Clone + Merge,
-    CommonConfig: Clone,
+    CommonConfig: Clone + Merge,
     ConfigOverrides: Clone + Merge,
 {
     match (base, overlay) {
         (None, None) => None,
         (Some(b), None) => Some(b.clone()),
         (None, Some(o)) => Some(o.clone()),
-        (Some(b), Some(o)) => {
-            // Clone the base and merge overlay
-            let mut merged = b.clone();
-            merged.config.config.merge(&o.config.config);
-            // Merge with overlay precedence: keep overlay values for conflicts,
-            // fill missing keys from base.
-            let mut config_overrides = o.config.config_overrides.clone();
-            config_overrides.merge(&b.config.config_overrides);
-            merged.config.config_overrides = config_overrides;
-            merged.config.env_overrides =
-                merge_hashmap(&b.config.env_overrides, &o.config.env_overrides);
-            merged.config.pod_overrides =
-                merge_pod_template_spec(&b.config.pod_overrides, &o.config.pod_overrides);
-            // Use overlay replicas if present
-            if o.replicas.is_some() {
-                merged.replicas = o.replicas;
-            }
-            Some(merged)
-        }
+        (Some(b), Some(o)) => Some(RoleGroup {
+            config: merge_common_config(&b.config, &o.config),
+            replicas: o.replicas.or(b.replicas),
+        }),
     }
 }
 
@@ -256,6 +267,7 @@ fn merge_deps(
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
+    use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 
     use super::*;
 
@@ -1567,6 +1579,134 @@ mod tests {
                     .as_ref())
                 .and_then(|terms| terms.first())
                 .map(|term| term.weight)
+        );
+    }
+
+    #[test]
+    fn test_merge_template_role_config_into_spark_application() {
+        let template = serde_yaml::from_str::<
+            crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
+        >(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplicationTemplate
+            metadata:
+              name: template-with-resources
+            spec:
+              mode: cluster
+              mainApplicationFile: local:///template.jar
+              sparkImage:
+                productVersion: "3.5.8"
+              driver:
+                config:
+                  resources:
+                    cpu:
+                      max: "2"
+                    memory:
+                      limit: 1Gi
+                jvmArgumentOverrides:
+                  add:
+                    - -Dfrom=template
+                    - -Dremoved=by-application
+              executor:
+                config:
+                  resources:
+                    cpu:
+                      max: "2"
+                    memory:
+                      limit: 1Gi
+                jvmArgumentOverrides:
+                  add:
+                    - -Dfrom=template
+                    - -Dremoved=by-application
+        "#})
+        .unwrap();
+
+        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: my-spark-app
+            spec:
+              mode: cluster
+              mainApplicationFile: local:///app.jar
+              sparkImage:
+                productVersion: "3.5.8"
+              driver:
+                config:
+                  resources:
+                    cpu:
+                      max: "4"
+                jvmArgumentOverrides:
+                  remove:
+                    - -Dremoved=by-application
+                  add:
+                    - -Dfrom=application
+              executor:
+                config:
+                  resources:
+                    cpu:
+                      max: "4"
+                jvmArgumentOverrides:
+                  remove:
+                    - -Dremoved=by-application
+                  add:
+                    - -Dfrom=application
+        "#})
+        .unwrap();
+
+        let app_from_template = crate::crd::v1alpha1::SparkApplication::from(template);
+        let merged = deep_merge(&app_from_template, &spark_app);
+
+        let driver = merged.spec.driver.unwrap();
+        assert_eq!(
+            driver.config.resources.cpu.max,
+            Some(Quantity("4".to_string())),
+            "the driver cpu of the spark application should take precedence"
+        );
+        assert_eq!(
+            driver.config.resources.memory.limit,
+            Some(Quantity("1Gi".to_string())),
+            "the driver memory should be filled in from the template"
+        );
+        // The application removes `-Dremoved=by-application`, which only the template adds. The
+        // argument can only disappear if the overrides are applied in sequence, so this also
+        // rules out a plain concatenation of the `add` lists.
+        assert_eq!(
+            driver
+                .product_specific_common_config
+                .jvm_argument_overrides
+                .apply_to(Vec::new()),
+            vec![
+                "-Dfrom=template".to_string(),
+                "-Dfrom=application".to_string()
+            ],
+            "the driver jvm arguments of the template should be applied before the ones of the spark application"
+        );
+
+        let executor = merged.spec.executor.unwrap();
+        assert_eq!(
+            executor.config.config.resources.cpu.max,
+            Some(Quantity("4".to_string())),
+            "the executor cpu of the spark application should take precedence"
+        );
+        assert_eq!(
+            executor.config.config.resources.memory.limit,
+            Some(Quantity("1Gi".to_string())),
+            "the executor memory should be filled in from the template"
+        );
+        assert_eq!(
+            executor
+                .config
+                .product_specific_common_config
+                .jvm_argument_overrides
+                .apply_to(Vec::new()),
+            vec![
+                "-Dfrom=template".to_string(),
+                "-Dfrom=application".to_string()
+            ],
+            "the executor jvm arguments of the template should be applied before the ones of the spark application"
         );
     }
 }

@@ -4,14 +4,11 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
         meta::ObjectMetaBuilder,
-        pod::{PodBuilder, volume::VolumeBuilder},
+        pod::{PodBuilder, security::PodSecurityContextBuilder, volume::VolumeBuilder},
     },
     k8s_openapi::{
         DeepMerge,
-        api::{
-            apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::PodSecurityContext,
-        },
+        api::apps::v1::{StatefulSet, StatefulSetSpec},
         apimachinery::pkg::apis::meta::v1::LabelSelector,
     },
     product_logging::{
@@ -152,10 +149,11 @@ pub(crate) fn build_stateful_set(
             .context(CreateLogDirVolumesSpecSnafu)?,
     )
     .context(AddVolumeSnafu)?
-    .security_context(PodSecurityContext {
-        fs_group: Some(1000),
-        ..PodSecurityContext::default()
-    });
+    .security_context(
+        PodSecurityContextBuilder::with_stackable_defaults()
+            .fs_group(1000)
+            .build(),
+    );
 
     // Base environment variables, with the already-merged (role + role group) env overrides
     // layered on top (overrides win). The base names are static and known to be valid.

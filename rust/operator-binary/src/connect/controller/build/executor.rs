@@ -9,12 +9,12 @@ use stackable_operator::{
         self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
-        pod::{PodBuilder, volume::VolumeBuilder},
+        pod::{PodBuilder, security::PodSecurityContextBuilder, volume::VolumeBuilder},
     },
     commons::resources::{CpuLimits, MemoryLimits, Resources},
     k8s_openapi::{
         DeepMerge,
-        api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
+        api::core::v1::{ConfigMap, EnvVar, PodTemplateSpec},
     },
     kube::ResourceExt,
     product_logging::framework::{VECTOR_CONFIG_FILE, calculate_log_volume_size_limit},
@@ -137,10 +137,11 @@ pub fn executor_pod_template(
         .context(AddVolumeSnafu)?
         // This is needed for shared enpryDir volumes with other containers like the truststore
         // init container.
-        .security_context(PodSecurityContext {
-            fs_group: Some(1000),
-            ..PodSecurityContext::default()
-        });
+        .security_context(
+            PodSecurityContextBuilder::with_stackable_defaults()
+                .fs_group(1000)
+                .build(),
+        );
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.
     if let Some(truststore_init_container) = resolved_s3

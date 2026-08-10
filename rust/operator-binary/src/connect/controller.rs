@@ -1,58 +1,47 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     cluster_resources::ClusterResourceApplyStrategy,
-    crd::listener,
+    crd::listener::v1alpha1::Listener,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
         core::v1::{ConfigMap, Service, ServiceAccount},
         rbac::v1::RoleBinding,
     },
     kube::{
-        ResourceExt,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
     logging::controller::ReconcilerError,
     shared::time::Duration,
-    status::condition::{
-        compute_conditions, operations::ClusterOperationsConditionBuilder,
-        statefulset::StatefulSetConditionBuilder,
-    },
-    v2::cluster_resources::cluster_resources_new,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use super::crd::v1alpha1;
-use crate::{Ctx, connect::crd::SparkConnectServerStatus, crd::constants::OPERATOR_NAME};
+use crate::{
+    Ctx,
+    connect::controller::{apply::Applier, update_status::update_status},
+};
 
+pub mod apply;
 pub mod build;
 pub mod dereference;
+pub mod update_status;
 pub mod validate;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to apply the Kubernetes resources"))]
+    ApplyResources { source: apply::Error },
+
+    #[snafu(display("failed to update the cluster status"))]
+    UpdateStatus { source: update_status::Error },
+
     #[snafu(display("failed to build the Kubernetes resources"))]
     BuildResources { source: build::Error },
-
-    #[snafu(display("failed to apply Kubernetes resource"))]
-    ApplyResource {
-        source: stackable_operator::cluster_resources::Error,
-    },
-
-    #[snafu(display("failed to update status of spark connect server {name}"))]
-    ApplyStatus {
-        source: stackable_operator::client::Error,
-        name: String,
-    },
-
-    #[snafu(display("failed to delete orphaned resources"))]
-    DeleteOrphanedResources {
-        source: stackable_operator::cluster_resources::Error,
-    },
 
     #[snafu(display("SparkConnectServer object is invalid"))]
     InvalidSparkConnectServer {
@@ -74,19 +63,26 @@ impl ReconcilerError for Error {
     }
 }
 
+/// Marker for prepared Kubernetes resources which are not applied yet.
+pub struct Prepared;
+
+/// Marker for applied Kubernetes resources.
+pub struct Applied;
+
 /// Every Kubernetes resource produced by the build step for a SparkConnectServer.
 ///
 /// Built without a Kubernetes client: all references are already dereferenced and validated by
 /// this point, so the only errors possible during assembly are resource-construction failures.
-pub struct SparkConnectResources {
-    pub service_account: ServiceAccount,
-    pub role_binding: RoleBinding,
+pub struct SparkConnectResources<T> {
+    pub service_accounts: Vec<ServiceAccount>,
+    pub role_bindings: Vec<RoleBinding>,
     /// The headless Service (for executors to reach the driver) and the metrics Service.
     pub services: Vec<Service>,
     /// The executor and server ConfigMaps.
     pub config_maps: Vec<ConfigMap>,
-    pub listener: listener::v1alpha1::Listener,
-    pub stateful_set: StatefulSet,
+    pub listeners: Vec<Listener>,
+    pub stateful_sets: Vec<StatefulSet>,
+    pub status: PhantomData<T>,
 }
 
 pub async fn reconcile(
@@ -117,80 +113,23 @@ pub async fn reconcile(
         "Validated SparkConnectServer identity"
     );
 
-    let mut cluster_resources = cluster_resources_new(
-        &validate::product_name(),
-        &validate::operator_name(),
-        &validate::controller_name(),
-        &validated.name,
-        &validated.namespace,
-        &validated.uid,
+    let resources = build::build(&validated, &scs.spec.args).context(BuildResourcesSnafu)?;
+
+    let applier = Applier::new(
+        client,
+        &validated,
         ClusterResourceApplyStrategy::from(&scs.spec.cluster_operation),
         &scs.spec.object_overrides,
     );
 
-    let resources = build::build(&validated, &scs.spec.args).context(BuildResourcesSnafu)?;
-
-    // Apply order: ServiceAccount and RoleBinding first, then the Services, ConfigMaps and
-    // Listener, and finally the StatefulSet (it mounts the ConfigMaps and runs under the SA, so
-    // they must exist first).
-    cluster_resources
-        .add(client, resources.service_account)
+    let applied = applier
+        .apply(resources)
         .await
-        .context(ApplyResourceSnafu)?;
-    cluster_resources
-        .add(client, resources.role_binding)
-        .await
-        .context(ApplyResourceSnafu)?;
-    for service in resources.services {
-        cluster_resources
-            .add(client, service)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for config_map in resources.config_maps {
-        cluster_resources
-            .add(client, config_map)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    cluster_resources
-        .add(client, resources.listener)
-        .await
-        .context(ApplyResourceSnafu)?;
+        .context(ApplyResourcesSnafu)?;
 
-    let mut ss_cond_builder = StatefulSetConditionBuilder::default();
-    ss_cond_builder.add(
-        cluster_resources
-            .add(client, resources.stateful_set)
-            .await
-            .context(ApplyResourceSnafu)?,
-    );
-
-    cluster_resources
-        .delete_orphaned_resources(client)
+    update_status(client, scs, &applied)
         .await
-        .context(DeleteOrphanedResourcesSnafu)?;
-
-    // ========================================
-    // Spark connect server status
-    let cluster_operation_cond_builder =
-        ClusterOperationsConditionBuilder::new(&scs.spec.cluster_operation);
-
-    // TODO: This StatefulSet only contains the driver. We should probably also
-    // consider the state of the executors to determine if the
-    // SparkConnectServer is ready. This depends on the availability and
-    // resilience properties of Spark and could e.g. be "driver and more than
-    // 75% of the executors ready". Special care needs to be taken about
-    // auto-scaling executors in this case (if/once supported).
-    let status = SparkConnectServerStatus {
-        conditions: compute_conditions(scs, &[&ss_cond_builder, &cluster_operation_cond_builder]),
-    };
-    client
-        .apply_patch_status(OPERATOR_NAME, scs, &status)
-        .await
-        .context(ApplyStatusSnafu {
-            name: validated.name_any(),
-        })?;
+        .context(UpdateStatusSnafu)?;
 
     Ok(Action::await_change())
 }

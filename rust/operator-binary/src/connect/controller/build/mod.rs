@@ -10,6 +10,8 @@ pub(crate) mod rbac;
 pub(crate) mod server;
 pub(crate) mod service;
 
+use std::marker::PhantomData;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder, kube::ResourceExt,
@@ -19,7 +21,7 @@ use stackable_operator::{
 use crate::connect::{
     common::{self, SparkConnectRole},
     controller::{
-        SparkConnectResources,
+        Prepared, SparkConnectResources,
         build::rbac::{build_role_binding, build_service_account},
         validate::ValidatedSparkConnectServer,
     },
@@ -62,7 +64,7 @@ pub enum Error {
 pub(crate) fn build(
     validated: &ValidatedSparkConnectServer,
     user_args: &[String],
-) -> Result<SparkConnectResources, Error> {
+) -> Result<SparkConnectResources<Prepared>, Error> {
     let resolved_s3 = &validated.cluster_config.resolved_s3;
 
     // Headless service used by executors to connect back to the driver, plus the metrics service.
@@ -104,12 +106,13 @@ pub(crate) fn build(
             .context(BuildServerStatefulSetSnafu)?;
 
     Ok(SparkConnectResources {
-        service_account: build_service_account(validated),
-        role_binding: build_role_binding(validated),
+        service_accounts: vec![build_service_account(validated)],
+        role_bindings: vec![build_role_binding(validated)],
         services: vec![headless_service, metrics_service],
         config_maps: vec![executor_config_map, server_config_map],
-        listener,
-        stateful_set,
+        listeners: vec![listener],
+        stateful_sets: vec![stateful_set],
+        status: PhantomData,
     })
 }
 

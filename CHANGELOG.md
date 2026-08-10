@@ -12,6 +12,13 @@ All notable changes to this project will be documented in this file.
 - Bump stackable-operator to 0.114.0 ([#732]).
 - The RBAC ServiceAccounts and RoleBindings of the history and connect servers are now
   built with the operator-rs `v2::rbac` functions and carry the recommended labels ([#727]).
+- All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#744]).
+
+### Fixed
+
+- Fix a longstanding problem of including empty `categories`, `shortNames` and `additionalPrinterColumns` in the CRDs,
+  which could cause problems with GitOps tools (e.g. ArgoCD) reporting a diff in the custom resources.
+  See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#744]).
 
 ### Fixed
 
@@ -26,7 +33,9 @@ All notable changes to this project will be documented in this file.
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
 [#732]: https://github.com/stackabletech/spark-k8s-operator/pull/732
+[#744]: https://github.com/stackabletech/spark-k8s-operator/pull/744
 [#745]: https://github.com/stackabletech/spark-k8s-operator/pull/745
+
 
 ## [26.7.0] - 2026-07-21
 

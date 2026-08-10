@@ -19,9 +19,6 @@ All notable changes to this project will be documented in this file.
 - Fix a longstanding problem of including empty `categories`, `shortNames` and `additionalPrinterColumns` in the CRDs,
   which could cause problems with GitOps tools (e.g. ArgoCD) reporting a diff in the custom resources.
   See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#744]).
-
-### Fixed
-
 - BREAKING (behaviour): The `config` and `cliOverrides` of a SparkApplication role now take
   precedence over the ones of a referenced SparkApplicationTemplate. Previously the template
   value won and the value set on the SparkApplication was silently discarded ([#745]).

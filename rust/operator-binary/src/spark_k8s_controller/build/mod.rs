@@ -1,6 +1,8 @@
 pub mod pod;
 pub mod resource;
 
+use std::marker::PhantomData;
+
 use resource::{config_map, job};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -9,7 +11,7 @@ use stackable_operator::{
 
 use crate::{
     crd::roles::SparkApplicationRole,
-    spark_k8s_controller::{SparkResources, validate::ValidatedSparkApplication},
+    spark_k8s_controller::{Prepared, SparkResources, validate::ValidatedSparkApplication},
 };
 
 #[derive(Snafu, Debug)]
@@ -33,7 +35,7 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builds every Kubernetes resource for the given validated SparkApplication.
-pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
+pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Prepared>> {
     let spark_application = &validated.spark_application;
     let opt_s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
@@ -115,14 +117,15 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources> {
     .context(BuildJobSnafu)?;
 
     Ok(SparkResources {
-        service_account,
-        role_binding,
+        service_accounts: vec![service_account],
+        role_bindings: vec![role_binding],
         config_maps: vec![
             driver_pod_template_config_map,
             executor_pod_template_config_map,
             submit_job_config_map,
         ],
-        job,
+        jobs: vec![job],
+        status: PhantomData,
     })
 }
 

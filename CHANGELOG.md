@@ -19,11 +19,19 @@ All notable changes to this project will be documented in this file.
 - Fix a longstanding problem of including empty `categories`, `shortNames` and `additionalPrinterColumns` in the CRDs,
   which could cause problems with GitOps tools (e.g. ArgoCD) reporting a diff in the custom resources.
   See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#744]).
+- BREAKING (behaviour): The `config` and `cliOverrides` of a SparkApplication role now take
+  precedence over the ones of a referenced SparkApplicationTemplate. Previously the template
+  value won and the value set on the SparkApplication was silently discarded ([#745]).
+- BREAKING (behaviour): The `jvmArgumentOverrides` of a SparkApplication role are no longer
+  discarded when the application references a SparkApplicationTemplate. The overrides of the
+  template are now applied first and the ones of the SparkApplication on top of them, so an
+  application can also remove a JVM argument that one of its templates added ([#745]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
 [#732]: https://github.com/stackabletech/spark-k8s-operator/pull/732
 [#744]: https://github.com/stackabletech/spark-k8s-operator/pull/744
+[#745]: https://github.com/stackabletech/spark-k8s-operator/pull/745
 
 ## [26.7.0] - 2026-07-21
 

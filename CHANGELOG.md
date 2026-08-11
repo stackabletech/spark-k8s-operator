@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
 - The RBAC ServiceAccounts and RoleBindings of the history and connect servers are now
   built with the operator-rs `v2::rbac` functions and carry the recommended labels ([#727]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#744]).
+- The reconciler now applies resources and derives the cluster status in discrete 
+  apply and update_status steps ([#746]).
 
 ### Fixed
 
@@ -32,6 +34,7 @@ All notable changes to this project will be documented in this file.
 [#732]: https://github.com/stackabletech/spark-k8s-operator/pull/732
 [#744]: https://github.com/stackabletech/spark-k8s-operator/pull/744
 [#745]: https://github.com/stackabletech/spark-k8s-operator/pull/745
+[#746]: https://github.com/stackabletech/spark-k8s-operator/pull/746
 
 ## [26.7.0] - 2026-07-21
 

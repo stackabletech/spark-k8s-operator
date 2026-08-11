@@ -1,5 +1,7 @@
 pub mod resource;
 
+use std::marker::PhantomData;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
@@ -9,7 +11,7 @@ use stackable_operator::{
 use crate::{
     crd::constants::HISTORY_ROLE_NAME,
     history::controller::{
-        SparkHistoryResources,
+        Prepared, SparkHistoryResources,
         build::resource::{
             config_map::{self, build_config_map},
             listener::build_group_listener,
@@ -34,12 +36,13 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builds every Kubernetes resource for the given validated SparkHistoryServer.
-pub fn build(validated: &ValidatedSparkHistoryServer) -> Result<SparkHistoryResources> {
+pub fn build(validated: &ValidatedSparkHistoryServer) -> Result<SparkHistoryResources<Prepared>> {
     let log_dir = &validated.cluster_config.log_dir;
 
     let mut config_maps = vec![];
     let mut metrics_services = vec![];
     let mut stateful_sets = vec![];
+    let mut pod_disruption_budgets = vec![];
 
     for (role_group_name, rg) in &validated.role_groups {
         config_maps
@@ -57,16 +60,19 @@ pub fn build(validated: &ValidatedSparkHistoryServer) -> Result<SparkHistoryReso
         validated.role_config.listener_class.clone(),
     );
 
-    let pod_disruption_budget = build_pdb(&validated.role_config.pdb, validated);
+    if let Some(pod_disruption_budget) = build_pdb(&validated.role_config.pdb, validated) {
+        pod_disruption_budgets.push(pod_disruption_budget);
+    }
 
     Ok(SparkHistoryResources {
-        service_account: build_service_account(validated),
-        role_binding: build_role_binding(validated),
+        service_accounts: vec![build_service_account(validated)],
+        role_bindings: vec![build_role_binding(validated)],
         config_maps,
         metrics_services,
         stateful_sets,
-        listener,
-        pod_disruption_budget,
+        listeners: vec![listener],
+        pod_disruption_budgets,
+        status: PhantomData,
     })
 }
 

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -19,17 +19,26 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     Ctx,
-    crd::{constants::*, v1alpha1},
+    crd::v1alpha1,
+    spark_k8s_controller::{apply::Applier, update_status::update_status},
 };
 
+pub mod apply;
 pub mod build;
 pub mod dereference;
+pub mod update_status;
 pub mod validate;
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to apply the Kubernetes resources"))]
+    ApplyResources { source: apply::Error },
+
+    #[snafu(display("failed to update the SparkApplication status"))]
+    UpdateStatus { source: update_status::Error },
+
     #[snafu(display("failed to dereference SparkApplication"))]
     DereferenceSparkApplication { source: dereference::Error },
 
@@ -38,27 +47,6 @@ pub enum Error {
 
     #[snafu(display("failed to build SparkApplication resources"))]
     BuildSparkApplication { source: build::Error },
-
-    #[snafu(display("failed to apply role ServiceAccount"))]
-    ApplyServiceAccount {
-        source: stackable_operator::client::Error,
-    },
-
-    #[snafu(display("failed to apply global RoleBinding"))]
-    ApplyRoleBinding {
-        source: stackable_operator::client::Error,
-    },
-
-    #[snafu(display("failed to apply Job"))]
-    ApplyApplication {
-        source: stackable_operator::client::Error,
-    },
-
-    #[snafu(display("Failed to update status for application {name:?}"))]
-    ApplySparkApplicationStatus {
-        source: stackable_operator::client::Error,
-        name: String,
-    },
 
     #[snafu(display("SparkApplication object is invalid"))]
     InvalidSparkApplication {
@@ -76,16 +64,23 @@ impl ReconcilerError for Error {
     }
 }
 
+/// Marker for prepared Kubernetes resources which are not applied yet.
+pub struct Prepared;
+
+/// Marker for applied Kubernetes resources.
+pub struct Applied;
+
 /// Every Kubernetes resource produced by the build step for a SparkApplication.
 ///
 /// Built without a Kubernetes client: all references are already dereferenced and validated by
 /// this point, so the only errors possible during assembly are resource-construction failures.
-pub struct SparkResources {
-    pub service_account: ServiceAccount,
-    pub role_binding: RoleBinding,
+pub struct SparkResources<T> {
+    pub service_accounts: Vec<ServiceAccount>,
+    pub role_bindings: Vec<RoleBinding>,
     /// Driver pod-template, executor pod-template, and submit-job ConfigMaps (in that order).
     pub config_maps: Vec<ConfigMap>,
-    pub job: Job,
+    pub jobs: Vec<Job>,
+    pub status: PhantomData<T>,
 }
 
 pub async fn reconcile(
@@ -126,51 +121,14 @@ pub async fn reconcile(
 
     let resources = build::build(&validated).context(BuildSparkApplicationSnafu)?;
 
-    // Apply the ServiceAccount and RoleBinding first, then the ConfigMaps, and finally the Job:
-    // the Job runs under the ServiceAccount and mounts the ConfigMaps, so they must exist first.
-    client
-        .apply_patch(
-            SPARK_CONTROLLER_NAME,
-            &resources.service_account,
-            &resources.service_account,
-        )
+    let applied = Applier::new(client)
+        .apply(resources)
         .await
-        .context(ApplyServiceAccountSnafu)?;
-    client
-        .apply_patch(
-            SPARK_CONTROLLER_NAME,
-            &resources.role_binding,
-            &resources.role_binding,
-        )
-        .await
-        .context(ApplyRoleBindingSnafu)?;
-    for config_map in &resources.config_maps {
-        client
-            .apply_patch(SPARK_CONTROLLER_NAME, config_map, config_map)
-            .await
-            .context(ApplyApplicationSnafu)?;
-    }
-    client
-        .apply_patch(SPARK_CONTROLLER_NAME, &resources.job, &resources.job)
-        .await
-        .context(ApplyApplicationSnafu)?;
+        .context(ApplyResourcesSnafu)?;
 
-    // Fix for #457
-    // Update the status of the SparkApplication immediately after creating the Job
-    // to ensure the Job is not created again after being recycled by Kubernetes.
-    client
-        .apply_patch_status(
-            SPARK_CONTROLLER_NAME,
-            spark_application,
-            &v1alpha1::SparkApplicationStatus {
-                phase: "Unknown".to_string(),
-                resolved_template_ref: validated.cluster_config.resolved_template_refs.clone(),
-            },
-        )
+    update_status(client, &validated, &applied)
         .await
-        .with_context(|_| ApplySparkApplicationStatusSnafu {
-            name: spark_application.name_any(),
-        })?;
+        .context(UpdateStatusSnafu)?;
 
     Ok(Action::await_change())
 }

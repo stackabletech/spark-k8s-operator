@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -16,12 +16,12 @@ use stackable_operator::{
     },
     logging::controller::ReconcilerError,
     shared::time::Duration,
-    v2::cluster_resources::cluster_resources_new,
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::{Ctx, crd::history::v1alpha1};
+use crate::{Ctx, crd::history::v1alpha1, history::controller::apply::Applier};
 
+pub mod apply;
 pub mod build;
 pub mod dereference;
 pub mod validate;
@@ -30,24 +30,17 @@ pub mod validate;
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to apply the Kubernetes resources"))]
+    ApplyResources { source: apply::Error },
+
     #[snafu(display("failed to build SparkHistoryServer resources"))]
     BuildSparkHistoryServer { source: build::Error },
-
-    #[snafu(display("failed to apply Kubernetes resource"))]
-    ApplyResource {
-        source: stackable_operator::cluster_resources::Error,
-    },
 
     #[snafu(display("failed to dereference SparkHistoryServer"))]
     DereferenceSparkHistoryServer { source: dereference::Error },
 
     #[snafu(display("failed to validate SparkHistoryServer"))]
     ValidateSparkHistoryServer { source: validate::Error },
-
-    #[snafu(display("failed to delete orphaned resources"))]
-    DeleteOrphanedResources {
-        source: stackable_operator::cluster_resources::Error,
-    },
 
     #[snafu(display("SparkHistoryServer object is invalid"))]
     InvalidSparkHistoryServer {
@@ -63,19 +56,26 @@ impl ReconcilerError for Error {
     }
 }
 
+/// Marker for prepared Kubernetes resources which are not applied yet.
+pub struct Prepared;
+
+/// Marker for applied Kubernetes resources.
+pub struct Applied;
+
 /// Every Kubernetes resource produced by the build step for a SparkHistoryServer.
 ///
 /// Built without a Kubernetes client: all references are already dereferenced and validated by
 /// this point, so the only errors possible during assembly are resource-construction failures.
-pub struct SparkHistoryResources {
-    pub service_account: ServiceAccount,
-    pub role_binding: RoleBinding,
+pub struct SparkHistoryResources<T> {
+    pub service_accounts: Vec<ServiceAccount>,
+    pub role_bindings: Vec<RoleBinding>,
     /// One ConfigMap, metrics Service and StatefulSet per role group.
     pub config_maps: Vec<ConfigMap>,
     pub metrics_services: Vec<Service>,
     pub stateful_sets: Vec<StatefulSet>,
-    pub listener: listener::v1alpha1::Listener,
-    pub pod_disruption_budget: Option<PodDisruptionBudget>,
+    pub listeners: Vec<listener::v1alpha1::Listener>,
+    pub pod_disruption_budgets: Vec<PodDisruptionBudget>,
+    pub status: PhantomData<T>,
 }
 
 pub async fn reconcile(
@@ -99,63 +99,17 @@ pub async fn reconcile(
     let validated = validate::validate(shs, dereferenced, &ctx.operator_environment)
         .context(ValidateSparkHistoryServerSnafu)?;
 
-    let mut cluster_resources = cluster_resources_new(
-        &validate::product_name(),
-        &validate::operator_name(),
-        &validate::controller_name(),
-        &validated.name,
-        &validated.namespace,
-        &validated.uid,
-        ClusterResourceApplyStrategy::Default,
-        &shs.spec.object_overrides,
-    );
-
     let resources = build::build(&validated).context(BuildSparkHistoryServerSnafu)?;
 
-    // Apply order: ServiceAccount and RoleBinding first, then the ConfigMaps, metrics Services,
-    // Listener and PodDisruptionBudget, and finally the StatefulSets (they mount the ConfigMaps
-    // and run under the SA, so those must exist first).
-    cluster_resources
-        .add(client, resources.service_account)
-        .await
-        .context(ApplyResourceSnafu)?;
-    cluster_resources
-        .add(client, resources.role_binding)
-        .await
-        .context(ApplyResourceSnafu)?;
-    for config_map in resources.config_maps {
-        cluster_resources
-            .add(client, config_map)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for metrics_service in resources.metrics_services {
-        cluster_resources
-            .add(client, metrics_service)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    cluster_resources
-        .add(client, resources.listener)
-        .await
-        .context(ApplyResourceSnafu)?;
-    if let Some(pdb) = resources.pod_disruption_budget {
-        cluster_resources
-            .add(client, pdb)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-    for stateful_set in resources.stateful_sets {
-        cluster_resources
-            .add(client, stateful_set)
-            .await
-            .context(ApplyResourceSnafu)?;
-    }
-
-    cluster_resources
-        .delete_orphaned_resources(client)
-        .await
-        .context(DeleteOrphanedResourcesSnafu)?;
+    Applier::new(
+        client,
+        &validated,
+        ClusterResourceApplyStrategy::Default,
+        &shs.spec.object_overrides,
+    )
+    .apply(resources)
+    .await
+    .context(ApplyResourcesSnafu)?;
 
     Ok(Action::await_change())
 }

@@ -28,7 +28,7 @@ docker-build:
 	docker build --force-rm --build-arg VERSION=${VERSION} -t "${OCI_REGISTRY_HOSTNAME}/${OCI_REGISTRY_PROJECT_IMAGES}/${OPERATOR_NAME}:${VERSION}-${ARCH}" -f docker/Dockerfile .
 
 ## Chart related targets
-compile-chart: version crds
+compile-chart: version crds crd-annotation
 
 version:
 	cat "deploy/helm/${OPERATOR_NAME}/Chart.yaml" | yq ".version = \"${VERSION}\" | .appVersion = \"${VERSION}\"" > "deploy/helm/${OPERATOR_NAME}/Chart.yaml.new"
@@ -39,6 +39,40 @@ version:
 crds:
 	mkdir -p extra
 	cargo run --bin stackable-"${OPERATOR_NAME}" -- crd > extra/crds.yaml
+
+# This adds CRD metadata for artifacthub.io (AH) to Chart.yaml.
+# We don't ship CRDs in our Helm charts (anymore), so we need these annotations to provide details.
+# We only list the storage version as we're unsure if AH supports more than one (docs unclear).
+#
+# It appends a single annotation whose value is a list, one entry per CRD.
+# Example: For the secret-operator that comes out as:
+#
+#   artifacthub.io/crds: |-
+#     - kind: SecretClass
+#       version: v1alpha2
+#       name: secretclasses.secrets.stackable.tech
+#       displayName: SecretClass
+#       description: A SecretClass is a cluster-global Kubernetes resource that defines ...
+#     - kind: TrustStore
+#       version: v1alpha1
+#       name: truststores.secrets.stackable.tech
+#       displayName: TrustStore
+#       description: A TrustStore requests information about how to validate secrets ...
+#
+# The two yq expressions are split out below so it's easier to review and see what's going on.
+
+# READ step: turn every CRD document in extra/crds.yaml into one AH card entry.
+# `[.] | map(...)` collects the documents into a list and maps each one to the format (see above) required by AH.
+# The result of this is a list of these entries.
+CRD_ANNOTATION_READ := [.] | map(.spec.versions |= map(select(.storage == true))) | map({"kind": .spec.names.kind, "version": .spec.versions[0].name, "name": .metadata.name, "displayName": .spec.names.kind, "description": (.spec.versions[0].schema.openAPIV3Schema.description // "")})
+
+# WRITE step: Write that list to Chart.yaml as an annotation value.
+# Literal block scalar so it stays readable in Chart.yaml.
+CRD_ANNOTATION_WRITE := .annotations["artifacthub.io/crds"] = strenv(CRDS) | .annotations["artifacthub.io/crds"] style="literal"
+
+crd-annotation: crds
+	@CRDS="$$(yq ea -o=yaml '$(CRD_ANNOTATION_READ)' extra/crds.yaml)" \
+		yq -i '$(CRD_ANNOTATION_WRITE)' "deploy/helm/${OPERATOR_NAME}/Chart.yaml"
 
 chart-lint: compile-chart
 	docker run -it -v $(shell pwd):/build/helm-charts -w /build/helm-charts quay.io/helmpack/chart-testing:v3.5.0  ct lint --config deploy/helm/ct.yaml

@@ -3,5 +3,5 @@
   "extends": [
     "local>stackabletech/.github:renovate-config"
   ],
-  "ignorePaths": [".github/workflows/build.yaml", ".github/workflows/general_daily_security.yml", ".github/workflows/integration-test.yml", ".github/workflows/pr_prek.yaml"]
+  "ignorePaths": [".github/workflows/build.yaml", ".github/workflows/general_daily_security.yml", ".github/workflows/integration-test-custom.yaml", ".github/workflows/integration-test-profile.yaml", ".github/workflows/pr_prek.yaml"]
 }

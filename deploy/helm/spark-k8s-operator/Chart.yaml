@@ -5,6 +5,10 @@ version: "0.0.0-dev"
 appVersion: "0.0.0-dev"
 description: "Kubernetes operator for Apache Spark. Run Spark applications on Kubernetes with the Stackable Data Platform (SDP)."
 home: https://github.com/stackabletech/spark-k8s-operator
+# One known use of this is the Artifact Hub (AH) listing which shows the logo.
+# AH downloads the logo and re-hosts it.
+# We opted to not use the project logos (e.g. the Apache Spark logo) here due to trademark concerns.
+icon: https://raw.githubusercontent.com/stackabletech/spark-k8s-operator/main/.readme/static/borrowed/Icon_Stackable.svg
 sources:
   - https://github.com/stackabletech/spark-k8s-operator
 keywords: ["apache-spark", "spark", "spark-on-kubernetes", "kubernetes", "operator", "big-data"]
@@ -21,3 +25,24 @@ annotations:
       url: https://docs.stackable.tech/home/stable/spark-k8s/
     - name: support
       url: https://github.com/stackabletech/spark-k8s-operator/issues
+  artifacthub.io/crds: |-
+    - kind: SparkApplication
+      version: v1alpha1
+      name: sparkapplications.spark.stackable.tech
+      displayName: SparkApplication
+      description: A Spark application run on Kubernetes by the Stackable operator for Apache Spark.
+    - kind: SparkHistoryServer
+      version: v1alpha1
+      name: sparkhistoryservers.spark.stackable.tech
+      displayName: SparkHistoryServer
+      description: A Spark history server component. This resource is managed by the Stackable operator for Apache Spark.
+    - kind: SparkConnectServer
+      version: v1alpha1
+      name: sparkconnectservers.spark.stackable.tech
+      displayName: SparkConnectServer
+      description: An Apache Spark Connect server component. This resource is managed by the Stackable operator for Apache Spark.
+    - kind: SparkApplicationTemplate
+      version: v1alpha1
+      name: sparkapptemplates.spark.stackable.tech
+      displayName: SparkApplicationTemplate
+      description: A Spark application template. This resource is managed by the Stackable operator for Apache Spark.

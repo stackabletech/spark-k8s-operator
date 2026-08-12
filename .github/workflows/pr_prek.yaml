@@ -17,18 +17,20 @@ env:
 jobs:
   prek:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Install host dependencies
-        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.6.0
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
           packages: protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config apt-transport-https
           version: ubuntu-latest
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 0
-      - uses: stackabletech/actions/run-prek@dc83bb926cc464f0f32454e934777116bd1c7768 # v0.16.3
+      - uses: stackabletech/actions/run-prek@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
         with:
           rust: ${{ env.RUST_TOOLCHAIN_VERSION }}
           hadolint: ${{ env.HADOLINT_VERSION }}

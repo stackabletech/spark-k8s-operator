@@ -287,6 +287,9 @@ pub(crate) fn build_stateful_set(
         ));
     }
 
+    let unversioned_recommended_labels =
+        validated.unversioned_recommended_labels(SparkConnectRole::Server);
+
     // Add listener volume
     // Listener endpoints for the Webserver role will use persistent volumes
     // so that load balancers can hard-code the target addresses. This will
@@ -295,7 +298,7 @@ pub(crate) fn build_stateful_set(
     let volume_claim_templates = Some(vec![
         ListenerOperatorVolumeSourceBuilder::new(
             &ListenerReference::ListenerName(listener_name.to_string()),
-            &recommended_labels,
+            &unversioned_recommended_labels,
         )
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
         .context(BuildListenerVolumeSnafu)?,

@@ -41,7 +41,7 @@ use crate::{
     crd::{
         constants::{
             CONTAINER_IMAGE_BASE_NAME, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME,
-            HISTORY_ROLE_NAME, OPERATOR_NAME,
+            HISTORY_ROLE_NAME, OPERATOR_NAME, UNVERSIONED_PRODUCT_VERSION,
         },
         history::{HistoryConfig, HistoryConfigFragment, SparkHistoryServerContainer, v1alpha1},
         logdir::ResolvedLogDir,
@@ -229,6 +229,17 @@ impl ValidatedSparkHistoryServer {
         role_group_name: &RoleGroupName,
     ) -> Labels {
         self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
+    /// Recommended labels with a fixed placeholder version, for objects that live in immutable
+    /// fields (e.g. the listener PVC in the StatefulSet's `volumeClaimTemplates`) and therefore
+    /// must not carry labels that change on upgrade.
+    pub fn unversioned_recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
+        self.recommended_labels_with(
+            &UNVERSIONED_PRODUCT_VERSION,
+            &Self::role_name(),
+            role_group_name,
+        )
     }
 
     fn recommended_labels_with(

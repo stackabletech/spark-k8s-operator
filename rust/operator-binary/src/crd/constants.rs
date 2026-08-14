@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, str::FromStr};
 use const_format::concatcp;
 use stackable_operator::{
     memory::{BinaryMultiple, MemoryQuantity},
-    v2::types::{common::Port, kubernetes::VolumeName},
+    v2::types::{common::Port, kubernetes::VolumeName, operator::ProductVersion},
 };
 
 pub const APP_NAME: &str = "spark-k8s";
@@ -100,6 +100,10 @@ pub const HISTORY_UI_PORT: Port = Port(18080);
 stackable_operator::constant!(pub LISTENER_VOLUME_NAME: VolumeName = "listener");
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
+
+// Placeholder product version used for labels on PVC templates, which cannot be modified once
+// deployed. A constant value keeps the labels stable across version upgrades.
+stackable_operator::constant!(pub UNVERSIONED_PRODUCT_VERSION: ProductVersion = "none");
 
 pub const DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT: u16 = 0;
 

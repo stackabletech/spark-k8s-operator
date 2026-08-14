@@ -213,6 +213,8 @@ pub(crate) fn build_stateful_set(
             .context(AddVolumeMountSnafu)?
             .build();
 
+    let unversioned_recommended_labels = validated.unversioned_recommended_labels(role_group_name);
+
     // Add listener volume
     // Listener endpoints for the Webserver role will use persistent volumes
     // so that load balancers can hard-code the target addresses. This will
@@ -224,7 +226,7 @@ pub(crate) fn build_stateful_set(
                 .parse()
                 .expect("the group listener name is a valid ListenerName"),
         ),
-        &recommended_labels,
+        &unversioned_recommended_labels,
         &LISTENER_VOLUME_NAME_PVC,
     )]);
 

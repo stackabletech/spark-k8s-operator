@@ -41,7 +41,7 @@ use crate::{
         },
         s3::ResolvedS3,
     },
-    crd::constants::{CONTAINER_IMAGE_BASE_NAME, OPERATOR_NAME},
+    crd::constants::{CONTAINER_IMAGE_BASE_NAME, OPERATOR_NAME, UNVERSIONED_PRODUCT_VERSION},
 };
 
 #[derive(Snafu, Debug)]
@@ -177,6 +177,17 @@ impl ValidatedSparkConnectServer {
         role_group_name: &RoleGroupName,
     ) -> Labels {
         self.recommended_labels_with(&self.product_version, role_name, role_group_name)
+    }
+
+    /// Recommended labels with a fixed placeholder version, for objects that live in immutable
+    /// fields (e.g. the listener PVC in the StatefulSet's `volumeClaimTemplates`) and therefore
+    /// must not carry labels that change on upgrade.
+    pub fn unversioned_recommended_labels(&self, role: SparkConnectRole) -> Labels {
+        self.recommended_labels_with(
+            &UNVERSIONED_PRODUCT_VERSION,
+            &role.into(),
+            &DEFAULT_SPARK_CONNECT_ROLE_GROUP,
+        )
     }
 
     /// Recommended labels for a resource of the given role.

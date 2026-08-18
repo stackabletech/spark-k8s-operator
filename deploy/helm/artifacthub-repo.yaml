@@ -6,7 +6,7 @@
 #
 #   oras push oci.stackable.tech/sdp-charts/spark-k8s-operator:artifacthub.io \
 #     --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
-#     artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+#     artifacthub-repo.yaml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
 #
 # Reference: https://github.com/artifacthub/hub/blob/master/docs/metadata/artifacthub-repo.yml and https://artifacthub.io/docs/topics/repositories/#verified-publisher
 
@@ -16,10 +16,10 @@
 # Every operator that gets this file has an ID. An operator without an Artifact Hub
 # repository excludes the file entirely via `ignored_files` in
 # config/repositories.yaml, the way druid does while it is being removed from SDP.
-repositoryID: f2de1657-1ef4-483f-905a-c981e38cfb57
+repositoryID: "f2de1657-1ef4-483f-905a-c981e38cfb57"
 
 # Versions Artifact Hub should not index.
 # This excludes all dev/rc/pr charts.
 ignore:
-  - name: spark-k8s-operator
-    version: '-(dev|rc|pr)'
+  - name: "spark-k8s-operator"
+    version: "-(dev|rc|pr)"

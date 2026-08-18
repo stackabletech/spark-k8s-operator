@@ -32,7 +32,7 @@ jobs:
           PROFILE_INPUT: ${{ inputs.test-profile }}
         shell: bash
         run: |
-          if [ "$EVENT_NAME" = "schedule" ]; then
+          if [ "$EVENT_NAME" == "schedule" ]; then
             echo "PROFILE=schedule" | tee -a "$GITHUB_OUTPUT"
           else
             echo "PROFILE=${PROFILE_INPUT}" | tee -a "$GITHUB_OUTPUT"

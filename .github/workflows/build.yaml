@@ -65,6 +65,31 @@ jobs:
     outputs:
       detected: ${{ steps.check.outputs.detected }}
 
+  helm-lint:
+    name: Lint Helm Chart
+    needs:
+      - detect-changes
+    if: needs.detect-changes.outputs.detected == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Validates the chart templates and, where a values.schema.json exists, the
+      # default values against it.
+      #
+      # The chart cannot render without a registry overlay, because image.repository
+      # is only set there.
+      - name: Lint Helm Chart
+        env:
+          CHART_DIRECTORY: deploy/helm/spark-k8s-operator
+        run: |
+          for registry in oci.stackable.tech quay.io; do
+            helm lint "$CHART_DIRECTORY" --values "$CHART_DIRECTORY/values/${registry}.yaml"
+          done
+
   cargo-udeps:
     name: Run cargo-udeps
     if: needs.detect-changes.outputs.detected == 'true'
@@ -151,12 +176,18 @@ jobs:
 
           CURRENT_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[] | select(.name == "stackable-spark-k8s-operator") | .version')
 
+          # Include a PR suffix if this workflow is triggered by a PR
           if [ "$GITHUB_EVENT_NAME" == 'pull_request' ]; then
-            # Include a PR suffix if this workflow is triggered by a PR
-            if [ "$PR_BASE_REF" == 'main' ]; then
-              NEW_VERSION="0.0.0-pr$PR_NUMBER"
-            else
+            # If the PR is raised against a release branch, use the current operator version and
+            # append a suffix to it. If the PR is raised against ANY other base branch, use the
+            # established 0.0.0-prXXX tag.
+            if [[ "$PR_BASE_REF" =~ ^release-[0-9]{2}\.[0-9]{1,2}$ ]]; then
               NEW_VERSION="$CURRENT_VERSION-pr$PR_NUMBER"
+            else
+              # NOTE (@Techassi): One could argue that we should warn the developer when the current
+              # version is not 0.0.0-dev (and the PR potentially doesn't target main) that we will
+              # still rewrite the version to 0.0.0-prXXX.
+              NEW_VERSION="0.0.0-pr$PR_NUMBER"
             fi
           else
             # Just use the current version if this workflow is run on push, schedule, etc...
@@ -338,6 +369,7 @@ jobs:
     needs:
       - detect-changes
       - cargo-udeps
+      - helm-lint
       - build-container-image
       - publish-index-manifest
       - publish-helm-chart

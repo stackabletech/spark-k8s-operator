@@ -16,6 +16,15 @@ All notable changes to this project will be documented in this file.
 - The reconcilers now apply resources in a discrete apply step; the connect server and application
   controllers additionally update the status in a discrete update_status step (the history server
   CRD has no status) ([#746]).
+- Bump stackable-operator to 0.116.0 ([#753]).
+- BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
+  from the resources they don't apply to (previously set to `none` or a placeholder value such as
+  `sparkapplication` or `default`). StatefulSets created by older operator versions cannot be
+  updated in place: after the operator upgrade, delete each history server and Spark Connect
+  StatefulSet so that the operator immediately recreates it with the new labels ([#753]).
+- Environment variable overrides (`envOverrides`) are now applied after all environment variables
+  set by the operator. In particular, `SPARK_CONF_DIR` of a SparkApplication can now be overridden,
+  whereas previously the operator's values always took precedence ([#753]).
 
 ### Fixed
 
@@ -36,6 +45,7 @@ All notable changes to this project will be documented in this file.
 [#744]: https://github.com/stackabletech/spark-k8s-operator/pull/744
 [#745]: https://github.com/stackabletech/spark-k8s-operator/pull/745
 [#746]: https://github.com/stackabletech/spark-k8s-operator/pull/746
+[#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
 
 ## [26.7.0] - 2026-07-21
 

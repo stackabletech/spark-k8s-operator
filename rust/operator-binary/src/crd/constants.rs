@@ -2,38 +2,49 @@ use std::{collections::BTreeMap, str::FromStr};
 
 use const_format::concatcp;
 use stackable_operator::{
+    constant,
     memory::{BinaryMultiple, MemoryQuantity},
-    v2::types::{common::Port, kubernetes::VolumeName},
+    v2::{
+        builder::pod::container::EnvVarName,
+        types::{common::Port, kubernetes::VolumeName},
+    },
 };
 
 pub const APP_NAME: &str = "spark-k8s";
 
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_IVY2: VolumeName = "ivy2");
+constant!(pub VOLUME_MOUNT_NAME_IVY2: VolumeName = "ivy2");
 pub const VOLUME_MOUNT_PATH_IVY2: &str = "/ivy2";
 
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES: VolumeName = "driver-pod-template");
+constant!(pub VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES: VolumeName = "driver-pod-template");
 pub const VOLUME_MOUNT_PATH_DRIVER_POD_TEMPLATES: &str = "/stackable/spark/driver-pod-templates";
 
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES: VolumeName = "executor-pod-template");
+constant!(pub VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES: VolumeName = "executor-pod-template");
 pub const VOLUME_MOUNT_PATH_EXECUTOR_POD_TEMPLATES: &str =
     "/stackable/spark/executor-pod-templates";
 
 pub const POD_TEMPLATE_FILE: &str = "template.yaml";
 
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_CONFIG: VolumeName = "config");
+constant!(pub VOLUME_MOUNT_NAME_CONFIG: VolumeName = "config");
 pub const VOLUME_MOUNT_PATH_CONFIG: &str = "/stackable/spark/conf";
 
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_JOB: VolumeName = "job-files");
+constant!(pub VOLUME_MOUNT_NAME_JOB: VolumeName = "job-files");
 pub const VOLUME_MOUNT_PATH_JOB: &str = "/stackable/spark/jobs";
 
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_REQ: VolumeName = "req-files");
+constant!(pub VOLUME_MOUNT_NAME_REQ: VolumeName = "req-files");
 pub const VOLUME_MOUNT_PATH_REQ: &str = "/stackable/spark/requirements";
 
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_LOG_CONFIG: VolumeName = "log-config");
+constant!(pub VOLUME_MOUNT_NAME_LOG_CONFIG: VolumeName = "log-config");
 pub const VOLUME_MOUNT_PATH_LOG_CONFIG: &str = "/stackable/log_config";
 
-stackable_operator::constant!(pub VOLUME_MOUNT_NAME_LOG: VolumeName = "log");
+constant!(pub VOLUME_MOUNT_NAME_LOG: VolumeName = "log");
 pub const VOLUME_MOUNT_PATH_LOG: &str = "/stackable/log";
+
+// Tells the `containerdebug` process running in the background of a product container where to
+// write its tracing information.
+constant!(pub CONTAINERDEBUG_LOG_DIRECTORY: EnvVarName = "CONTAINERDEBUG_LOG_DIRECTORY");
+// Prevents the history/connect server from detaching itself from the start script, which would
+// terminate the Pod immediately.
+constant!(pub SPARK_NO_DAEMONIZE: EnvVarName = "SPARK_NO_DAEMONIZE");
 
 pub const LOG4J2_CONFIG_FILE: &str = "log4j2.properties";
 
@@ -72,19 +83,20 @@ pub const MAX_INIT_LOG_FILES_SIZE: MemoryQuantity = MemoryQuantity {
     unit: BinaryMultiple::Mebi,
 };
 
-pub const OPERATOR_NAME: &str = "spark.stackable.tech";
+pub const SPARK_OPERATOR_NAME: &str = "spark.stackable.tech";
 pub const FIELD_MANAGER: &str = "spark-operator";
 
 pub const SPARK_CONTROLLER_NAME: &str = "sparkapplication";
-pub const SPARK_FULL_CONTROLLER_NAME: &str = concatcp!(SPARK_CONTROLLER_NAME, '.', OPERATOR_NAME);
+pub const SPARK_FULL_CONTROLLER_NAME: &str =
+    concatcp!(SPARK_CONTROLLER_NAME, '.', SPARK_OPERATOR_NAME);
 
 pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
 pub const POD_DRIVER_FULL_CONTROLLER_NAME: &str =
-    concatcp!(POD_DRIVER_CONTROLLER_NAME, '.', OPERATOR_NAME);
+    concatcp!(POD_DRIVER_CONTROLLER_NAME, '.', SPARK_OPERATOR_NAME);
 
 pub const HISTORY_CONTROLLER_NAME: &str = "history";
 pub const HISTORY_FULL_CONTROLLER_NAME: &str =
-    concatcp!(HISTORY_CONTROLLER_NAME, '.', OPERATOR_NAME);
+    concatcp!(HISTORY_CONTROLLER_NAME, '.', SPARK_OPERATOR_NAME);
 pub const HISTORY_APP_NAME: &str = "spark-history";
 pub const HISTORY_ROLE_NAME: &str = "node";
 
@@ -97,7 +109,7 @@ pub const SPARK_CLUSTER_ROLE: &str = "spark-k8s-clusterrole";
 pub const METRICS_PORT: Port = Port(18081);
 pub const HISTORY_UI_PORT: Port = Port(18080);
 
-stackable_operator::constant!(pub LISTENER_VOLUME_NAME: VolumeName = "listener");
+constant!(pub LISTENER_VOLUME_NAME: VolumeName = "listener");
 pub const LISTENER_VOLUME_DIR: &str = "/stackable/listener";
 pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
@@ -116,4 +128,25 @@ pub fn default_jvm_security_properties() -> BTreeMap<String, String> {
         ),
     ]
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *CONTAINERDEBUG_LOG_DIRECTORY;
+        let _ = *LISTENER_VOLUME_NAME;
+        let _ = *SPARK_NO_DAEMONIZE;
+        let _ = *VOLUME_MOUNT_NAME_CONFIG;
+        let _ = *VOLUME_MOUNT_NAME_DRIVER_POD_TEMPLATES;
+        let _ = *VOLUME_MOUNT_NAME_EXECUTOR_POD_TEMPLATES;
+        let _ = *VOLUME_MOUNT_NAME_IVY2;
+        let _ = *VOLUME_MOUNT_NAME_JOB;
+        let _ = *VOLUME_MOUNT_NAME_LOG;
+        let _ = *VOLUME_MOUNT_NAME_LOG_CONFIG;
+        let _ = *VOLUME_MOUNT_NAME_REQ;
+    }
 }

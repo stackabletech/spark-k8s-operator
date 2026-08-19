@@ -8,11 +8,10 @@ use stackable_operator::{
             PodBuilder, resources::ResourceRequirementsBuilder, security::PodSecurityContextBuilder,
         },
     },
+    constant,
     k8s_openapi::{
         DeepMerge,
-        api::core::v1::{
-            Container, EnvVar, PodSecurityContext, PodTemplateSpec, ServiceAccount, Volume,
-        },
+        api::core::v1::{Container, PodSecurityContext, PodTemplateSpec, ServiceAccount, Volume},
     },
     kube::ResourceExt,
     product_logging::{
@@ -22,7 +21,7 @@ use stackable_operator::{
     v2::{
         builder::{
             meta::ownerreference_from_resource,
-            pod::container::{EnvVarSet, new_container_builder},
+            pod::container::{EnvVarName, EnvVarSet, new_container_builder},
             service::{Scraping, prometheus_labels},
         },
         product_logging::framework::{
@@ -30,7 +29,7 @@ use stackable_operator::{
             vector_container,
         },
         role_group_utils::ResourceNames,
-        types::operator::{RoleGroupName, RoleName},
+        types::operator::RoleGroupName,
     },
 };
 
@@ -40,8 +39,16 @@ use crate::{
         roles::{RoleConfig, SparkApplicationRole, SparkContainer},
         tlscerts,
     },
-    spark_k8s_controller::validate,
+    spark_k8s_controller::{
+        build::{SPARK_COMPONENT_NAME, recommended_labels_for_component_resources},
+        validate,
+    },
 };
+
+// `_STACKABLE_POST_HOOK` is evaluated by the entrypoint script (run-spark.sh) in the Spark images
+// after the actual JVM process has finished; the operator uses it to give Vector time to gather
+// the logs and to shut it down afterwards.
+constant!(STACKABLE_POST_HOOK: EnvVarName = "_STACKABLE_POST_HOOK");
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -223,7 +230,7 @@ pub(crate) fn pod_template(
     role: SparkApplicationRole,
     config: &RoleConfig,
     volumes: &[Volume],
-    env: &[EnvVar],
+    env: &EnvVarSet,
     service_account: &ServiceAccount,
 ) -> Result<PodTemplateSpec> {
     let spark_application = &validated.spark_application;
@@ -232,17 +239,11 @@ pub(crate) fn pod_template(
     let spark_image = &validated.resolved_product_image;
     let container_name = SparkContainer::Spark.to_string();
     let mut cb = new_container_builder(&SparkContainer::Spark.to_container_name());
-    let merged_env = spark_application.merged_env(role.clone(), env);
 
-    cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
-        .context(AddVolumeMountSnafu)?
-        .add_env_vars(merged_env)
-        .resources(config.resources.clone().into())
-        .image_from_product_image(spark_image);
-
+    let mut env = env.clone();
     if config.logging.enable_vector_agent {
-        cb.add_env_var(
-            "_STACKABLE_POST_HOOK",
+        env = env.with_value(
+            &STACKABLE_POST_HOOK,
             [
                 // Wait for Vector to gather the logs.
                 "sleep 10",
@@ -251,13 +252,25 @@ pub(crate) fn pod_template(
             .join("; "),
         );
     }
+    // The env overrides are merged in last so that they override any operator-set environment
+    // variable.
+    let merged_env = spark_application.merged_env(role.clone(), env);
+
+    cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
+        .context(AddVolumeMountSnafu)?
+        .add_env_vars(merged_env)
+        .resources(config.resources.clone().into())
+        .image_from_product_image(spark_image);
 
     let mut omb = ObjectMetaBuilder::new();
     omb.name(&container_name)
         // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
         // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
         .ownerreference(ownerreference_from_resource(validated, None, None))
-        .with_labels(validated.recommended_labels(&container_name));
+        .with_labels(recommended_labels_for_component_resources(
+            validated,
+            &SPARK_COMPONENT_NAME,
+        ));
 
     // Only the driver pod should be scraped by Prometheus
     // because the executor metrics are also available via /metrics/executors/prometheus/
@@ -315,8 +328,7 @@ pub(crate) fn pod_template(
         // is a placeholder; the role name reflects the pod's Spark role (driver/executor).
         let vector_resource_names = ResourceNames {
             cluster_name: validated.name.clone(),
-            role_name: RoleName::from_str(&role.to_string())
-                .expect("a SparkApplicationRole serializes to a valid role name"),
+            role_name: role.role_name(),
             role_group_name: RoleGroupName::from_str("default")
                 .expect("\"default\" is a valid role group name"),
         };
@@ -342,4 +354,112 @@ pub(crate) fn security_context() -> PodSecurityContext {
     PodSecurityContextBuilder::with_stackable_defaults()
         .fs_group(1000)
         .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+    use stackable_operator::{
+        cli::OperatorEnvironmentOptions,
+        k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
+    };
+
+    use super::*;
+    use crate::{
+        crd::v1alpha1,
+        spark_k8s_controller::{dereference::DereferencedSparkApplication, validate::validate},
+    };
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *STACKABLE_POST_HOOK;
+    }
+
+    /// `envOverrides` must be applied after all operator-set environment variables, so a user
+    /// override replaces the operator-set value instead of duplicating it or being ignored.
+    #[test]
+    fn env_overrides_override_operator_set_env_vars() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              driver:
+                envOverrides:
+                  CONTAINERDEBUG_LOG_DIRECTORY: /custom/log/dir
+        "#};
+        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test SparkApplication YAML");
+
+        let validated = validate(
+            DereferencedSparkApplication {
+                spark_application,
+                resolved_template_refs: Vec::new(),
+                s3_connection: None,
+                log_dir: None,
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+        .expect("the fixture validates");
+
+        let driver_config = validated
+            .spark_application
+            .driver_config()
+            .expect("the driver config resolves");
+        let env = validated
+            .spark_application
+            .env(&None, &None)
+            .expect("the base environment can be built");
+        let service_account = ServiceAccount {
+            metadata: ObjectMeta {
+                name: Some("spark-example".to_string()),
+                ..ObjectMeta::default()
+            },
+            ..ServiceAccount::default()
+        };
+
+        let template = pod_template(
+            &validated,
+            SparkApplicationRole::Driver,
+            &driver_config,
+            &[],
+            &env,
+            &service_account,
+        )
+        .expect("the driver pod template can be built");
+
+        let env: Vec<EnvVar> = template
+            .spec
+            .expect("the pod template has a spec")
+            .containers
+            .iter()
+            .find(|container| container.name == "spark")
+            .expect("the spark container exists")
+            .env
+            .clone()
+            .expect("the spark container has env vars");
+
+        let matching: Vec<&EnvVar> = env
+            .iter()
+            .filter(|env_var| env_var.name == "CONTAINERDEBUG_LOG_DIRECTORY")
+            .collect();
+
+        // The override must replace the operator-set value, not duplicate it.
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0].value.as_deref(), Some("/custom/log/dir"));
+    }
 }

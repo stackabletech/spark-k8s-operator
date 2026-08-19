@@ -12,27 +12,25 @@ use stackable_operator::{
         product_image_selection::{self, ResolvedProductImage},
         tls_verification::TlsVerification,
     },
+    constant,
     crd::s3,
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
-    kvp::Labels,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
-        kvp::label::recommended_labels,
         types::{
             kubernetes::{NamespaceName, Uid},
-            operator::{
-                ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
-                RoleGroupName, RoleName,
-            },
+            operator::{ClusterName, ControllerName, OperatorName, ProductName, ProductVersion},
         },
     },
 };
 
 use crate::{
     crd::{
-        constants::{APP_NAME, CONTAINER_IMAGE_BASE_NAME, OPERATOR_NAME, SPARK_CONTROLLER_NAME},
+        constants::{
+            APP_NAME, CONTAINER_IMAGE_BASE_NAME, SPARK_CONTROLLER_NAME, SPARK_OPERATOR_NAME,
+        },
         logdir::ResolvedLogDir,
         v1alpha1,
     },
@@ -67,6 +65,13 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+// The product name (`spark-k8s`) as a type-safe label value.
+constant!(pub(crate) PRODUCT_NAME: ProductName = APP_NAME);
+// The operator name as a type-safe label value.
+constant!(pub(crate) OPERATOR_NAME: OperatorName = SPARK_OPERATOR_NAME);
+// The controller name as a type-safe label value.
+constant!(pub(crate) CONTROLLER_NAME: ControllerName = SPARK_CONTROLLER_NAME);
+
 /// Inputs the rest of `reconcile` needs after dereferencing.
 pub struct ValidatedSparkApplication {
     /// Metadata mirroring the source [`v1alpha1::SparkApplication`] (name, namespace and UID), so
@@ -75,6 +80,10 @@ pub struct ValidatedSparkApplication {
     pub name: ClusterName,
     pub namespace: NamespaceName,
     pub uid: Uid,
+    /// The product version as a valid label value, used for the recommended
+    /// `app.kubernetes.io/version` label. Derived from the resolved image's app version label
+    /// value.
+    pub product_version: ProductVersion,
     /// The full source spec.
     ///
     /// Unlike the other operators' validated types, a `SparkApplication` cannot be reduced to
@@ -143,49 +152,6 @@ impl Resource for ValidatedSparkApplication {
     }
 }
 
-impl ValidatedSparkApplication {
-    /// Recommended labels for a resource fulfilling the given `role` within the SparkApplication.
-    ///
-    /// A SparkApplication has no Stackable role groups, so the role group label is fixed to the
-    /// controller name (preserving the previous `build_recommended_labels` behaviour). `role` is a
-    /// free-form component name such as "spark", "spark-submit" or "role-binding".
-    pub(crate) fn recommended_labels(&self, role: &str) -> Labels {
-        // `app_version_label_value` is constructed to be a valid label value, so it is also a
-        // valid `ProductVersion`.
-        let product_version =
-            ProductVersion::from_str(&self.resolved_product_image.app_version_label_value)
-                .expect("the app version label value is a valid product version");
-        let role_name = RoleName::from_str(role).expect("the role is a valid role name");
-        let role_group = RoleGroupName::from_str(SPARK_CONTROLLER_NAME)
-            .expect("SPARK_CONTROLLER_NAME is a valid role group name");
-        recommended_labels(
-            self,
-            &product_name(),
-            &product_version,
-            &operator_name(),
-            &controller_name(),
-            &role_name,
-            &role_group,
-        )
-    }
-}
-
-/// The product name (`spark-k8s`) as a type-safe label value.
-pub(crate) fn product_name() -> ProductName {
-    ProductName::from_str(APP_NAME).expect("APP_NAME is a valid product name")
-}
-
-/// The operator name as a type-safe label value.
-pub(crate) fn operator_name() -> OperatorName {
-    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
-}
-
-/// The controller name as a type-safe label value.
-pub(crate) fn controller_name() -> ControllerName {
-    ControllerName::from_str(SPARK_CONTROLLER_NAME)
-        .expect("the controller name is a valid label value")
-}
-
 pub fn validate(
     dereferenced: DereferencedSparkApplication,
     operator_environment: &OperatorEnvironmentOptions,
@@ -208,6 +174,11 @@ pub fn validate(
         )
         .context(ResolveProductImageSnafu)?;
 
+    // `app_version_label_value` is constructed to be a valid label value, so it is also a valid
+    // `ProductVersion`.
+    let product_version = ProductVersion::from_str(&resolved_product_image.app_version_label_value)
+        .expect("the app version label value is a valid product version");
+
     let name =
         get_cluster_name(&dereferenced.spark_application).context(ResolveClusterNameSnafu)?;
     let namespace =
@@ -220,6 +191,7 @@ pub fn validate(
         name,
         namespace,
         uid,
+        product_version,
         spark_application: dereferenced.spark_application,
         resolved_product_image,
         cluster_config: ValidatedClusterConfig {
@@ -249,6 +221,14 @@ mod tests {
 
     use super::*;
     use crate::test_support::app_version_label;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *CONTROLLER_NAME;
+        let _ = *OPERATOR_NAME;
+        let _ = *PRODUCT_NAME;
+    }
 
     /// Locks every value the validate step itself derives from the minimal fixture. The raw
     /// `SparkApplication` is deliberately retained on the validated type (see the field docs),

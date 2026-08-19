@@ -7,7 +7,10 @@ use stackable_operator::{
     k8s_openapi::{
         DeepMerge, api::core::v1::PodTemplateSpec, apimachinery::pkg::apis::meta::v1::ObjectMeta,
     },
-    role_utils::{CommonConfiguration, RoleGroup},
+    v2::{
+        env_overrides::EnvOverrides,
+        role_utils::{CommonConfiguration, RoleGroup},
+    },
 };
 
 use super::v1alpha1::SparkApplication;
@@ -140,6 +143,13 @@ fn merge_option_hashmap(
     }
 }
 
+/// Merge two [`EnvOverrides`], with overlay values taking precedence
+fn merge_env_overrides(base: &EnvOverrides, overlay: &EnvOverrides) -> EnvOverrides {
+    let mut merged = base.clone();
+    merged.extend(overlay.clone());
+    merged
+}
+
 /// Merge two HashMaps, with overlay values taking precedence
 fn merge_hashmap<K, V>(base: &HashMap<K, V>, overlay: &HashMap<K, V>) -> HashMap<K, V>
 where
@@ -223,7 +233,7 @@ where
     CommonConfiguration {
         config,
         config_overrides,
-        env_overrides: merge_hashmap(&base.env_overrides, &overlay.env_overrides),
+        env_overrides: merge_env_overrides(&base.env_overrides, &overlay.env_overrides),
         cli_overrides,
         pod_overrides: merge_pod_template_spec(&base.pod_overrides, &overlay.pod_overrides),
         product_specific_common_config,
@@ -702,6 +712,14 @@ mod tests {
         );
     }
 
+    /// The value of the env override with the given name, if present.
+    fn env_value(env_overrides: &EnvOverrides, name: &str) -> Option<String> {
+        env_overrides
+            .iter()
+            .find(|(env_var_name, _)| env_var_name.as_ref() == name)
+            .map(|(_, value)| value.clone())
+    }
+
     #[test]
     fn test_deep_merge_env_overrides() {
         let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
@@ -761,39 +779,45 @@ mod tests {
         let merged = deep_merge(&base, &overlay);
 
         let submit_env = &merged.spec.job.as_ref().unwrap().env_overrides;
-        assert_eq!(submit_env.get("TEST_BASE_ONLY"), Some(&"base".to_string()));
         assert_eq!(
-            submit_env.get("TEST_OVERRIDDEN"),
-            Some(&"overlay".to_string())
+            env_value(submit_env, "TEST_BASE_ONLY"),
+            Some("base".to_string())
         );
         assert_eq!(
-            submit_env.get("TEST_OVERLAY_ONLY"),
-            Some(&"overlay".to_string())
+            env_value(submit_env, "TEST_OVERRIDDEN"),
+            Some("overlay".to_string())
+        );
+        assert_eq!(
+            env_value(submit_env, "TEST_OVERLAY_ONLY"),
+            Some("overlay".to_string())
         );
 
         let driver_env = &merged.spec.driver.as_ref().unwrap().env_overrides;
-        assert_eq!(driver_env.get("TEST_BASE_ONLY"), Some(&"base".to_string()));
         assert_eq!(
-            driver_env.get("TEST_OVERRIDDEN"),
-            Some(&"overlay".to_string())
+            env_value(driver_env, "TEST_BASE_ONLY"),
+            Some("base".to_string())
         );
         assert_eq!(
-            driver_env.get("TEST_OVERLAY_ONLY"),
-            Some(&"overlay".to_string())
+            env_value(driver_env, "TEST_OVERRIDDEN"),
+            Some("overlay".to_string())
+        );
+        assert_eq!(
+            env_value(driver_env, "TEST_OVERLAY_ONLY"),
+            Some("overlay".to_string())
         );
 
         let executor_env = &merged.spec.executor.as_ref().unwrap().config.env_overrides;
         assert_eq!(
-            executor_env.get("TEST_BASE_ONLY"),
-            Some(&"base".to_string())
+            env_value(executor_env, "TEST_BASE_ONLY"),
+            Some("base".to_string())
         );
         assert_eq!(
-            executor_env.get("TEST_OVERRIDDEN"),
-            Some(&"overlay".to_string())
+            env_value(executor_env, "TEST_OVERRIDDEN"),
+            Some("overlay".to_string())
         );
         assert_eq!(
-            executor_env.get("TEST_OVERLAY_ONLY"),
-            Some(&"overlay".to_string())
+            env_value(executor_env, "TEST_OVERLAY_ONLY"),
+            Some("overlay".to_string())
         );
     }
 

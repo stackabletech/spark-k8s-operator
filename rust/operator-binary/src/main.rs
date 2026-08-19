@@ -38,8 +38,8 @@ use crate::{
     crd::{
         SparkApplication,
         constants::{
-            HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
-            SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
+            HISTORY_FULL_CONTROLLER_NAME, POD_DRIVER_FULL_CONTROLLER_NAME, SPARK_CONTROLLER_NAME,
+            SPARK_FULL_CONTROLLER_NAME, SPARK_OPERATOR_NAME,
         },
         history::SparkHistoryServer,
         template_spec::{SparkApplicationTemplate, SparkApplicationTemplateVersion},
@@ -121,7 +121,7 @@ async fn main() -> anyhow::Result<()> {
                     .map(anyhow::Ok);
 
             let client = stackable_operator::client::initialize_operator(
-                Some(OPERATOR_NAME.to_string()),
+                Some(SPARK_OPERATOR_NAME.to_string()),
                 &common.cluster_info,
             )
             .await?;
@@ -194,7 +194,7 @@ async fn main() -> anyhow::Result<()> {
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default()
-                 .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{SPARK_CONTROLLER_NAME},spark-role=driver")),
+                 .labels(&format!("app.kubernetes.io/managed-by={SPARK_OPERATOR_NAME}_{SPARK_CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),

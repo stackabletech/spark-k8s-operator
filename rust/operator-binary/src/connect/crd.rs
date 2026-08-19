@@ -29,12 +29,11 @@ use stackable_operator::{
             CustomContainerLogConfig, Logging,
         },
     },
-    role_utils::CommonConfiguration,
     schemars::{self, JsonSchema},
     shared::time::Duration,
     status::condition::{ClusterCondition, HasStatusCondition},
     v2::{
-        role_utils::JavaCommonConfig,
+        role_utils::{CommonConfiguration, JavaCommonConfig},
         types::{
             common::Port,
             kubernetes::{ConfigMapName, ContainerName, ListenerClassName},
@@ -50,7 +49,7 @@ pub const CONNECT_CONTROLLER_NAME: &str = "connect";
 pub const CONNECT_FULL_CONTROLLER_NAME: &str = concatcp!(
     CONNECT_CONTROLLER_NAME,
     '.',
-    crate::crd::constants::OPERATOR_NAME
+    crate::crd::constants::SPARK_OPERATOR_NAME
 );
 pub const CONNECT_SERVER_ROLE_NAME: &str = "server";
 pub const CONNECT_EXECUTOR_ROLE_NAME: &str = "executor";
@@ -430,7 +429,7 @@ impl v1alpha1::ExecutorConfig {
         let affinity_between_role_pods = affinity_between_role_pods(
             CONNECT_APP_NAME,
             cluster_name,
-            &SparkConnectRole::Executor.to_string(),
+            SparkConnectRole::Executor.as_ref(),
             70,
         );
 

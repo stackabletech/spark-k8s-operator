@@ -38,6 +38,10 @@ All notable changes to this project will be documented in this file.
   discarded when the application references a SparkApplicationTemplate. The overrides of the
   template are now applied first and the ones of the SparkApplication on top of them, so an
   application can also remove a JVM argument that one of its templates added ([#745]).
+- BREAKING: The connect and history-server listener PVC templates now carry the recommended
+  labels without the version label, so that the labels stay stable across upgrades.
+  Existing connect and history-server StatefulSets must be deleted once before the new operator
+  can reconcile them (connect server: [#750], history server: [#753]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
@@ -45,6 +49,7 @@ All notable changes to this project will be documented in this file.
 [#744]: https://github.com/stackabletech/spark-k8s-operator/pull/744
 [#745]: https://github.com/stackabletech/spark-k8s-operator/pull/745
 [#746]: https://github.com/stackabletech/spark-k8s-operator/pull/746
+[#750]: https://github.com/stackabletech/spark-k8s-operator/pull/750
 [#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
 
 ## [26.7.0] - 2026-07-21

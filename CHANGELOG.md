@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The history server and Spark Connect server StatefulSets now carry the
+  `restarter.stackable.tech/enabled: "true"` label, opting them into the restarter-controller so
+  that their Pods are automatically rolled when a mounted ConfigMap or Secret changes ([#754]).
+
 ### Changed
 
 - Internal operator refactoring: introduce a build() step in the history and connect
@@ -46,6 +52,7 @@ All notable changes to this project will be documented in this file.
 [#745]: https://github.com/stackabletech/spark-k8s-operator/pull/745
 [#746]: https://github.com/stackabletech/spark-k8s-operator/pull/746
 [#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
+[#754]: https://github.com/stackabletech/spark-k8s-operator/pull/754
 
 ## [26.7.0] - 2026-07-21
 

@@ -7,11 +7,14 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: spark-connect-server
+  # generation stays at 1: the restarter-controller label must not itself trigger a rollout.
+  generation: 1
   labels:
     app.kubernetes.io/component: server
     app.kubernetes.io/instance: spark-connect
     app.kubernetes.io/managed-by: spark.stackable.tech_connect
     app.kubernetes.io/name: spark-connect
+    restarter.stackable.tech/enabled: "true"
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1

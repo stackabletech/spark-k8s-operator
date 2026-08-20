@@ -16,6 +16,7 @@ use stackable_operator::{
             },
         },
     },
+    constants::RESTART_CONTROLLER_ENABLED_LABEL,
     crd::listener,
     k8s_openapi::{
         DeepMerge,
@@ -324,6 +325,9 @@ pub(crate) fn build_stateful_set(
             object_name(&validated.name_any(), SparkConnectRole::Server),
             SparkConnectRole::Server,
         )
+        // Opt into the restarter-controller: it rolls the StatefulSet's Pods when a mounted
+        // ConfigMap or Secret changes. See stackabletech/issues#816.
+        .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
         .build(),
         spec: Some(StatefulSetSpec {
             template: pod_template,

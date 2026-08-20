@@ -50,7 +50,7 @@ jobs:
 
       - name: Check for changed files
         id: check
-        uses: stackabletech/actions/detect-changes@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/detect-changes@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           patterns: |
             - '.github/workflows/build.yaml'
@@ -64,6 +64,31 @@ jobs:
             - '**/*.rs'
     outputs:
       detected: ${{ steps.check.outputs.detected }}
+
+  helm-lint:
+    name: Lint Helm Chart
+    needs:
+      - detect-changes
+    if: needs.detect-changes.outputs.detected == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Validates the chart templates and, where a values.schema.json exists, the
+      # default values against it.
+      #
+      # The chart cannot render without a registry overlay, because image.repository
+      # is only set there.
+      - name: Lint Helm Chart
+        env:
+          CHART_DIRECTORY: deploy/helm/spark-k8s-operator
+        run: |
+          for registry in oci.stackable.tech quay.io; do
+            helm lint "$CHART_DIRECTORY" --values "$CHART_DIRECTORY/values/${registry}.yaml"
+          done
 
   cargo-udeps:
     name: Run cargo-udeps
@@ -151,12 +176,18 @@ jobs:
 
           CURRENT_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[] | select(.name == "stackable-spark-k8s-operator") | .version')
 
+          # Include a PR suffix if this workflow is triggered by a PR
           if [ "$GITHUB_EVENT_NAME" == 'pull_request' ]; then
-            # Include a PR suffix if this workflow is triggered by a PR
-            if [ "$PR_BASE_REF" == 'main' ]; then
-              NEW_VERSION="0.0.0-pr$PR_NUMBER"
-            else
+            # If the PR is raised against a release branch, use the current operator version and
+            # append a suffix to it. If the PR is raised against ANY other base branch, use the
+            # established 0.0.0-prXXX tag.
+            if [[ "$PR_BASE_REF" =~ ^release-[0-9]{2}\.[0-9]{1,2}$ ]]; then
               NEW_VERSION="$CURRENT_VERSION-pr$PR_NUMBER"
+            else
+              # NOTE (@Techassi): One could argue that we should warn the developer when the current
+              # version is not 0.0.0-dev (and the PR potentially doesn't target main) that we will
+              # still rewrite the version to 0.0.0-prXXX.
+              NEW_VERSION="0.0.0-pr$PR_NUMBER"
             fi
           else
             # Just use the current version if this workflow is run on push, schedule, etc...
@@ -175,7 +206,7 @@ jobs:
 
       - name: Build Container Image
         id: build
-        uses: stackabletech/actions/build-container-image@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/build-container-image@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-name: ${{ env.OPERATOR_NAME }}
           image-index-manifest-tag: ${{ steps.version.outputs.OPERATOR_VERSION }}
@@ -184,7 +215,7 @@ jobs:
 
       - name: Publish Container Image to oci.stackable.tech
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: stackabletech/actions/publish-image@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/publish-image@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -195,7 +226,7 @@ jobs:
 
       - name: Publish Container Image to quay.io
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: stackabletech/actions/publish-image@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/publish-image@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-registry-uri: quay.io
           image-registry-username: stackable+robot_sdp_github_action_build
@@ -225,7 +256,7 @@ jobs:
           persist-credentials: false
 
       - name: Publish and Sign Image Index to oci.stackable.tech
-        uses: stackabletech/actions/publish-image-index-manifest@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/publish-image-index-manifest@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -234,7 +265,7 @@ jobs:
           image-index-manifest-tag: ${{ needs.build-container-image.outputs.operator-version }}
 
       - name: Publish and Sign Image Index to quay.io
-        uses: stackabletech/actions/publish-image-index-manifest@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/publish-image-index-manifest@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-registry-uri: quay.io
           image-registry-username: stackable+robot_sdp_github_action_build
@@ -264,7 +295,7 @@ jobs:
           submodules: recursive
 
       - name: Package, Publish, and Sign Helm Chart to oci.stackable.tech
-        uses: stackabletech/actions/publish-helm-chart@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/publish-helm-chart@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           chart-registry-uri: oci.stackable.tech
           chart-registry-username: robot$sdp-charts+github-action-build
@@ -276,7 +307,7 @@ jobs:
           publish-and-sign: ${{ !github.event.pull_request.head.repo.fork }}
 
       - name: Package, Publish, and Sign Helm Chart to quay.io
-        uses: stackabletech/actions/publish-helm-chart@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/publish-helm-chart@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           chart-registry-uri: quay.io
           chart-registry-username: stackable+robot_sdp_charts_github_action_build
@@ -308,13 +339,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run OpenShift Preflight Check for oci.stackable.tech
-        uses: stackabletech/actions/run-openshift-preflight@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/run-openshift-preflight@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-index-uri: oci.stackable.tech/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
 
       - name: Run OpenShift Preflight Check for quay.io
-        uses: stackabletech/actions/run-openshift-preflight@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/run-openshift-preflight@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-index-uri: quay.io/stackable/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
@@ -338,6 +369,7 @@ jobs:
     needs:
       - detect-changes
       - cargo-udeps
+      - helm-lint
       - build-container-image
       - publish-index-manifest
       - publish-helm-chart
@@ -380,7 +412,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send Notification
-        uses: stackabletech/actions/send-slack-notification@bc17d3c4808a2343685853d0d757ad7614f660d4 # v0.17.4
+        uses: stackabletech/actions/send-slack-notification@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           publish-helm-chart-result: ${{ needs.publish-helm-chart.result }}
           publish-manifests-result: ${{ needs.publish-index-manifest.result }}

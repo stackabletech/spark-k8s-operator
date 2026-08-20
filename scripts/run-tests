@@ -145,6 +145,38 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--template-dir",
+        help="Directory containing the test templates (default tests/templates/kuttl)",
+        type=str,
+        required=False,
+        default=os.path.join("tests", "templates", "kuttl"),
+    )
+
+    parser.add_argument(
+        "--test-definition",
+        help="Path to the test definition file (default tests/test-definition.yaml)",
+        type=str,
+        required=False,
+        default=os.path.join("tests", "test-definition.yaml"),
+    )
+
+    parser.add_argument(
+        "--kuttl-test",
+        help="Path to the kuttl test definition file (default tests/kuttl-test.yaml.jinja2)",
+        type=str,
+        required=False,
+        default=os.path.join("tests", "kuttl-test.yaml.jinja2"),
+    )
+
+    parser.add_argument(
+        "--release-file",
+        help="Path to the test release file (default tests/release.yaml)",
+        type=str,
+        required=False,
+        default=os.path.join("tests", "release.yaml"),
+    )
+
+    parser.add_argument(
         "--listener-class-preset",
         help="Choose the ListenerClass preset",
         type=str,
@@ -201,7 +233,7 @@ def have_requirements() -> None:
 
 @contextlib.contextmanager
 def release_file(
-    operators: list[tuple[str, str]], skip_ops: list[str]
+    release_file: str, operators: list[tuple[str, str]], skip_ops: list[str]
 ) -> collections.abc.Generator[str, None, None]:
     """Generate a (possibly modified) copy of the release.yaml file.
 
@@ -217,7 +249,6 @@ def release_file(
     """
 
     def _patch():
-        release_file = os.path.join("tests", "release.yaml")
         # A marker to validate that all ops were patched
         patched_release = []
         with open(release_file, "r") as f:
@@ -334,16 +365,23 @@ def maybe_install_release(
         raise TestRunnerException()
 
 
-def gen_tests(test_suite: str, namespace: str, work_dir: str) -> None:
+def gen_tests(
+    test_definition: str,
+    kuttl_test: str,
+    template_dir: str,
+    test_suite: str,
+    namespace: str,
+    work_dir: str,
+) -> None:
     try:
         beku_cmd = [
             "beku",
             "--test_definition",
-            os.path.join("tests", "test-definition.yaml"),
+            test_definition,
             "--kuttl_test",
-            os.path.join("tests", "kuttl-test.yaml.jinja2"),
+            kuttl_test,
             "--template_dir",
-            os.path.join("tests", "templates", "kuttl"),
+            template_dir,
             "--output_dir",
             work_dir,
         ]
@@ -448,8 +486,15 @@ def main(argv) -> int:
         opts = parse_args(argv[1:])
         logging.basicConfig(encoding="utf-8", level=opts.log_level)
         have_requirements()
-        gen_tests(opts.test_suite, opts.namespace, opts.work_dir)
-        with release_file(opts.operator, opts.skip_operator) as f:
+        gen_tests(
+            opts.test_definition,
+            opts.kuttl_test,
+            opts.template_dir,
+            opts.test_suite,
+            opts.namespace,
+            opts.work_dir,
+        )
+        with release_file(opts.release_file, opts.operator, opts.skip_operator) as f:
             maybe_install_release(opts.skip_release, f, opts.listener_class_preset)
         if opts.skip_tests:
             logging.info("Skip running tests.")

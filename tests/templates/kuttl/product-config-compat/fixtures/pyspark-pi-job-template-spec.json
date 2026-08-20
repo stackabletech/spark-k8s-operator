@@ -18,16 +18,16 @@
           "value": "/stackable/log/containerdebug"
         },
         {
-          "name": "_STACKABLE_PRE_HOOK",
-          "value": "containerdebug --output=/stackable/log/containerdebug-state.json --loop &"
+          "name": "SPARK_CONF_DIR",
+          "value": "/stackable/spark/conf"
         },
         {
           "name": "SPARK_SUBMIT_OPTS",
           "value": "-Dlog4j.configurationFile=/stackable/log_config/log4j2.properties"
         },
         {
-          "name": "SPARK_CONF_DIR",
-          "value": "/stackable/spark/conf"
+          "name": "_STACKABLE_PRE_HOOK",
+          "value": "containerdebug --output=/stackable/log/containerdebug-state.json --loop &"
         }
       ],
       "image": "oci.stackable.tech/sdp/spark-k8s:3.5.8-stackable0.0.0-dev",

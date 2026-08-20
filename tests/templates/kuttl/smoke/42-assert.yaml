@@ -94,7 +94,6 @@ metadata:
     app.kubernetes.io/instance: spark-history
     app.kubernetes.io/managed-by: spark.stackable.tech_history
     app.kubernetes.io/name: spark-history
-    app.kubernetes.io/role-group: none
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1

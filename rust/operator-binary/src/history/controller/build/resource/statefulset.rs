@@ -6,6 +6,7 @@ use stackable_operator::{
         meta::ObjectMetaBuilder,
         pod::{PodBuilder, security::PodSecurityContextBuilder, volume::VolumeBuilder},
     },
+    constant,
     k8s_openapi::{
         DeepMerge,
         api::apps::v1::{StatefulSet, StatefulSetSpec},
@@ -30,16 +31,21 @@ use stackable_operator::{
 
 // PVC name for the listener volume, required by the v2 listener-volume builder. Its value matches
 // `LISTENER_VOLUME_NAME` in `crd::constants`.
-stackable_operator::constant!(LISTENER_VOLUME_NAME_PVC: PersistentVolumeClaimName = "listener");
+constant!(LISTENER_VOLUME_NAME_PVC: PersistentVolumeClaimName = "listener");
+
+// The classpath for extra JAR files of the history server.
+constant!(SPARK_DAEMON_CLASSPATH: EnvVarName = "SPARK_DAEMON_CLASSPATH");
+// JVM arguments for the history server.
+constant!(SPARK_HISTORY_OPTS: EnvVarName = "SPARK_HISTORY_OPTS");
 
 use crate::{
     crd::{
         constants::{
-            ACCESS_KEY_ID, HISTORY_ROLE_NAME, HISTORY_UI_PORT, LISTENER_VOLUME_DIR,
+            ACCESS_KEY_ID, CONTAINERDEBUG_LOG_DIRECTORY, HISTORY_UI_PORT, LISTENER_VOLUME_DIR,
             LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, SECRET_ACCESS_KEY,
-            SPARK_DEFAULTS_FILE_NAME, STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            SPARK_DEFAULTS_FILE_NAME, SPARK_NO_DAEMONIZE, STACKABLE_TRUST_STORE,
+            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::SparkHistoryServerContainer,
         logdir::ResolvedLogDir,
@@ -48,8 +54,12 @@ use crate::{
     history::{
         config::jvm::construct_history_jvm_args,
         controller::{
-            build::{object_meta, resource::listener::group_listener_name},
-            validate::{self, ValidatedHistoryRoleGroup},
+            build::{
+                object_meta, recommended_labels_for_role_group_resources,
+                recommended_labels_for_unversioned_role_group_resources,
+                resource::listener::group_listener_name, role_group_selector,
+            },
+            validate::{self, NODE_ROLE_NAME, ValidatedHistoryRoleGroup},
         },
     },
 };
@@ -101,7 +111,8 @@ pub(crate) fn build_stateful_set(
         resource_names.role_group_config_map().to_string()
     };
 
-    let recommended_labels = validated.recommended_labels(role_group_name);
+    let recommended_labels =
+        recommended_labels_for_role_group_resources(validated, role_group_name);
 
     let pb_metadata = ObjectMetaBuilder::new()
         .with_labels(recommended_labels.clone())
@@ -155,32 +166,19 @@ pub(crate) fn build_stateful_set(
             .build(),
     );
 
-    // Base environment variables, with the already-merged (role + role group) env overrides
-    // layered on top (overrides win). The base names are static and known to be valid.
-    let known_env_var_name = |name: &str| {
-        EnvVarName::from_str(name).expect("the operator-generated env var name is valid")
-    };
+    // Operator-set environment variables first; the already-merged (role + role group) env
+    // overrides are merged in last so that they override any operator-set environment variable.
     let merged_env = EnvVarSet::new()
-        .with_values([
-            // Needed by the `containerdebug` running in the background of the history container
-            // to log it's tracing information to.
-            (
-                known_env_var_name("CONTAINERDEBUG_LOG_DIRECTORY"),
-                format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
-            ),
-            // This env var prevents the history server from detaching itself from the
-            // start script because this leads to the Pod terminating immediately.
-            (known_env_var_name("SPARK_NO_DAEMONIZE"), "true".to_owned()),
-            (
-                known_env_var_name("SPARK_DAEMON_CLASSPATH"),
-                "/stackable/spark/extra-jars/*".to_owned(),
-            ),
-            // JVM arguments for the history server.
-            (
-                known_env_var_name("SPARK_HISTORY_OPTS"),
-                construct_history_jvm_args(&rg.config, log_dir),
-            ),
-        ])
+        .with_value(
+            &CONTAINERDEBUG_LOG_DIRECTORY,
+            format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+        )
+        .with_value(&SPARK_NO_DAEMONIZE, "true")
+        .with_value(&SPARK_DAEMON_CLASSPATH, "/stackable/spark/extra-jars/*")
+        .with_value(
+            &SPARK_HISTORY_OPTS,
+            construct_history_jvm_args(&rg.config, log_dir),
+        )
         .merge(rg.config.env_overrides.clone());
 
     let container =
@@ -213,20 +211,17 @@ pub(crate) fn build_stateful_set(
             .context(AddVolumeMountSnafu)?
             .build();
 
-    let unversioned_recommended_labels = validated.unversioned_recommended_labels(role_group_name);
-
     // Add listener volume
     // Listener endpoints for the Webserver role will use persistent volumes
     // so that load balancers can hard-code the target addresses. This will
     // be the case even when no class is set (and the value defaults to
     // cluster-internal) as the address should still be consistent.
+    //
+    // PVC templates cannot be modified once they are deployed, so the version label is omitted
+    // from their labels to keep them stable across version upgrades.
     let volume_claim_templates = Some(vec![listener_operator_volume_source_builder_build_pvc(
-        &ListenerReference::Listener(
-            group_listener_name(validated, HISTORY_ROLE_NAME)
-                .parse()
-                .expect("the group listener name is a valid ListenerName"),
-        ),
-        &unversioned_recommended_labels,
+        &ListenerReference::Listener(group_listener_name(validated, &NODE_ROLE_NAME)),
+        &recommended_labels_for_unversioned_role_group_resources(validated, role_group_name),
         &LISTENER_VOLUME_NAME_PVC,
     )]);
 
@@ -261,7 +256,7 @@ pub(crate) fn build_stateful_set(
             volume_claim_templates,
             replicas: rg.config.replicas.map(i32::from),
             selector: LabelSelector {
-                match_labels: Some(validated.role_group_selector(role_group_name).into()),
+                match_labels: Some(role_group_selector(validated, role_group_name).into()),
                 ..LabelSelector::default()
             },
             ..StatefulSetSpec::default()
@@ -291,4 +286,73 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
         format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
     vec![command.join("\n")]
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::k8s_openapi::api::core::v1::EnvVar;
+
+    use super::*;
+    use crate::history::controller::build::test_support::minimal_validated_cluster;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *LISTENER_VOLUME_NAME_PVC;
+        let _ = *SPARK_DAEMON_CLASSPATH;
+        let _ = *SPARK_HISTORY_OPTS;
+    }
+
+    /// `envOverrides` must be applied after all operator-set environment variables, so a user
+    /// override replaces the operator-set value instead of duplicating it or being ignored.
+    #[test]
+    fn env_overrides_override_operator_set_env_vars() {
+        let mut validated = minimal_validated_cluster();
+        let role_group_name: RoleGroupName = "default".parse().expect("valid role group name");
+
+        validated
+            .role_groups
+            .get_mut(&role_group_name)
+            .expect("the default role group exists")
+            .config
+            .env_overrides = EnvVarSet::new().with_value(
+            &EnvVarName::from_str("SPARK_NO_DAEMONIZE").expect("valid env var name"),
+            "overridden",
+        );
+
+        let rg = validated
+            .role_groups
+            .get(&role_group_name)
+            .expect("the default role group exists");
+        let stateful_set = build_stateful_set(
+            &validated,
+            &role_group_name,
+            rg,
+            &validated.cluster_config.log_dir,
+        )
+        .expect("the StatefulSet can be built");
+
+        let env: Vec<EnvVar> = stateful_set
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the StatefulSet has a pod spec")
+            .containers
+            .iter()
+            .find(|container| container.name == "spark-history")
+            .expect("the spark-history container exists")
+            .env
+            .clone()
+            .expect("the spark-history container has env vars");
+
+        let matching: Vec<&EnvVar> = env
+            .iter()
+            .filter(|env_var| env_var.name == "SPARK_NO_DAEMONIZE")
+            .collect();
+
+        // The override must replace the operator-set value, not duplicate it.
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0].value.as_deref(), Some("overridden"));
+    }
 }

@@ -16,6 +16,15 @@ All notable changes to this project will be documented in this file.
 - The reconcilers now apply resources in a discrete apply step; the connect server and application
   controllers additionally update the status in a discrete update_status step (the history server
   CRD has no status) ([#746]).
+- Bump stackable-operator to 0.116.0 ([#753]).
+- BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
+  from the resources they don't apply to (previously set to `none` or a placeholder value such as
+  `sparkapplication` or `default`). StatefulSets created by older operator versions cannot be
+  updated in place: after the operator upgrade, delete each history server and Spark Connect
+  StatefulSet so that the operator immediately recreates it with the new labels ([#753]).
+- Environment variable overrides (`envOverrides`) are now applied after all environment variables
+  set by the operator. In particular, `SPARK_CONF_DIR` of a SparkApplication can now be overridden,
+  whereas previously the operator's values always took precedence ([#753]).
 
 ### Fixed
 
@@ -29,8 +38,10 @@ All notable changes to this project will be documented in this file.
   discarded when the application references a SparkApplicationTemplate. The overrides of the
   template are now applied first and the ones of the SparkApplication on top of them, so an
   application can also remove a JVM argument that one of its templates added ([#745]).
-- BREAKING: The connect and history-server listener PVC templates now carry unversioned labels.
-  Existing connect and history-server StatefulSets must be deleted once before the new operator can reconcile them ([#750]).
+- BREAKING: The connect and history-server listener PVC templates now carry the recommended
+  labels without the version label, so that the labels stay stable across upgrades.
+  Existing connect and history-server StatefulSets must be deleted once before the new operator
+  can reconcile them (connect server: [#750], history server: [#753]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
@@ -39,6 +50,7 @@ All notable changes to this project will be documented in this file.
 [#745]: https://github.com/stackabletech/spark-k8s-operator/pull/745
 [#746]: https://github.com/stackabletech/spark-k8s-operator/pull/746
 [#750]: https://github.com/stackabletech/spark-k8s-operator/pull/750
+[#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
 
 ## [26.7.0] - 2026-07-21
 

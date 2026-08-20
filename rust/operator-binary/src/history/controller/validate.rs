@@ -13,15 +13,13 @@ use stackable_operator::{
         product_image_selection::{self, ResolvedProductImage},
     },
     config::fragment,
+    constant,
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
-    kvp::Labels,
     product_logging::spec::Logging,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        builder::pod::container::{EnvVarName, EnvVarSet},
         controller_utils::{get_cluster_name, get_namespace, get_uid},
-        kvp::label::{recommended_labels, role_group_selector},
         product_logging::framework::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
         },
@@ -41,7 +39,7 @@ use crate::{
     crd::{
         constants::{
             CONTAINER_IMAGE_BASE_NAME, HISTORY_APP_NAME, HISTORY_CONTROLLER_NAME,
-            HISTORY_ROLE_NAME, OPERATOR_NAME,
+            HISTORY_ROLE_NAME, SPARK_OPERATOR_NAME,
         },
         history::{HistoryConfig, HistoryConfigFragment, SparkHistoryServerContainer, v1alpha1},
         logdir::ResolvedLogDir,
@@ -89,12 +87,6 @@ pub enum Error {
         role_group: String,
     },
 
-    #[snafu(display("invalid environment variable override name in role group {role_group}"))]
-    ParseEnvVarName {
-        source: stackable_operator::v2::macros::attributed_string_type::Error,
-        role_group: String,
-    },
-
     #[snafu(display("failed to validate the logging configuration"))]
     ValidateLoggingConfig {
         source: stackable_operator::v2::product_logging::framework::Error,
@@ -137,6 +129,15 @@ fn validate_logging(
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
+
+// The product name (`spark-history`) as a type-safe label value.
+constant!(pub(crate) PRODUCT_NAME: ProductName = HISTORY_APP_NAME);
+// The operator name as a type-safe label value.
+constant!(pub(crate) OPERATOR_NAME: OperatorName = SPARK_OPERATOR_NAME);
+// The controller name as a type-safe label value.
+constant!(pub(crate) CONTROLLER_NAME: ControllerName = HISTORY_CONTROLLER_NAME);
+// The single history server role name (`node`).
+constant!(pub(crate) NODE_ROLE_NAME: RoleName = HISTORY_ROLE_NAME);
 
 /// A validated, merged history server role-group config.
 pub type HistoryRoleGroupConfig =
@@ -193,17 +194,12 @@ pub struct ValidatedRoleConfig {
 }
 
 impl ValidatedSparkHistoryServer {
-    /// The single history server role name (`node`).
-    pub fn role_name() -> RoleName {
-        RoleName::from_str(HISTORY_ROLE_NAME).expect("HISTORY_ROLE_NAME is a valid role name")
-    }
-
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount,
     /// its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
     pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
         role_utils::ResourceNames {
             cluster_name: self.name.clone(),
-            product_name: product_name(),
+            product_name: PRODUCT_NAME.clone(),
         }
     }
 
@@ -211,63 +207,10 @@ impl ValidatedSparkHistoryServer {
     pub fn role_group_resource_names(&self, role_group_name: &RoleGroupName) -> ResourceNames {
         ResourceNames {
             cluster_name: self.name.clone(),
-            role_name: Self::role_name(),
+            role_name: NODE_ROLE_NAME.clone(),
             role_group_name: role_group_name.clone(),
         }
     }
-
-    /// Recommended labels for a resource of the given role.
-    pub fn recommended_labels(&self, role_group_name: &RoleGroupName) -> Labels {
-        self.recommended_labels_for(&Self::role_name(), role_group_name)
-    }
-
-    /// Recommended labels for a resource that is not tied to a concrete role
-    /// (e.g. the cluster-shared RBAC resources), using a free-form role/role-group label value.
-    pub fn recommended_labels_for(
-        &self,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
-    }
-
-    fn recommended_labels_with(
-        &self,
-        product_version: &ProductVersion,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        recommended_labels(
-            self,
-            &product_name(),
-            product_version,
-            &operator_name(),
-            &controller_name(),
-            role_name,
-            role_group_name,
-        )
-    }
-
-    /// Selector labels matching the pods of a role group.
-    pub fn role_group_selector(&self, role_group_name: &RoleGroupName) -> Labels {
-        role_group_selector(self, &product_name(), &Self::role_name(), role_group_name)
-    }
-}
-
-/// The product name (`spark-history`) as a type-safe label value.
-pub fn product_name() -> ProductName {
-    ProductName::from_str(HISTORY_APP_NAME).expect("HISTORY_APP_NAME is a valid product name")
-}
-
-/// The operator name as a type-safe label value.
-pub fn operator_name() -> OperatorName {
-    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
-}
-
-/// The controller name as a type-safe label value.
-pub fn controller_name() -> ControllerName {
-    ControllerName::from_str(HISTORY_CONTROLLER_NAME)
-        .expect("the controller name is a valid label value")
 }
 
 impl NameIsValidLabelValue for ValidatedSparkHistoryServer {
@@ -375,16 +318,6 @@ pub fn validate(
             role_group: rg_name.clone(),
         })?;
 
-        let mut env_overrides = EnvVarSet::new();
-        for (env_var_name, env_var_value) in merged.config.env_overrides {
-            env_overrides = env_overrides.with_value(
-                &EnvVarName::from_str(&env_var_name).with_context(|_| ParseEnvVarNameSnafu {
-                    role_group: rg_name.clone(),
-                })?,
-                env_var_value,
-            );
-        }
-
         let logging = validate_logging(
             &merged.config.config.logging,
             &vector_aggregator_config_map_name,
@@ -394,7 +327,9 @@ pub fn validate(
             replicas: Some(merged.replicas.unwrap_or(1)),
             config: merged.config.config,
             config_overrides: merged.config.config_overrides,
-            env_overrides,
+            // The env override names were already validated when the custom resource was
+            // deserialized.
+            env_overrides: merged.config.env_overrides.into(),
             // The history server does not use CLI overrides; the field is carried (and merged
             // upstream) but unused.
             cli_overrides: merged.config.cli_overrides,
@@ -442,6 +377,15 @@ mod tests {
         history::controller::build::test_support::minimal_validated_cluster,
         test_support::app_version_label,
     };
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *CONTROLLER_NAME;
+        let _ = *NODE_ROLE_NAME;
+        let _ = *OPERATOR_NAME;
+        let _ = *PRODUCT_NAME;
+    }
 
     /// Locks every value the validate step itself derives from the minimal fixture — so a
     /// validation regression fails here, with a validate-shaped message, instead of surfacing as

@@ -3,45 +3,38 @@
 //! Resolves the product image and the server/executor configs.
 //! Does not touch the Kubernetes API.
 
-use std::{borrow::Cow, collections::HashMap, str::FromStr};
+use std::{borrow::Cow, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
+    constant,
     k8s_openapi::{api::core::v1::PodTemplateSpec, apimachinery::pkg::apis::meta::v1::ObjectMeta},
     kube::Resource,
-    kvp::Labels,
     product_logging::spec::Logging,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
+        builder::pod::container::EnvVarSet,
         controller_utils::{get_cluster_name, get_namespace, get_uid},
-        kvp::label::{recommended_labels, role_group_selector, role_selector},
         product_logging::framework::{
             VectorContainerLogConfig, validate_logging_configuration_for_container,
         },
         role_utils::{self, JavaCommonConfig},
         types::{
             kubernetes::{ConfigMapName, ListenerClassName, NamespaceName, Uid},
-            operator::{
-                ClusterName, ControllerName, OperatorName, ProductName, ProductVersion,
-                RoleGroupName, RoleName,
-            },
+            operator::{ClusterName, ControllerName, OperatorName, ProductName, ProductVersion},
         },
     },
 };
 
 use crate::{
     connect::{
-        common::SparkConnectRole,
         controller::dereference::DereferencedSparkConnectServer,
-        crd::{
-            self, CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME,
-            SparkConnectContainer, v1alpha1,
-        },
+        crd::{self, CONNECT_APP_NAME, CONNECT_CONTROLLER_NAME, SparkConnectContainer, v1alpha1},
         s3::ResolvedS3,
     },
-    crd::constants::{CONTAINER_IMAGE_BASE_NAME, OPERATOR_NAME},
+    crd::constants::{CONTAINER_IMAGE_BASE_NAME, SPARK_OPERATOR_NAME},
 };
 
 #[derive(Snafu, Debug)]
@@ -115,9 +108,12 @@ fn validate_logging(
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-stackable_operator::constant!(
-    DEFAULT_SPARK_CONNECT_ROLE_GROUP: RoleGroupName = DEFAULT_SPARK_CONNECT_GROUP_NAME
-);
+// The product name (`spark-connect`) as a type-safe label value.
+constant!(pub(crate) PRODUCT_NAME: ProductName = CONNECT_APP_NAME);
+// The operator name as a type-safe label value.
+constant!(pub(crate) OPERATOR_NAME: OperatorName = SPARK_OPERATOR_NAME);
+// The controller name as a type-safe label value.
+constant!(pub(crate) CONTROLLER_NAME: ControllerName = CONNECT_CONTROLLER_NAME);
 
 /// Validated logging configuration for the (optional) Vector container.
 ///
@@ -152,7 +148,7 @@ pub struct ValidatedSparkConnectServer {
 #[derive(Clone, Debug, Default)]
 pub struct ValidatedOverrides {
     pub config_overrides: v1alpha1::ConfigOverrides,
-    pub env_overrides: HashMap<String, String>,
+    pub env_overrides: EnvVarSet,
     pub pod_overrides: PodTemplateSpec,
     pub jvm_config: Option<JavaCommonConfig>,
 }
@@ -169,77 +165,14 @@ pub struct ValidatedRoleConfig {
 }
 
 impl ValidatedSparkConnectServer {
-    /// Recommended labels for a resource that is not tied to a concrete [`SparkConnectRole`]
-    /// (e.g. the cluster-shared RBAC resources), using a free-form role/role-group label value.
-    pub fn recommended_labels_for(
-        &self,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        self.recommended_labels_with(&self.product_version, role_name, role_group_name)
-    }
-
-    /// Recommended labels for a resource of the given role.
-    pub fn recommended_labels(&self, role: SparkConnectRole) -> Labels {
-        self.recommended_labels_for(&role.into(), &DEFAULT_SPARK_CONNECT_ROLE_GROUP)
-    }
-
-    fn recommended_labels_with(
-        &self,
-        product_version: &ProductVersion,
-        role_name: &RoleName,
-        role_group_name: &RoleGroupName,
-    ) -> Labels {
-        recommended_labels(
-            self,
-            &product_name(),
-            product_version,
-            &operator_name(),
-            &controller_name(),
-            role_name,
-            role_group_name,
-        )
-    }
-
-    /// Selector labels matching the pods of the given role.
-    pub fn role_selector(&self, role: SparkConnectRole) -> Labels {
-        role_selector(self, &product_name(), &role.into())
-    }
-
-    /// Selector labels matching the pods of the given role's (single) role group.
-    pub fn role_group_selector(&self, role: SparkConnectRole) -> Labels {
-        role_group_selector(
-            self,
-            &product_name(),
-            &role.into(),
-            &DEFAULT_SPARK_CONNECT_ROLE_GROUP,
-        )
-    }
-
     /// Type-safe names for the per-cluster RBAC resources: the ServiceAccount,
     /// its (namespaced) RoleBinding, and the operator-deployed ClusterRole it binds.
     pub fn cluster_resource_names(&self) -> role_utils::ResourceNames {
         role_utils::ResourceNames {
             cluster_name: self.name.clone(),
-            product_name: product_name(),
+            product_name: PRODUCT_NAME.clone(),
         }
     }
-}
-
-/// The product name (`spark-connect`) as a type-safe label value.
-pub fn product_name() -> ProductName {
-    ProductName::from_str(CONNECT_APP_NAME).expect("CONNECT_APP_NAME is a valid product name")
-}
-
-/// The operator name as a type-safe label value.
-pub fn operator_name() -> OperatorName {
-    OperatorName::from_str(OPERATOR_NAME).expect("the operator name is a valid label value")
-}
-
-/// The controller name as a type-safe label value.
-pub fn controller_name() -> ControllerName {
-    ControllerName::from_str(CONNECT_CONTROLLER_NAME)
-        .expect("the controller name is a valid label value")
 }
 
 impl NameIsValidLabelValue for ValidatedSparkConnectServer {
@@ -318,7 +251,7 @@ pub fn validate(
         .as_ref()
         .map(|cc| ValidatedOverrides {
             config_overrides: cc.config_overrides.clone(),
-            env_overrides: cc.env_overrides.clone(),
+            env_overrides: cc.env_overrides.clone().into(),
             pod_overrides: cc.pod_overrides.clone(),
             jvm_config: Some(cc.product_specific_common_config.clone()),
         })
@@ -329,7 +262,7 @@ pub fn validate(
         .as_ref()
         .map(|cc| ValidatedOverrides {
             config_overrides: cc.config_overrides.clone(),
-            env_overrides: cc.env_overrides.clone(),
+            env_overrides: cc.env_overrides.clone().into(),
             pod_overrides: cc.pod_overrides.clone(),
             jvm_config: Some(cc.product_specific_common_config.clone()),
         })
@@ -372,10 +305,19 @@ pub fn validate(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
         connect::controller::build::test_support::minimal_validated_cluster,
         test_support::app_version_label,
     };
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *CONTROLLER_NAME;
+        let _ = *OPERATOR_NAME;
+        let _ = *PRODUCT_NAME;
+    }
 
     /// Locks every value the validate step itself derives from the minimal fixture — so a
     /// validation regression fails here, with a validate-shaped message, instead of surfacing as
@@ -411,7 +353,7 @@ mod tests {
 
         // The minimal fixture has no overrides and no Vector agent for either role.
         for overrides in [&validated.server_overrides, &validated.executor_overrides] {
-            assert!(overrides.env_overrides.is_empty());
+            assert!(overrides.env_overrides.iter().next().is_none());
             assert_eq!(overrides.jvm_config, None);
         }
         for logging in [&validated.server_logging, &validated.executor_logging] {

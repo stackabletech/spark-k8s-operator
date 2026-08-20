@@ -3,6 +3,7 @@
 use std::{
     cmp::max,
     collections::{BTreeMap, HashMap},
+    str::FromStr,
 };
 
 use constants::*;
@@ -24,6 +25,7 @@ use stackable_operator::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
+    constant,
     crd::s3,
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
@@ -32,12 +34,13 @@ use stackable_operator::{
     kube::{CustomResource, ResourceExt},
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging,
-    role_utils::{CommonConfiguration, RoleGroup},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
     v2::{
-        config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig,
+        builder::pod::container::{EnvVarName, EnvVarSet},
+        config_overrides::KeyValueConfigOverrides,
+        role_utils::{CommonConfiguration, JavaCommonConfig, RoleGroup},
         types::kubernetes::ConfigMapName,
     },
     versioned::versioned,
@@ -112,9 +115,23 @@ pub enum Error {
         source: s3::v1alpha1::ConnectionError,
     },
 
+    #[snafu(display("invalid environment variable name in the `env` list"))]
+    ParseSparkEnvVarName {
+        source: stackable_operator::v2::builder::pod::container::Error,
+    },
+
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
 }
+
+// `_STACKABLE_PRE_HOOK` is evaluated by the entrypoint script (run-spark.sh) in the Spark images
+// before the actual JVM process is started; the operator uses it to run `containerdebug` in the
+// background of every `spark` container.
+constant!(STACKABLE_PRE_HOOK: EnvVarName = "_STACKABLE_PRE_HOOK");
+constant!(PYTHONPATH: EnvVarName = "PYTHONPATH");
+// The environment variable holding the trust store password; its value is the
+// `STACKABLE_TLS_STORE_PASSWORD` string constant.
+constant!(STACKABLE_TLS_STORE_PASSWORD_ENV: EnvVarName = "STACKABLE_TLS_STORE_PASSWORD");
 
 pub type SparkApplicationJobRoleType =
     CommonConfiguration<SubmitConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
@@ -281,7 +298,11 @@ impl v1alpha1::SparkApplication {
     }
 
     pub fn pod_template_config_map_name(&self, role: SparkApplicationRole) -> String {
-        format!("{app_name}-{role}-pod-template", app_name = self.name_any())
+        format!(
+            "{app_name}-{role}-pod-template",
+            app_name = self.name_any(),
+            role = role.as_ref()
+        )
     }
 
     pub fn application_artifact(&self) -> &str {
@@ -756,12 +777,24 @@ impl v1alpha1::SparkApplication {
         Ok(vec![submit_cmd.join(" ")])
     }
 
+    /// The base environment for the submit, driver and executor containers: the user-defined
+    /// `spec.env` entries plus the environment variables set by the operator.
+    ///
+    /// The role-specific `envOverrides` are merged on top in [`Self::merged_env`], so they take
+    /// precedence over everything set here.
     pub fn env(
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
-    ) -> Vec<EnvVar> {
-        let mut e: Vec<EnvVar> = self.spec.env.clone();
+    ) -> Result<EnvVarSet, Error> {
+        // The CRD accepts raw `EnvVar` objects in `spec.env`, so the names are only validated
+        // here.
+        let mut env = EnvVarSet::new();
+        for env_var in self.spec.env.clone() {
+            env = env
+                .with_env_var(env_var)
+                .context(ParseSparkEnvVarNameSnafu)?;
+        }
 
         // These env variables enable the `containerdebug` process in driver and executor pods.
         // More precisely, this process runs in the background of every `spark` container.
@@ -770,36 +803,31 @@ impl v1alpha1::SparkApplication {
         // - `_STACKABLE_PRE_HOOK` - is evaluated by the entrypoint script (run-spark.sh) in the Spark images
         // before the actual JVM process is started. The result of this evaluation is that the
         // `containerdebug` process is executed in the background.
-        e.extend(vec![
-            EnvVar {
-                name: "CONTAINERDEBUG_LOG_DIRECTORY".into(),
-                value: Some(format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug")),
-                value_from: None,
-            },
-            EnvVar {
-                name: "_STACKABLE_PRE_HOOK".into(),
-                value: Some(format!( "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &")),
-                value_from: None,
-            },
-        ]);
+        env = env
+            .with_value(
+                &CONTAINERDEBUG_LOG_DIRECTORY,
+                format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+            )
+            .with_value(
+                &STACKABLE_PRE_HOOK,
+                format!(
+                    "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+                ),
+            );
 
         if self.requirements().is_some() {
-            e.push(EnvVar {
-                name: "PYTHONPATH".to_string(),
-                value: Some(format!(
-                    "$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"
-                )),
-                value_from: None,
-            });
+            env = env.with_value(
+                &PYTHONPATH,
+                format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
+            );
         }
         if tlscerts::tls_secret_names(s3conn, logdir).is_some() {
-            e.push(EnvVar {
-                name: "STACKABLE_TLS_STORE_PASSWORD".to_string(),
-                value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),
-                value_from: None,
-            });
+            env = env.with_value(
+                &STACKABLE_TLS_STORE_PASSWORD_ENV,
+                STACKABLE_TLS_STORE_PASSWORD,
+            );
         }
-        e
+        Ok(env)
     }
 
     pub fn submit_config(&self) -> Result<SubmitConfig, Error> {
@@ -844,35 +872,24 @@ impl v1alpha1::SparkApplication {
         }
     }
 
-    pub fn merged_env(&self, role: SparkApplicationRole, env: &[EnvVar]) -> Vec<EnvVar> {
-        // Use a BTreeMap internally to enable replacement of existing keys
-        let mut env: BTreeMap<&String, EnvVar> = env
-            .iter()
-            .map(|env_var| (&env_var.name, env_var.clone()))
-            .collect();
-
-        // Merge the role-specific envOverrides on top
-        let role_envs = match role {
+    /// The given base environment with the role-specific `envOverrides` merged on top.
+    ///
+    /// The overrides are merged in last so that they override any operator-set environment
+    /// variable. Callers must therefore add every operator-set environment variable to `env`
+    /// rather than appending it to the container afterwards.
+    pub fn merged_env(&self, role: SparkApplicationRole, env: EnvVarSet) -> EnvVarSet {
+        let role_env_overrides = match role {
             SparkApplicationRole::Submit => self.spec.job.as_ref().map(|j| &j.env_overrides),
             SparkApplicationRole::Driver => self.spec.driver.as_ref().map(|d| &d.env_overrides),
             SparkApplicationRole::Executor => {
                 self.spec.executor.as_ref().map(|e| &e.config.env_overrides)
             }
         };
-        if let Some(role_envs) = role_envs {
-            env.extend(role_envs.iter().map(|(k, v)| {
-                (
-                    k,
-                    EnvVar {
-                        name: k.clone(),
-                        value: Some(v.clone()),
-                        ..Default::default()
-                    },
-                )
-            }))
-        }
 
-        env.into_values().collect()
+        match role_env_overrides {
+            Some(env_overrides) => env.merge(env_overrides.clone().into()),
+            None => env,
+        }
     }
 
     pub fn retry_on_failure_count(&self) -> i32 {
@@ -1073,6 +1090,14 @@ mod tests {
 
     use super::*;
     use crate::crd::roles::SparkStorageConfig;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *PYTHONPATH;
+        let _ = *STACKABLE_PRE_HOOK;
+        let _ = *STACKABLE_TLS_STORE_PASSWORD_ENV;
+    }
 
     #[test]
     fn test_default_resource_limits() {

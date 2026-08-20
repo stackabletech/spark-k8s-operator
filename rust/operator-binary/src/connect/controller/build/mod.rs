@@ -14,8 +14,10 @@ use std::marker::PhantomData;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder, kube::ResourceExt,
-    v2::builder::meta::ownerreference_from_resource,
+    builder::meta::ObjectMetaBuilder,
+    kube::ResourceExt,
+    kvp::Labels,
+    v2::{builder::meta::ownerreference_from_resource, kvp::label, types::operator::RoleName},
 };
 
 use crate::connect::{
@@ -23,7 +25,7 @@ use crate::connect::{
     controller::{
         Prepared, SparkConnectResources,
         build::rbac::{build_role_binding, build_service_account},
-        validate::ValidatedSparkConnectServer,
+        validate::{CONTROLLER_NAME, OPERATOR_NAME, PRODUCT_NAME, ValidatedSparkConnectServer},
     },
 };
 
@@ -128,8 +130,45 @@ pub(crate) fn object_meta(
         .name_and_namespace(validated)
         .name(name)
         .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-        .with_labels(validated.recommended_labels(role));
+        .with_labels(recommended_labels_for_role_resources(validated, &role));
     builder
+}
+
+/// Recommended labels for resources shared by the whole Spark Connect server, like the RBAC
+/// resources.
+pub(crate) fn recommended_labels_for_cluster_resources(
+    server: &ValidatedSparkConnectServer,
+) -> Labels {
+    label::recommended_labels_for_cluster_resources(
+        &server.name,
+        &PRODUCT_NAME,
+        &server.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+    )
+}
+
+/// Recommended labels for resources of the given role.
+///
+/// Spark Connect has no role groups, so all role resources use these labels (without a role
+/// group label).
+pub(crate) fn recommended_labels_for_role_resources(
+    server: &ValidatedSparkConnectServer,
+    role_name: &RoleName,
+) -> Labels {
+    label::recommended_labels_for_role_resources(
+        &server.name,
+        &PRODUCT_NAME,
+        &server.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+    )
+}
+
+/// Selector labels matching the pods of the given role.
+pub(crate) fn role_selector(server: &ValidatedSparkConnectServer, role_name: &RoleName) -> Labels {
+    label::role_selector(&server.name, &PRODUCT_NAME, role_name)
 }
 
 #[cfg(test)]

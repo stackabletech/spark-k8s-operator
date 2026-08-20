@@ -1,26 +1,19 @@
-//! Builds the RBAC resources (ServiceAccount + RoleBinding) shared by all role groups.
-
-use std::str::FromStr;
+//! Builds the RBAC resources (ServiceAccount + RoleBinding) shared by the whole cluster.
 
 use stackable_operator::{
     k8s_openapi::api::{core::v1::ServiceAccount, rbac::v1::RoleBinding},
-    kvp::Labels,
-    v2::{
-        rbac,
-        types::operator::{RoleGroupName, RoleName},
-    },
+    v2::rbac,
 };
 
-use crate::connect::controller::validate::ValidatedSparkConnectServer;
-
-stackable_operator::constant!(NONE_ROLE_NAME: RoleName = "none");
-stackable_operator::constant!(NONE_ROLE_GROUP_NAME: RoleGroupName = "none");
+use crate::connect::controller::{
+    build::recommended_labels_for_cluster_resources, validate::ValidatedSparkConnectServer,
+};
 
 pub fn build_service_account(server: &ValidatedSparkConnectServer) -> ServiceAccount {
     rbac::build_service_account(
         server,
         &server.cluster_resource_names(),
-        rbac_labels(server),
+        recommended_labels_for_cluster_resources(server),
     )
 }
 
@@ -28,12 +21,8 @@ pub fn build_role_binding(server: &ValidatedSparkConnectServer) -> RoleBinding {
     rbac::build_role_binding(
         server,
         &server.cluster_resource_names(),
-        rbac_labels(server),
+        recommended_labels_for_cluster_resources(server),
     )
-}
-
-fn rbac_labels(server: &ValidatedSparkConnectServer) -> Labels {
-    server.recommended_labels_for(&NONE_ROLE_NAME, &NONE_ROLE_GROUP_NAME)
 }
 
 #[cfg(test)]
@@ -57,13 +46,10 @@ mod tests {
                 "apiVersion": "v1",
                 "kind": "ServiceAccount",
                 "metadata": {
-                    // The RBAC resources are cluster-shared, so role and role group are `none`.
                     "labels": {
-                        "app.kubernetes.io/component": "none",
                         "app.kubernetes.io/instance": "my-connect",
                         "app.kubernetes.io/managed-by": "spark.stackable.tech_connect",
                         "app.kubernetes.io/name": "spark-connect",
-                        "app.kubernetes.io/role-group": "none",
                         "app.kubernetes.io/version": app_version_label("4.1.2"),
                         "stackable.tech/vendor": "Stackable"
                     },
@@ -94,11 +80,9 @@ mod tests {
                 "kind": "RoleBinding",
                 "metadata": {
                     "labels": {
-                        "app.kubernetes.io/component": "none",
                         "app.kubernetes.io/instance": "my-connect",
                         "app.kubernetes.io/managed-by": "spark.stackable.tech_connect",
                         "app.kubernetes.io/name": "spark-connect",
-                        "app.kubernetes.io/role-group": "none",
                         "app.kubernetes.io/version": app_version_label("4.1.2"),
                         "stackable.tech/vendor": "Stackable"
                     },

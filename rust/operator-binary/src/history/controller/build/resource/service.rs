@@ -8,7 +8,10 @@ use stackable_operator::{
 
 use crate::{
     crd::constants::METRICS_PORT,
-    history::controller::{build::object_meta, validate::ValidatedSparkHistoryServer},
+    history::controller::{
+        build::{object_meta, role_group_selector},
+        validate::ValidatedSparkHistoryServer,
+    },
 };
 
 /// The rolegroup metrics [`Service`] is a service that exposes metrics and a prometheus scraping label
@@ -38,7 +41,7 @@ pub fn build_rolegroup_metrics_service(
             type_: Some("ClusterIP".to_string()),
             cluster_ip: Some("None".to_string()),
             ports: Some(metrics_ports()),
-            selector: Some(validated.role_group_selector(role_group_name).into()),
+            selector: Some(role_group_selector(validated, role_group_name).into()),
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
         }),

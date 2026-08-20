@@ -12,7 +12,6 @@ metadata:
     app.kubernetes.io/instance: spark-pi-s3-1
     app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
     app.kubernetes.io/name: spark-k8s
-    app.kubernetes.io/role-group: sparkapplication
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1
@@ -29,7 +28,6 @@ metadata:
     app.kubernetes.io/instance: spark-pi-s3-1
     app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
     app.kubernetes.io/name: spark-k8s
-    app.kubernetes.io/role-group: sparkapplication
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1
@@ -46,7 +44,6 @@ metadata:
     app.kubernetes.io/instance: spark-pi-s3-1
     app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
     app.kubernetes.io/name: spark-k8s
-    app.kubernetes.io/role-group: sparkapplication
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1
@@ -59,11 +56,9 @@ kind: ServiceAccount
 metadata:
   name: spark-pi-s3-1
   labels:
-    app.kubernetes.io/component: service-account
     app.kubernetes.io/instance: spark-pi-s3-1
     app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
     app.kubernetes.io/name: spark-k8s
-    app.kubernetes.io/role-group: sparkapplication
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1
@@ -76,11 +71,9 @@ kind: RoleBinding
 metadata:
   name: spark-pi-s3-1
   labels:
-    app.kubernetes.io/component: role-binding
     app.kubernetes.io/instance: spark-pi-s3-1
     app.kubernetes.io/managed-by: spark.stackable.tech_sparkapplication
     app.kubernetes.io/name: spark-k8s
-    app.kubernetes.io/role-group: sparkapplication
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1

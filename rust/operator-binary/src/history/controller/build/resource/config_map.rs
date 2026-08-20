@@ -20,7 +20,10 @@ use crate::{
         history::SparkHistoryServerContainer,
         to_spark_env_sh_string,
     },
-    history::controller::validate::{self, ValidatedHistoryRoleGroup},
+    history::controller::{
+        build::recommended_labels_for_role_group_resources,
+        validate::{self, ValidatedHistoryRoleGroup},
+    },
     product_logging::{self},
 };
 
@@ -83,7 +86,10 @@ pub(crate) fn build_config_map(
                 .namespace(validated.namespace.clone())
                 .name(&cm_name)
                 .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-                .labels(validated.recommended_labels(role_group_name))
+                .labels(recommended_labels_for_role_group_resources(
+                    validated,
+                    role_group_name,
+                ))
                 .build(),
         )
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)

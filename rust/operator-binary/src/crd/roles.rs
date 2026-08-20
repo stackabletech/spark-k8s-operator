@@ -13,7 +13,7 @@
 //! each role is named "default". These roles are transparent to the user.
 //!
 //! The history server has its own role completely unrelated to this module.
-use std::{slice, str::FromStr};
+use std::{ops::Deref, slice, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
@@ -28,24 +28,48 @@ use stackable_operator::{
         fragment::Fragment,
         merge::{Atomic, Merge},
     },
+    constant,
     crd::s3,
     k8s_openapi::{api::core::v1::VolumeMount, apimachinery::pkg::api::resource::Quantity},
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
-    v2::types::kubernetes::ContainerName,
+    v2::types::{kubernetes::ContainerName, operator::RoleName},
 };
 use strum::{Display, EnumIter};
 
 use crate::crd::{ResolvedLogDir, constants::DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT, v1alpha1};
 
-#[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
-#[strum(serialize_all = "kebab-case")]
+constant!(SUBMIT_ROLE_NAME: RoleName = "submit");
+constant!(DRIVER_ROLE_NAME: RoleName = "driver");
+constant!(EXECUTOR_ROLE_NAME: RoleName = "executor");
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SparkApplicationRole {
     Submit,
     Driver,
     Executor,
+}
+
+impl Deref for SparkApplicationRole {
+    type Target = RoleName;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            SparkApplicationRole::Submit => &SUBMIT_ROLE_NAME,
+            SparkApplicationRole::Driver => &DRIVER_ROLE_NAME,
+            SparkApplicationRole::Executor => &EXECUTOR_ROLE_NAME,
+        }
+    }
+}
+
+impl SparkApplicationRole {
+    /// The type-safe name of this role, e.g. to build
+    /// [`ResourceNames`](stackable_operator::v2::role_group_utils::ResourceNames).
+    pub fn role_name(&self) -> RoleName {
+        RoleName::clone(self)
+    }
 }
 
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -255,5 +279,18 @@ impl<'a> IntoIterator for &'a VolumeMounts {
 impl From<VolumeMounts> for Vec<VolumeMount> {
     fn from(value: VolumeMounts) -> Self {
         value.volume_mounts
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *DRIVER_ROLE_NAME;
+        let _ = *EXECUTOR_ROLE_NAME;
+        let _ = *SUBMIT_ROLE_NAME;
     }
 }

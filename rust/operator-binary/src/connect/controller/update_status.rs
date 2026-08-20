@@ -15,7 +15,7 @@ use crate::{
         controller::{Applied, SparkConnectResources},
         crd::{SparkConnectServerStatus, v1alpha1::SparkConnectServer},
     },
-    crd::constants::OPERATOR_NAME,
+    crd::constants::SPARK_OPERATOR_NAME,
 };
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
@@ -60,7 +60,7 @@ pub async fn update_status(
     };
 
     client
-        .apply_patch_status(OPERATOR_NAME, connect_server, &status)
+        .apply_patch_status(SPARK_OPERATOR_NAME, connect_server, &status)
         .await
         .context(ApplyStatusSnafu)?;
 

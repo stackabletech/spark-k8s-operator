@@ -7,6 +7,7 @@ use stackable_operator::{
         pod::{PodBuilder, security::PodSecurityContextBuilder, volume::VolumeBuilder},
     },
     constant,
+    constants::RESTART_CONTROLLER_ENABLED_LABEL,
     k8s_openapi::{
         DeepMerge,
         api::apps::v1::{StatefulSet, StatefulSetSpec},
@@ -247,6 +248,9 @@ pub(crate) fn build_stateful_set(
         resource_names.stateful_set_name().to_string(),
         role_group_name,
     )
+    // Opt into the restarter-controller: it rolls the StatefulSet's Pods when a mounted
+    // ConfigMap or Secret changes. See stackabletech/issues#816.
+    .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
     .build();
 
     Ok(StatefulSet {

@@ -45,7 +45,10 @@ use crate::{
         GRPC, HTTP,
         common::{self, SparkConnectRole, object_name},
         controller::{
-            build::{object_meta, recommended_labels_for_role_resources, role_selector},
+            build::{
+                object_meta, recommended_labels_for_role_resources,
+                recommended_labels_for_unversioned_role_resources, role_selector,
+            },
             validate::ValidatedSparkConnectServer,
         },
         crd::{
@@ -290,6 +293,11 @@ pub(crate) fn build_stateful_set(
         ));
     }
 
+    // Used for the listener PVC template, which cannot be modified once it is deployed. The
+    // version label is omitted so the labels stay stable across version upgrades.
+    let unversioned_recommended_labels =
+        recommended_labels_for_unversioned_role_resources(validated, &SparkConnectRole::Server);
+
     // Add listener volume
     // Listener endpoints for the Webserver role will use persistent volumes
     // so that load balancers can hard-code the target addresses. This will
@@ -298,7 +306,7 @@ pub(crate) fn build_stateful_set(
     let volume_claim_templates = Some(vec![
         ListenerOperatorVolumeSourceBuilder::new(
             &ListenerReference::ListenerName(listener_name.to_string()),
-            &recommended_labels,
+            &unversioned_recommended_labels,
         )
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
         .context(BuildListenerVolumeSnafu)?,

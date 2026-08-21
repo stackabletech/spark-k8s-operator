@@ -166,6 +166,25 @@ pub(crate) fn recommended_labels_for_role_resources(
     )
 }
 
+/// Recommended labels for role resources which cannot be mutated and should therefore not
+/// include the product version, like the listener PVC in the StatefulSet's
+/// `volumeClaimTemplates`.
+///
+/// Spark Connect has no role groups, so all role resources use these labels (without a role
+/// group label).
+pub(crate) fn recommended_labels_for_unversioned_role_resources(
+    server: &ValidatedSparkConnectServer,
+    role_name: &RoleName,
+) -> Labels {
+    Labels::from_iter([
+        label::label_app_kubernetes_io_instance(&server.name),
+        label::label_app_kubernetes_io_name(&PRODUCT_NAME),
+        label::label_app_kubernetes_io_component(role_name),
+        label::label_app_kubernetes_io_managed_by(&OPERATOR_NAME, &CONTROLLER_NAME),
+        label::label_stackable_tech_vendor(),
+    ])
+}
+
 /// Selector labels matching the pods of the given role.
 pub(crate) fn role_selector(server: &ValidatedSparkConnectServer, role_name: &RoleName) -> Labels {
     label::role_selector(&server.name, &PRODUCT_NAME, role_name)

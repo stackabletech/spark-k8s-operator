@@ -224,11 +224,28 @@ pub(crate) fn executor_properties(
     let config = &validated.executor_config;
     let resolved_product_image = &validated.resolved_product_image;
     let spark_image = resolved_product_image.image.clone();
+    let spark_version = resolved_product_image.product_version.clone();
 
     let mut result: BTreeMap<String, Option<String>> = [
         (
             "spark.kubernetes.executor.container.image".to_string(),
             Some(spark_image),
+        ),
+        // Must mirror `spark.driver.extraClassPath` on the server.
+        //
+        // Spark Connect jar is not in `/stackable/spark/jars`.
+        // Without it, the executors cannot deserialize the closures that Connect
+        // ships with every task that returns rows to a client, and any `count`, `collect` or
+        // `toPandas` fails with:
+        //
+        //   java.lang.ClassCastException: cannot assign instance of
+        //   java.lang.invoke.SerializedLambda to field
+        //   org.apache.spark.rdd.MapPartitionsRDD.f of type scala.Function3
+        (
+            "spark.executor.extraClassPath".to_string(),
+            Some(format!(
+                "/stackable/spark/extra-jars/*:/stackable/spark/connect/spark-connect-{spark_version}.jar"
+            )),
         ),
         (
             "spark.executor.defaultJavaOptions".to_string(),

@@ -8,7 +8,7 @@ use stackable_operator::{
         rbac::v1::RoleBinding,
     },
     kube::{
-        ResourceExt,
+        Resource, ResourceExt,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
@@ -89,6 +89,10 @@ pub async fn reconcile(
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
 
+    if spark_application.meta().deletion_timestamp.is_some() {
+        return Ok(Action::await_change());
+    }
+
     let spark_application = spark_application
         .0
         .as_ref()
@@ -141,5 +145,70 @@ pub fn error_policy(
     match error {
         Error::InvalidSparkApplication { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use stackable_operator::{
+        cli::OperatorEnvironmentOptions,
+        client::Client,
+        commons::networking::DomainName,
+        kube::{Client as KubeClient, Config},
+        utils::cluster_info::KubernetesClusterInfo,
+    };
+
+    use super::*;
+
+    /// The client points at a closed port, so any API call would fail the reconciliation: an `Ok`
+    /// proves that a cluster being deleted returns before the reconciler touches the Kubernetes
+    /// API, and because the spec is invalid, before the [`DeserializeGuard`] is unwrapped.
+    #[test]
+    fn reconcile_exits_early_for_deleted_cluster() {
+        let object = serde_yaml::from_str(
+            r#"
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-app
+  namespace: default
+  deletionTimestamp: "2026-08-14T12:00:00Z"
+spec: {}
+"#,
+        )
+        .expect("YAML parses; the invalid spec is captured inside the DeserializeGuard");
+
+        let action = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("current-thread tokio runtime")
+            .block_on(async {
+                let ctx = Arc::new(Ctx {
+                    client: Client::new(
+                        KubeClient::try_from(Config::new(
+                            "http://127.0.0.1:1".parse().expect("valid static URI"),
+                        ))
+                        .expect("client from static config"),
+                        None,
+                        "default".to_owned(),
+                        KubernetesClusterInfo {
+                            cluster_domain: DomainName::from_str("cluster.local")
+                                .expect("valid cluster domain"),
+                        },
+                    ),
+                    operator_environment: OperatorEnvironmentOptions {
+                        operator_namespace: "stackable-operators".to_owned(),
+                        operator_service_name: "spark-k8s-operator".to_owned(),
+                        image_repository: "oci.stackable.tech/sdp".to_owned(),
+                    },
+                });
+
+                reconcile(Arc::new(object), ctx).await
+            })
+            .expect("a deleted cluster reconciles without any API call");
+
+        assert_eq!(action, Action::await_change());
     }
 }

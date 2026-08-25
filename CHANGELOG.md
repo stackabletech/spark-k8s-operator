@@ -48,6 +48,9 @@ All notable changes to this project will be documented in this file.
   labels without the version label, so that the labels stay stable across upgrades.
   Existing connect and history-server StatefulSets must be deleted once before the new operator
   can reconcile them (connect server: [#750], history server: [#753]).
+- The history and connect controllers now watch all resources that they create, the missing RBAC
+  `watch` permissions were added, and all controllers early-exit the reconcile action when the object
+  is marked for deletion ([#757]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
@@ -58,6 +61,7 @@ All notable changes to this project will be documented in this file.
 [#750]: https://github.com/stackabletech/spark-k8s-operator/pull/750
 [#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
 [#754]: https://github.com/stackabletech/spark-k8s-operator/pull/754
+[#757]: https://github.com/stackabletech/spark-k8s-operator/pull/757
 
 ## [26.7.0] - 2026-07-21
 

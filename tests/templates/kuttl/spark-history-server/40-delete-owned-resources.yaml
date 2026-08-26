@@ -1,0 +1,60 @@
+---
+# Every resource the history controller applies carries an ownerReference and a `.owns()`
+# watch (main.rs): deleting it must trigger a reconcile of the SparkHistoryServer that
+# re-applies it, proving the `.owns()` routing and the ClusterRole `watch` verbs end
+# to end.
+#
+# Resources are discovered by label (ClusterResources::add enforces the labels on
+# everything the controller applies), so new resources and kinds are covered
+# automatically. Labels over-match on derived objects, so each match must also carry
+# a controller ownerReference pointing at the SparkHistoryServer; kinds that can never pass
+# that gate are excluded up front. Recreation is proven by UID change, and a floor
+# guard catches a selector that silently matches nothing.
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+metadata:
+  name: delete-owned-resources
+timeout: 300
+commands:
+  - script: |
+      set -eu
+
+      delete_and_await_recreation() {
+        resource=$1
+        old_uid=$(kubectl get -n "$NAMESPACE" "$resource" -o jsonpath='{.metadata.uid}')
+        kubectl delete -n "$NAMESPACE" "$resource" --wait=false
+        # Recreation is a single reconcile away, so this normally succeeds on the
+        # first iteration; 30s is a generous upper bound well below the step timeout.
+        for _ in $(seq 1 30); do
+          new_uid=$(kubectl get -n "$NAMESPACE" "$resource" -o jsonpath='{.metadata.uid}' 2>/dev/null || true)
+          if [ -n "$new_uid" ] && [ "$new_uid" != "$old_uid" ]; then
+            return 0
+          fi
+          sleep 1
+        done
+        echo "$resource was not recreated (old uid: $old_uid, current: '${new_uid:-}')" >&2
+        return 1
+      }
+
+      selector="app.kubernetes.io/instance=spark-history,app.kubernetes.io/managed-by=spark.stackable.tech_history"
+      excluded="^(pods|persistentvolumeclaims|endpoints|events|secrets)$|^endpointslices\.|^controllerrevisions\.|^events\."
+
+      deleted=0
+      for kind in $(kubectl api-resources --verbs=list --namespaced -o name | grep -Ev "$excluded" | sort); do
+        for resource in $(kubectl get -n "$NAMESPACE" "$kind" -l "$selector" -o name 2>/dev/null); do
+          owner=$(kubectl get -n "$NAMESPACE" "$resource" -o jsonpath='{.metadata.ownerReferences[?(@.controller==true)].kind}/{.metadata.ownerReferences[?(@.controller==true)].name}' 2>/dev/null || true)
+          if [ "$owner" != "SparkHistoryServer/spark-history" ]; then
+            echo "skipping $resource: controller owner is '${owner:-none}', not the SparkHistoryServer"
+            continue
+          fi
+          delete_and_await_recreation "$resource"
+          deleted=$((deleted + 1))
+        done
+      done
+
+      # Guard against the sweep silently matching nothing (wrong selector, renamed
+      # labels): the fixture is known to produce well over this many owned resources.
+      if [ "$deleted" -lt 5 ]; then
+        echo "only $deleted labelled resources were swept - the label selector is broken" >&2
+        exit 1
+      fi

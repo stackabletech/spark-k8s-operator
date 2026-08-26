@@ -26,47 +26,27 @@ rules:
       - get
       - list
       - watch
-  # ConfigMaps hold pod templates and Spark configuration. All three controllers apply
-  # them via Server-Side Apply (create + patch). The history and connect controllers
-  # track them for orphan cleanup (list + delete). All controllers watch ConfigMaps via
-  # .owns(ConfigMap) so that changes trigger re-reconciliation.
-  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
   - apiGroups:
       - ""
     resources:
+      # ConfigMaps hold pod templates and Spark configuration. All three controllers apply
+      # them via Server-Side Apply (create + patch). The history and connect controllers
+      # track them for orphan cleanup (list + delete). All controllers watch ConfigMaps via
+      # .owns(ConfigMap) so that changes trigger re-reconciliation.
+      # get is required for the ReconciliationPaused strategy in cluster_resources.add().
       - configmaps
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - watch
-  # Services expose Spark History Server and Spark Connect Server for metrics and
-  # inter-component communication. Applied via Server-Side Apply and tracked for orphan
-  # cleanup by the history and connect controllers. The history and connect controllers
-  # watch Services via .owns(Service) to trigger re-reconciliation on change.
-  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
-  - apiGroups:
-      - ""
-    resources:
-      - services
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - watch
-  # ServiceAccounts are created per SparkApplication (directly via client.apply_patch,
-  # referencing spark-k8s-clusterrole) and per SparkHistoryServer/SparkConnectServer
-  # (via cluster_resources.add). The history and connect controllers track them for
-  # orphan cleanup (list + delete) and watch them via .owns(ServiceAccount).
-  # get is required for the ReconciliationPaused strategy in cluster_resources.add().
-  - apiGroups:
-      - ""
-    resources:
+      # ServiceAccounts are created per SparkApplication (directly via client.apply_patch,
+      # referencing spark-k8s-clusterrole) and per SparkHistoryServer/SparkConnectServer
+      # (via cluster_resources.add). The history and connect controllers track them for
+      # orphan cleanup (list + delete) and watch them via .owns(ServiceAccount).
+      # get is required for the ReconciliationPaused strategy in cluster_resources.add().
       - serviceaccounts
+      # Services expose Spark History Server and Spark Connect Server for metrics and
+      # inter-component communication. Applied via Server-Side Apply and tracked for orphan
+      # cleanup by the history and connect controllers. The history and connect controllers
+      # watch Services via .owns(Service) to trigger re-reconciliation on change.
+      # get is required for the ReconciliationPaused strategy in cluster_resources.add().
+      - services
     verbs:
       - create
       - delete

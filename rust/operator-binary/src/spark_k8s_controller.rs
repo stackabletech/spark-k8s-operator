@@ -8,7 +8,7 @@ use stackable_operator::{
         rbac::v1::RoleBinding,
     },
     kube::{
-        ResourceExt,
+        Resource, ResourceExt,
         core::{DeserializeGuard, error_boundary},
         runtime::controller::Action,
     },
@@ -89,6 +89,10 @@ pub async fn reconcile(
 ) -> Result<Action> {
     tracing::info!("Starting reconcile");
 
+    if spark_application.meta().deletion_timestamp.is_some() {
+        return Ok(Action::await_change());
+    }
+
     let spark_application = spark_application
         .0
         .as_ref()
@@ -141,5 +145,31 @@ pub fn error_policy(
     match error {
         Error::InvalidSparkApplication { .. } => Action::await_change(),
         _ => Action::requeue(*Duration::from_secs(5)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use indoc::indoc;
+
+    use super::*;
+    use crate::test_support::assert_reconcile_exits_early;
+
+    /// A `SparkApplication` marked for deletion must be reconciled without any API call. The
+    /// invalid spec additionally pins the early return above the [`DeserializeGuard`] unwrap.
+    #[test]
+    fn reconcile_exits_early_for_deleted_cluster() {
+        assert_reconcile_exits_early(
+            indoc! {r#"
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: spark-app
+                  namespace: default
+                  deletionTimestamp: "2026-08-14T12:00:00Z"
+                spec: {}
+            "#},
+            reconcile,
+        );
     }
 }

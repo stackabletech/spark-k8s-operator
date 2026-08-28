@@ -30,18 +30,20 @@ jobs:
           - {name: "ubicloud-standard-8-arm", arch: "arm64"}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Build image
         id: build
-        uses: stackabletech/actions/build-container-image@013e6482fbc0edf2d38cf9220fc931f6a81336fb # v0.0.6
+        uses: stackabletech/actions/build-container-image@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-name: ${{ env.IMAGE_NAME }}
           image-index-manifest-tag: ${{ env.IMAGE_VERSION }}
           container-file: ${{ env.DOCKERFILE_PATH }}
 
       - name: Publish Container Image on oci.stackable.tech
-        uses: stackabletech/actions/publish-image@013e6482fbc0edf2d38cf9220fc931f6a81336fb # v0.0.6
+        uses: stackabletech/actions/publish-image@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$stackable+github-action-build
@@ -58,10 +60,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Publish and Sign Image Index Manifest to oci.stackable.tech
-        uses: stackabletech/actions/publish-index-manifest@013e6482fbc0edf2d38cf9220fc931f6a81336fb # v0.0.6
+        uses: stackabletech/actions/publish-image-index-manifest@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$stackable+github-action-build

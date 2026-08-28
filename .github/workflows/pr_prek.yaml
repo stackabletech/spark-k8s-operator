@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 0
-      - uses: stackabletech/actions/run-prek@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+      - uses: stackabletech/actions/run-prek@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           rust: ${{ env.RUST_TOOLCHAIN_VERSION }}
           hadolint: ${{ env.HADOLINT_VERSION }}

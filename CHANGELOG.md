@@ -48,9 +48,7 @@ All notable changes to this project will be documented in this file.
   labels without the version label, so that the labels stay stable across upgrades.
   Existing connect and history-server StatefulSets must be deleted once before the new operator
   can reconcile them (connect server: [#750], history server: [#753]).
-- Adds Spark-Connect `spark.executor.extraClassPath`, without which the Connect jar
-  and `/stackable/spark/extra-jars` were only on the driver and any query returning rows to a
-  client failed to deserialize its task ([#755]).
+- Previously the Spark Connect executors ran without `spark.executor.extraClassPath`, so the Connect jar and `/stackable/spark/extra-jars` were on the driver only and any query returning rows to a client failed to deserialize its tasks. Fixed by setting the property on the executor role to the same value as `spark.driver.extraClassPath` ([#755]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727

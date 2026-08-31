@@ -10,7 +10,7 @@ permissions: {}
 env:
   CARGO_TERM_COLOR: always
   NIX_PKG_MANAGER_VERSION: "2.33.3"
-  RUST_TOOLCHAIN_VERSION: "nightly-2026-07-01"
+  RUST_TOOLCHAIN_VERSION: "nightly-2026-08-23"
   HADOLINT_VERSION: "v2.14.0"
   JINJA2_CLI_VERSION: "1.0.0"
 
@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 0
-      - uses: stackabletech/actions/run-prek@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+      - uses: stackabletech/actions/run-prek@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           rust: ${{ env.RUST_TOOLCHAIN_VERSION }}
           hadolint: ${{ env.HADOLINT_VERSION }}

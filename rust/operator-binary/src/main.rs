@@ -11,10 +11,13 @@ use history::controller;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, OperatorEnvironmentOptions, RunArguments},
+    crd::listener,
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
-        core::v1::{ConfigMap, Pod, Service},
+        core::v1::{ConfigMap, Pod, Service, ServiceAccount},
+        policy::v1::PodDisruptionBudget,
+        rbac::v1::RoleBinding,
     },
     kube::{
         CustomResourceExt as _,
@@ -252,7 +255,19 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<listener::v1alpha1::Listener>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<PodDisruptionBudget>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<RoleBinding>>(&client),
                 watcher::Config::default(),
             )
             .owns(
@@ -260,7 +275,11 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ServiceAccount>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
                 watcher::Config::default(),
             )
             .graceful_shutdown_on(sigterm_watcher.handle())
@@ -317,7 +336,15 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<listener::v1alpha1::Listener>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<RoleBinding>>(&client),
                 watcher::Config::default(),
             )
             .owns(
@@ -325,7 +352,11 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ServiceAccount>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
                 watcher::Config::default(),
             )
             .graceful_shutdown_on(sigterm_watcher.handle())

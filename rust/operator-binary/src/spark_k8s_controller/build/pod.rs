@@ -35,6 +35,7 @@ use stackable_operator::{
 
 use crate::{
     crd::{
+        STACKABLE_PRE_HOOK,
         constants::*,
         roles::{RoleConfig, SparkApplicationRole, SparkContainer},
         tlscerts,
@@ -241,6 +242,19 @@ pub(crate) fn pod_template(
     let mut cb = new_container_builder(&SparkContainer::Spark.to_container_name());
 
     let mut env = env.clone();
+
+    let pre_hook = env
+        .get(&STACKABLE_PRE_HOOK)
+        .and_then(|env_var| env_var.value.clone())
+        .unwrap_or_default();
+    // SPARK_ENV_LOADED is set so that we keep the configOverrides from being overwritten
+    env = env.with_value(
+        &STACKABLE_PRE_HOOK,
+        format!(
+            "{pre_hook} . {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_ENV_SH_FILE_NAME}; export SPARK_ENV_LOADED=1"
+        ),
+    );
+
     if config.logging.enable_vector_agent {
         env = env.with_value(
             &STACKABLE_POST_HOOK,
@@ -256,7 +270,9 @@ pub(crate) fn pod_template(
     // variable.
     let merged_env = spark_application.merged_env(role.clone(), env);
 
-    cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
+    cb.add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
+        .context(AddVolumeMountSnafu)?
+        .add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env)
         .resources(config.resources.clone().into())

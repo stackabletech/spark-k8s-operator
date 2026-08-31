@@ -127,7 +127,7 @@ pub enum Error {
 // `_STACKABLE_PRE_HOOK` is evaluated by the entrypoint script (run-spark.sh) in the Spark images
 // before the actual JVM process is started; the operator uses it to run `containerdebug` in the
 // background of every `spark` container.
-constant!(STACKABLE_PRE_HOOK: EnvVarName = "_STACKABLE_PRE_HOOK");
+constant!(pub STACKABLE_PRE_HOOK: EnvVarName = "_STACKABLE_PRE_HOOK");
 constant!(PYTHONPATH: EnvVarName = "PYTHONPATH");
 // The environment variable holding the trust store password; its value is the
 // `STACKABLE_TLS_STORE_PASSWORD` string constant.

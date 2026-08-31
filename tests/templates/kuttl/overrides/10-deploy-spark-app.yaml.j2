@@ -53,7 +53,7 @@ spec:
       security.properties:
         test.job.securityProperties: test
       spark-env.sh:
-        TEST_JOB_SPARK-ENV-SH: TEST
+        TEST_JOB_SPARK_ENV_SH: TEST
     podOverrides:
       spec:
         serviceAccountName: override-sa
@@ -72,7 +72,7 @@ spec:
       security.properties:
         test.driver.securityProperties: test
       spark-env.sh:
-        TEST_DRIVER_SPARK-ENV-SH: TEST
+        TEST_DRIVER_SPARK_ENV_SH: TEST
     podOverrides:
       spec:
         serviceAccountName: override-sa
@@ -92,7 +92,7 @@ spec:
       security.properties:
         test.executor.securityProperties: test
       spark-env.sh:
-        TEST_EXECUTOR_SPARK-ENV-SH: TEST
+        TEST_EXECUTOR_SPARK_ENV_SH: TEST
     podOverrides:
       spec:
         serviceAccountName: override-sa

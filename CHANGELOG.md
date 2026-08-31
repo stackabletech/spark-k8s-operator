@@ -51,6 +51,8 @@ All notable changes to this project will be documented in this file.
 - The history and connect controllers now watch all resources that they create, the missing RBAC
   `watch` permissions were added, and all controllers early-exit the reconcile action when the object
   is marked for deletion ([#757]).
+- The `configOverrides` for `spark-env.sh` and `security.properties` of a SparkApplication now take
+  effect in the submit, driver and executor Pods ([#761]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
@@ -62,6 +64,7 @@ All notable changes to this project will be documented in this file.
 [#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
 [#754]: https://github.com/stackabletech/spark-k8s-operator/pull/754
 [#757]: https://github.com/stackabletech/spark-k8s-operator/pull/757
+[#761]: https://github.com/stackabletech/spark-k8s-operator/pull/761
 
 ## [26.7.0] - 2026-07-21
 

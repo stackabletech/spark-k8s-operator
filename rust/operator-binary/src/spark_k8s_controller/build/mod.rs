@@ -203,7 +203,20 @@ pub(crate) fn recommended_labels_for_component_resources(
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+    use stackable_operator::{
+        cli::OperatorEnvironmentOptions,
+        k8s_openapi::api::core::v1::{PodSpec, PodTemplateSpec},
+    };
+
     use super::*;
+    use crate::{
+        crd::{
+            constants::{POD_TEMPLATE_FILE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_PATH_CONFIG},
+            v1alpha1,
+        },
+        spark_k8s_controller::{dereference::DereferencedSparkApplication, validate::validate},
+    };
 
     #[test]
     fn test_constants() {
@@ -213,5 +226,162 @@ mod tests {
         let _ = *SPARK_JOB_COMPONENT_NAME;
         let _ = *SPARK_JOB_TEMPLATE_COMPONENT_NAME;
         let _ = *SPARK_SUBMIT_COMPONENT_NAME;
+    }
+
+    /// The Pod specs of the submit Job and of the driver and executor pod templates, each with the
+    /// name of the resource it was taken from.
+    fn pod_specs(enable_vector_agent: bool) -> Vec<(String, PodSpec)> {
+        let yaml = format!(
+            indoc! {r#"
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: spark-example
+                  namespace: default
+                  uid: 12345678-1234-1234-1234-123456789012
+                spec:
+                  mode: cluster
+                  mainApplicationFile: test.py
+                  sparkImage:
+                    productVersion: 1.2.3
+                  image: oci.example.org/jobs/spark-example:1.0.0
+                  vectorAggregatorConfigMapName: vector-aggregator-discovery
+                  deps:
+                    requirements:
+                      - tabulate==0.8.9
+                    packages:
+                      - org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.11.0
+                  driver:
+                    config:
+                      logging:
+                        enableVectorAgent: {enable_vector_agent}
+                  executor:
+                    config:
+                      logging:
+                        enableVectorAgent: {enable_vector_agent}
+            "#},
+            enable_vector_agent = enable_vector_agent,
+        );
+        let deserializer = serde_yaml::Deserializer::from_str(&yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test SparkApplication YAML");
+
+        let validated = validate(
+            DereferencedSparkApplication {
+                spark_application,
+                resolved_template_refs: Vec::new(),
+                s3_connection: None,
+                log_dir: None,
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+        .expect("the fixture validates");
+
+        let resources = build(&validated).expect("the resources can be built");
+
+        let mut pod_specs = vec![(
+            "spark-submit Job".to_string(),
+            resources.jobs[0]
+                .spec
+                .clone()
+                .expect("the Job has a spec")
+                .template
+                .spec
+                .expect("the Job has a pod spec"),
+        )];
+        for config_map in &resources.config_maps {
+            let Some(template) = config_map
+                .data
+                .as_ref()
+                .and_then(|data| data.get(POD_TEMPLATE_FILE))
+            else {
+                continue;
+            };
+            let template: PodTemplateSpec =
+                serde_yaml::from_str(template).expect("the pod template deserializes");
+            pod_specs.push((
+                config_map.metadata.name.clone().unwrap_or_default(),
+                template.spec.expect("the pod template has a spec"),
+            ));
+        }
+
+        assert_eq!(pod_specs.len(), 3);
+
+        let vector_containers = pod_specs
+            .iter()
+            .flat_map(|(_, pod_spec)| &pod_spec.containers)
+            .filter(|container| container.name == "vector")
+            .count();
+        assert_eq!(vector_containers, if enable_vector_agent { 2 } else { 0 });
+
+        pod_specs
+    }
+
+    /// Every Volume that the operator declares must be mounted by at least one container of that
+    /// Pod. A declared but unmounted Volume means that the configuration it carries silently never
+    /// reaches the product.
+    #[test]
+    fn every_declared_volume_is_mounted() {
+        for enable_vector_agent in [false, true] {
+            for (name, pod_spec) in pod_specs(enable_vector_agent) {
+                let PodSpec {
+                    containers,
+                    init_containers,
+                    volumes,
+                    ..
+                } = pod_spec;
+                let mounted: Vec<&str> = containers
+                    .iter()
+                    .chain(init_containers.iter().flatten())
+                    .flat_map(|container| container.volume_mounts.iter().flatten())
+                    .map(|volume_mount| volume_mount.name.as_str())
+                    .collect();
+                let unmounted: Vec<&str> = volumes
+                    .iter()
+                    .flatten()
+                    .map(|volume| volume.name.as_str())
+                    .filter(|volume_name| !mounted.contains(volume_name))
+                    .collect();
+
+                assert!(
+                    unmounted.is_empty(),
+                    "{name} declares volumes that no container mounts: {unmounted:?}"
+                );
+            }
+        }
+    }
+
+    /// Spark reads `spark-env.sh` and `security.properties` from the config directory, so the
+    /// ConfigMap holding the rendered `configOverrides` must be mounted there in the container
+    /// running Spark. The Vector sidecar also mounts this Volume, but only for its own
+    /// configuration file, which is why the invariant above alone does not cover this.
+    #[test]
+    fn spark_containers_mount_the_config_volume() {
+        for enable_vector_agent in [false, true] {
+            for (name, pod_spec) in pod_specs(enable_vector_agent) {
+                let spark_container = pod_spec
+                    .containers
+                    .iter()
+                    .find(|container| container.name == "spark" || container.name == "spark-submit")
+                    .unwrap_or_else(|| panic!("{name} has a Spark container"));
+                let mount_path = spark_container
+                    .volume_mounts
+                    .iter()
+                    .flatten()
+                    .find(|volume_mount| volume_mount.name == VOLUME_MOUNT_NAME_CONFIG.to_string())
+                    .map(|volume_mount| volume_mount.mount_path.as_str());
+
+                assert_eq!(
+                    mount_path,
+                    Some(VOLUME_MOUNT_PATH_CONFIG),
+                    "the Spark container of {name} must mount the config Volume at {VOLUME_MOUNT_PATH_CONFIG}"
+                );
+            }
+        }
     }
 }

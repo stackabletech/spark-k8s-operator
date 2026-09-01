@@ -10,7 +10,7 @@ use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
     builder::pod::volume::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
@@ -119,6 +119,12 @@ pub enum Error {
     ParseSparkEnvVarName {
         source: stackable_operator::v2::builder::pod::container::Error,
     },
+
+    #[snafu(display(
+        "invalid key [{key}] in the {SPARK_ENV_SH_FILE_NAME} configOverrides: the file is sourced \
+        by the shell, so keys must be valid shell identifiers matching [a-zA-Z_][a-zA-Z0-9_]*"
+    ))]
+    InvalidSparkEnvShKey { key: String },
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
@@ -1058,18 +1064,28 @@ fn resources_to_executor_props(
     Ok(())
 }
 
-/// Create the content of the file spark-env.sh.
-/// The properties are serialized in the form 'export {k}="{v}"',
-/// escaping neither the key nor the value. The user is responsible for
-/// providing escaped values.
-pub fn to_spark_env_sh_string<'a, T>(properties: T) -> String
+/// Create the content of the file spark-env.sh, serializing the properties as 'export {k}="{v}"'.
+/// The file is sourced by the shell, so keys that are not valid shell identifiers are rejected.
+/// Values are left unescaped on purpose, so that they can reference other variables.
+pub fn to_spark_env_sh_string<'a, T>(properties: T) -> Result<String, Error>
 where
     T: Iterator<Item = (&'a String, &'a String)>,
 {
     properties
-        .map(|(k, v)| format!("export {k}=\"{v}\""))
-        .collect::<Vec<String>>()
-        .join("\n")
+        .map(|(k, v)| {
+            ensure!(is_shell_identifier(k), InvalidSparkEnvShKeySnafu { key: k });
+            Ok(format!("export {k}=\"{v}\""))
+        })
+        .collect::<Result<Vec<String>, Error>>()
+        .map(|lines| lines.join("\n"))
+}
+
+fn is_shell_identifier(key: &str) -> bool {
+    let mut chars = key.chars();
+    chars
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|char| char.is_ascii_alphanumeric() || char == '_')
 }
 
 #[cfg(test)]
@@ -1097,6 +1113,49 @@ mod tests {
         let _ = *PYTHONPATH;
         let _ = *STACKABLE_PRE_HOOK;
         let _ = *STACKABLE_TLS_STORE_PASSWORD_ENV;
+    }
+
+    #[rstest]
+    #[case("SPARK_HISTORY_OPTS")]
+    #[case("_LEADING_UNDERSCORE")]
+    #[case("TRAILING_DIGITS_123")]
+    #[case("lowercase")]
+    fn to_spark_env_sh_string_accepts_shell_identifiers(#[case] key: &str) {
+        let overrides = BTreeMap::from([(key.to_string(), "value".to_string())]);
+
+        assert_eq!(
+            to_spark_env_sh_string(overrides.iter()).expect("the key is a valid shell identifier"),
+            format!("export {key}=\"value\"")
+        );
+    }
+
+    #[rstest]
+    #[case("TEST_SPARK-ENV-SH")]
+    #[case("1_LEADING_DIGIT")]
+    #[case("WITH SPACE")]
+    #[case("with.dot")]
+    #[case("")]
+    fn to_spark_env_sh_string_rejects_other_keys(#[case] key: &str) {
+        let overrides = BTreeMap::from([(key.to_string(), "value".to_string())]);
+
+        assert!(matches!(
+            to_spark_env_sh_string(overrides.iter()),
+            Err(Error::InvalidSparkEnvShKey { key: invalid }) if invalid == key
+        ));
+    }
+
+    /// Values are shell-evaluated by design, so references to other variables must survive.
+    #[test]
+    fn to_spark_env_sh_string_leaves_values_untouched() {
+        let overrides = BTreeMap::from([(
+            "SPARK_HISTORY_OPTS".to_string(),
+            "$SPARK_HISTORY_OPTS -Dsome.token=$SAS_TOKEN".to_string(),
+        )]);
+
+        assert_eq!(
+            to_spark_env_sh_string(overrides.iter()).expect("the key is a valid shell identifier"),
+            r#"export SPARK_HISTORY_OPTS="$SPARK_HISTORY_OPTS -Dsome.token=$SAS_TOKEN""#
+        );
     }
 
     #[test]

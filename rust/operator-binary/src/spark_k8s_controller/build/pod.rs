@@ -247,7 +247,7 @@ pub(crate) fn pod_template(
         .get(&STACKABLE_PRE_HOOK)
         .and_then(|env_var| env_var.value.clone())
         .unwrap_or_default();
-    // SPARK_ENV_LOADED is set so that we keep the configOverrides from being overwritten
+    // SPARK_ENV_LOADED keeps Spark from sourcing spark-env.sh again and overwriting the values.
     env = env.with_value(
         &STACKABLE_PRE_HOOK,
         format!(

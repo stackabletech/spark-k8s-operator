@@ -260,7 +260,7 @@ mod tests {
                       logging:
                         enableVectorAgent: {enable_vector_agent}
             "#},
-            enable_vector_agent = enable_vector_agent,
+            enable_vector_agent = enable_vector_agent
         );
         let deserializer = serde_yaml::Deserializer::from_str(&yaml);
         let spark_application: v1alpha1::SparkApplication =
@@ -322,9 +322,6 @@ mod tests {
         pod_specs
     }
 
-    /// Every Volume that the operator declares must be mounted by at least one container of that
-    /// Pod. A declared but unmounted Volume means that the configuration it carries silently never
-    /// reaches the product.
     #[test]
     fn every_declared_volume_is_mounted() {
         for enable_vector_agent in [false, true] {
@@ -356,10 +353,6 @@ mod tests {
         }
     }
 
-    /// Spark reads `spark-env.sh` and `security.properties` from the config directory, so the
-    /// ConfigMap holding the rendered `configOverrides` must be mounted there in the container
-    /// running Spark. The Vector sidecar also mounts this Volume, but only for its own
-    /// configuration file, which is why the invariant above alone does not cover this.
     #[test]
     fn spark_containers_mount_the_config_volume() {
         for enable_vector_agent in [false, true] {
@@ -373,7 +366,7 @@ mod tests {
                     .volume_mounts
                     .iter()
                     .flatten()
-                    .find(|volume_mount| volume_mount.name == VOLUME_MOUNT_NAME_CONFIG.to_string())
+                    .find(|volume_mount| volume_mount.name == VOLUME_MOUNT_NAME_CONFIG.as_ref())
                     .map(|volume_mount| volume_mount.mount_path.as_str());
 
                 assert_eq!(

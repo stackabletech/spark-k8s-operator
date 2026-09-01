@@ -39,7 +39,6 @@ spec:
     configOverrides:
       spark-env.sh:
         SPARK_PRINT_LAUNCH_COMMAND: "1"
-        TEST_SPARK_ENV_SH: submit
   driver:
     configOverrides:
       spark-env.sh:
@@ -51,9 +50,8 @@ spec:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
         containers:
           spark:
-            # A custom log configuration makes the log config Volume point at the ConfigMap above,
-            # which holds no `security.properties`. The JVM options must not look for that file
-            # there.
+            # A custom log configuration points the log config Volume at the ConfigMap above,
+            # which holds no `security.properties`.
             custom:
               configMap: config-overrides-log-config
       volumeMounts:

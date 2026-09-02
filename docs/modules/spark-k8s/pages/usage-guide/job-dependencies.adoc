@@ -63,6 +63,12 @@ spec:
 <1> Reference to your custom image..
 <2> Apache Spark version bundled in your custom image.
 
+`sparkImage.pullPolicy` governs every container that the operator selects an image for: the submit, driver and executor containers, the `job`, `requirements` and `tls` init containers, and the Spark Connect server and its executors.
+This includes the user-supplied `spec.image`, which the `job` init container runs.
+
+NOTE: Under a mutable image tag, `IfNotPresent` lets a node serve a stale cached image, so `Always` is the minimum for driver and executors to match the submit pod.
+It is not a guarantee, because each container resolves the tag when it starts: pin a digest or a unique tag in `sparkImage.custom` for that.
+
 === Dependency volumes
 
 With this method, the job dependencies are provisioned from a `PersistentVolume` as shown in this example:

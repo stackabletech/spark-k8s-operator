@@ -1,10 +1,14 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    str::FromStr,
+};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
     crd::s3::{self, v1alpha1::S3AccessStyle},
-    k8s_openapi::api::core::v1::{Volume, VolumeMount},
+    k8s_openapi::api::core::v1::{Container, Volume, VolumeMount},
+    v2::{builder::pod::container::new_container_builder, types::kubernetes::ContainerName},
 };
 
 use crate::{
@@ -16,6 +20,8 @@ use crate::{
         tlscerts,
     },
 };
+
+const TRUSTSTORE_INIT_CONTAINER_NAME: &str = "tls-truststore-init";
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -42,6 +48,11 @@ pub enum Error {
         source: s3::v1alpha1::ConnectionError,
     },
 
+    #[snafu(display("failed to add a volume mount to the truststore init container"))]
+    AddVolumeMount {
+        source: stackable_operator::builder::pod::container::Error,
+    },
+
     #[snafu(display("failed to get volumes and mounts for S3 connection"))]
     ConnectionVolumesAndMounts {
         source: s3::v1alpha1::ConnectionError,
@@ -61,6 +72,33 @@ impl ResolvedS3 {
         Self {
             s3_buckets: Vec::new(),
             s3_connection: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn tls_connection() -> Self {
+        use stackable_operator::commons::tls_verification::{
+            CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification,
+        };
+
+        Self {
+            s3_buckets: Vec::new(),
+            s3_connection: Some(s3::v1alpha1::ConnectionSpec {
+                host: "my-s3-endpoint.com".parse().expect("a valid host"),
+                port: None,
+                region: s3::v1alpha1::Region {
+                    name: "us-east-1".to_string(),
+                },
+                access_style: S3AccessStyle::Path,
+                credentials: None,
+                tls: TlsClientDetails {
+                    tls: Some(Tls {
+                        verification: TlsVerification::Server(TlsServerVerification {
+                            ca_cert: CaCert::SecretClass("tls-ca-secret-class".to_string()),
+                        }),
+                    }),
+                },
+            }),
         }
     }
 
@@ -269,25 +307,27 @@ impl ResolvedS3 {
 
     pub(crate) fn truststore_init_container(
         &self,
-        image: ResolvedProductImage,
-    ) -> Result<Option<stackable_operator::k8s_openapi::api::core::v1::Container>, Error> {
+        image: &ResolvedProductImage,
+    ) -> Result<Option<Container>, Error> {
         if let Some(command) = self.truststore_init_container_command() {
             let (_, volume_mounts) = self.volumes_and_mounts()?;
+            let name = ContainerName::from_str(TRUSTSTORE_INIT_CONTAINER_NAME)
+                .expect("TRUSTSTORE_INIT_CONTAINER_NAME is a valid container name");
+
             Ok(Some(
-                stackable_operator::k8s_openapi::api::core::v1::Container {
-                    name: "tls-truststore-init".to_string(),
-                    image: Some(image.image),
-                    command: Some(vec![
+                new_container_builder(&name)
+                    .image_from_product_image(image)
+                    .command(vec![
                         "/bin/bash".to_string(),
                         "-x".to_string(),
                         "-euo".to_string(),
                         "pipefail".to_string(),
                         "-c".to_string(),
                         command,
-                    ]),
-                    volume_mounts: Some(volume_mounts),
-                    ..Default::default()
-                },
+                    ])
+                    .add_volume_mounts(volume_mounts)
+                    .context(AddVolumeMountSnafu)?
+                    .build(),
             ))
         } else {
             Ok(None)

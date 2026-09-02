@@ -56,6 +56,12 @@ All notable changes to this project will be documented in this file.
   is marked for deletion ([#757]).
 - The `configOverrides` for `spark-env.sh` and `security.properties` of a SparkApplication now take
   effect in the submit, driver and executor Pods ([#761]).
+- BREAKING (behaviour): `sparkImage.pullPolicy` is no longer ignored by the driver and executor
+  containers, the Spark Connect executors and the truststore and `job` init containers, and it now
+  covers the user-supplied `spec.image` too. With the default `Always`, these containers pull on
+  every start instead of using the node's image cache. The operator also emits the policy as
+  `spark.kubernetes.container.image.pullPolicy`, which Spark previously left at its default when
+  rebuilding the containers from the pod templates ([#764]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
@@ -68,6 +74,7 @@ All notable changes to this project will be documented in this file.
 [#754]: https://github.com/stackabletech/spark-k8s-operator/pull/754
 [#757]: https://github.com/stackabletech/spark-k8s-operator/pull/757
 [#761]: https://github.com/stackabletech/spark-k8s-operator/pull/761
+[#764]: https://github.com/stackabletech/spark-k8s-operator/pull/764
 [#766]: https://github.com/stackabletech/spark-k8s-operator/pull/766
 
 ## [26.7.0] - 2026-07-21

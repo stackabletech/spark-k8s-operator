@@ -222,6 +222,14 @@ pub(crate) mod test_support {
             productVersion: 4.1.2
         "#};
 
+    pub const PULL_POLICY_NEVER: &str = "Never";
+
+    /// [`CONNECT_YAML`] with an explicit `pullPolicy`, appended to the `spec.image` block that
+    /// [`CONNECT_YAML`] ends with.
+    fn connect_yaml_with_pull_policy(pull_policy: &str) -> String {
+        format!("{CONNECT_YAML}    pullPolicy: {pull_policy}\n")
+    }
+
     /// Runs the real validate step against the minimal fixture.
     pub fn minimal_validated_cluster() -> ValidatedSparkConnectServer {
         let scs: v1alpha1::SparkConnectServer = yaml_from_str_singleton_map(CONNECT_YAML)
@@ -230,6 +238,24 @@ pub(crate) mod test_support {
             &scs,
             DereferencedSparkConnectServer {
                 resolved_s3: ResolvedS3::none(),
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+        .expect("validate should succeed for the test fixture")
+    }
+
+    pub fn validated_cluster_with_s3_tls() -> ValidatedSparkConnectServer {
+        let scs: v1alpha1::SparkConnectServer =
+            yaml_from_str_singleton_map(&connect_yaml_with_pull_policy(PULL_POLICY_NEVER))
+                .expect("invalid test SparkConnectServer YAML");
+        validate(
+            &scs,
+            DereferencedSparkConnectServer {
+                resolved_s3: ResolvedS3::tls_connection(),
             },
             &OperatorEnvironmentOptions {
                 operator_namespace: "stackable-operators".to_string(),

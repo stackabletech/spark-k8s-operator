@@ -7,7 +7,7 @@ kind: ClusterRole
 metadata:
   name: spark-history-clusterrole
   labels:
-  {{- include "operator.labels" . | nindent 4 }}
+  {{- include "spark-k8s-operator.labels" . | nindent 4 }}
 rules:
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:

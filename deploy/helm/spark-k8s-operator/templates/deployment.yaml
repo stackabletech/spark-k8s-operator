@@ -2,20 +2,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "operator.fullname" . }}-deployment
+  name: {{ include "spark-k8s-operator.fullname" . }}-deployment
   labels:
-    {{- include "operator.labels" . | nindent 4 }}
+    {{- include "spark-k8s-operator.labels" . | nindent 4 }}
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "operator.selectorLabels" . | nindent 6 }}
+      {{- include "spark-k8s-operator.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
-        internal.stackable.tech/image: {{ include "operator.image" . }}
+        internal.stackable.tech/image: {{ include "spark-k8s-operator.image" . }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -23,20 +23,20 @@ spec:
         {{- if .Values.maintenance.customResourceDefinitions.maintain }}
         webhook.stackable.tech/conversion: enabled
         {{- end }}
-        {{- include "operator.selectorLabels" . | nindent 8 }}
+        {{- include "spark-k8s-operator.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.image.pullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "operator.serviceAccountName" . }}
+      serviceAccountName: {{ include "spark-k8s-operator.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: {{ include "operator.appname" . }}
+        - name: {{ include "spark-k8s-operator.appname" . }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: {{ include "operator.image" . }}
+          image: {{ include "spark-k8s-operator.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -64,7 +64,7 @@ spec:
             # The name of the Kubernetes Service that point to the operator Pod, e.g. used to
             # construct the conversion webhook endpoint.
             - name: OPERATOR_SERVICE_NAME
-              value: {{ include "operator.fullname" . }}
+              value: {{ include "spark-k8s-operator.fullname" . }}
 
             # The product image repository, like "oci.stackable.tech/sdp".
             - name: IMAGE_REPOSITORY
@@ -82,8 +82,8 @@ spec:
               value: {{ .Values.kubernetesClusterDomain | quote }}
             {{- end }}
 
-            {{- include "telemetry.envVars" . | nindent 12 }}
-            {{- include "maintenance.envVars" . | nindent 12 }}
+            {{- include "spark-k8s-operator.telemetry.envVars" . | nindent 12 }}
+            {{- include "spark-k8s-operator.maintenance.envVars" . | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

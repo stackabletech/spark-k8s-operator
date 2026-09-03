@@ -7,7 +7,7 @@ kind: ClusterRole
 metadata:
   name: spark-connect-clusterrole
   labels:
-  {{- include "operator.labels" . | nindent 4 }}
+  {{- include "spark-k8s-operator.labels" . | nindent 4 }}
 rules:
   # The Spark Connect Server manages executor pods and their supporting resources at runtime.
   - apiGroups:

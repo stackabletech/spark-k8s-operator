@@ -148,7 +148,7 @@ pub fn executor_pod_template(
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.
     if let Some(truststore_init_container) = resolved_s3
-        .truststore_init_container(resolved_product_image.clone())
+        .truststore_init_container(resolved_product_image)
         .context(TrustStoreInitContainerSnafu)?
     {
         template.add_init_container(truststore_init_container);
@@ -229,6 +229,10 @@ pub(crate) fn executor_properties(
         (
             "spark.kubernetes.executor.container.image".to_string(),
             Some(spark_image),
+        ),
+        (
+            "spark.kubernetes.container.image.pullPolicy".to_string(),
+            Some(resolved_product_image.image_pull_policy.clone()),
         ),
         (
             "spark.executor.defaultJavaOptions".to_string(),
@@ -371,7 +375,45 @@ mod tests {
     };
 
     use super::*;
-    use crate::connect::controller::build::test_support::minimal_validated_cluster;
+    use crate::connect::controller::build::test_support::{
+        PULL_POLICY_NEVER, minimal_validated_cluster, validated_cluster_with_s3_tls,
+    };
+
+    #[test]
+    fn image_pull_policy_is_set_on_every_container_spark_does_not_rebuild() {
+        let validated = validated_cluster_with_s3_tls();
+        let config_map = ConfigMap {
+            metadata: ObjectMeta {
+                name: Some("my-connect-executor".to_string()),
+                ..ObjectMeta::default()
+            },
+            ..ConfigMap::default()
+        };
+
+        let pod_spec = executor_pod_template(&validated, &config_map)
+            .expect("the executor pod template can be built")
+            .spec
+            .expect("the executor pod template has a spec");
+
+        let policies: Vec<(&str, Option<&str>)> = pod_spec
+            .init_containers
+            .iter()
+            .flatten()
+            .chain(pod_spec.containers.iter())
+            .filter(|container| container.name != SparkConnectContainer::Spark.to_string())
+            .map(|container| {
+                (
+                    container.name.as_str(),
+                    container.image_pull_policy.as_deref(),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            vec![("tls-truststore-init", Some(PULL_POLICY_NEVER))],
+            policies
+        );
+    }
 
     /// `envOverrides` must be applied after all operator-set environment variables, so a user
     /// override replaces the operator-set value instead of duplicating it or being ignored.

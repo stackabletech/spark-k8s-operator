@@ -17,7 +17,7 @@ use stackable_operator::{
         VolumeBuilder,
     },
     commons::{
-        product_image_selection::ProductImage,
+        product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{CpuLimits, MemoryLimits, Resources},
         secret_class::SecretClassVolumeProvisionParts,
     },
@@ -581,7 +581,7 @@ impl v1alpha1::SparkApplication {
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
-        spark_image: &str,
+        spark_image: &ResolvedProductImage,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = &self.spec.mode;
@@ -631,11 +631,11 @@ impl v1alpha1::SparkApplication {
             ),
             format!(
                 "--conf spark.kubernetes.driver.container.image={}",
-                spark_image.to_string()
+                spark_image.image
             ),
             format!(
                 "--conf spark.kubernetes.executor.container.image={}",
-                spark_image.to_string()
+                spark_image.image
             ),
             format!(
                 "--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
@@ -721,6 +721,11 @@ impl v1alpha1::SparkApplication {
         submit_conf.insert(
             "spark.kubernetes.memoryOverheadFactor".to_string(),
             "0.0".to_string(),
+        );
+
+        submit_conf.insert(
+            "spark.kubernetes.container.image.pullPolicy".to_string(),
+            spark_image.image_pull_policy.clone(),
         );
 
         resources_to_driver_props(
@@ -1597,6 +1602,65 @@ spec:
         ];
 
         assert_eq!(got, expected);
+    }
+
+    #[rstest]
+    #[case::from_spark_image(None, "IfNotPresent")]
+    #[case::spark_conf_wins(Some("Never"), "Never")]
+    fn spark_image_pull_policy_is_passed_to_spark_submit(
+        #[case] spark_conf_override: Option<&str>,
+        #[case] expected: &str,
+    ) {
+        let spark_conf = spark_conf_override
+            .map(|policy| {
+                format!("\n  sparkConf:\n    spark.kubernetes.container.image.pullPolicy: {policy}")
+            })
+            .unwrap_or_default();
+        let yaml = format!(
+            indoc! {r#"
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: spark-example
+                  namespace: default
+                spec:
+                  mode: cluster
+                  mainApplicationFile: test.py
+                  sparkImage:
+                    productVersion: 1.2.3
+                    pullPolicy: IfNotPresent{spark_conf}
+            "#},
+            spark_conf = spark_conf
+        );
+        let deserializer = serde_yaml::Deserializer::from_str(&yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test SparkApplication YAML");
+
+        let resolved_product_image = spark_application
+            .spec
+            .spark_image
+            .resolve("spark-k8s", "oci.example.org/sdp", "0.0.0-dev")
+            .expect("the product image resolves");
+
+        let command = spark_application
+            .build_command(&None, &None, &resolved_product_image)
+            .expect("the submit command can be built")
+            .join(" ");
+
+        let occurrences = command
+            .matches("spark.kubernetes.container.image.pullPolicy=")
+            .count();
+        assert_eq!(
+            1, occurrences,
+            "the property must be passed exactly once, so that it is unambiguous"
+        );
+        assert!(
+            command.contains(&format!(
+                r#"--conf "spark.kubernetes.container.image.pullPolicy={expected}""#
+            )),
+            "expected pull policy {expected} in: {command}"
+        );
     }
 
     impl RoundtripTestData for v1alpha1::SparkApplicationSpec {

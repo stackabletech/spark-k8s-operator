@@ -2,9 +2,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "operator.fullname" . }}-clusterrole
+  name: {{ include "spark-k8s-operator.fullname" . }}-clusterrole
   labels:
-  {{- include "operator.labels" . | nindent 4 }}
+  {{- include "spark-k8s-operator.labels" . | nindent 4 }}
 rules:
   # For automatic cluster domain detection.
   - apiGroups:
@@ -79,7 +79,7 @@ rules:
     verbs:
       - bind
     resourceNames:
-      - {{ include "operator.name" . }}-clusterrole
+      - {{ include "spark-k8s-operator.name" . }}-clusterrole
       - spark-history-clusterrole
       - spark-connect-clusterrole
   # StatefulSets run the Spark History Server and Spark Connect Server. Applied via

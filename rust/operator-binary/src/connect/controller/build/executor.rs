@@ -230,6 +230,13 @@ pub(crate) fn executor_properties(
             "spark.kubernetes.executor.container.image".to_string(),
             Some(spark_image),
         ),
+        // Must be the same value as `spark.driver.extraClassPath`, see `common::extra_class_path`.
+        (
+            "spark.executor.extraClassPath".to_string(),
+            Some(common::extra_class_path(
+                &resolved_product_image.product_version,
+            )),
+        ),
         (
             "spark.executor.defaultJavaOptions".to_string(),
             Some(executor_jvm_args(

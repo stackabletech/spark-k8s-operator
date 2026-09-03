@@ -395,7 +395,6 @@ pub(crate) fn server_properties(
     let config = &validated.server_config;
     let resolved_product_image = &validated.resolved_product_image;
     let spark_image = resolved_product_image.image.clone();
-    let spark_version = resolved_product_image.product_version.clone();
     let service_account_name = validated.cluster_resource_names().service_account_name();
     let namespace = driver_service
         .namespace()
@@ -435,9 +434,12 @@ pub(crate) fn server_properties(
                 config,
             )),
         ),
+        // Must be the same value as `spark.executor.extraClassPath`, see `common::extra_class_path`.
         (
             "spark.driver.extraClassPath".to_string(),
-            Some(format!("/stackable/spark/extra-jars/*:/stackable/spark/connect/spark-connect-{spark_version}.jar")),
+            Some(common::extra_class_path(
+                &resolved_product_image.product_version,
+            )),
         ),
         (
             "spark.metrics.conf".to_string(),

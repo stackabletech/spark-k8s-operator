@@ -17,8 +17,13 @@ commands:
       capture=$(mktemp -d)
       driver=$(kubectl -n "$NAMESPACE" get pods -o name \
         -l "spark-role=driver,app.kubernetes.io/instance=$app" | head -1 | cut -d/ -f2)
-      executors=$(kubectl -n "$NAMESPACE" get pods -o name \
-        -l "spark-role=executor,app.kubernetes.io/instance=$app" | cut -d/ -f2)
+      # Terminating Pods are still listed by `kubectl get pods`, so an executor left over from
+      # step 11 would be waited on for a shutdown it has already performed and can never log
+      # again. Only executors that are alive can still be asked to stop.
+      executors=$(kubectl -n "$NAMESPACE" get pods -l "spark-role=executor,app.kubernetes.io/instance=$app" -o json \
+        | jq -r '.items[]
+                 | select(.metadata.deletionTimestamp == null and .status.phase == "Running")
+                 | .metadata.name')
 
       # Without these the loop below has nothing to wait for and would report success while having
       # checked nothing at all.
@@ -26,8 +31,11 @@ commands:
         echo "FAIL: no driver Pod found for $app"
         exit 1
       fi
-      if [ -z "$executors" ]; then
-        echo "FAIL: no executor Pods found for $app, so no shutdown can be propagated to any"
+      running=$(printf '%s\n' "$executors" | grep -c . || true)
+      if [ "$running" -ne 2 ]; then
+        echo "FAIL: expected 2 running executor Pods for $app, found $running, so no shutdown can"
+        echo "be propagated to the replicas the application asked for"
+        kubectl -n "$NAMESPACE" get pods -l "spark-role=executor,app.kubernetes.io/instance=$app"
         exit 1
       fi
 

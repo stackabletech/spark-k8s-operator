@@ -5,15 +5,46 @@ timeout: 900
 commands:
   # Both executors have to be registered and working: an executor that is still registering is
   # not in the driver's list yet and would never be asked to shut down.
-  - script: |
+  #
+  # Pods that are terminating are still listed by `kubectl get pods` and keep the log lines below
+  # for as long as they linger, so they would satisfy this check without being able to do any
+  # work. Only executors that are alive are counted.
+  #
+  # The polling happens here and not by letting kuttl retry the assert, because kuttl reprints the
+  # whole script on every attempt and would bury the rest of the test log.
+  - timeout: 900
+    script: |
       set -eu
 
-      registered=0
-      for pod in $(kubectl -n "$NAMESPACE" get pods -o name \
-        -l spark-role=executor,app.kubernetes.io/instance=graceful-shutdown | cut -d/ -f2); do
-        log=$(kubectl -n "$NAMESPACE" logs --tail=-1 "$pod" -c spark)
-        echo "$log" | grep -q 'Successfully registered with driver'
-        echo "$log" | grep -q 'Running task'
-        registered=$(( registered + 1 ))
+      selector="spark-role=executor,app.kubernetes.io/instance=graceful-shutdown"
+      budget_seconds=870
+      poll_seconds=5
+
+      start=$(date +%s)
+      while :; do
+        registered=0
+        for pod in $(kubectl -n "$NAMESPACE" get pods -l "$selector" -o json \
+          | jq -r '.items[]
+                   | select(.metadata.deletionTimestamp == null and .status.phase == "Running")
+                   | .metadata.name'); do
+          # The Pod can disappear between the listing and the read, which is not a failure.
+          log=$(kubectl -n "$NAMESPACE" logs --tail=-1 "$pod" -c spark 2>/dev/null || true)
+          echo "$log" | grep -q 'Successfully registered with driver' || continue
+          echo "$log" | grep -q 'Running task' || continue
+          registered=$(( registered + 1 ))
+        done
+
+        if [ "$registered" -eq 2 ]; then
+          echo "OK: 2 executors are registered with the driver and running a task"
+          exit 0
+        fi
+
+        if [ $(( $(date +%s) - start )) -ge "$budget_seconds" ]; then
+          echo "FAIL: ${budget_seconds}s elapsed with $registered of 2 executors registered and"
+          echo "running a task, so the driver's list is not what the rest of the test assumes"
+          kubectl -n "$NAMESPACE" get pods -l "$selector"
+          exit 1
+        fi
+
+        sleep "$poll_seconds"
       done
-      test "$registered" -eq 2

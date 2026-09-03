@@ -74,6 +74,9 @@ NOTE: The given properties are written to `spark-env.sh` in the form `export KEY
 Make sure to escape the value already in the specification.
 Be aware that some environment variables may already be set, so prepend or append a reference to them in the value, as it is done in the example.
 
+IMPORTANT: Because the file is sourced by the shell, keys must be valid shell identifiers, matching `[a-zA-Z_][a-zA-Z0-9_]*`.
+A key such as `MY-VAR` is rejected, because `export MY-VAR="..."` is not something the shell can execute.
+
 === The security.properties file
 
 The `security.properties` file is used to configure JVM security properties.

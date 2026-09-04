@@ -65,7 +65,8 @@
   "restartPolicy": "Never",
   "schedulerName": "default-scheduler",
   "securityContext": {
-    "fsGroup": 1000
+    "fsGroup": 1000,
+    "runAsNonRoot": true
   },
   "serviceAccount": "pyspark-pi",
   "serviceAccountName": "pyspark-pi",

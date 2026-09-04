@@ -15,11 +15,15 @@ commands:
 
       start=$(date +%s)
       while :; do
+        executors=$(
+          kubectl -n "$NAMESPACE" get pods -l "$selector" -o json | jq -r '
+            .items[]
+            | select(.metadata.deletionTimestamp == null and .status.phase == "Running")
+            | .metadata.name'
+        )
+
         registered=0
-        for pod in $(kubectl -n "$NAMESPACE" get pods -l "$selector" -o json \
-          | jq -r '.items[]
-                   | select(.metadata.deletionTimestamp == null and .status.phase == "Running")
-                   | .metadata.name'); do
+        for pod in $executors; do
           # The Pod can disappear between the listing and the read, which is not a failure.
           logs=$(kubectl -n "$NAMESPACE" logs --tail=-1 "$pod" -c spark 2>/dev/null || true)
           echo "$logs" | grep -q 'Successfully registered with driver' || continue

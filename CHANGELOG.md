@@ -33,6 +33,7 @@ All notable changes to this project will be documented in this file.
   whereas previously the operator's values always took precedence ([#753]).
 - BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
   identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
+- Make operations infallible where appropriate ([#766]).
 
 ### Fixed
 
@@ -67,6 +68,7 @@ All notable changes to this project will be documented in this file.
 [#754]: https://github.com/stackabletech/spark-k8s-operator/pull/754
 [#757]: https://github.com/stackabletech/spark-k8s-operator/pull/757
 [#761]: https://github.com/stackabletech/spark-k8s-operator/pull/761
+[#766]: https://github.com/stackabletech/spark-k8s-operator/pull/766
 
 ## [26.7.0] - 2026-07-21
 

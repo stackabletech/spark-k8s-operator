@@ -5,9 +5,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "operator.name" . }}-clusterrole
+  name: {{ include "spark-k8s-operator.name" . }}-clusterrole
   labels:
-  {{- include "operator.labels" . | nindent 4 }}
+  {{- include "spark-k8s-operator.labels" . | nindent 4 }}
 rules:
   # The Spark driver manages executor pods and their supporting resources at runtime.
   - apiGroups:

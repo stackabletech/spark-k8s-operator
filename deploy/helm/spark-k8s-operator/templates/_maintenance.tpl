@@ -1,7 +1,7 @@
 {{/*
 Create a list of maintenance related env vars.
 */}}
-{{- define "maintenance.envVars" -}}
+{{- define "spark-k8s-operator.maintenance.envVars" -}}
 {{- with .Values.maintenance }}
 {{- if not .endOfSupportCheck.enabled }}
 - name: EOS_DISABLED

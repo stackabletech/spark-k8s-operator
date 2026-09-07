@@ -30,7 +30,7 @@ data:
     networkaddress.cache.negative.ttl=0
     networkaddress.cache.ttl=30
     test.job.securityProperties=test
-  spark-env.sh: export TEST_JOB_SPARK-ENV-SH="TEST"
+  spark-env.sh: export TEST_JOB_SPARK_ENV_SH="TEST"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -41,7 +41,7 @@ data:
     networkaddress.cache.negative.ttl=0
     networkaddress.cache.ttl=30
     test.driver.securityProperties=test
-  spark-env.sh: export TEST_DRIVER_SPARK-ENV-SH="TEST"
+  spark-env.sh: export TEST_DRIVER_SPARK_ENV_SH="TEST"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -52,4 +52,4 @@ data:
     networkaddress.cache.negative.ttl=0
     networkaddress.cache.ttl=30
     test.executor.securityProperties=test
-  spark-env.sh: export TEST_EXECUTOR_SPARK-ENV-SH="TEST"
+  spark-env.sh: export TEST_EXECUTOR_SPARK_ENV_SH="TEST"

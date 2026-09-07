@@ -31,6 +31,8 @@ All notable changes to this project will be documented in this file.
 - Environment variable overrides (`envOverrides`) are now applied after all environment variables
   set by the operator. In particular, `SPARK_CONF_DIR` of a SparkApplication can now be overridden,
   whereas previously the operator's values always took precedence ([#753]).
+- BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
+  identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
 
 ### Fixed
 
@@ -51,6 +53,8 @@ All notable changes to this project will be documented in this file.
 - The history and connect controllers now watch all resources that they create, the missing RBAC
   `watch` permissions were added, and all controllers early-exit the reconcile action when the object
   is marked for deletion ([#757]).
+- The `configOverrides` for `spark-env.sh` and `security.properties` of a SparkApplication now take
+  effect in the submit, driver and executor Pods ([#761]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
@@ -62,6 +66,7 @@ All notable changes to this project will be documented in this file.
 [#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
 [#754]: https://github.com/stackabletech/spark-k8s-operator/pull/754
 [#757]: https://github.com/stackabletech/spark-k8s-operator/pull/757
+[#761]: https://github.com/stackabletech/spark-k8s-operator/pull/761
 
 ## [26.7.0] - 2026-07-21
 

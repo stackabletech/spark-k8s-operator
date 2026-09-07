@@ -35,6 +35,7 @@ use stackable_operator::{
 
 use crate::{
     crd::{
+        STACKABLE_PRE_HOOK,
         constants::*,
         roles::{RoleConfig, SparkApplicationRole, SparkContainer},
         tlscerts,
@@ -225,6 +226,16 @@ fn init_containers(
         .collect())
 }
 
+/// Ensure that hook and command are put together without breaking the hook.
+fn append_to_hook(hook: &str, command: &str) -> String {
+    let hook = hook.trim_end();
+    match hook.chars().last() {
+        None => command.to_owned(),
+        Some('&' | ';') => format!("{hook} {command}"),
+        Some(_) => format!("{hook}; {command}"),
+    }
+}
+
 pub(crate) fn pod_template(
     validated: &validate::ValidatedSparkApplication,
     role: SparkApplicationRole,
@@ -241,6 +252,22 @@ pub(crate) fn pod_template(
     let mut cb = new_container_builder(&SparkContainer::Spark.to_container_name());
 
     let mut env = env.clone();
+
+    let pre_hook = env
+        .get(&STACKABLE_PRE_HOOK)
+        .and_then(|env_var| env_var.value.clone())
+        .unwrap_or_default();
+    // SPARK_ENV_LOADED keeps Spark from sourcing spark-env.sh again and overwriting the values.
+    env = env.with_value(
+        &STACKABLE_PRE_HOOK,
+        append_to_hook(
+            &pre_hook,
+            &format!(
+                ". {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_ENV_SH_FILE_NAME}; export SPARK_ENV_LOADED=1"
+            ),
+        ),
+    );
+
     if config.logging.enable_vector_agent {
         env = env.with_value(
             &STACKABLE_POST_HOOK,
@@ -256,7 +283,9 @@ pub(crate) fn pod_template(
     // variable.
     let merged_env = spark_application.merged_env(role.clone(), env);
 
-    cb.add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
+    cb.add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
+        .context(AddVolumeMountSnafu)?
+        .add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env)
         .resources(config.resources.clone().into())
@@ -359,6 +388,7 @@ pub(crate) fn security_context() -> PodSecurityContext {
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
+    use rstest::rstest;
     use stackable_operator::{
         cli::OperatorEnvironmentOptions,
         k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
@@ -374,6 +404,16 @@ mod tests {
     fn test_constants() {
         // Test that dereferencing the constants does not panic.
         let _ = *STACKABLE_POST_HOOK;
+    }
+
+    #[rstest]
+    #[case("containerdebug --loop &", "containerdebug --loop & . spark-env.sh")]
+    #[case("containerdebug --loop & ", "containerdebug --loop & . spark-env.sh")]
+    #[case("fetch-truststore", "fetch-truststore; . spark-env.sh")]
+    #[case("fetch-truststore;", "fetch-truststore; . spark-env.sh")]
+    #[case("", ". spark-env.sh")]
+    fn append_to_hook_separates_commands(#[case] hook: &str, #[case] expected: &str) {
+        assert_eq!(append_to_hook(hook, ". spark-env.sh"), expected)
     }
 
     /// `envOverrides` must be applied after all operator-set environment variables, so a user

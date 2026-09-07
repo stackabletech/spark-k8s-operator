@@ -64,11 +64,11 @@ pub(crate) fn spark_job(
     let mut cb = new_container_builder(&SparkContainer::SparkSubmit.to_container_name());
 
     // The SPARK_SUBMIT_OPTS env var is used to configure the JVM settings of the spark-submit job.
-    // Here we need to point the JVM to our logging configuration and if S3 is used for data or Spark History,
-    // we also need to tell the JVM where the trust store is located.
-    // The same properties are also set for the driver and executor pods via the pod template config maps.
+    // Here we need to point the JVM to the security properties and if S3 is used for data or Spark
+    // History, we also need to tell the JVM where the trust store is located. The same properties
+    // are set for driver and executor via `spark.{driver,executor}.extraJavaOptions`.
     let mut spark_submit_opts_env = vec![format!(
-        "-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
+        "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
     )];
     if tlscerts::tls_secret_names(s3conn, logdir).is_some() {
         spark_submit_opts_env.push(format!(
@@ -86,7 +86,7 @@ pub(crate) fn spark_job(
         env.clone()
             .with_value(&SPARK_SUBMIT_OPTS, spark_submit_opts_env.join(" "))
             // TODO: move this to the image
-            .with_value(&SPARK_CONF_DIR, "/stackable/spark/conf"),
+            .with_value(&SPARK_CONF_DIR, VOLUME_MOUNT_PATH_CONFIG),
     );
 
     cb.image_from_product_image(spark_image)
@@ -99,6 +99,8 @@ pub(crate) fn spark_job(
         ])
         .args(vec![job_commands.join("\n")])
         .resources(job_config.resources.clone().into())
+        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
+        .context(AddVolumeMountSnafu)?
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, logdir))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env);

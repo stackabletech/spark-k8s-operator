@@ -74,6 +74,11 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Builds the job, requirements and TLS init containers, each only if the SparkApplication needs it.
+///
+/// # Panics
+///
+/// Panics if two of the volume mounts added here share a mount path but differ otherwise.
 fn init_containers(
     validated: &validate::ValidatedSparkApplication,
     logging: &Logging<SparkContainer>,

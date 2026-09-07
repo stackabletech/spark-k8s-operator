@@ -63,12 +63,6 @@ pub enum Error {
     #[snafu(display("executor metrics properties for spark connect {name}",))]
     MetricsProperties { source: common::Error, name: String },
 
-    #[snafu(display("failed to build connect executor config map [{cm_name}]"))]
-    InvalidConfigMap {
-        source: builder::configmap::Error,
-        cm_name: String,
-    },
-
     #[snafu(display("failed to build S3 volumes and mounts for executors"))]
     BuildS3VolumesAndMounts { source: s3::Error },
 
@@ -103,11 +97,9 @@ pub fn executor_pod_template(
     container
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mounts(s3_volume_mounts)
-        .context(AddVolumeMountSnafu)?;
+        .expect("The mount paths are statically defined and there should be no duplicates.");
 
     let metadata = ObjectMetaBuilder::new()
         .with_labels(recommended_labels_for_role_resources(
@@ -129,15 +121,13 @@ pub fn executor_pod_template(
                 )
                 .build(),
         )
-        .context(AddVolumeSnafu)?
+        .expect("The volume names are statically defined and there should be no duplicates.")
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
                 .with_config_map(config_map.name_unchecked())
                 .build(),
         )
-        .context(AddVolumeSnafu)?
-        .add_volumes(s3_volumes)
-        .context(AddVolumeSnafu)?
+        .expect("The volume names are statically defined and there should be no duplicates.")
         // This is needed for shared enpryDir volumes with other containers like the truststore
         // init container.
         .security_context(
@@ -146,21 +136,15 @@ pub fn executor_pod_template(
                 .build(),
         );
 
-    // S3: Add truststore init container for S3 endpoint communication with TLS.
-    if let Some(truststore_init_container) = resolved_s3
-        .truststore_init_container(resolved_product_image.clone())
-        .context(TrustStoreInitContainerSnafu)?
-    {
-        template.add_init_container(truststore_init_container);
-    }
-
+    // Add custom log4j config map volumes if configured. The volume and mount names are static,
+    // so they are added before the S3 volumes and mounts below.
     if let Some(cm_name) = config.log_config_map() {
         container
             .add_volume_mount(
                 VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
                 VOLUME_MOUNT_PATH_LOG_CONFIG,
             )
-            .context(AddVolumeMountSnafu)?;
+            .expect("The mount paths are statically defined and there should be no duplicates.");
 
         template
             .add_volume(
@@ -168,7 +152,22 @@ pub fn executor_pod_template(
                     .with_config_map(cm_name)
                     .build(),
             )
-            .context(AddVolumeSnafu)?;
+            .expect("The volume names are statically defined and there should be no duplicates.");
+    }
+
+    // S3: Add volumes and mounts (credentials and certificates) needed for accessing S3 buckets.
+    // Their names embed the user-supplied SecretClass names, so these adds stay fallible.
+    container
+        .add_volume_mounts(s3_volume_mounts)
+        .context(AddVolumeMountSnafu)?;
+    template.add_volumes(s3_volumes).context(AddVolumeSnafu)?;
+
+    // S3: Add truststore init container for S3 endpoint communication with TLS.
+    if let Some(truststore_init_container) = resolved_s3
+        .truststore_init_container(resolved_product_image.clone())
+        .context(TrustStoreInitContainerSnafu)?
+    {
+        template.add_init_container(truststore_init_container);
     }
 
     template.add_container(container.build());
@@ -359,9 +358,9 @@ pub(crate) fn executor_config_map(
         );
     }
 
-    cm_builder
+    Ok(cm_builder
         .build()
-        .context(InvalidConfigMapSnafu { cm_name })
+        .expect("The ConfigMap metadata is set in this function."))
 }
 
 #[cfg(test)]

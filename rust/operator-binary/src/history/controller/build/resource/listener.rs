@@ -4,7 +4,7 @@ use stackable_operator::{
     crd::listener,
     v2::types::{
         kubernetes::{ListenerClassName, ListenerName},
-        operator::RoleName,
+        operator::{ClusterName, RoleName},
     },
 };
 
@@ -43,14 +43,18 @@ pub(crate) fn group_listener_name(
     validated: &validate::ValidatedSparkHistoryServer,
     role_name: &RoleName,
 ) -> ListenerName {
+    const _: () = assert!(
+        ClusterName::MAX_LENGTH + 1 /* dash */ + RoleName::MAX_LENGTH <= ListenerName::MAX_LENGTH,
+        "The string `<cluster_name>-<role_name>` must not exceed the limit of Listener names."
+    );
+    // Both halves are RFC 1123 labels joined by a dash, which is a valid RFC 1123 subdomain.
+    let _ = ClusterName::IS_RFC_1123_SUBDOMAIN_NAME;
+    let _ = RoleName::IS_RFC_1123_LABEL_NAME;
+
     ListenerName::from_str(&format!(
         "{cluster}-{role}",
         cluster = validated.name,
         role = role_name
     ))
-    .expect(
-        "the group listener name is a valid ListenerName, because a ClusterName is at most 40 \
-         characters long and a RoleName is a RFC 1123 label of at most 63 characters, so the \
-         joined name is a RFC 1123 DNS subdomain within the length limit",
-    )
+    .expect("The role listener name is a valid Listener name.")
 }

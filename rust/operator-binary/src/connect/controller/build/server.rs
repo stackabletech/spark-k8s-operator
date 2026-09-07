@@ -10,10 +10,7 @@ use stackable_operator::{
         pod::{
             PodBuilder,
             security::PodSecurityContextBuilder,
-            volume::{
-                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
-                ListenerReference, VolumeBuilder,
-            },
+            volume::{ListenerOperatorVolumeSourceBuilder, ListenerReference, VolumeBuilder},
         },
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
@@ -74,19 +71,8 @@ use crate::{
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to build listener volume"))]
-    BuildListenerVolume {
-        source: ListenerOperatorVolumeSourceBuilderError,
-    },
-
     #[snafu(display("spark connect object has no namespace"))]
     ObjectHasNoNamespace,
-
-    #[snafu(display("invalid config map {name}"))]
-    InvalidConfigMap {
-        source: builder::configmap::Error,
-        name: String,
-    },
 
     #[snafu(display("server jvm security properties for spark connect {name}",))]
     ServerJvmSecurityProperties { source: common::Error, name: String },
@@ -168,9 +154,9 @@ pub(crate) fn server_config_map(
         );
     }
 
-    cm_builder
+    Ok(cm_builder
         .build()
-        .context(InvalidConfigMapSnafu { name: cm_name })
+        .expect("The ConfigMap metadata is set in this function."))
 }
 
 pub(crate) fn build_stateful_set(
@@ -201,7 +187,7 @@ pub(crate) fn build_stateful_set(
                 .with_config_map(config_map.name_any())
                 .build(),
         )
-        .context(AddVolumeSnafu)?
+        .expect("The volume names are statically defined and there should be no duplicates.")
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
                 .with_empty_dir(
@@ -210,7 +196,7 @@ pub(crate) fn build_stateful_set(
                 )
                 .build(),
         )
-        .context(AddVolumeSnafu)?
+        .expect("The volume names are statically defined and there should be no duplicates.")
         // This is needed for shared enpryDir volumes with other containers like the truststore
         // init container.
         .security_context(
@@ -241,32 +227,37 @@ pub(crate) fn build_stateful_set(
         .add_container_port(HTTP, CONNECT_UI_PORT.into())
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mount(LISTENER_VOLUME_NAME.as_ref(), LISTENER_VOLUME_DIR)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mounts(s3_volume_mounts)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
         .readiness_probe(probe())
         .liveness_probe(probe());
 
-    // Add custom log4j config map volumes if configured
+    // Add custom log4j config map volumes if configured. The volume and mount names are static,
+    // so they are added before the S3 volumes and mounts below.
     if let Some(cm_name) = config.log_config_map() {
         pb.add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
                 .with_config_map(cm_name)
                 .build(),
         )
-        .context(AddVolumeSnafu)?;
+        .expect("The volume names are statically defined and there should be no duplicates.");
 
         container
             .add_volume_mount(
                 VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
                 VOLUME_MOUNT_PATH_LOG_CONFIG,
             )
-            .context(AddVolumeMountSnafu)?;
+            .expect("The mount paths are statically defined and there should be no duplicates.");
     }
+
+    // S3: Add mounts (credentials and certificates) needed for accessing S3 buckets. Their names
+    // embed the user-supplied SecretClass names, so this add stays fallible.
+    container
+        .add_volume_mounts(s3_volume_mounts)
+        .context(AddVolumeMountSnafu)?;
 
     pb.add_container(container.build());
 
@@ -309,10 +300,11 @@ pub(crate) fn build_stateful_set(
             &unversioned_recommended_labels,
         )
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
-        .context(BuildListenerVolumeSnafu)?,
+        .expect("The annotation keys are static and annotation values cannot be invalid."),
     ]);
 
-    // S3: Add volumes (credentials and certificates) needed for accessing S3 buckets.
+    // S3: Add volumes (credentials and certificates) needed for accessing S3 buckets. Their names
+    // embed the user-supplied SecretClass names, so this add stays fallible.
     pb.add_volumes(s3_volumes).context(AddVolumeSnafu)?;
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.

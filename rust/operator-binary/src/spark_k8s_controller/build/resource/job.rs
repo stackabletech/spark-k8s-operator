@@ -43,9 +43,6 @@ pub enum Error {
 
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
-
-    #[snafu(display("failed to create Volumes for SparkApplication"))]
-    CreateVolumes { source: crate::crd::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -100,7 +97,8 @@ pub(crate) fn spark_job(
         .args(vec![job_commands.join("\n")])
         .resources(job_config.resources.clone().into())
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
+        // These mounts include the user-supplied `volumeMounts`, so this add stays fallible.
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, logdir))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env);
@@ -123,11 +121,7 @@ pub(crate) fn spark_job(
     let requested_secret_lifetime = job_config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
-    volumes.extend(
-        spark_application
-            .volumes(s3conn, logdir, None, &requested_secret_lifetime)
-            .context(CreateVolumesSnafu)?,
-    );
+    volumes.extend(spark_application.volumes(s3conn, logdir, None, &requested_secret_lifetime));
 
     let containers = vec![cb.build()];
 

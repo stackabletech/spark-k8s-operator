@@ -48,16 +48,8 @@ pub enum Error {
         role: SparkApplicationRole,
     },
 
-    #[snafu(display("failed to build the pod template config map"))]
-    PodTemplateConfigMap {
-        source: stackable_operator::builder::configmap::Error,
-    },
-
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
-
-    #[snafu(display("failed to create Volumes for SparkApplication"))]
-    CreateVolumes { source: crate::crd::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -90,14 +82,12 @@ pub(crate) fn pod_template_config_map(
     let requested_secret_lifetime = merged_config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
-    let mut volumes = spark_application
-        .volumes(
-            s3conn,
-            logdir,
-            Some(&log_config_map),
-            &requested_secret_lifetime,
-        )
-        .context(CreateVolumesSnafu)?;
+    let mut volumes = spark_application.volumes(
+        s3conn,
+        logdir,
+        Some(&log_config_map),
+        &requested_secret_lifetime,
+    );
     volumes.push(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
             .with_config_map(&cm_name)
@@ -150,7 +140,9 @@ pub(crate) fn pod_template_config_map(
             .with_context(|_| JvmSecurityPropertiesSnafu { role })?,
     );
 
-    cm_builder.build().context(PodTemplateConfigMapSnafu)
+    Ok(cm_builder
+        .build()
+        .expect("The ConfigMap metadata is set in this function."))
 }
 
 pub(crate) fn submit_job_config_map(
@@ -185,5 +177,7 @@ pub(crate) fn submit_job_config_map(
         })?,
     );
 
-    cm_builder.build().context(PodTemplateConfigMapSnafu)
+    Ok(cm_builder
+        .build()
+        .expect("The ConfigMap metadata is set in this function."))
 }

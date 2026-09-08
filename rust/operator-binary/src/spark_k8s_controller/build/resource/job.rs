@@ -43,6 +43,9 @@ pub enum Error {
 
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
+
+    #[snafu(display("failed to create Volumes for SparkApplication"))]
+    CreateVolumes { source: crate::crd::Error },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -121,7 +124,11 @@ pub(crate) fn spark_job(
     let requested_secret_lifetime = job_config
         .requested_secret_lifetime
         .context(MissingSecretLifetimeSnafu)?;
-    volumes.extend(spark_application.volumes(s3conn, logdir, None, &requested_secret_lifetime));
+    volumes.extend(
+        spark_application
+            .volumes(s3conn, logdir, None, &requested_secret_lifetime)
+            .context(CreateVolumesSnafu)?,
+    );
 
     let containers = vec![cb.build()];
 

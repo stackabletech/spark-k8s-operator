@@ -70,6 +70,9 @@ pub enum Error {
     #[snafu(display("missing secret lifetime"))]
     MissingSecretLifetime,
 
+    #[snafu(display("failed to create the log dir volumes specification"))]
+    CreateLogDirVolumesSpec { source: crate::crd::logdir::Error },
+
     #[snafu(display("failed to add needed volume"))]
     AddVolume {
         source: stackable_operator::builder::pod::Error,
@@ -136,13 +139,13 @@ pub(crate) fn build_stateful_set(
             .with_config_map(resource_names.role_group_config_map().to_string())
             .build(),
     )
-    .expect("The volume names are statically defined and there should be no duplicates.")
+    .context(AddVolumeSnafu)?
     .add_volume(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
             .with_config_map(log_config_map)
             .build(),
     )
-    .expect("The volume names are statically defined and there should be no duplicates.")
+    .context(AddVolumeSnafu)?
     .add_volume(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
             .with_empty_dir(
@@ -151,10 +154,12 @@ pub(crate) fn build_stateful_set(
             )
             .build(),
     )
-    .expect("The volume names are statically defined and there should be no duplicates.")
-    // The log dir volume names embed the user-supplied SecretClass names, so this add stays
-    // fallible.
-    .add_volumes(log_dir.volumes(&requested_secret_lifetime))
+    .context(AddVolumeSnafu)?
+    .add_volumes(
+        log_dir
+            .volumes(&requested_secret_lifetime)
+            .context(CreateLogDirVolumesSpecSnafu)?,
+    )
     .context(AddVolumeSnafu)?
     .security_context(
         PodSecurityContextBuilder::with_stackable_defaults()
@@ -203,8 +208,8 @@ pub(crate) fn build_stateful_set(
             .expect("The mount paths are statically defined and there should be no duplicates.")
             .add_volume_mount(LISTENER_VOLUME_NAME.as_ref(), LISTENER_VOLUME_DIR)
             .expect("The mount paths are statically defined and there should be no duplicates.")
-            // The log dir mount names embed the user-supplied SecretClass names, so this add stays
-            // fallible.
+            // The log dir mount names embed the user-supplied SecretClass names, so they can collide
+            // with the operator-managed ones and this add stays fallible.
             .add_volume_mounts(log_dir.volume_mounts())
             .context(AddVolumeMountSnafu)?
             .build();

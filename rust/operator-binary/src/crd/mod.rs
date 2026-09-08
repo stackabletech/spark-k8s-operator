@@ -12,7 +12,10 @@ use logdir::ResolvedLogDir;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
-    builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+    builder::pod::volume::{
+        SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
+        VolumeBuilder,
+    },
     commons::{
         product_image_selection::ProductImage,
         resources::{CpuLimits, MemoryLimits, Resources},
@@ -84,6 +87,16 @@ pub enum Error {
 
     #[snafu(display("fragment validation failure"))]
     FragmentValidationFailure { source: ValidationError },
+
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: SecretOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to build S3 credentials Volume"))]
+    S3CredentialsVolumeBuild {
+        source: stackable_operator::commons::secret_class::SecretClassVolumeError,
+    },
 
     #[snafu(display("failed to configure S3 bucket"))]
     ConfigureS3Bucket { source: s3::v1alpha1::BucketError },
@@ -311,7 +324,7 @@ impl v1alpha1::SparkApplication {
         logdir: &Option<ResolvedLogDir>,
         log_config_map: Option<&str>,
         requested_secret_lifetime: &Duration,
-    ) -> Vec<Volume> {
+    ) -> Result<Vec<Volume>, Error> {
         // Collect the volumes in a map keyed by name to avoid duplicates.
         // Duplicates can happen when the the S3 credentials volume and the history server log directory use the same secret class.
         let mut result = BTreeMap::new();
@@ -352,14 +365,12 @@ impl v1alpha1::SparkApplication {
                         // matter.
                         SecretClassVolumeProvisionParts::PublicPrivate,
                     )
-                    .expect(
-                        "The annotation keys are static and annotation values cannot be invalid.",
-                    ),
+                    .context(S3CredentialsVolumeBuildSnafu)?,
             );
         }
 
         if let Some(log_dir) = logdir.as_ref()
-            && let Some(volume) = log_dir.credentials_volume()
+            && let Some(volume) = log_dir.credentials_volume().context(ConfigureLogDirSnafu)?
         {
             result.insert(volume.name.clone(), volume);
         }
@@ -413,10 +424,7 @@ impl v1alpha1::SparkApplication {
                             .with_format(SecretFormat::TlsPkcs12)
                             .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
                             .build()
-                            .expect(
-                                "The annotation keys are static and annotation values cannot be \
-                                 invalid.",
-                            ),
+                            .context(TlsCertSecretClassVolumeBuildSnafu)?,
                         )
                         .build(),
                 );
@@ -431,7 +439,7 @@ impl v1alpha1::SparkApplication {
                 .map(|v| (v.name.clone(), v.clone())),
         );
 
-        result.into_values().collect()
+        Ok(result.into_values().collect())
     }
 
     /// Return the volume mounts for the spark-submit pod.

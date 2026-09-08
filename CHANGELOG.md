@@ -33,7 +33,7 @@ All notable changes to this project will be documented in this file.
   whereas previously the operator's values always took precedence ([#753]).
 - BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
   identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
-- Make operations infallible where appropriate ([#766]).
+- Make operations infallible where dependent on static inputs ([#766]).
 
 ### Fixed
 

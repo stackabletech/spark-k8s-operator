@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::pod::volume::{SecretFormat, SecretOperatorVolumeSourceBuilder, VolumeBuilder},
+    builder::pod::volume::{
+        SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
+        VolumeBuilder,
+    },
     commons::secret_class::{SecretClassVolume, SecretClassVolumeProvisionParts},
     crd::s3,
     k8s_openapi::api::core::v1::{Volume, VolumeMount},
@@ -25,6 +28,16 @@ use crate::crd::{
 pub enum Error {
     #[snafu(display("tls non-verification not supported"))]
     S3TlsNoVerificationNotSupported,
+
+    #[snafu(display("failed to build TLS certificate SecretClass Volume"))]
+    TlsCertSecretClassVolumeBuild {
+        source: SecretOperatorVolumeSourceBuilderError,
+    },
+
+    #[snafu(display("failed to build credentials Volume"))]
+    CredentialsVolumeBuild {
+        source: stackable_operator::commons::secret_class::SecretClassVolumeError,
+    },
 
     #[snafu(display("failed to configure S3 bucket"))]
     ConfigureS3Bucket {
@@ -91,10 +104,10 @@ impl ResolvedLogDir {
         }
     }
 
-    pub fn volumes(&self, requested_secret_lifetime: &Duration) -> Vec<Volume> {
+    pub fn volumes(&self, requested_secret_lifetime: &Duration) -> Result<Vec<Volume>, Error> {
         match self {
             ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.volumes(requested_secret_lifetime),
-            ResolvedLogDir::Custom(_) => vec![],
+            ResolvedLogDir::Custom(_) => Ok(vec![]),
         }
     }
 
@@ -105,10 +118,10 @@ impl ResolvedLogDir {
         }
     }
 
-    pub fn credentials_volume(&self) -> Option<Volume> {
+    pub fn credentials_volume(&self) -> Result<Option<Volume>, Error> {
         match self {
             ResolvedLogDir::S3(s3_log_dir) => s3_log_dir.credentials_volume(),
-            ResolvedLogDir::Custom(_) => None,
+            ResolvedLogDir::Custom(_) => Ok(None),
         }
     }
 
@@ -242,8 +255,8 @@ impl S3LogDir {
         )
     }
 
-    pub fn volumes(&self, requested_secret_lifetime: &Duration) -> Vec<Volume> {
-        let mut volumes: Vec<Volume> = self.credentials_volume().into_iter().collect();
+    pub fn volumes(&self, requested_secret_lifetime: &Duration) -> Result<Vec<Volume>, Error> {
+        let mut volumes: Vec<Volume> = self.credentials_volume()?.into_iter().collect();
 
         if let Some(secret_name) = tlscerts::tls_secret_name(&self.bucket.connection) {
             volumes.push(
@@ -257,15 +270,12 @@ impl S3LogDir {
                         .with_format(SecretFormat::TlsPkcs12)
                         .with_auto_tls_cert_lifetime(*requested_secret_lifetime)
                         .build()
-                        .expect(
-                            "The annotation keys are static and annotation values cannot be \
-                             invalid.",
-                        ),
+                        .context(TlsCertSecretClassVolumeBuildSnafu)?,
                     )
                     .build(),
             );
         }
-        volumes
+        Ok(volumes)
     }
 
     pub fn volume_mounts(&self) -> Vec<VolumeMount> {
@@ -284,20 +294,22 @@ impl S3LogDir {
         volume_mounts
     }
 
-    pub fn credentials_volume(&self) -> Option<Volume> {
-        self.credentials().map(|credentials| {
-            credentials
-                .to_volume(
-                    credentials.secret_class.as_ref(),
-                    // We need the (private) S3 credentials.
-                    // Usually a SecretClass with the k8sSearch backend is used. This backend
-                    // does not support the annotation `secrets.stackable.tech/provision-parts`
-                    // and the value of the `provision_parts` parameter does actually not
-                    // matter.
-                    SecretClassVolumeProvisionParts::PublicPrivate,
-                )
-                .expect("The annotation keys are static and annotation values cannot be invalid.")
-        })
+    pub fn credentials_volume(&self) -> Result<Option<Volume>, Error> {
+        self.credentials()
+            .map(|credentials| {
+                credentials
+                    .to_volume(
+                        credentials.secret_class.as_ref(),
+                        // We need the (private) S3 credentials.
+                        // Usually a SecretClass with the k8sSearch backend is used. This backend
+                        // does not support the annotation `secrets.stackable.tech/provision-parts`
+                        // and the value of the `provision_parts` parameter does actually not
+                        // matter.
+                        SecretClassVolumeProvisionParts::PublicPrivate,
+                    )
+                    .context(CredentialsVolumeBuildSnafu)
+            })
+            .transpose()
     }
 
     pub fn credentials_volume_mount(&self) -> Option<VolumeMount> {

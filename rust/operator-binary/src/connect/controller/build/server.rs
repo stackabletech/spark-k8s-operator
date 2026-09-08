@@ -10,7 +10,10 @@ use stackable_operator::{
         pod::{
             PodBuilder,
             security::PodSecurityContextBuilder,
-            volume::{ListenerOperatorVolumeSourceBuilder, ListenerReference, VolumeBuilder},
+            volume::{
+                ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
+                ListenerReference, VolumeBuilder,
+            },
         },
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
@@ -71,8 +74,19 @@ use crate::{
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[snafu(display("failed to build listener volume"))]
+    BuildListenerVolume {
+        source: ListenerOperatorVolumeSourceBuilderError,
+    },
+
     #[snafu(display("spark connect object has no namespace"))]
     ObjectHasNoNamespace,
+
+    #[snafu(display("invalid config map {name}"))]
+    InvalidConfigMap {
+        source: builder::configmap::Error,
+        name: String,
+    },
 
     #[snafu(display("server jvm security properties for spark connect {name}",))]
     ServerJvmSecurityProperties { source: common::Error, name: String },
@@ -154,9 +168,9 @@ pub(crate) fn server_config_map(
         );
     }
 
-    Ok(cm_builder
+    cm_builder
         .build()
-        .expect("The ConfigMap metadata is set in this function."))
+        .context(InvalidConfigMapSnafu { name: cm_name })
 }
 
 pub(crate) fn build_stateful_set(
@@ -187,7 +201,7 @@ pub(crate) fn build_stateful_set(
                 .with_config_map(config_map.name_any())
                 .build(),
         )
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
                 .with_empty_dir(
@@ -196,7 +210,7 @@ pub(crate) fn build_stateful_set(
                 )
                 .build(),
         )
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         // This is needed for shared enpryDir volumes with other containers like the truststore
         // init container.
         .security_context(
@@ -235,15 +249,17 @@ pub(crate) fn build_stateful_set(
         .readiness_probe(probe())
         .liveness_probe(probe());
 
-    // Add custom log4j config map volumes if configured. The volume and mount names are static,
-    // so they are added before the S3 volumes and mounts below.
+    // Add custom log4j config map volumes if configured. The mount path is a constant, so the
+    // mount cannot collide with the other operator-managed mounts and adding it is infallible.
+    // It is added before the S3 mounts below, which are derived from user input. Adding the
+    // volume stays fallible, because the volume is built from computed arguments.
     if let Some(cm_name) = config.log_config_map() {
         pb.add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
                 .with_config_map(cm_name)
                 .build(),
         )
-        .expect("The volume names are statically defined and there should be no duplicates.");
+        .context(AddVolumeSnafu)?;
 
         container
             .add_volume_mount(
@@ -254,7 +270,8 @@ pub(crate) fn build_stateful_set(
     }
 
     // S3: Add mounts (credentials and certificates) needed for accessing S3 buckets. Their names
-    // embed the user-supplied SecretClass names, so this add stays fallible.
+    // embed the user-supplied SecretClass names, so they can collide with the operator-managed
+    // ones and this add stays fallible.
     container
         .add_volume_mounts(s3_volume_mounts)
         .context(AddVolumeMountSnafu)?;
@@ -300,11 +317,10 @@ pub(crate) fn build_stateful_set(
             &unversioned_recommended_labels,
         )
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
-        .expect("The annotation keys are static and annotation values cannot be invalid."),
+        .context(BuildListenerVolumeSnafu)?,
     ]);
 
-    // S3: Add volumes (credentials and certificates) needed for accessing S3 buckets. Their names
-    // embed the user-supplied SecretClass names, so this add stays fallible.
+    // S3: Add volumes (credentials and certificates) needed for accessing S3 buckets.
     pb.add_volumes(s3_volumes).context(AddVolumeSnafu)?;
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.

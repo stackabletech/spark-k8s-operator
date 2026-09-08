@@ -29,6 +29,12 @@ use crate::{
 
 #[derive(Snafu, Debug)]
 pub enum Error {
+    #[snafu(display("invalid config map {name}"))]
+    InvalidConfigMap {
+        source: stackable_operator::builder::configmap::Error,
+        name: String,
+    },
+
     #[snafu(display(
         "History server : failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for group {}",
         rolegroup
@@ -124,9 +130,9 @@ pub(crate) fn build_config_map(
         );
     }
 
-    Ok(cm_builder
+    cm_builder
         .build()
-        .expect("The ConfigMap metadata is set in this function."))
+        .context(InvalidConfigMapSnafu { name: cm_name })
 }
 
 fn spark_defaults(

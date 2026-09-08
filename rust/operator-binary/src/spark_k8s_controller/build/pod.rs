@@ -75,10 +75,6 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builds the job, requirements and TLS init containers, each only if the SparkApplication needs it.
-///
-/// # Panics
-///
-/// Panics if two of the volume mounts added here share a mount path but differ otherwise.
 fn init_containers(
     validated: &validate::ValidatedSparkApplication,
     logging: &Logging<SparkContainer>,
@@ -660,10 +656,10 @@ mod tests {
             .requested_secret_lifetime
             .expect("the default secret lifetime is set");
 
-        let volumes =
-            validated
-                .spark_application
-                .volumes(s3conn, &None, None, &requested_secret_lifetime);
+        let volumes = validated
+            .spark_application
+            .volumes(s3conn, &None, None, &requested_secret_lifetime)
+            .expect("the SparkApplication volumes can be built");
         let volume_names: Vec<&str> = volumes.iter().map(|volume| volume.name.as_str()).collect();
         assert!(volume_names.contains(&"s3-creds"), "{volume_names:?}");
         assert!(volume_names.contains(&"s3-ca"), "{volume_names:?}");

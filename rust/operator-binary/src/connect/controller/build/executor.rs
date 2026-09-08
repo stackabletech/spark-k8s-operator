@@ -63,6 +63,12 @@ pub enum Error {
     #[snafu(display("executor metrics properties for spark connect {name}",))]
     MetricsProperties { source: common::Error, name: String },
 
+    #[snafu(display("failed to build connect executor config map [{cm_name}]"))]
+    InvalidConfigMap {
+        source: builder::configmap::Error,
+        cm_name: String,
+    },
+
     #[snafu(display("failed to build S3 volumes and mounts for executors"))]
     BuildS3VolumesAndMounts { source: s3::Error },
 
@@ -121,13 +127,13 @@ pub fn executor_pod_template(
                 )
                 .build(),
         )
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         .add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_CONFIG.as_ref())
                 .with_config_map(config_map.name_unchecked())
                 .build(),
         )
-        .expect("The volume names are statically defined and there should be no duplicates.")
+        .context(AddVolumeSnafu)?
         // This is needed for shared enpryDir volumes with other containers like the truststore
         // init container.
         .security_context(
@@ -136,8 +142,10 @@ pub fn executor_pod_template(
                 .build(),
         );
 
-    // Add custom log4j config map volumes if configured. The volume and mount names are static,
-    // so they are added before the S3 volumes and mounts below.
+    // Add custom log4j config map volumes if configured. The mount path is a constant, so the
+    // mount cannot collide with the other operator-managed mounts and adding it is infallible.
+    // It is added before the S3 mounts below, which are derived from user input. Adding the
+    // volume stays fallible, because the volume is built from computed arguments.
     if let Some(cm_name) = config.log_config_map() {
         container
             .add_volume_mount(
@@ -152,11 +160,12 @@ pub fn executor_pod_template(
                     .with_config_map(cm_name)
                     .build(),
             )
-            .expect("The volume names are statically defined and there should be no duplicates.");
+            .context(AddVolumeSnafu)?;
     }
 
     // S3: Add volumes and mounts (credentials and certificates) needed for accessing S3 buckets.
-    // Their names embed the user-supplied SecretClass names, so these adds stay fallible.
+    // Their names embed the user-supplied SecretClass names, so they can collide with the
+    // operator-managed ones and these adds stay fallible.
     container
         .add_volume_mounts(s3_volume_mounts)
         .context(AddVolumeMountSnafu)?;
@@ -358,9 +367,9 @@ pub(crate) fn executor_config_map(
         );
     }
 
-    Ok(cm_builder
+    cm_builder
         .build()
-        .expect("The ConfigMap metadata is set in this function."))
+        .context(InvalidConfigMapSnafu { cm_name })
 }
 
 #[cfg(test)]

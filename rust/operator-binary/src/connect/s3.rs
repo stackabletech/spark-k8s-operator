@@ -59,6 +59,38 @@ pub enum Error {
     },
 }
 
+/// A `ConnectionSpec` fixture with credentials and/or server TLS verification
+#[cfg(test)]
+fn connection_fixture(
+    credentials_secret_class: Option<&str>,
+    tls_secret_class: Option<&str>,
+) -> s3::v1alpha1::ConnectionSpec {
+    use stackable_operator::commons::{
+        secret_class::SecretClassVolume,
+        tls_verification::{CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification},
+    };
+
+    s3::v1alpha1::ConnectionSpec {
+        host: "my-s3-endpoint.com".parse().expect("a valid host"),
+        port: None,
+        region: s3::v1alpha1::Region {
+            name: "us-east-1".to_string(),
+        },
+        access_style: S3AccessStyle::Path,
+        credentials: credentials_secret_class.map(|secret_class| SecretClassVolume {
+            secret_class: secret_class.to_string(),
+            scope: None,
+        }),
+        tls: TlsClientDetails {
+            tls: tls_secret_class.map(|secret_class| Tls {
+                verification: TlsVerification::Server(TlsServerVerification {
+                    ca_cert: CaCert::SecretClass(secret_class.to_string()),
+                }),
+            }),
+        },
+    }
+}
+
 pub(crate) struct ResolvedS3 {
     s3_buckets: Vec<s3::v1alpha1::ResolvedBucket>,
     s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
@@ -77,28 +109,9 @@ impl ResolvedS3 {
 
     #[cfg(test)]
     pub(crate) fn tls_connection() -> Self {
-        use stackable_operator::commons::tls_verification::{
-            CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification,
-        };
-
         Self {
             s3_buckets: Vec::new(),
-            s3_connection: Some(s3::v1alpha1::ConnectionSpec {
-                host: "my-s3-endpoint.com".parse().expect("a valid host"),
-                port: None,
-                region: s3::v1alpha1::Region {
-                    name: "us-east-1".to_string(),
-                },
-                access_style: S3AccessStyle::Path,
-                credentials: None,
-                tls: TlsClientDetails {
-                    tls: Some(Tls {
-                        verification: TlsVerification::Server(TlsServerVerification {
-                            ca_cert: CaCert::SecretClass("tls-ca-secret-class".to_string()),
-                        }),
-                    }),
-                },
-            }),
+            s3_connection: Some(connection_fixture(None, Some("tls-ca-secret-class"))),
         }
     }
 
@@ -426,42 +439,9 @@ impl ResolvedS3 {
 #[cfg(test)]
 mod tests {
     use rstest::*;
-    use stackable_operator::{
-        commons::{
-            secret_class::SecretClassVolume,
-            tls_verification::{
-                CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification,
-            },
-        },
-        v2::config_file_writer::to_java_properties_string,
-    };
+    use stackable_operator::v2::config_file_writer::to_java_properties_string;
 
     use super::*;
-
-    fn connection_fixture(
-        credentials_secret_class: Option<&str>,
-        tls_secret_class: Option<&str>,
-    ) -> s3::v1alpha1::ConnectionSpec {
-        s3::v1alpha1::ConnectionSpec {
-            host: "my-s3-endpoint.com".parse().unwrap(),
-            port: None,
-            region: s3::v1alpha1::Region {
-                name: "us-east-1".to_string(),
-            },
-            access_style: S3AccessStyle::Path,
-            credentials: credentials_secret_class.map(|secret_class| SecretClassVolume {
-                secret_class: secret_class.to_string(),
-                scope: None,
-            }),
-            tls: TlsClientDetails {
-                tls: tls_secret_class.map(|secret_class| Tls {
-                    verification: TlsVerification::Server(TlsServerVerification {
-                        ca_cert: CaCert::SecretClass(secret_class.to_string()),
-                    }),
-                }),
-            },
-        }
-    }
 
     #[rstest]
     #[case("no connection and no buckets",

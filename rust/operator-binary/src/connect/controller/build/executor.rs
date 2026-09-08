@@ -239,10 +239,6 @@ pub(crate) fn executor_properties(
             Some(spark_image),
         ),
         (
-            "spark.kubernetes.container.image.pullPolicy".to_string(),
-            Some(resolved_product_image.image_pull_policy.clone()),
-        ),
-        (
             "spark.executor.defaultJavaOptions".to_string(),
             Some(executor_jvm_args(
                 validated.executor_overrides.jvm_config.as_ref(),
@@ -378,18 +374,20 @@ pub(crate) fn executor_config_map(
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::k8s_openapi::{
-        api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    use stackable_operator::{
+        commons::product_image_selection::PullPolicy,
+        k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
     };
 
     use super::*;
     use crate::connect::controller::build::test_support::{
-        PULL_POLICY_NEVER, minimal_validated_cluster, validated_cluster_with_s3_tls,
+        minimal_validated_cluster, validated_cluster_with_s3_tls,
     };
 
     #[test]
     fn image_pull_policy_is_set_on_every_container_spark_does_not_rebuild() {
-        let validated = validated_cluster_with_s3_tls();
+        let pull_policy = PullPolicy::Never;
+        let validated = validated_cluster_with_s3_tls(&pull_policy);
         let config_map = ConfigMap {
             metadata: ObjectMeta {
                 name: Some("my-connect-executor".to_string()),
@@ -408,7 +406,6 @@ mod tests {
             .iter()
             .flatten()
             .chain(pod_spec.containers.iter())
-            .filter(|container| container.name != SparkConnectContainer::Spark.to_string())
             .map(|container| {
                 (
                     container.name.as_str(),
@@ -418,7 +415,10 @@ mod tests {
             .collect();
 
         assert_eq!(
-            vec![("tls-truststore-init", Some(PULL_POLICY_NEVER))],
+            vec![
+                ("tls-truststore-init", Some(pull_policy.as_ref())),
+                ("spark", None),
+            ],
             policies
         );
     }

@@ -427,6 +427,10 @@ pub(crate) fn server_properties(
             "spark.kubernetes.driver.container.image".to_string(),
             Some(spark_image.clone()),
         ),
+        (
+            "spark.kubernetes.container.image.pullPolicy".to_string(),
+            Some(resolved_product_image.image_pull_policy.clone()),
+        ),
         ("spark.kubernetes.namespace".to_string(), Some(namespace)),
         (
             "spark.kubernetes.authenticate.driver.serviceAccountName".to_string(),
@@ -535,18 +539,20 @@ pub(crate) fn build_listener(
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::k8s_openapi::{
-        api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    use stackable_operator::{
+        commons::product_image_selection::PullPolicy,
+        k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
     };
 
     use super::*;
     use crate::connect::controller::build::test_support::{
-        PULL_POLICY_NEVER, minimal_validated_cluster, validated_cluster_with_s3_tls,
+        minimal_validated_cluster, validated_cluster_with_s3_tls,
     };
 
     #[test]
     fn image_pull_policy_is_set_on_every_server_container() {
-        let validated = validated_cluster_with_s3_tls();
+        let pull_policy = PullPolicy::Never;
+        let validated = validated_cluster_with_s3_tls(&pull_policy);
         let config_map = ConfigMap {
             metadata: ObjectMeta {
                 name: Some("my-connect-server".to_string()),
@@ -578,8 +584,8 @@ mod tests {
 
         assert_eq!(
             vec![
-                ("tls-truststore-init", Some(PULL_POLICY_NEVER)),
-                ("spark", Some(PULL_POLICY_NEVER)),
+                ("tls-truststore-init", Some(pull_policy.as_ref())),
+                ("spark", Some(pull_policy.as_ref())),
             ],
             policies
         );

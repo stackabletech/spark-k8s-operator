@@ -193,7 +193,10 @@ pub(crate) fn role_selector(server: &ValidatedSparkConnectServer, role_name: &Ro
 #[cfg(test)]
 pub(crate) mod test_support {
     use indoc::indoc;
-    use stackable_operator::{cli::OperatorEnvironmentOptions, utils::yaml_from_str_singleton_map};
+    use stackable_operator::{
+        cli::OperatorEnvironmentOptions, commons::product_image_selection::PullPolicy,
+        utils::yaml_from_str_singleton_map,
+    };
 
     use crate::connect::{
         controller::{
@@ -222,12 +225,10 @@ pub(crate) mod test_support {
             productVersion: 4.1.2
         "#};
 
-    pub const PULL_POLICY_NEVER: &str = "Never";
-
     /// [`CONNECT_YAML`] with an explicit `pullPolicy`, appended to the `spec.image` block that
     /// [`CONNECT_YAML`] ends with.
-    fn connect_yaml_with_pull_policy(pull_policy: &str) -> String {
-        format!("{CONNECT_YAML}    pullPolicy: {pull_policy}\n")
+    fn connect_yaml_with_pull_policy(pull_policy: &PullPolicy) -> String {
+        format!("{CONNECT_YAML}    pullPolicy: {}\n", pull_policy.as_ref())
     }
 
     /// Runs the real validate step against the minimal fixture.
@@ -248,9 +249,9 @@ pub(crate) mod test_support {
         .expect("validate should succeed for the test fixture")
     }
 
-    pub fn validated_cluster_with_s3_tls() -> ValidatedSparkConnectServer {
+    pub fn validated_cluster_with_s3_tls(pull_policy: &PullPolicy) -> ValidatedSparkConnectServer {
         let scs: v1alpha1::SparkConnectServer =
-            yaml_from_str_singleton_map(&connect_yaml_with_pull_policy(PULL_POLICY_NEVER))
+            yaml_from_str_singleton_map(&connect_yaml_with_pull_policy(pull_policy))
                 .expect("invalid test SparkConnectServer YAML");
         validate(
             &scs,
@@ -264,5 +265,58 @@ pub(crate) mod test_support {
             },
         )
         .expect("validate should succeed for the test fixture")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::*;
+    use stackable_operator::commons::product_image_selection::PullPolicy;
+
+    use super::*;
+
+    use crate::{connect::common::object_name, crd::constants::SPARK_DEFAULTS_FILE_NAME};
+
+    const PULL_POLICY_PROPERTY: &str = "spark.kubernetes.container.image.pullPolicy";
+
+    #[rstest]
+    #[case::from_the_resolved_image(None, None, "Never")]
+    #[case::server_config_override_wins(Some("Always"), None, "Always")]
+    #[case::executor_config_override_wins(None, Some("Always"), "Always")]
+    fn config_overrides_override_the_operator_set_pull_policy(
+        #[case] server_override: Option<&str>,
+        #[case] executor_override: Option<&str>,
+        #[case] expected: &str,
+    ) {
+        let mut validated = test_support::validated_cluster_with_s3_tls(&PullPolicy::Never);
+        for (overrides, value) in [
+            (&mut validated.server_overrides, server_override),
+            (&mut validated.executor_overrides, executor_override),
+        ] {
+            if let Some(value) = value {
+                overrides
+                    .config_overrides
+                    .spark_defaults_conf
+                    .overrides
+                    .insert(PULL_POLICY_PROPERTY.to_string(), value.to_string());
+            }
+        }
+
+        let resources = build(&validated, &[]).expect("the resources can be built");
+        let server_cm_name = object_name(&validated.name_any(), SparkConnectRole::Server);
+        let spark_defaults = resources
+            .config_maps
+            .iter()
+            .find(|cm| cm.name_any() == server_cm_name)
+            .and_then(|cm| cm.data.as_ref())
+            .and_then(|data| data.get(SPARK_DEFAULTS_FILE_NAME))
+            .expect("the server ConfigMap contains spark-defaults.conf");
+
+        assert!(
+            spark_defaults
+                .lines()
+                .any(|line| line == format!("{PULL_POLICY_PROPERTY}={expected}")),
+            "expected {PULL_POLICY_PROPERTY}={expected} in\n {spark_defaults}"
+        )
     }
 }

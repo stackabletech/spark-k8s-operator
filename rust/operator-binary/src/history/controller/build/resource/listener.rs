@@ -39,6 +39,7 @@ pub(crate) fn build_group_listener(
     )
 }
 
+/// The returned ListenerName is a lowercase RFC 1035 label name (checked by a unit test).
 pub(crate) fn group_listener_name(
     validated: &validate::ValidatedSparkHistoryServer,
     role_name: &RoleName,
@@ -57,4 +58,31 @@ pub(crate) fn group_listener_name(
         role = role_name
     ))
     .expect("The role listener name is a valid Listener name.")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::history::controller::{
+        build::test_support::minimal_validated_cluster, validate::NODE_ROLE_NAME,
+    };
+
+    #[test]
+    fn group_listener_name_is_rfc_1035_label_name() {
+        // Every ClusterName is a valid RFC 1035 label name, so we use just some string with maximum
+        // length.
+        let _ = ClusterName::IS_RFC_1035_LABEL_NAME;
+        let mut validated = minimal_validated_cluster();
+        validated.name = ClusterName::from_str(&"a".repeat(ClusterName::MAX_LENGTH))
+            .expect("is a valid ClusterName");
+
+        // The history server has a single role.
+        let group_listener_name = group_listener_name(&validated, &NODE_ROLE_NAME);
+        assert!(
+            stackable_operator::validation::is_lowercase_rfc_1035_label(
+                group_listener_name.as_ref()
+            )
+            .is_ok()
+        );
+    }
 }

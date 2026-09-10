@@ -12,6 +12,7 @@ use stackable_operator::{
         },
     },
     config::{fragment::Fragment, merge::Merge},
+    constant,
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
@@ -230,11 +231,18 @@ pub enum SparkHistoryServerContainer {
     Vector,
 }
 
+// Typed container names. They must match the strum `Display` (kebab-case) of the variants above,
+// which is pinned by a unit test.
+constant!(SPARK_HISTORY_CONTAINER_NAME: ContainerName = "spark-history");
+constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+
 impl SparkHistoryServerContainer {
-    /// The type-safe container name for this variant (matching its kebab-case serialization).
-    pub fn to_container_name(&self) -> ContainerName {
-        ContainerName::from_str(&self.to_string())
-            .expect("a SparkHistoryServerContainer variant name is a valid container name")
+    /// The typed container name of this variant.
+    pub fn name(&self) -> &'static ContainerName {
+        match self {
+            SparkHistoryServerContainer::SparkHistory => &SPARK_HISTORY_CONTAINER_NAME,
+            SparkHistoryServerContainer::Vector => &VECTOR_CONTAINER_NAME,
+        }
     }
 }
 
@@ -316,6 +324,7 @@ mod test {
         cli::OperatorEnvironmentOptions, commons::tls_verification::TlsClientDetails, crd::s3,
         v2::builder::pod::container::EnvVarName, versioned::test_utils::RoundtripTestData,
     };
+    use strum::IntoEnumIterator;
 
     use super::*;
     use crate::{
@@ -325,6 +334,23 @@ mod test {
             validate::{ValidatedSparkHistoryServer, validate},
         },
     };
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *SPARK_HISTORY_CONTAINER_NAME;
+        let _ = *VECTOR_CONTAINER_NAME;
+    }
+
+    /// The typed container names returned by `name` must agree with the strum `Display` of
+    /// `SparkHistoryServerContainer`, which the logging configuration still uses as the
+    /// per-container key.
+    #[test]
+    fn container_names_match_display() {
+        for container in SparkHistoryServerContainer::iter() {
+            assert_eq!(container.name().to_string(), container.to_string());
+        }
+    }
 
     #[test]
     pub fn test_env_overrides() {

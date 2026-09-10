@@ -182,37 +182,36 @@ pub(crate) fn build_stateful_set(
         )
         .merge(rg.config.env_overrides.clone());
 
-    let container =
-        new_container_builder(&SparkHistoryServerContainer::SparkHistory.to_container_name())
-            .image_from_product_image(resolved_product_image)
-            .resources(rg.config.config.resources.clone().into())
-            .command(vec![
-                "/bin/bash".to_string(),
-                "-x".to_string(),
-                "-euo".to_string(),
-                "pipefail".to_string(),
-                "-c".to_string(),
-            ])
-            .args(command_args(log_dir))
-            .add_container_port("http", HISTORY_UI_PORT.into())
-            .add_container_port("metrics", METRICS_PORT.into())
-            .add_env_vars(merged_env)
-            .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
-            .expect("The mount paths are statically defined and there should be no duplicates.")
-            .add_volume_mount(
-                VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
-                VOLUME_MOUNT_PATH_LOG_CONFIG,
-            )
-            .expect("The mount paths are statically defined and there should be no duplicates.")
-            .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
-            .expect("The mount paths are statically defined and there should be no duplicates.")
-            .add_volume_mount(LISTENER_VOLUME_NAME.as_ref(), LISTENER_VOLUME_DIR)
-            .expect("The mount paths are statically defined and there should be no duplicates.")
-            // The log dir mount names embed the user-supplied SecretClass names, so they can collide
-            // with the operator-managed ones and this add stays fallible.
-            .add_volume_mounts(log_dir.volume_mounts())
-            .context(AddVolumeMountSnafu)?
-            .build();
+    let container = new_container_builder(SparkHistoryServerContainer::SparkHistory.name())
+        .image_from_product_image(resolved_product_image)
+        .resources(rg.config.config.resources.clone().into())
+        .command(vec![
+            "/bin/bash".to_string(),
+            "-x".to_string(),
+            "-euo".to_string(),
+            "pipefail".to_string(),
+            "-c".to_string(),
+        ])
+        .args(command_args(log_dir))
+        .add_container_port("http", HISTORY_UI_PORT.into())
+        .add_container_port("metrics", METRICS_PORT.into())
+        .add_env_vars(merged_env)
+        .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
+        .expect("The mount paths are statically defined and there should be no duplicates.")
+        .add_volume_mount(
+            VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
+            VOLUME_MOUNT_PATH_LOG_CONFIG,
+        )
+        .expect("The mount paths are statically defined and there should be no duplicates.")
+        .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
+        .expect("The mount paths are statically defined and there should be no duplicates.")
+        .add_volume_mount(LISTENER_VOLUME_NAME.as_ref(), LISTENER_VOLUME_DIR)
+        .expect("The mount paths are statically defined and there should be no duplicates.")
+        // The log dir mount names embed the user-supplied SecretClass names, so they can collide
+        // with the operator-managed ones and this add stays fallible.
+        .add_volume_mounts(log_dir.volume_mounts())
+        .context(AddVolumeMountSnafu)?
+        .build();
 
     // Add listener volume
     // Listener endpoints for the Webserver role will use persistent volumes
@@ -232,7 +231,7 @@ pub(crate) fn build_stateful_set(
 
     if let Some(vector_log_config) = &rg.logging.vector_container {
         pb.add_container(vector_container(
-            &SparkHistoryServerContainer::Vector.to_container_name(),
+            SparkHistoryServerContainer::Vector.name(),
             resolved_product_image,
             vector_log_config,
             &resource_names,

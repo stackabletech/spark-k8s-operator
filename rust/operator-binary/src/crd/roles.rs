@@ -114,13 +114,29 @@ pub enum SparkContainer {
     Tls,
 }
 
+// Typed container names. They must match the strum `Display` (kebab-case) of the variants above,
+// which is pinned by a unit test.
+constant!(SPARK_SUBMIT_CONTAINER_NAME: ContainerName = "spark-submit");
+constant!(JOB_CONTAINER_NAME: ContainerName = "job");
+constant!(REQUIREMENTS_CONTAINER_NAME: ContainerName = "requirements");
+constant!(SPARK_CONTAINER_NAME: ContainerName = "spark");
+constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+constant!(TLS_CONTAINER_NAME: ContainerName = "tls");
+
 impl SparkContainer {
-    /// The type-safe container name for this variant (matching its kebab-case serialization).
-    pub fn to_container_name(&self) -> ContainerName {
-        ContainerName::from_str(&self.to_string())
-            .expect("a SparkContainer variant name is a valid container name")
+    /// The typed container name of this variant.
+    pub fn name(&self) -> &'static ContainerName {
+        match self {
+            SparkContainer::SparkSubmit => &SPARK_SUBMIT_CONTAINER_NAME,
+            SparkContainer::Job => &JOB_CONTAINER_NAME,
+            SparkContainer::Requirements => &REQUIREMENTS_CONTAINER_NAME,
+            SparkContainer::Spark => &SPARK_CONTAINER_NAME,
+            SparkContainer::Vector => &VECTOR_CONTAINER_NAME,
+            SparkContainer::Tls => &TLS_CONTAINER_NAME,
+        }
     }
 }
+
 #[derive(Clone, Debug, Deserialize, Display, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
@@ -284,6 +300,8 @@ impl From<VolumeMounts> for Vec<VolumeMount> {
 
 #[cfg(test)]
 mod tests {
+    use strum::IntoEnumIterator;
+
     use super::*;
 
     #[test]
@@ -292,5 +310,20 @@ mod tests {
         let _ = *DRIVER_ROLE_NAME;
         let _ = *EXECUTOR_ROLE_NAME;
         let _ = *SUBMIT_ROLE_NAME;
+        let _ = *SPARK_SUBMIT_CONTAINER_NAME;
+        let _ = *JOB_CONTAINER_NAME;
+        let _ = *REQUIREMENTS_CONTAINER_NAME;
+        let _ = *SPARK_CONTAINER_NAME;
+        let _ = *VECTOR_CONTAINER_NAME;
+        let _ = *TLS_CONTAINER_NAME;
+    }
+
+    /// The typed container names returned by `name` must agree with the strum `Display` of
+    /// `SparkContainer`, which the logging configuration still uses as the per-container key.
+    #[test]
+    fn container_names_match_display() {
+        for container in SparkContainer::iter() {
+            assert_eq!(container.name().to_string(), container.to_string());
+        }
     }
 }

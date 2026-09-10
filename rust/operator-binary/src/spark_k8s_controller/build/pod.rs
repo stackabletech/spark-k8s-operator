@@ -260,7 +260,6 @@ pub(crate) fn pod_template(
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
     let spark_image = &validated.resolved_product_image;
-    let container_name = SparkContainer::Spark.to_string();
     let mut cb = new_container_builder(SparkContainer::Spark.name());
 
     let mut env = env.clone();
@@ -305,7 +304,7 @@ pub(crate) fn pod_template(
         .image_from_product_image(spark_image);
 
     let mut omb = ObjectMetaBuilder::new();
-    omb.name(&container_name)
+    omb.name("spark")
         // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
         // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
         .ownerreference(ownerreference_from_resource(validated, None, None))

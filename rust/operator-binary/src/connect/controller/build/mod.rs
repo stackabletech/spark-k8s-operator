@@ -274,7 +274,6 @@ mod tests {
     use stackable_operator::commons::product_image_selection::PullPolicy;
 
     use super::*;
-
     use crate::{connect::common::object_name, crd::constants::SPARK_DEFAULTS_FILE_NAME};
 
     const PULL_POLICY_PROPERTY: &str = "spark.kubernetes.container.image.pullPolicy";

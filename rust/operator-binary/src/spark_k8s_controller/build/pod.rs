@@ -74,6 +74,7 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Builds the job, requirements and TLS init containers, each only if the SparkApplication needs it.
 fn init_containers(
     validated: &validate::ValidatedSparkApplication,
     logging: &Logging<SparkContainer>,
@@ -112,9 +113,13 @@ fn init_containers(
                     ])
                     .args(vec![args.join("\n")])
                     .add_volume_mount(VOLUME_MOUNT_NAME_JOB.as_ref(), VOLUME_MOUNT_PATH_JOB)
-                    .context(AddVolumeMountSnafu)?
+                    .expect(
+                        "The mount paths are statically defined and there should be no duplicates.",
+                    )
                     .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
-                    .context(AddVolumeMountSnafu)?
+                    .expect(
+                        "The mount paths are statically defined and there should be no duplicates.",
+                    )
                     .resources(
                         ResourceRequirementsBuilder::new()
                             .with_cpu_request("250m")
@@ -160,9 +165,9 @@ fn init_containers(
                 ])
                 .args(vec![args.join("\n")])
                 .add_volume_mount(VOLUME_MOUNT_NAME_REQ.as_ref(), VOLUME_MOUNT_PATH_REQ)
-                .context(AddVolumeMountSnafu)?
+                .expect("The mount paths are statically defined and there should be no duplicates.")
                 .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
-                .context(AddVolumeMountSnafu)?
+                .expect("The mount paths are statically defined and there should be no duplicates.")
                 .image_pull_policy(&spark_image.image_pull_policy);
 
             rcb.resources(
@@ -185,6 +190,12 @@ fn init_containers(
 
     let tls_container = match tlscerts::tls_secret_names(s3conn, logdir) {
         Some(cert_secrets) => {
+            // The static truststore mount is added first; the certificate mounts below embed the
+            // user-supplied SecretClass names and therefore stay fallible.
+            tcb.add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE)
+                .expect(
+                    "The mount paths are statically defined and there should be no duplicates.",
+                );
             args.push(tlscerts::convert_system_trust_store_to_pkcs12());
             for cert_secret in cert_secrets {
                 args.push(tlscerts::import_truststore(cert_secret));
@@ -204,8 +215,6 @@ fn init_containers(
                         "-c".to_string(),
                     ])
                     .args(vec![args.join("\n")])
-                    .add_volume_mount(STACKABLE_TRUST_STORE_NAME, STACKABLE_TRUST_STORE)
-                    .context(AddVolumeMountSnafu)?
                     .resources(
                         ResourceRequirementsBuilder::new()
                             .with_cpu_request("250m")
@@ -284,7 +293,8 @@ pub(crate) fn pod_template(
     let merged_env = spark_application.merged_env(role.clone(), env);
 
     cb.add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
+        // These mounts include the user-supplied `volumeMounts`, so this add stays fallible.
         .add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env)
@@ -324,6 +334,7 @@ pub(crate) fn pod_template(
     let mut pb = PodBuilder::new();
     pb.metadata(metadata)
         .add_container(cb.build())
+        // These volumes include the user-supplied `volumes`, so this add stays fallible.
         .add_volumes(volumes.to_vec())
         .context(AddVolumeSnafu)?
         .security_context(security_context())
@@ -391,6 +402,13 @@ mod tests {
     use rstest::rstest;
     use stackable_operator::{
         cli::OperatorEnvironmentOptions,
+        commons::{
+            secret_class::SecretClassVolume,
+            tls_verification::{
+                CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification,
+            },
+        },
+        crd::s3,
         k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
     };
 
@@ -501,5 +519,180 @@ mod tests {
         // The override must replace the operator-set value, not duplicate it.
         assert_eq!(matching.len(), 1);
         assert_eq!(matching[0].value.as_deref(), Some("/custom/log/dir"));
+    }
+
+    /// Runs the real validate step against the given SparkApplication YAML, optionally with a
+    /// dereferenced S3 connection.
+    fn validated_from_yaml(
+        yaml: &str,
+        s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
+    ) -> validate::ValidatedSparkApplication {
+        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test SparkApplication YAML");
+
+        validate(
+            DereferencedSparkApplication {
+                spark_application,
+                resolved_template_refs: Vec::new(),
+                s3_connection,
+                log_dir: None,
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+        .expect("the fixture validates")
+    }
+
+    fn test_service_account() -> ServiceAccount {
+        ServiceAccount {
+            metadata: ObjectMeta {
+                name: Some("spark-example".to_string()),
+                ..ObjectMeta::default()
+            },
+            ..ServiceAccount::default()
+        }
+    }
+
+    /// The static mounts are added with `expect` before the user-supplied `volumeMounts`, so a
+    /// user mount colliding with an operator mount path must surface as an error, never as a
+    /// panic.
+    #[test]
+    fn user_volume_mount_colliding_with_config_path_is_an_error() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              driver:
+                config:
+                  volumeMounts:
+                    - name: user-conf
+                      mountPath: /stackable/spark/conf
+              volumes:
+                - name: user-conf
+                  emptyDir: {}
+        "#};
+        let validated = validated_from_yaml(yaml, None);
+        let driver_config = validated
+            .spark_application
+            .driver_config()
+            .expect("the driver config resolves");
+        let env = validated
+            .spark_application
+            .env(&None, &None)
+            .expect("the base environment can be built");
+
+        let result = pod_template(
+            &validated,
+            SparkApplicationRole::Driver,
+            &driver_config,
+            &[],
+            &env,
+            &test_service_account(),
+        );
+
+        assert!(
+            matches!(result, Err(Error::AddVolumeMount { .. })),
+            "expected Err(AddVolumeMount), got {result:?}"
+        );
+    }
+
+    /// The `tls` init container only exists when an S3 connection verifies TLS with a SecretClass
+    /// CA. Its static truststore mount is added with `expect` and must therefore precede the
+    /// SecretClass-derived certificate mounts, which stay fallible. The same fixture exercises the
+    /// SecretClass-derived Volumes of `SparkApplication::volumes`.
+    #[test]
+    fn tls_init_container_mounts_truststore_before_certificate_secrets() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+        "#};
+        let s3_connection = s3::v1alpha1::ConnectionSpec {
+            host: "my-s3".to_string().try_into().expect("valid host"),
+            port: None,
+            access_style: Default::default(),
+            credentials: Some(SecretClassVolume::new("s3-creds".to_string(), None)),
+            tls: TlsClientDetails {
+                tls: Some(Tls {
+                    verification: TlsVerification::Server(TlsServerVerification {
+                        ca_cert: CaCert::SecretClass("s3-ca".to_string()),
+                    }),
+                }),
+            },
+            region: Default::default(),
+        };
+        let validated = validated_from_yaml(yaml, Some(s3_connection));
+        let s3conn = &validated.cluster_config.s3_connection;
+        let driver_config = validated
+            .spark_application
+            .driver_config()
+            .expect("the driver config resolves");
+        let env = validated
+            .spark_application
+            .env(s3conn, &None)
+            .expect("the base environment can be built");
+        let requested_secret_lifetime = driver_config
+            .requested_secret_lifetime
+            .expect("the default secret lifetime is set");
+
+        let volumes = validated
+            .spark_application
+            .volumes(s3conn, &None, None, &requested_secret_lifetime)
+            .expect("the SparkApplication volumes can be built");
+        let volume_names: Vec<&str> = volumes.iter().map(|volume| volume.name.as_str()).collect();
+        assert!(volume_names.contains(&"s3-creds"), "{volume_names:?}");
+        assert!(volume_names.contains(&"s3-ca"), "{volume_names:?}");
+        assert!(
+            volume_names.contains(&STACKABLE_TRUST_STORE_NAME),
+            "{volume_names:?}"
+        );
+
+        let template = pod_template(
+            &validated,
+            SparkApplicationRole::Driver,
+            &driver_config,
+            &volumes,
+            &env,
+            &test_service_account(),
+        )
+        .expect("the driver pod template can be built");
+
+        let tls_container = template
+            .spec
+            .expect("the pod template has a spec")
+            .init_containers
+            .into_iter()
+            .flatten()
+            .find(|container| container.name == "tls")
+            .expect("the tls init container exists");
+        let mount_names: Vec<String> = tls_container
+            .volume_mounts
+            .into_iter()
+            .flatten()
+            .map(|volume_mount| volume_mount.name)
+            .collect();
+
+        assert_eq!(mount_names, vec![STACKABLE_TRUST_STORE_NAME, "s3-ca"]);
     }
 }

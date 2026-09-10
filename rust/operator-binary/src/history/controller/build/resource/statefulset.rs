@@ -197,18 +197,20 @@ pub(crate) fn build_stateful_set(
             .add_container_port("http", HISTORY_UI_PORT.into())
             .add_container_port("metrics", METRICS_PORT.into())
             .add_env_vars(merged_env)
-            .add_volume_mounts(log_dir.volume_mounts())
-            .context(AddVolumeMountSnafu)?
             .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
-            .context(AddVolumeMountSnafu)?
+            .expect("The mount paths are statically defined and there should be no duplicates.")
             .add_volume_mount(
                 VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
                 VOLUME_MOUNT_PATH_LOG_CONFIG,
             )
-            .context(AddVolumeMountSnafu)?
+            .expect("The mount paths are statically defined and there should be no duplicates.")
             .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
-            .context(AddVolumeMountSnafu)?
+            .expect("The mount paths are statically defined and there should be no duplicates.")
             .add_volume_mount(LISTENER_VOLUME_NAME.as_ref(), LISTENER_VOLUME_DIR)
+            .expect("The mount paths are statically defined and there should be no duplicates.")
+            // The log dir mount names embed the user-supplied SecretClass names, so they can collide
+            // with the operator-managed ones and this add stays fallible.
+            .add_volume_mounts(log_dir.volume_mounts())
             .context(AddVolumeMountSnafu)?
             .build();
 

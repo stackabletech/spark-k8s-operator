@@ -73,17 +73,8 @@ pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
 
-    #[snafu(display("object defines no deploy mode"))]
-    ObjectHasNoDeployMode,
-
-    #[snafu(display("object defines no application artifact"))]
-    ObjectHasNoArtifact,
-
     #[snafu(display("object has no name"))]
     ObjectHasNoName,
-
-    #[snafu(display("application has no Spark image"))]
-    NoSparkImage,
 
     #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
     FailedToConvertJavaHeap {

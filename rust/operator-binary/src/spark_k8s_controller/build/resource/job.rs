@@ -100,7 +100,8 @@ pub(crate) fn spark_job(
         .args(vec![job_commands.join("\n")])
         .resources(job_config.resources.clone().into())
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
+        // These mounts include the user-supplied `volumeMounts`, so this add stays fallible.
         .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, logdir))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env);

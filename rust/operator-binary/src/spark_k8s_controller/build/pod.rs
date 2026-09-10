@@ -103,7 +103,9 @@ fn init_containers(
             args.push("sleep 1".into());
 
             Some(
+                // Runs the user's own image, so `image_from_product_image` does not apply.
                 jcb.image(job_image)
+                    .image_pull_policy(&spark_image.image_pull_policy)
                     .command(vec![
                         "/bin/bash".to_string(),
                         "-x".to_string(),
@@ -155,7 +157,7 @@ fn init_containers(
                 "pip install --target={VOLUME_MOUNT_PATH_REQ} {req}"
             ));
 
-            rcb.image(&spark_image.image)
+            rcb.image_from_product_image(spark_image)
                 .command(vec![
                     "/bin/bash".to_string(),
                     "-x".to_string(),
@@ -167,8 +169,9 @@ fn init_containers(
                 .add_volume_mount(VOLUME_MOUNT_NAME_REQ.as_ref(), VOLUME_MOUNT_PATH_REQ)
                 .expect("The mount paths are statically defined and there should be no duplicates.")
                 .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
-                .expect("The mount paths are statically defined and there should be no duplicates.")
-                .image_pull_policy(&spark_image.image_pull_policy);
+                .expect(
+                    "The mount paths are statically defined and there should be no duplicates.",
+                );
 
             rcb.resources(
                 ResourceRequirementsBuilder::new()
@@ -206,7 +209,7 @@ fn init_containers(
                 .context(AddVolumeMountSnafu)?;
             }
             Some(
-                tcb.image(&spark_image.image)
+                tcb.image_from_product_image(spark_image)
                     .command(vec![
                         "/bin/bash".to_string(),
                         "-x".to_string(),
@@ -432,6 +435,85 @@ mod tests {
     #[case("", ". spark-env.sh")]
     fn append_to_hook_separates_commands(#[case] hook: &str, #[case] expected: &str) {
         assert_eq!(append_to_hook(hook, ". spark-env.sh"), expected)
+    }
+
+    #[test]
+    fn spark_image_pull_policy_is_set_on_all_init_containers() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              image: oci.example.org/my-jobs:1.0.0
+              sparkImage:
+                productVersion: 1.2.3
+                pullPolicy: Always
+              deps:
+                requirements:
+                  - pandas
+        "#};
+        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test SparkApplication YAML");
+
+        let s3_connection = s3::v1alpha1::ConnectionSpec {
+            host: "my-s3-endpoint.com".parse().expect("a valid host"),
+            port: None,
+            region: s3::v1alpha1::Region {
+                name: "us-east-1".to_string(),
+            },
+            access_style: s3::v1alpha1::S3AccessStyle::Path,
+            credentials: None,
+            tls: TlsClientDetails {
+                tls: Some(Tls {
+                    verification: TlsVerification::Server(TlsServerVerification {
+                        ca_cert: CaCert::SecretClass("tls-ca-secret-class".to_string()),
+                    }),
+                }),
+            },
+        };
+
+        let validated = validate(
+            DereferencedSparkApplication {
+                spark_application,
+                resolved_template_refs: Vec::new(),
+                s3_connection: Some(s3_connection),
+                log_dir: None,
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+        .expect("the fixture validates");
+
+        let logging = validated
+            .spark_application
+            .driver_config()
+            .expect("the driver config resolves")
+            .logging;
+
+        let policies: Vec<(String, Option<String>)> = init_containers(&validated, &logging)
+            .expect("the init containers can be built")
+            .into_iter()
+            .map(|container| (container.name, container.image_pull_policy))
+            .collect();
+
+        assert_eq!(
+            vec![
+                ("job".to_string(), Some("Always".to_string())),
+                ("requirements".to_string(), Some("Always".to_string())),
+                ("tls".to_string(), Some("Always".to_string())),
+            ],
+            policies
+        );
     }
 
     /// `envOverrides` must be applied after all operator-set environment variables, so a user

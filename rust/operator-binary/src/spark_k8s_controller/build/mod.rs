@@ -109,7 +109,7 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Pre
     .context(BuildConfigMapSnafu)?;
 
     let job_commands = spark_application
-        .build_command(opt_s3conn, logdir, &resolved_product_image.image)
+        .build_command(opt_s3conn, logdir, resolved_product_image)
         .context(BuildCommandSnafu)?;
 
     let submit_config = spark_application

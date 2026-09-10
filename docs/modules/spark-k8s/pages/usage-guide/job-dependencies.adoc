@@ -63,6 +63,13 @@ spec:
 <1> Reference to your custom image..
 <2> Apache Spark version bundled in your custom image.
 
+`sparkImage.pullPolicy` governs every container of a SparkApplication for which the operator selects an image: the submit, driver and executor containers, the `job`, `requirements` and `tls` init containers.
+It also applies to the user-supplied `spec.image`, that the `job` init container runs, so with `pullPolicy: Never` that image has to be pre-loaded on the nodes as well.
+The history and Spark Connect server have no `sparkImage` - their pull policy comes from `spec.image.pullPolicy` on their own resource.
+
+NOTE: With a mutable image tag, `IfNotPresent` lets each node serve whatever it has cached, so the driver and its executors can end up running different builds of the same tag.
+`Always` (the default) narrows that window but does not close it, because each container resolves the tag when it starts: pin a digest or a unique tag in `sparkImage.custom` if all containers of a job must run the same image.
+
 === Dependency volumes
 
 With this method, the job dependencies are provisioned from a `PersistentVolume` as shown in this example:

@@ -99,7 +99,7 @@ pub fn executor_pod_template(
         .volumes_and_mounts()
         .context(BuildS3VolumesAndMountsSnafu)?;
 
-    let mut container = new_container_builder(&SparkConnectContainer::Spark.to_container_name());
+    let mut container = new_container_builder(SparkConnectContainer::Spark.name());
     container
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
@@ -195,7 +195,7 @@ pub fn executor_pod_template(
         };
 
         template.add_container(vector_container(
-            &SparkConnectContainer::Vector.to_container_name(),
+            SparkConnectContainer::Vector.name(),
             resolved_product_image,
             vector_log_config,
             &vector_resource_names,
@@ -251,7 +251,7 @@ pub(crate) fn executor_properties(
         ),
         (
             "spark.kubernetes.executor.podTemplateContainerName".to_string(),
-            Some(SparkConnectContainer::Spark.to_string()),
+            Some(SparkConnectContainer::Spark.name().to_string()),
         ),
     ]
     .into();

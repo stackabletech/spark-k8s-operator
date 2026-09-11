@@ -54,6 +54,7 @@ All notable changes to this project will be documented in this file.
 - The history and connect controllers now watch all resources that they create, the missing RBAC
   `watch` permissions were added, and all controllers early-exit the reconcile action when the object
   is marked for deletion ([#757]).
+- Re-added the ownerRef on driver pod to ensure GC cascade ([#758]).
 - The `configOverrides` for `spark-env.sh` and `security.properties` of a SparkApplication now take
   effect in the submit, driver and executor Pods ([#761]).
 - BREAKING (behaviour): The image pull policy is no longer ignored by several containers.
@@ -73,6 +74,7 @@ All notable changes to this project will be documented in this file.
 [#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
 [#754]: https://github.com/stackabletech/spark-k8s-operator/pull/754
 [#757]: https://github.com/stackabletech/spark-k8s-operator/pull/757
+[#758]: https://github.com/stackabletech/spark-k8s-operator/pull/758
 [#761]: https://github.com/stackabletech/spark-k8s-operator/pull/761
 [#764]: https://github.com/stackabletech/spark-k8s-operator/pull/764
 [#766]: https://github.com/stackabletech/spark-k8s-operator/pull/766

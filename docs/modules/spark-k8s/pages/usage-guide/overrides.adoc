@@ -166,7 +166,6 @@ The current implementation of `extraClassPath` overrides is a replace. Thus if y
 spec:
   sparkImage:
     productVersion: 4.1.2
-  mode: cluster
   sparkConf:
     "spark.driver.extraClassPath": "/stackable/spark/extra-jars/*:/stackable/spark/connect/spark-connect-4.1.2.jar:/mydependencies/my.jar" #<1>
     "spark.executor.extraClassPath": "/stackable/spark/extra-jars/*:/stackable/spark/connect/spark-connect-4.1.2.jar:/mydependencies/my.jar"

@@ -83,7 +83,7 @@ fn init_containers(
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
     let spark_image = &validated.resolved_product_image;
-    let mut jcb = new_container_builder(&SparkContainer::Job.to_container_name());
+    let mut jcb = new_container_builder(SparkContainer::Job.name());
     let job_container = match &spark_application.spec.image {
         Some(job_image) => {
             let mut args = Vec::new();
@@ -93,7 +93,7 @@ fn init_containers(
             {
                 args.push(capture_shell_output(
                     VOLUME_MOUNT_PATH_LOG,
-                    &SparkContainer::Job.to_string(),
+                    SparkContainer::Job.name().as_ref(),
                     log_config,
                 ));
             };
@@ -136,7 +136,7 @@ fn init_containers(
         None => None,
     };
 
-    let mut rcb = new_container_builder(&SparkContainer::Requirements.to_container_name());
+    let mut rcb = new_container_builder(SparkContainer::Requirements.name());
     let requirements_container = match spark_application.requirements() {
         Some(req) => {
             let mut args = Vec::new();
@@ -146,7 +146,7 @@ fn init_containers(
             {
                 args.push(capture_shell_output(
                     VOLUME_MOUNT_PATH_LOG,
-                    &SparkContainer::Requirements.to_string(),
+                    SparkContainer::Requirements.name().as_ref(),
                     log_config,
                 ));
             };
@@ -188,7 +188,7 @@ fn init_containers(
     };
 
     // if TLS is enabled, build TrustStore and put secret inside.
-    let mut tcb = new_container_builder(&SparkContainer::Tls.to_container_name());
+    let mut tcb = new_container_builder(SparkContainer::Tls.name());
     let mut args = Vec::new();
 
     let tls_container = match tlscerts::tls_secret_names(s3conn, logdir) {
@@ -260,8 +260,7 @@ pub(crate) fn pod_template(
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
     let spark_image = &validated.resolved_product_image;
-    let container_name = SparkContainer::Spark.to_string();
-    let mut cb = new_container_builder(&SparkContainer::Spark.to_container_name());
+    let mut cb = new_container_builder(SparkContainer::Spark.name());
 
     let mut env = env.clone();
 
@@ -305,7 +304,7 @@ pub(crate) fn pod_template(
         .image_from_product_image(spark_image);
 
     let mut omb = ObjectMetaBuilder::new();
-    omb.name(&container_name)
+    omb.name("spark")
         // this reference is not pointing to a controller but only provides a UID that can used to clean up resources
         // cleanly (specifically driver pods and related config maps) when the spark application is deleted.
         .ownerreference(ownerreference_from_resource(validated, None, None))
@@ -376,7 +375,7 @@ pub(crate) fn pod_template(
                 .expect("\"default\" is a valid role group name"),
         };
         pb.add_container(vector_container(
-            &SparkContainer::Vector.to_container_name(),
+            SparkContainer::Vector.name(),
             spark_image,
             &vector_log_config,
             &vector_resource_names,

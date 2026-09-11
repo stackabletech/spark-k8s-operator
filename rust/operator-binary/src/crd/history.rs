@@ -343,8 +343,7 @@ mod test {
     }
 
     /// The typed container names returned by `name` must agree with the strum `Display` of
-    /// `SparkHistoryServerContainer`, which the logging configuration still uses as the
-    /// per-container key.
+    /// `SparkHistoryServerContainer`, which `build_log4j2` still uses for the log directory path.
     #[test]
     fn container_names_match_display() {
         for container in SparkHistoryServerContainer::iter() {

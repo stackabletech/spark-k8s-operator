@@ -616,11 +616,11 @@ impl v1alpha1::SparkApplication {
             ),
             format!(
                 "--conf spark.kubernetes.driver.podTemplateContainerName={container_name}",
-                container_name = SparkContainer::Spark
+                container_name = SparkContainer::Spark.name()
             ),
             format!(
                 "--conf spark.kubernetes.executor.podTemplateContainerName={container_name}",
-                container_name = SparkContainer::Spark
+                container_name = SparkContainer::Spark.name()
             ),
             format!(
                 "--conf spark.kubernetes.namespace={}",

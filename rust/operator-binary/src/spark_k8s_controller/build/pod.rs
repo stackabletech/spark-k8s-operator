@@ -93,7 +93,7 @@ fn init_containers(
             {
                 args.push(capture_shell_output(
                     VOLUME_MOUNT_PATH_LOG,
-                    &SparkContainer::Job.to_string(),
+                    SparkContainer::Job.name().as_ref(),
                     log_config,
                 ));
             };
@@ -146,7 +146,7 @@ fn init_containers(
             {
                 args.push(capture_shell_output(
                     VOLUME_MOUNT_PATH_LOG,
-                    &SparkContainer::Requirements.to_string(),
+                    SparkContainer::Requirements.name().as_ref(),
                     log_config,
                 ));
             };

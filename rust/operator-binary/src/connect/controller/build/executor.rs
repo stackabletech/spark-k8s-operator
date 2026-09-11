@@ -251,7 +251,7 @@ pub(crate) fn executor_properties(
         ),
         (
             "spark.kubernetes.executor.podTemplateContainerName".to_string(),
-            Some(SparkConnectContainer::Spark.to_string()),
+            Some(SparkConnectContainer::Spark.name().to_string()),
         ),
     ]
     .into();

@@ -131,6 +131,8 @@ spec:
           mountPath: /stackable/spark/conf
         - name: log
           mountPath: /stackable/log
+        - name: log-config
+          mountPath: /stackable/log_config
         - name: minio-credentials-class-s3-credentials
           mountPath: /stackable/secrets/minio-credentials-class
 {% if test_scenario['values']['s3-use-tls'] == 'true' %}
@@ -139,8 +141,6 @@ spec:
 {% endif %}
         - name: stackable-truststore
           mountPath: /stackable/truststore
-        - name: log-config
-          mountPath: /stackable/log_config
         - name: spark-conf-volume-exec
           mountPath: /opt/spark/conf
         # mountPath is /var/data/spark-<uuid>, generated per run
@@ -181,6 +181,9 @@ spec:
     - name: config
       configMap:
         name: spark-connect-executor
+    - name: log-config
+      configMap:
+        name: spark-connect-log-config
     - name: minio-credentials-class-s3-credentials
       ephemeral:
         volumeClaimTemplate:
@@ -213,9 +216,6 @@ spec:
 {% endif %}
     - name: stackable-truststore
       emptyDir: {}
-    - name: log-config
-      configMap:
-        name: spark-connect-log-config
     # configMap.name is spark-exec-<hash>-conf-map, generated per run
     - name: spark-conf-volume-exec
     - name: spark-local-dir-1

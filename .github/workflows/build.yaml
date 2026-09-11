@@ -50,7 +50,7 @@ jobs:
 
       - name: Check for changed files
         id: check
-        uses: stackabletech/actions/detect-changes@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/detect-changes@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           patterns: |
             - '.github/workflows/build.yaml'
@@ -206,7 +206,7 @@ jobs:
 
       - name: Build Container Image
         id: build
-        uses: stackabletech/actions/build-container-image@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/build-container-image@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           image-name: ${{ env.OPERATOR_NAME }}
           image-index-manifest-tag: ${{ steps.version.outputs.OPERATOR_VERSION }}
@@ -215,25 +215,25 @@ jobs:
 
       - name: Publish Container Image to oci.stackable.tech
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: stackabletech/actions/publish-image@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/publish-image@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
           image-registry-password: ${{ secrets.HARBOR_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
           image-repository: sdp/${{ env.OPERATOR_NAME }}
-          image-manifest-tag: ${{ steps.build.outputs.image-manifest-tag }}
-          source-image-uri: ${{ steps.build.outputs.image-manifest-uri }}
+          canonical-image-manifest-tag: ${{ steps.build.outputs.image-manifest-tag }}
+          canonical-source-image-uri: ${{ steps.build.outputs.image-manifest-uri }}
 
       - name: Publish Container Image to quay.io
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: stackabletech/actions/publish-image@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/publish-image@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           image-registry-uri: quay.io
           image-registry-username: stackable+robot_sdp_github_action_build
           image-registry-password: ${{ secrets.QUAY_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
           image-repository: stackable/sdp/${{ env.OPERATOR_NAME }}
-          image-manifest-tag: ${{ steps.build.outputs.image-manifest-tag }}
-          source-image-uri: ${{ steps.build.outputs.image-manifest-uri }}
+          canonical-image-manifest-tag: ${{ steps.build.outputs.image-manifest-tag }}
+          canonical-source-image-uri: ${{ steps.build.outputs.image-manifest-uri }}
 
   publish-index-manifest:
     name: Publish/Sign ${{ needs.build-container-image.outputs.operator-version }} Index
@@ -256,22 +256,22 @@ jobs:
           persist-credentials: false
 
       - name: Publish and Sign Image Index to oci.stackable.tech
-        uses: stackabletech/actions/publish-image-index-manifest@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/publish-image-index-manifest@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
           image-registry-password: ${{ secrets.HARBOR_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
           image-repository: sdp/${{ env.OPERATOR_NAME }}
-          image-index-manifest-tag: ${{ needs.build-container-image.outputs.operator-version }}
+          canonical-image-index-manifest-tag: ${{ needs.build-container-image.outputs.operator-version }}
 
       - name: Publish and Sign Image Index to quay.io
-        uses: stackabletech/actions/publish-image-index-manifest@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/publish-image-index-manifest@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           image-registry-uri: quay.io
           image-registry-username: stackable+robot_sdp_github_action_build
           image-registry-password: ${{ secrets.QUAY_ROBOT_SDP_GITHUB_ACTION_BUILD_SECRET }}
           image-repository: stackable/sdp/${{ env.OPERATOR_NAME }}
-          image-index-manifest-tag: ${{ needs.build-container-image.outputs.operator-version }}
+          canonical-image-index-manifest-tag: ${{ needs.build-container-image.outputs.operator-version }}
 
   publish-helm-chart:
     name: Package/Publish ${{ needs.build-container-image.outputs.operator-version }} Helm Chart
@@ -295,7 +295,7 @@ jobs:
           submodules: recursive
 
       - name: Package, Publish, and Sign Helm Chart to oci.stackable.tech
-        uses: stackabletech/actions/publish-helm-chart@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/publish-helm-chart@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           chart-registry-uri: oci.stackable.tech
           chart-registry-username: robot$sdp-charts+github-action-build
@@ -307,7 +307,7 @@ jobs:
           publish-and-sign: ${{ !github.event.pull_request.head.repo.fork }}
 
       - name: Package, Publish, and Sign Helm Chart to quay.io
-        uses: stackabletech/actions/publish-helm-chart@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/publish-helm-chart@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           chart-registry-uri: quay.io
           chart-registry-username: stackable+robot_sdp_charts_github_action_build
@@ -339,13 +339,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run OpenShift Preflight Check for oci.stackable.tech
-        uses: stackabletech/actions/run-openshift-preflight@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/run-openshift-preflight@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           image-index-uri: oci.stackable.tech/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
 
       - name: Run OpenShift Preflight Check for quay.io
-        uses: stackabletech/actions/run-openshift-preflight@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/run-openshift-preflight@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
           image-index-uri: quay.io/stackable/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
@@ -404,6 +404,7 @@ jobs:
     needs:
       - detect-changes
       - cargo-udeps
+      - helm-lint
       - build-container-image
       - publish-index-manifest
       - publish-helm-chart
@@ -411,9 +412,29 @@ jobs:
       - finished
     runs-on: ubuntu-latest
     steps:
+      - name: Combine Check Results
+        id: combine
+        env:
+          OPENSHIFT_PREFLIGHT_CHECK_RESULT: ${{ needs.openshift-preflight-check.result }}
+          CARGO_UDEPS_RESULT: ${{ needs.cargo-udeps.result }}
+          HELM_LINT_RESULT: ${{ needs.helm-lint.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${RUNNER_DEBUG+set}" ] && set -x
+
+          COMBINED_CHECKS_RESULT="success"
+
+          if [ "$OPENSHIFT_PREFLIGHT_CHECK_RESULT" == "failure" ] || [ "$CARGO_UDEPS_RESULT" == "failure" ] || [ "$HELM_LINT_RESULT" == "failure" ]; then
+            COMBINED_CHECKS_RESULT="failure"
+          fi
+
+          echo "COMBINED_CHECKS_RESULT=$COMBINED_CHECKS_RESULT" | tee -a "$GITHUB_OUTPUT"
+
       - name: Send Notification
-        uses: stackabletech/actions/send-slack-notification@0fe048f952bee522474903a925ea48dc706a0bb4 # v0.17.5
+        uses: stackabletech/actions/send-slack-notification@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
         with:
+          combined-checks-result: ${{ steps.combine.outputs.COMBINED_CHECKS_RESULT }}
           publish-helm-chart-result: ${{ needs.publish-helm-chart.result }}
           publish-manifests-result: ${{ needs.publish-index-manifest.result }}
           build-result: ${{ needs.build-container-image.result }}

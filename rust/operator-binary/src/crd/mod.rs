@@ -10,14 +10,14 @@ use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
     builder::pod::volume::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
         VolumeBuilder,
     },
     commons::{
-        product_image_selection::ProductImage,
+        product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{CpuLimits, MemoryLimits, Resources},
         secret_class::SecretClassVolumeProvisionParts,
     },
@@ -73,17 +73,8 @@ pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
 
-    #[snafu(display("object defines no deploy mode"))]
-    ObjectHasNoDeployMode,
-
-    #[snafu(display("object defines no application artifact"))]
-    ObjectHasNoArtifact,
-
     #[snafu(display("object has no name"))]
     ObjectHasNoName,
-
-    #[snafu(display("application has no Spark image"))]
-    NoSparkImage,
 
     #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
     FailedToConvertJavaHeap {
@@ -120,6 +111,12 @@ pub enum Error {
         source: stackable_operator::v2::builder::pod::container::Error,
     },
 
+    #[snafu(display(
+        "invalid key [{key}] in the {SPARK_ENV_SH_FILE_NAME} configOverrides: the file is sourced \
+        by the shell, so keys must be valid shell identifiers matching [a-zA-Z_][a-zA-Z0-9_]*"
+    ))]
+    InvalidSparkEnvShKey { key: String },
+
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
 }
@@ -127,7 +124,7 @@ pub enum Error {
 // `_STACKABLE_PRE_HOOK` is evaluated by the entrypoint script (run-spark.sh) in the Spark images
 // before the actual JVM process is started; the operator uses it to run `containerdebug` in the
 // background of every `spark` container.
-constant!(STACKABLE_PRE_HOOK: EnvVarName = "_STACKABLE_PRE_HOOK");
+constant!(pub STACKABLE_PRE_HOOK: EnvVarName = "_STACKABLE_PRE_HOOK");
 constant!(PYTHONPATH: EnvVarName = "PYTHONPATH");
 // The environment variable holding the trust store password; its value is the
 // `STACKABLE_TLS_STORE_PASSWORD` string constant.
@@ -581,7 +578,7 @@ impl v1alpha1::SparkApplication {
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
-        spark_image: &str,
+        spark_image: &ResolvedProductImage,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = &self.spec.mode;
@@ -631,11 +628,11 @@ impl v1alpha1::SparkApplication {
             ),
             format!(
                 "--conf spark.kubernetes.driver.container.image={}",
-                spark_image.to_string()
+                spark_image.image
             ),
             format!(
                 "--conf spark.kubernetes.executor.container.image={}",
-                spark_image.to_string()
+                spark_image.image
             ),
             format!(
                 "--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
@@ -721,6 +718,11 @@ impl v1alpha1::SparkApplication {
         submit_conf.insert(
             "spark.kubernetes.memoryOverheadFactor".to_string(),
             "0.0".to_string(),
+        );
+
+        submit_conf.insert(
+            "spark.kubernetes.container.image.pullPolicy".to_string(),
+            spark_image.image_pull_policy.clone(),
         );
 
         resources_to_driver_props(
@@ -1058,18 +1060,28 @@ fn resources_to_executor_props(
     Ok(())
 }
 
-/// Create the content of the file spark-env.sh.
-/// The properties are serialized in the form 'export {k}="{v}"',
-/// escaping neither the key nor the value. The user is responsible for
-/// providing escaped values.
-pub fn to_spark_env_sh_string<'a, T>(properties: T) -> String
+/// Create the content of the file spark-env.sh, serializing the properties as 'export {k}="{v}"'.
+/// The file is sourced by the shell, so keys that are not valid shell identifiers are rejected.
+/// Values are left unescaped on purpose, so that they can reference other variables.
+pub fn to_spark_env_sh_string<'a, T>(properties: T) -> Result<String, Error>
 where
     T: Iterator<Item = (&'a String, &'a String)>,
 {
     properties
-        .map(|(k, v)| format!("export {k}=\"{v}\""))
-        .collect::<Vec<String>>()
-        .join("\n")
+        .map(|(k, v)| {
+            ensure!(is_shell_identifier(k), InvalidSparkEnvShKeySnafu { key: k });
+            Ok(format!("export {k}=\"{v}\""))
+        })
+        .collect::<Result<Vec<String>, Error>>()
+        .map(|lines| lines.join("\n"))
+}
+
+fn is_shell_identifier(key: &str) -> bool {
+    let mut chars = key.chars();
+    chars
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|char| char.is_ascii_alphanumeric() || char == '_')
 }
 
 #[cfg(test)]
@@ -1097,6 +1109,49 @@ mod tests {
         let _ = *PYTHONPATH;
         let _ = *STACKABLE_PRE_HOOK;
         let _ = *STACKABLE_TLS_STORE_PASSWORD_ENV;
+    }
+
+    #[rstest]
+    #[case("SPARK_HISTORY_OPTS")]
+    #[case("_LEADING_UNDERSCORE")]
+    #[case("TRAILING_DIGITS_123")]
+    #[case("lowercase")]
+    fn to_spark_env_sh_string_accepts_shell_identifiers(#[case] key: &str) {
+        let overrides = BTreeMap::from([(key.to_string(), "value".to_string())]);
+
+        assert_eq!(
+            to_spark_env_sh_string(overrides.iter()).expect("the key is a valid shell identifier"),
+            format!("export {key}=\"value\"")
+        );
+    }
+
+    #[rstest]
+    #[case("TEST_SPARK-ENV-SH")]
+    #[case("1_LEADING_DIGIT")]
+    #[case("WITH SPACE")]
+    #[case("with.dot")]
+    #[case("")]
+    fn to_spark_env_sh_string_rejects_other_keys(#[case] key: &str) {
+        let overrides = BTreeMap::from([(key.to_string(), "value".to_string())]);
+
+        assert!(matches!(
+            to_spark_env_sh_string(overrides.iter()),
+            Err(Error::InvalidSparkEnvShKey { key: invalid }) if invalid == key
+        ));
+    }
+
+    /// Values are shell-evaluated by design, so references to other variables must survive.
+    #[test]
+    fn to_spark_env_sh_string_leaves_values_untouched() {
+        let overrides = BTreeMap::from([(
+            "SPARK_HISTORY_OPTS".to_string(),
+            "$SPARK_HISTORY_OPTS -Dsome.token=$SAS_TOKEN".to_string(),
+        )]);
+
+        assert_eq!(
+            to_spark_env_sh_string(overrides.iter()).expect("the key is a valid shell identifier"),
+            r#"export SPARK_HISTORY_OPTS="$SPARK_HISTORY_OPTS -Dsome.token=$SAS_TOKEN""#
+        );
     }
 
     #[test]
@@ -1597,6 +1652,65 @@ spec:
         ];
 
         assert_eq!(got, expected);
+    }
+
+    #[rstest]
+    #[case::from_spark_image(None, "IfNotPresent")]
+    #[case::spark_conf_wins(Some("Never"), "Never")]
+    fn spark_image_pull_policy_is_passed_to_spark_submit(
+        #[case] spark_conf_override: Option<&str>,
+        #[case] expected: &str,
+    ) {
+        let spark_conf = spark_conf_override
+            .map(|policy| {
+                format!("\n  sparkConf:\n    spark.kubernetes.container.image.pullPolicy: {policy}")
+            })
+            .unwrap_or_default();
+        let yaml = format!(
+            indoc! {r#"
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: spark-example
+                  namespace: default
+                spec:
+                  mode: cluster
+                  mainApplicationFile: test.py
+                  sparkImage:
+                    productVersion: 1.2.3
+                    pullPolicy: IfNotPresent{spark_conf}
+            "#},
+            spark_conf = spark_conf
+        );
+        let deserializer = serde_yaml::Deserializer::from_str(&yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test SparkApplication YAML");
+
+        let resolved_product_image = spark_application
+            .spec
+            .spark_image
+            .resolve("spark-k8s", "oci.example.org/sdp", "0.0.0-dev")
+            .expect("the product image resolves");
+
+        let command = spark_application
+            .build_command(&None, &None, &resolved_product_image)
+            .expect("the submit command can be built")
+            .join(" ");
+
+        let occurrences = command
+            .matches("spark.kubernetes.container.image.pullPolicy=")
+            .count();
+        assert_eq!(
+            1, occurrences,
+            "the property must be passed exactly once, so that it is unambiguous"
+        );
+        assert!(
+            command.contains(&format!(
+                r#"--conf "spark.kubernetes.container.image.pullPolicy={expected}""#
+            )),
+            "expected pull policy {expected} in: {command}"
+        );
     }
 
     impl RoundtripTestData for v1alpha1::SparkApplicationSpec {

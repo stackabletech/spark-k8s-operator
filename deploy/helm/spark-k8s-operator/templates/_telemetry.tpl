@@ -1,7 +1,7 @@
 {{/*
 Create a list of telemetry related env vars.
 */}}
-{{- define "telemetry.envVars" -}}
+{{- define "spark-k8s-operator.telemetry.envVars" -}}
 {{- with .Values.telemetry }}
 {{- if not .consoleLog.enabled }}
 - name: CONSOLE_LOG_DISABLED
@@ -17,7 +17,7 @@ Create a list of telemetry related env vars.
 {{ end }}
 {{- if .fileLog.enabled }}
 - name: FILE_LOG_DIRECTORY
-  value: /stackable/logs/{{ include "operator.appname" $ }}
+  value: /stackable/logs/{{ include "spark-k8s-operator.appname" $ }}
 {{- end }}
 {{- if and .fileLog.enabled .fileLog.level }}
 - name: FILE_LOG_LEVEL

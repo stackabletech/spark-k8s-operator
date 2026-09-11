@@ -61,7 +61,7 @@ pub(crate) fn spark_job(
     let spark_image = &validated.resolved_product_image;
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
-    let mut cb = new_container_builder(&SparkContainer::SparkSubmit.to_container_name());
+    let mut cb = new_container_builder(SparkContainer::SparkSubmit.name());
 
     // The SPARK_SUBMIT_OPTS env var is used to configure the JVM settings of the spark-submit job.
     // Here we need to point the JVM to the security properties and if S3 is used for data or Spark

@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Support floating tag in product image selection ([#773]).
 - The history server and Spark Connect server StatefulSets now carry the
   `restarter.stackable.tech/enabled: "true"` label, opting them into the restarter-controller so
   that their Pods are automatically rolled when a mounted ConfigMap or Secret changes ([#754]).
@@ -79,6 +80,7 @@ All notable changes to this project will be documented in this file.
 [#764]: https://github.com/stackabletech/spark-k8s-operator/pull/764
 [#766]: https://github.com/stackabletech/spark-k8s-operator/pull/766
 [#769]: https://github.com/stackabletech/spark-k8s-operator/pull/769
+[#773]: https://github.com/stackabletech/spark-k8s-operator/pull/773
 
 ## [26.7.0] - 2026-07-21
 

@@ -3,9 +3,9 @@
 :keywords: Stackable operator, Apache Spark, Kubernetes, operator, data science, engineer, big data, CRD, StatefulSet, ConfigMap, Service, S3, demo, version
 :spark: https://spark.apache.org/
 :github: https://github.com/stackabletech/spark-k8s-operator/
-:crd: {crd-docs-base-url}/spark-k8s-operator/{crd-docs-version}/
-:crd-sparkapplication: {crd-docs}/spark.stackable.tech/sparkapplication/v1alpha1/
-:crd-sparkhistoryserver: {crd-docs}/spark.stackable.tech/sparkhistoryserver/v1alpha1/
+:crd: {crd-ref}{crd-ref-release}&operator=spark-k8s-operator
+:crd-sparkapplication: {crd-ref}/spark.stackable.tech/v1alpha1/sparkapplication{crd-ref-release}
+:crd-sparkhistoryserver: {crd-ref}/spark.stackable.tech/v1alpha1/sparkhistoryserver{crd-ref-release}
 :feature-tracker: https://features.stackable.tech/unified
 :spark-rbac: https://spark.apache.org/docs/latest/running-on-kubernetes.html#rbac
 :structured-streaming: https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html

@@ -1690,7 +1690,13 @@ spec:
         let resolved_product_image = spark_application
             .spec
             .spark_image
-            .resolve("spark-k8s", "oci.example.org/sdp", "0.0.0-dev")
+            .resolve(
+                "spark-k8s",
+                "oci.example.org/sdp",
+                &"0.0.0-dev"
+                    .parse()
+                    .expect("static semantic version must parse"),
+            )
             .expect("the product image resolves");
 
         let command = spark_application

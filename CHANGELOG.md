@@ -6,24 +6,28 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Support floating tag in product image selection ([#773]).
+- Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
+  ([#773]).
 - The history server and Spark Connect server StatefulSets now carry the
   `restarter.stackable.tech/enabled: "true"` label, opting them into the restarter-controller so
   that their Pods are automatically rolled when a mounted ConfigMap or Secret changes ([#754]).
 
 ### Changed
 
+- Bump `stackable-operator` to 0.118.0 ([#732], [#753], [#773]).
+- BREAKING: `spec.image.stackableVersion` must now be a full, valid semver version, e.g. `26.7.1`.
+  Abbreviated values such as `26.7` are no longer accepted ([#773]).
+- BREAKING: `spec.image.pullPolicy` now defaults to `IfNotPresent` for non-floating tags instead of
+  always defaulting to `Always` ([#773]).
 - Internal operator refactoring: introduce a build() step in the history and connect
   server reconcilers that assembles all relevant Kubernetes resources before anything
   is applied ([#721]).
-- Bump stackable-operator to 0.114.0 ([#732]).
 - The RBAC ServiceAccounts and RoleBindings of the history and connect servers are now
   built with the operator-rs `v2::rbac` functions and carry the recommended labels ([#727]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#744]).
 - The reconcilers now apply resources in a discrete apply step; the connect server and application
   controllers additionally update the status in a discrete update_status step (the history server
   CRD has no status) ([#746]).
-- Bump stackable-operator to 0.116.0 ([#753]).
 - BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
   from the resources they don't apply to (previously set to `none` or a placeholder value such as
   `sparkapplication` or `default`). StatefulSets created by older operator versions cannot be

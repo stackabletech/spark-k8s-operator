@@ -8841,9 +8841,9 @@ rec {
       };
       "rustls" = rec {
         crateName = "rustls";
-        version = "0.23.43";
+        version = "0.23.45";
         edition = "2021";
-        sha256 = "01nsagj78r88pifaz55ln1rw31py5n00h7bnw58h3g1aw1n3i0q2";
+        sha256 = "0d6n90q52x5cjyxb6bwcnf9hwg6yb31cwr63rk8n5yfjqwqxfh8d";
         dependencies = [
           {
             name = "log";

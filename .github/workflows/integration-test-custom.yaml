@@ -30,7 +30,7 @@ jobs:
 
       - name: Run Integration Test
         id: test
-        uses: stackabletech/actions/run-integration-test@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
+        uses: stackabletech/actions/run-integration-test@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
         with:
           replicated-api-token: ${{ secrets.REPLICATED_API_TOKEN }}
           otlp-bearer-token: ${{ secrets.OTLP_BEARER_TOKEN }}
@@ -41,7 +41,7 @@ jobs:
 
       - name: Send Notification
         if: ${{ failure() || github.run_attempt > 1 }}
-        uses: stackabletech/actions/send-slack-notification@e8aed001d347bcf693e41b61f4098b0cb94b4ab6 # v0.18.0
+        uses: stackabletech/actions/send-slack-notification@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
         with:
           slack-token: ${{ secrets.SLACK_INTEGRATION_TEST_TOKEN }}
           dashboard-url: ${{ steps.test.outputs.dashboard-url }}

@@ -108,7 +108,29 @@ repos:
       - id: cargo-doc
         name: cargo-doc
         language: system
+        env:
+          RUSTDOCFLAGS: "-D warnings"
         entry: cargo doc --no-deps --document-private-items
+        stages: [pre-commit, pre-merge-commit]
+        pass_filenames: false
+        files: \.rs$|Cargo\.(toml|lock)
+
+      - id: cargo-doc-all-features
+        name: cargo-doc-all-features
+        language: system
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        entry: cargo doc --no-deps --document-private-items --all-features
+        stages: [pre-commit, pre-merge-commit]
+        pass_filenames: false
+        files: \.rs$|Cargo\.(toml|lock)
+
+      - id: cargo-doc-no-default-features
+        name: cargo-doc-no-default-features
+        language: system
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        entry: cargo doc --no-deps --document-private-items --no-default-features
         stages: [pre-commit, pre-merge-commit]
         pass_filenames: false
         files: \.rs$|Cargo\.(toml|lock)

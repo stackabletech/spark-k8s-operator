@@ -6,23 +6,28 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
+  ([#773]).
 - The history server and Spark Connect server StatefulSets now carry the
   `restarter.stackable.tech/enabled: "true"` label, opting them into the restarter-controller so
   that their Pods are automatically rolled when a mounted ConfigMap or Secret changes ([#754]).
 
 ### Changed
 
+- Bump `stackable-operator` to 0.118.0 ([#732], [#753], [#773]).
+- BREAKING: `spec.image.stackableVersion` must now be a full, valid semver version, e.g. `26.7.1`.
+  Abbreviated values such as `26.7` are no longer accepted ([#773]).
+- BREAKING: `spec.image.pullPolicy` now defaults to `IfNotPresent` for non-floating tags instead of
+  always defaulting to `Always` ([#773]).
 - Internal operator refactoring: introduce a build() step in the history and connect
   server reconcilers that assembles all relevant Kubernetes resources before anything
   is applied ([#721]).
-- Bump stackable-operator to 0.114.0 ([#732]).
 - The RBAC ServiceAccounts and RoleBindings of the history and connect servers are now
   built with the operator-rs `v2::rbac` functions and carry the recommended labels ([#727]).
 - All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#744]).
 - The reconcilers now apply resources in a discrete apply step; the connect server and application
   controllers additionally update the status in a discrete update_status step (the history server
   CRD has no status) ([#746]).
-- Bump stackable-operator to 0.116.0 ([#753]).
 - BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
   from the resources they don't apply to (previously set to `none` or a placeholder value such as
   `sparkapplication` or `default`). StatefulSets created by older operator versions cannot be
@@ -31,6 +36,9 @@ All notable changes to this project will be documented in this file.
 - Environment variable overrides (`envOverrides`) are now applied after all environment variables
   set by the operator. In particular, `SPARK_CONF_DIR` of a SparkApplication can now be overridden,
   whereas previously the operator's values always took precedence ([#753]).
+- BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
+  identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
+- Make operations infallible where dependent on static inputs ([#766], [#769]).
 
 ### Fixed
 
@@ -51,6 +59,15 @@ All notable changes to this project will be documented in this file.
 - The history and connect controllers now watch all resources that they create, the missing RBAC
   `watch` permissions were added, and all controllers early-exit the reconcile action when the object
   is marked for deletion ([#757]).
+- Re-added the ownerRef on driver pod to ensure GC cascade ([#758]).
+- The `configOverrides` for `spark-env.sh` and `security.properties` of a SparkApplication now take
+  effect in the submit, driver and executor Pods ([#761]).
+- BREAKING (behaviour): The image pull policy is no longer ignored by several containers.
+  `sparkImage.pullPolicy` of a SparkApplication now covers the driver and executor containers, the
+  `job`, `requirements` and `tls` init containers and the user-supplied `spec.image`, and
+  `image.pullPolicy` of a SparkConnectServer now covers its truststore init container and its
+  executors. With the default `Always`, these containers pull on every start instead of using the
+  node's image cache ([#764]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
@@ -62,6 +79,12 @@ All notable changes to this project will be documented in this file.
 [#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
 [#754]: https://github.com/stackabletech/spark-k8s-operator/pull/754
 [#757]: https://github.com/stackabletech/spark-k8s-operator/pull/757
+[#758]: https://github.com/stackabletech/spark-k8s-operator/pull/758
+[#761]: https://github.com/stackabletech/spark-k8s-operator/pull/761
+[#764]: https://github.com/stackabletech/spark-k8s-operator/pull/764
+[#766]: https://github.com/stackabletech/spark-k8s-operator/pull/766
+[#769]: https://github.com/stackabletech/spark-k8s-operator/pull/769
+[#773]: https://github.com/stackabletech/spark-k8s-operator/pull/773
 
 ## [26.7.0] - 2026-07-21
 

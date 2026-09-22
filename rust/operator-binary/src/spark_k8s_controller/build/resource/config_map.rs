@@ -42,6 +42,12 @@ pub enum Error {
         role: SparkApplicationRole,
     },
 
+    #[snafu(display("failed to serialize [{SPARK_ENV_SH_FILE_NAME}] for {role}", role = role.as_ref()))]
+    SparkEnvSh {
+        source: crate::crd::Error,
+        role: SparkApplicationRole,
+    },
+
     #[snafu(display("failed to build the pod template config map"))]
     PodTemplateConfigMap {
         source: stackable_operator::builder::configmap::Error,
@@ -131,7 +137,8 @@ pub(crate) fn pod_template_config_map(
 
     cm_builder.add_data(
         SPARK_ENV_SH_FILE_NAME,
-        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
+        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter())
+            .with_context(|_| SparkEnvShSnafu { role: role.clone() })?,
     );
 
     let mut jvm_sec_props = default_jvm_security_properties();
@@ -159,7 +166,11 @@ pub(crate) fn submit_job_config_map(
 
     cm_builder.add_data(
         SPARK_ENV_SH_FILE_NAME,
-        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
+        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()).context(
+            SparkEnvShSnafu {
+                role: SparkApplicationRole::Submit,
+            },
+        )?,
     );
 
     let mut jvm_sec_props = default_jvm_security_properties();

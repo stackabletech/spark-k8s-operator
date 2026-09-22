@@ -1,0 +1,9 @@
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-aggregator-discovery
+data:
+  ADDRESS: {{ lookup('env', 'VECTOR_AGGREGATOR') }}
+{% endif %}

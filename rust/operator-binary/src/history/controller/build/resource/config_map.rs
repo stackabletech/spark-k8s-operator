@@ -48,6 +48,14 @@ pub enum Error {
     InvalidSparkDefaults {
         source: stackable_operator::v2::config_file_writer::PropertiesWriterError,
     },
+
+    #[snafu(display(
+        "History server : failed to serialize [{SPARK_ENV_SH_FILE_NAME}] for group {rolegroup}"
+    ))]
+    SparkEnvSh {
+        source: crate::crd::Error,
+        rolegroup: String,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -95,7 +103,10 @@ pub(crate) fn build_config_map(
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
         .add_data(
             SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(rg.config.config_overrides.spark_env_sh.overrides.iter()),
+            to_spark_env_sh_string(rg.config.config_overrides.spark_env_sh.overrides.iter())
+                .with_context(|_| SparkEnvShSnafu {
+                    rolegroup: role_group_name.to_string(),
+                })?,
         )
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,

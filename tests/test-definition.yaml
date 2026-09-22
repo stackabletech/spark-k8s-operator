@@ -80,6 +80,10 @@ tests:
     dimensions:
       - spark
       - openshift
+  - name: config-overrides
+    dimensions:
+      - spark
+      - openshift
   - name: spark-history-server
     dimensions:
       - spark

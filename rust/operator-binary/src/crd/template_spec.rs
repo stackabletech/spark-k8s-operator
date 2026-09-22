@@ -1,11 +1,15 @@
 //! This module provides the SparkApplicationTemplateSpec CRD definition.
 
-use std::{num::ParseIntError, str::ParseBoolError};
+use std::{
+    num::ParseIntError,
+    str::{FromStr, ParseBoolError},
+};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
+    constant,
     kube::{Api, CustomResource, ResourceExt, api::ListParams},
     schemars::{self, JsonSchema},
     versioned::versioned,
@@ -18,9 +22,6 @@ use crate::crd::template_merger::deep_merge;
 #[strum_discriminants(derive(IntoStaticStr))]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("failed to build template merge options from application annotations"))]
-    BuildMergeTemplateOptions,
-
     #[snafu(display(
         "invalid index value [{value}] for template names. value must be non negative integer"
     ))]
@@ -28,9 +29,6 @@ pub enum Error {
         source: ParseIntError,
         value: String,
     },
-
-    #[snafu(display("invalid regex for template names annotation"))]
-    InvalidAnnotationTemplateNameRx { source: regex::Error },
 
     #[snafu(display("invalid value [{value}] for annotation [{name}]"))]
     InvalidAnnotationBooleanValue {
@@ -128,7 +126,7 @@ enum TemplateApplyStrategy {
 
 // This annotation regex selects the template names to apply.
 // The <index> value determines the merge order.
-const ANNO_TEMPLATE_NAME_RX: &str = "^spark-application\\.template\\.(?P<index>\\d+)\\.name$";
+constant!(ANNO_TEMPLATE_NAME_RX: Regex = "^spark-application\\.template\\.(?P<index>\\d+)\\.name$");
 // A boolean that enable/disables template merging.
 const ANNO_TEMPLATE_MERGE: &str = "spark-application.template.merge";
 // This annotation instructs the operator when to update patched applications.
@@ -166,12 +164,9 @@ impl TryFrom<&super::v1alpha1::SparkApplication> for MergeTemplateOptions {
 
             // Extract template indexes and names.
             // Sort by indexes and discard them.
-            let template_name_rx =
-                Regex::new(ANNO_TEMPLATE_NAME_RX).context(InvalidAnnotationTemplateNameRxSnafu)?;
-
             let mut template_index_name = vec![];
             for (k, v) in annos.iter() {
-                if let Some(caps) = template_name_rx.captures(k) {
+                if let Some(caps) = ANNO_TEMPLATE_NAME_RX.captures(k) {
                     let index = caps["index"].parse::<u8>().context(
                         InvalidAnnotationTemplateIndexSnafu {
                             value: caps["index"].to_string(),
@@ -375,6 +370,12 @@ mod tests {
     use stackable_operator::versioned::test_utils::RoundtripTestData;
 
     use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *ANNO_TEMPLATE_NAME_RX;
+    }
 
     #[test]
     fn try_from_parses_annotations_and_sorts_template_names() {

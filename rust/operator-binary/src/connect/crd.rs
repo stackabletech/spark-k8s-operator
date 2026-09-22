@@ -18,6 +18,7 @@ use stackable_operator::{
         merge::Merge,
     },
     config_overrides::KeyValueConfigOverrides,
+    constant,
     crd::s3,
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::PodAntiAffinity, apimachinery::pkg::api::resource::Quantity},
@@ -271,11 +272,18 @@ pub(crate) enum SparkConnectContainer {
     Vector,
 }
 
+// Typed container names. They must match the strum `Display` (lowercase) of the variants above,
+// which is pinned by a unit test.
+constant!(SPARK_CONTAINER_NAME: ContainerName = "spark");
+constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+
 impl SparkConnectContainer {
-    /// The type-safe container name for this variant (matching its lowercase serialization).
-    pub fn to_container_name(&self) -> ContainerName {
-        ContainerName::from_str(&self.to_string())
-            .expect("a SparkConnectContainer variant name is a valid container name")
+    /// The typed container name of this variant.
+    pub(crate) fn name(&self) -> &'static ContainerName {
+        match self {
+            SparkConnectContainer::Spark => &SPARK_CONTAINER_NAME,
+            SparkConnectContainer::Vector => &VECTOR_CONTAINER_NAME,
+        }
     }
 }
 
@@ -450,8 +458,25 @@ impl v1alpha1::ExecutorConfig {
 mod tests {
     use indoc::indoc;
     use stackable_operator::versioned::test_utils::RoundtripTestData;
+    use strum::IntoEnumIterator;
 
     use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *SPARK_CONTAINER_NAME;
+        let _ = *VECTOR_CONTAINER_NAME;
+    }
+
+    /// The typed container names returned by `name` must agree with the strum `Display` of
+    /// `SparkConnectContainer`, which `build_log4j2` still uses for the log directory path.
+    #[test]
+    fn container_names_match_display() {
+        for container in SparkConnectContainer::iter() {
+            assert_eq!(container.name().to_string(), container.to_string());
+        }
+    }
 
     #[test]
     fn test_cr_minimal_deserialization() {

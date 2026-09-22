@@ -1,0 +1,117 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-overrides-log-config
+data:
+  log4j2.properties: |-
+    appenders = CONSOLE
+
+    appender.CONSOLE.type = Console
+    appender.CONSOLE.name = CONSOLE
+    appender.CONSOLE.target = SYSTEM_ERR
+    appender.CONSOLE.layout.type = PatternLayout
+    appender.CONSOLE.layout.pattern = %d{ISO8601} %p [%t] %c - %m%n
+
+    rootLogger.level = INFO
+    rootLogger.appenderRefs = CONSOLE
+    rootLogger.appenderRef.CONSOLE.ref = CONSOLE
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-config-overrides
+spec:
+{% if lookup('env', 'VECTOR_AGGREGATOR') %}
+  vectorAggregatorConfigMapName: vector-aggregator-discovery
+{% endif %}
+  sparkImage:
+{% if test_scenario['values']['spark'].find(",") > 0 %}
+    custom: "{{ test_scenario['values']['spark'].split(',')[1] }}"
+    productVersion: "{{ test_scenario['values']['spark'].split(',')[0] }}"
+{% else %}
+    productVersion: "{{ test_scenario['values']['spark'] }}"
+{% endif %}
+    pullPolicy: IfNotPresent
+  mode: cluster
+  mainApplicationFile: "local:///stackable/spark/jobs/check-config-overrides.py"
+  job:
+    configOverrides:
+      spark-env.sh:
+        SPARK_PRINT_LAUNCH_COMMAND: "1"
+  driver:
+    configOverrides:
+      spark-env.sh:
+        TEST_SPARK_ENV_SH: driver
+      security.properties:
+        networkaddress.cache.ttl: "42"
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          spark:
+            # A custom log configuration points the log config Volume at the ConfigMap above,
+            # which holds no `security.properties`.
+            custom:
+              configMap: config-overrides-log-config
+      volumeMounts:
+        - name: script
+          mountPath: /stackable/spark/jobs
+  executor:
+    replicas: 1
+    configOverrides:
+      spark-env.sh:
+        TEST_SPARK_ENV_SH: executor
+      security.properties:
+        networkaddress.cache.ttl: "43"
+    config:
+      logging:
+        enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+        containers:
+          spark:
+            custom:
+              configMap: config-overrides-log-config
+      volumeMounts:
+        - name: script
+          mountPath: /stackable/spark/jobs
+  volumes:
+    - name: script
+      configMap:
+        name: check-config-overrides
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: check-config-overrides
+data:
+  check-config-overrides.py: |
+    import os
+
+    from pyspark.sql import SparkSession
+
+    spark = SparkSession.builder.appName("check-config-overrides").getOrCreate()
+    sc = spark.sparkContext
+
+    driver_env = os.environ.get("TEST_SPARK_ENV_SH")
+    assert driver_env == "driver", driver_env
+
+    ttl = sc._jvm.java.security.Security.getProperty("networkaddress.cache.ttl")
+    assert ttl == "42", ttl
+
+    executor_env = (
+        sc.parallelize(range(4), 4)
+        .map(lambda _: os.environ.get("TEST_SPARK_ENV_SH"))
+        .distinct()
+        .collect()
+    )
+    assert executor_env == ["executor"], executor_env
+
+
+    def executor_ttl(_):
+        prefix = "networkaddress.cache.ttl="
+        with open("/stackable/spark/conf/security.properties") as file:
+            return [line.strip() for line in file if line.startswith(prefix)]
+
+
+    executor_ttls = sc.parallelize(range(4), 4).flatMap(executor_ttl).distinct().collect()
+    assert executor_ttls == ["networkaddress.cache.ttl=43"], executor_ttls

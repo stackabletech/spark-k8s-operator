@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - The history server and Spark Connect server StatefulSets now carry the
   `restarter.stackable.tech/enabled: "true"` label, opting them into the restarter-controller so
   that their Pods are automatically rolled when a mounted ConfigMap or Secret changes ([#754]).
+- Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#779]).
 
 ### Changed
 
@@ -39,6 +40,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
   identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
 - Make operations infallible where dependent on static inputs ([#766], [#769]).
+- Bump stackable-operator to 0.119.0 ([#779]).
 
 ### Fixed
 
@@ -85,6 +87,7 @@ All notable changes to this project will be documented in this file.
 [#766]: https://github.com/stackabletech/spark-k8s-operator/pull/766
 [#769]: https://github.com/stackabletech/spark-k8s-operator/pull/769
 [#773]: https://github.com/stackabletech/spark-k8s-operator/pull/773
+[#779]: https://github.com/stackabletech/spark-k8s-operator/pull/779
 
 ## [26.7.0] - 2026-07-21
 

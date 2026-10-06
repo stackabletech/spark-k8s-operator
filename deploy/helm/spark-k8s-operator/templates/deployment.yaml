@@ -84,6 +84,14 @@ spec:
 
             {{- include "spark-k8s-operator.telemetry.envVars" . | nindent 12 }}
             {{- include "spark-k8s-operator.maintenance.envVars" . | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: 8443
+              scheme: HTTPS
+            periodSeconds: 3
+            failureThreshold: 30
+            timeoutSeconds: 3
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

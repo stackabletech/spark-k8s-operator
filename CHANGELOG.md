@@ -294,7 +294,7 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 - Support for Spark versions 3.5.2 has been dropped ([#570]).
-- Integration test spark-pi-public-s3 because the AWS SDK >2.24 doesn't suuport anonymous S3 access anymore ([#574]).
+- Integration test spark-pi-public-s3 because the AWS SDK >2.24 doesn't support anonymous S3 access anymore ([#574]).
 - Remove the `lastUpdateTime` field from the stacklet status ([#592]).
 - Remove role binding to legacy service accounts ([#592]).
 

@@ -1,4 +1,4 @@
-# Provision Spark applications from seaparate image
+# Provision Spark applications from separate image
 
 ## Build the image
 

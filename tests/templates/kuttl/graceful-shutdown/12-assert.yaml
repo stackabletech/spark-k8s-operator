@@ -3,17 +3,45 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 600
 commands:
-  # Same check as in step 10: the replacement for the stopped executor has to be registered and
-  # working before the driver is stopped, otherwise it is not in the driver's list yet.
-  - script: |
+  # The polling happens here and not by letting kuttl retry the assert, because kuttl reprints the
+  # whole script on every attempt and would bury the rest of the test log.
+  - timeout: 600
+    script: |
       set -eu
 
-      registered=0
-      for pod in $(kubectl -n "$NAMESPACE" get pods -o name \
-        -l spark-role=executor,app.kubernetes.io/instance=graceful-shutdown | cut -d/ -f2); do
-        log=$(kubectl -n "$NAMESPACE" logs --tail=-1 "$pod" -c spark)
-        echo "$log" | grep -q 'Successfully registered with driver'
-        echo "$log" | grep -q 'Running task'
-        registered=$(( registered + 1 ))
+      selector="spark-role=executor,app.kubernetes.io/instance=graceful-shutdown"
+      budget_seconds=570
+      poll_seconds=5
+
+      start=$(date +%s)
+      while :; do
+        executors=$(
+          kubectl -n "$NAMESPACE" get pods -l "$selector" -o json | jq -r '
+            .items[]
+            | select(.metadata.deletionTimestamp == null and .status.phase == "Running")
+            | .metadata.name'
+        )
+
+        registered=0
+        for pod in $executors; do
+          # The Pod can disappear between the listing and the read, which is not a failure.
+          logs=$(kubectl -n "$NAMESPACE" logs --tail=-1 "$pod" -c spark 2>/dev/null || true)
+          echo "$logs" | grep -q 'Successfully registered with driver' || continue
+          echo "$logs" | grep -q 'Running task' || continue
+          registered=$(( registered + 1 ))
+        done
+
+        if [ "$registered" -eq 2 ]; then
+          echo "OK: the replacement executor is registered with the driver and running a task"
+          exit 0
+        fi
+
+        if [ $(( $(date +%s) - start )) -ge "$budget_seconds" ]; then
+          echo "FAIL: ${budget_seconds}s after the executor was stopped, $registered of 2"
+          echo "executors are registered and running a task, so no replacement came back"
+          kubectl -n "$NAMESPACE" get pods -l "$selector"
+          exit 1
+        fi
+
+        sleep "$poll_seconds"
       done
-      test "$registered" -eq 2

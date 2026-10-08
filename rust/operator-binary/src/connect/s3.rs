@@ -6,6 +6,7 @@ use std::{
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     commons::product_image_selection::ResolvedProductImage,
+    constant,
     crd::s3::{self, v1alpha1::S3AccessStyle},
     k8s_openapi::api::core::v1::{Container, Volume, VolumeMount},
     v2::{builder::pod::container::new_container_builder, types::kubernetes::ContainerName},
@@ -21,7 +22,9 @@ use crate::{
     },
 };
 
-const TRUSTSTORE_INIT_CONTAINER_NAME: &str = "tls-truststore-init";
+// The truststore init container has no logging configuration, so it is not a
+// `SparkConnectContainer` variant and carries its name directly.
+constant!(TRUSTSTORE_INIT_CONTAINER_NAME: ContainerName = "tls-truststore-init");
 
 #[derive(Snafu, Debug)]
 #[allow(clippy::enum_variant_names)]
@@ -324,11 +327,9 @@ impl ResolvedS3 {
     ) -> Result<Option<Container>, Error> {
         if let Some(command) = self.truststore_init_container_command() {
             let (_, volume_mounts) = self.volumes_and_mounts()?;
-            let name = ContainerName::from_str(TRUSTSTORE_INIT_CONTAINER_NAME)
-                .expect("TRUSTSTORE_INIT_CONTAINER_NAME is a valid container name");
 
             Ok(Some(
-                new_container_builder(&name)
+                new_container_builder(&TRUSTSTORE_INIT_CONTAINER_NAME)
                     .image_from_product_image(image)
                     .command(vec![
                         "/bin/bash".to_string(),
@@ -442,6 +443,12 @@ mod tests {
     use stackable_operator::v2::config_file_writer::to_java_properties_string;
 
     use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *TRUSTSTORE_INIT_CONTAINER_NAME;
+    }
 
     #[rstest]
     #[case("no connection and no buckets",

@@ -225,7 +225,7 @@ pub(crate) fn build_stateful_set(
         .volumes_and_mounts()
         .context(BuildS3VolumesAndMountsSnafu)?;
 
-    let mut container = new_container_builder(&SparkConnectContainer::Spark.to_container_name());
+    let mut container = new_container_builder(SparkConnectContainer::Spark.name());
     container
         .image_from_product_image(resolved_product_image)
         .resources(config.resources.clone().into())
@@ -291,7 +291,7 @@ pub(crate) fn build_stateful_set(
         };
 
         pb.add_container(vector_container(
-            &SparkConnectContainer::Vector.to_container_name(),
+            SparkConnectContainer::Vector.name(),
             resolved_product_image,
             vector_log_config,
             &vector_resource_names,

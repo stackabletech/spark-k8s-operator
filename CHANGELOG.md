@@ -41,6 +41,7 @@ All notable changes to this project will be documented in this file.
   identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
 - Make operations infallible where dependent on static inputs ([#766], [#769]).
 - Bump stackable-operator to 0.119.0 ([#779]).
+- test: Bump vector-aggregator to 0.58.0 ([#784]).
 
 ### Fixed
 
@@ -88,6 +89,7 @@ All notable changes to this project will be documented in this file.
 [#769]: https://github.com/stackabletech/spark-k8s-operator/pull/769
 [#773]: https://github.com/stackabletech/spark-k8s-operator/pull/773
 [#779]: https://github.com/stackabletech/spark-k8s-operator/pull/779
+[#784]: https://github.com/stackabletech/spark-k8s-operator/pull/784
 
 ## [26.7.0] - 2026-07-21
 

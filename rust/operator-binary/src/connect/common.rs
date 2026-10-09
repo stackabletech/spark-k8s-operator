@@ -59,6 +59,21 @@ pub(crate) fn object_name(stacklet_name: &str, role: SparkConnectRole) -> String
     }
 }
 
+// Returns the extra class path shared by the Connect server and its executors.
+//
+// The product image keeps the Spark Connect jars out of `/stackable/spark/jars` to
+// avoid class path conflicts with regular Spark applications, so both roles have to add the Connect
+// jar explicitly.
+//
+// `spark.driver.extraClassPath` and `spark.executor.extraClassPath` must be set to this same value:
+// the Connect server ships closures defined in the Connect jar with every task that returns rows to
+// a client.
+pub(crate) fn extra_class_path(product_version: &str) -> String {
+    format!(
+        "/stackable/spark/extra-jars/*:/stackable/spark/connect/spark-connect-{product_version}.jar"
+    )
+}
+
 // Returns the operator-generated jvm arguments with the user-provided overrides applied on top.
 pub(crate) fn jvm_args(jvm_args: &[String], user_java_config: Option<&JavaCommonConfig>) -> String {
     match user_java_config {

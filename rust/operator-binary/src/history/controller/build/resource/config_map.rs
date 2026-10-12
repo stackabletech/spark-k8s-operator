@@ -20,7 +20,10 @@ use crate::{
         history::SparkHistoryServerContainer,
         to_spark_env_sh_string,
     },
-    history::controller::validate::{self, ValidatedHistoryRoleGroup},
+    history::controller::{
+        build::recommended_labels_for_role_group_resources,
+        validate::{self, ValidatedHistoryRoleGroup},
+    },
     product_logging::{self},
 };
 
@@ -44,6 +47,14 @@ pub enum Error {
     #[snafu(display("failed to serialize Spark default properties"))]
     InvalidSparkDefaults {
         source: stackable_operator::v2::config_file_writer::PropertiesWriterError,
+    },
+
+    #[snafu(display(
+        "History server : failed to serialize [{SPARK_ENV_SH_FILE_NAME}] for group {rolegroup}"
+    ))]
+    SparkEnvSh {
+        source: crate::crd::Error,
+        rolegroup: String,
     },
 }
 
@@ -83,13 +94,19 @@ pub(crate) fn build_config_map(
                 .namespace(validated.namespace.clone())
                 .name(&cm_name)
                 .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-                .labels(validated.recommended_labels(role_group_name))
+                .labels(recommended_labels_for_role_group_resources(
+                    validated,
+                    role_group_name,
+                ))
                 .build(),
         )
         .add_data(SPARK_DEFAULTS_FILE_NAME, spark_defaults)
         .add_data(
             SPARK_ENV_SH_FILE_NAME,
-            to_spark_env_sh_string(rg.config.config_overrides.spark_env_sh.overrides.iter()),
+            to_spark_env_sh_string(rg.config.config_overrides.spark_env_sh.overrides.iter())
+                .with_context(|_| SparkEnvShSnafu {
+                    rolegroup: role_group_name.to_string(),
+                })?,
         )
         .add_data(
             JVM_SECURITY_PROPERTIES_FILE,

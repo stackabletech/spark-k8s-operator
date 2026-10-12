@@ -1,6 +1,19 @@
 # Default values for spark-k8s-operator.
 ---
 image:
+  # Registry and namespace holding the operator image, without the image name.
+  # Set when the chart is packaged, from the registry it is published to, so it is
+  # normally already correct. Override it to pull from a mirror.
+  # repository: oci.stackable.tech/sdp
+
+  # Registry and namespace holding the product images, if they should come from
+  # somewhere other than image.repository. Credentials for that registry are
+  # configured per cluster in spec.image.pullSecrets on the custom resource, not here.
+  # productRepository: oci.stackable.tech/sdp
+
+  # Overrides the operator image tag, which defaults to the chart appVersion.
+  # tag: 0.0.0-dev
+
   pullPolicy: IfNotPresent
   pullSecrets: []
 
@@ -13,7 +26,9 @@ serviceAccount:
   # Annotations to add to the service account
   annotations: {}
   # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
+  # Leave empty to use the generated name, <release>-spark-k8s-operator-serviceaccount.
+  # Required when create is false, so that the Deployment and the ClusterRoleBinding
+  # know which existing service account to use.
   name: ""
 
 podAnnotations: {}
@@ -26,6 +41,12 @@ podSecurityContext: {}
   # fsGroup: 2000
 
 securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
 
 resources:
   limits:
@@ -40,6 +61,9 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+# PriorityClass for the operator pod. Unset means the cluster default.
+# priorityClassName: system-cluster-critical
 
 # When running on a non-default Kubernetes cluster domain, the cluster domain can be configured here.
 # See the https://docs.stackable.tech/home/stable/guides/kubernetes-cluster-domain guide for details.

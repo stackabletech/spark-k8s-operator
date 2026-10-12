@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    str::FromStr,
-};
+use std::{collections::BTreeMap, str::FromStr};
 
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
@@ -9,12 +6,12 @@ use stackable_operator::{
         self,
         configmap::ConfigMapBuilder,
         meta::ObjectMetaBuilder,
-        pod::{PodBuilder, volume::VolumeBuilder},
+        pod::{PodBuilder, security::PodSecurityContextBuilder, volume::VolumeBuilder},
     },
     commons::resources::{CpuLimits, MemoryLimits, Resources},
     k8s_openapi::{
         DeepMerge,
-        api::core::v1::{ConfigMap, EnvVar, PodSecurityContext, PodTemplateSpec},
+        api::core::v1::{ConfigMap, PodTemplateSpec},
     },
     kube::ResourceExt,
     product_logging::framework::{VECTOR_CONFIG_FILE, calculate_log_volume_size_limit},
@@ -30,7 +27,10 @@ use stackable_operator::{
 use crate::{
     connect::{
         common::{self, SparkConnectRole, object_name},
-        controller::{build::object_meta, validate::ValidatedSparkConnectServer},
+        controller::{
+            build::{object_meta, recommended_labels_for_role_resources},
+            validate::ValidatedSparkConnectServer,
+        },
         crd::{
             CONNECT_EXECUTOR_ROLE_NAME, DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer,
             v1alpha1,
@@ -38,10 +38,10 @@ use crate::{
         s3,
     },
     crd::constants::{
-        JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-        METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, VOLUME_MOUNT_NAME_CONFIG,
-        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        CONTAINERDEBUG_LOG_DIRECTORY, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE,
+        MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE,
+        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     product_logging,
 };
@@ -93,24 +93,25 @@ pub fn executor_pod_template(
     let config = &validated.executor_config;
     let resolved_product_image = &validated.resolved_product_image;
     let resolved_s3 = &validated.cluster_config.resolved_s3;
-    let container_env = executor_env(Some(&validated.executor_overrides.env_overrides))?;
+    let container_env = executor_env(&validated.executor_overrides.env_overrides);
 
     let (s3_volumes, s3_volume_mounts) = resolved_s3
         .volumes_and_mounts()
         .context(BuildS3VolumesAndMountsSnafu)?;
 
-    let mut container = new_container_builder(&SparkConnectContainer::Spark.to_container_name());
+    let mut container = new_container_builder(SparkConnectContainer::Spark.name());
     container
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mounts(s3_volume_mounts)
-        .context(AddVolumeMountSnafu)?;
+        .expect("The mount paths are statically defined and there should be no duplicates.");
 
     let metadata = ObjectMetaBuilder::new()
-        .with_labels(validated.recommended_labels(SparkConnectRole::Executor))
+        .with_labels(recommended_labels_for_role_resources(
+            validated,
+            &SparkConnectRole::Executor,
+        ))
         .build();
 
     let mut template = PodBuilder::new();
@@ -133,30 +134,25 @@ pub fn executor_pod_template(
                 .build(),
         )
         .context(AddVolumeSnafu)?
-        .add_volumes(s3_volumes)
-        .context(AddVolumeSnafu)?
         // This is needed for shared enpryDir volumes with other containers like the truststore
         // init container.
-        .security_context(PodSecurityContext {
-            fs_group: Some(1000),
-            ..PodSecurityContext::default()
-        });
+        .security_context(
+            PodSecurityContextBuilder::with_stackable_defaults()
+                .fs_group(1000)
+                .build(),
+        );
 
-    // S3: Add truststore init container for S3 endpoint communication with TLS.
-    if let Some(truststore_init_container) = resolved_s3
-        .truststore_init_container(resolved_product_image.clone())
-        .context(TrustStoreInitContainerSnafu)?
-    {
-        template.add_init_container(truststore_init_container);
-    }
-
+    // Add custom log4j config map volumes if configured. The mount path is a constant, so the
+    // mount cannot collide with the other operator-managed mounts and adding it is infallible.
+    // It is added before the S3 mounts below, which are derived from user input. Adding the
+    // volume stays fallible, because the volume is built from computed arguments.
     if let Some(cm_name) = config.log_config_map() {
         container
             .add_volume_mount(
                 VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
                 VOLUME_MOUNT_PATH_LOG_CONFIG,
             )
-            .context(AddVolumeMountSnafu)?;
+            .expect("The mount paths are statically defined and there should be no duplicates.");
 
         template
             .add_volume(
@@ -165,6 +161,22 @@ pub fn executor_pod_template(
                     .build(),
             )
             .context(AddVolumeSnafu)?;
+    }
+
+    // S3: Add volumes and mounts (credentials and certificates) needed for accessing S3 buckets.
+    // Their names embed the user-supplied SecretClass names, so they can collide with the
+    // operator-managed ones and these adds stay fallible.
+    container
+        .add_volume_mounts(s3_volume_mounts)
+        .context(AddVolumeMountSnafu)?;
+    template.add_volumes(s3_volumes).context(AddVolumeSnafu)?;
+
+    // S3: Add truststore init container for S3 endpoint communication with TLS.
+    if let Some(truststore_init_container) = resolved_s3
+        .truststore_init_container(resolved_product_image)
+        .context(TrustStoreInitContainerSnafu)?
+    {
+        template.add_init_container(truststore_init_container);
     }
 
     template.add_container(container.build());
@@ -183,7 +195,7 @@ pub fn executor_pod_template(
         };
 
         template.add_container(vector_container(
-            &SparkConnectContainer::Vector.to_container_name(),
+            SparkConnectContainer::Vector.name(),
             resolved_product_image,
             vector_log_config,
             &vector_resource_names,
@@ -201,29 +213,17 @@ pub fn executor_pod_template(
     Ok(result)
 }
 
-fn executor_env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, Error> {
-    let mut envs = BTreeMap::from([
-        // Needed by the `containerdebug` running in the background of the connect container
-        // to log its tracing information to.
-        (
-            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+/// The environment variables of the executor container.
+///
+/// The user's `envOverrides` are merged in last so that they override any operator-set
+/// environment variable.
+fn executor_env(env_overrides: &EnvVarSet) -> EnvVarSet {
+    EnvVarSet::new()
+        .with_value(
+            &CONTAINERDEBUG_LOG_DIRECTORY,
             format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
-        ),
-    ]);
-
-    // Add env overrides
-    if let Some(user_env) = env_overrides {
-        envs.extend(user_env.clone());
-    }
-
-    Ok(envs
-        .into_iter()
-        .map(|(name, value)| EnvVar {
-            name: name.to_owned(),
-            value: Some(value.to_owned()),
-            value_from: None,
-        })
-        .collect())
+        )
+        .merge(env_overrides.clone())
 }
 
 pub(crate) fn executor_properties(
@@ -251,7 +251,7 @@ pub(crate) fn executor_properties(
         ),
         (
             "spark.kubernetes.executor.podTemplateContainerName".to_string(),
-            Some(SparkConnectContainer::Spark.to_string()),
+            Some(SparkConnectContainer::Spark.name().to_string()),
         ),
     ]
     .into();
@@ -370,4 +370,100 @@ pub(crate) fn executor_config_map(
     cm_builder
         .build()
         .context(InvalidConfigMapSnafu { cm_name })
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::{
+        commons::product_image_selection::PullPolicy,
+        k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
+    };
+
+    use super::*;
+    use crate::connect::controller::build::test_support::{
+        minimal_validated_cluster, validated_cluster_with_s3_tls,
+    };
+
+    #[test]
+    fn image_pull_policy_is_set_on_every_container_spark_does_not_rebuild() {
+        let pull_policy = PullPolicy::Never;
+        let validated = validated_cluster_with_s3_tls(&pull_policy);
+        let config_map = ConfigMap {
+            metadata: ObjectMeta {
+                name: Some("my-connect-executor".to_string()),
+                ..ObjectMeta::default()
+            },
+            ..ConfigMap::default()
+        };
+
+        let pod_spec = executor_pod_template(&validated, &config_map)
+            .expect("the executor pod template can be built")
+            .spec
+            .expect("the executor pod template has a spec");
+
+        let policies: Vec<(&str, Option<&str>)> = pod_spec
+            .init_containers
+            .iter()
+            .flatten()
+            .chain(pod_spec.containers.iter())
+            .map(|container| {
+                (
+                    container.name.as_str(),
+                    container.image_pull_policy.as_deref(),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            vec![
+                ("tls-truststore-init", Some(pull_policy.as_ref())),
+                ("spark", None),
+            ],
+            policies
+        );
+    }
+
+    /// `envOverrides` must be applied after all operator-set environment variables, so a user
+    /// override replaces the operator-set value instead of duplicating it or being ignored.
+    #[test]
+    fn env_overrides_override_operator_set_env_vars() {
+        let mut validated = minimal_validated_cluster();
+        validated.executor_overrides.env_overrides = EnvVarSet::new().with_value(
+            &"CONTAINERDEBUG_LOG_DIRECTORY"
+                .parse()
+                .expect("valid env var name"),
+            "/custom/log/dir",
+        );
+
+        let config_map = ConfigMap {
+            metadata: ObjectMeta {
+                name: Some("my-connect-executor".to_string()),
+                ..ObjectMeta::default()
+            },
+            ..ConfigMap::default()
+        };
+
+        let pod_template = executor_pod_template(&validated, &config_map)
+            .expect("the executor pod template can be built");
+
+        let env: Vec<EnvVar> = pod_template
+            .spec
+            .expect("the pod template has a spec")
+            .containers
+            .iter()
+            .find(|container| container.name == "spark")
+            .expect("the spark container exists")
+            .env
+            .clone()
+            .expect("the spark container has env vars");
+
+        let matching: Vec<&EnvVar> = env
+            .iter()
+            .filter(|env_var| env_var.name == "CONTAINERDEBUG_LOG_DIRECTORY")
+            .collect();
+
+        // The override must replace the operator-set value, not duplicate it.
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0].value.as_deref(), Some("/custom/log/dir"));
+    }
 }

@@ -1,7 +1,7 @@
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{configmap::ConfigMapBuilder, pod::volume::VolumeBuilder},
-    k8s_openapi::api::core::v1::{ConfigMap, EnvVar, ServiceAccount},
+    k8s_openapi::api::core::v1::{ConfigMap, ServiceAccount},
     product_logging::{
         framework::VECTOR_CONFIG_FILE,
         spec::{
@@ -9,7 +9,7 @@ use stackable_operator::{
             CustomContainerLogConfig,
         },
     },
-    v2::config_file_writer::to_java_properties_string,
+    v2::{builder::pod::container::EnvVarSet, config_file_writer::to_java_properties_string},
 };
 
 use crate::{
@@ -21,7 +21,7 @@ use crate::{
     product_logging::{self},
     spark_k8s_controller::{
         build::{
-            object_meta,
+            POD_TEMPLATES_COMPONENT_NAME, SPARK_SUBMIT_COMPONENT_NAME, object_meta,
             pod::{self, pod_template},
         },
         validate,
@@ -36,9 +36,15 @@ pub enum Error {
     #[snafu(display("pod template serialization"))]
     PodTemplateSerde { source: serde_yaml::Error },
 
-    #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {}", role))]
+    #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {role}", role = role.as_ref()))]
     JvmSecurityProperties {
         source: stackable_operator::v2::config_file_writer::PropertiesWriterError,
+        role: SparkApplicationRole,
+    },
+
+    #[snafu(display("failed to serialize [{SPARK_ENV_SH_FILE_NAME}] for {role}", role = role.as_ref()))]
+    SparkEnvSh {
+        source: crate::crd::Error,
         role: SparkApplicationRole,
     },
 
@@ -61,7 +67,7 @@ pub(crate) fn pod_template_config_map(
     role: SparkApplicationRole,
     merged_config: &RoleConfig,
     config_overrides: &v1alpha1::ConfigOverrides,
-    env: &[EnvVar],
+    env: &EnvVarSet,
     service_account: &ServiceAccount,
 ) -> Result<ConfigMap> {
     let spark_application = &validated.spark_application;
@@ -113,7 +119,7 @@ pub(crate) fn pod_template_config_map(
     let mut cm_builder = ConfigMapBuilder::new();
 
     cm_builder
-        .metadata(object_meta(validated, &cm_name, "pod-templates").build())
+        .metadata(object_meta(validated, &cm_name, &POD_TEMPLATES_COMPONENT_NAME).build())
         .add_data(
             POD_TEMPLATE_FILE,
             serde_yaml::to_string(&template).context(PodTemplateSerdeSnafu)?,
@@ -133,7 +139,8 @@ pub(crate) fn pod_template_config_map(
 
     cm_builder.add_data(
         SPARK_ENV_SH_FILE_NAME,
-        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
+        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter())
+            .with_context(|_| SparkEnvShSnafu { role: role.clone() })?,
     );
 
     let mut jvm_sec_props = default_jvm_security_properties();
@@ -157,11 +164,15 @@ pub(crate) fn submit_job_config_map(
 
     let mut cm_builder = ConfigMapBuilder::new();
 
-    cm_builder.metadata(object_meta(validated, &cm_name, "spark-submit").build());
+    cm_builder.metadata(object_meta(validated, &cm_name, &SPARK_SUBMIT_COMPONENT_NAME).build());
 
     cm_builder.add_data(
         SPARK_ENV_SH_FILE_NAME,
-        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()),
+        to_spark_env_sh_string(config_overrides.spark_env_sh.overrides.iter()).context(
+            SparkEnvShSnafu {
+                role: SparkApplicationRole::Submit,
+            },
+        )?,
     );
 
     let mut jvm_sec_props = default_jvm_security_properties();

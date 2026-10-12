@@ -39,6 +39,17 @@ pub(crate) fn http_transport(conn: &ResolvedOpenLineageConnection) -> &HttpTrans
     http
 }
 
+/// The base URL (scheme, host and port, without path) of the OpenLineage HTTP transport, as expected
+/// by `spark.openlineage.transport.url`. The path is passed separately as the endpoint.
+pub(crate) fn transport_base_url(http: &HttpTransport) -> String {
+    format!(
+        "{scheme}://{host}:{port}",
+        scheme = if http.tls.uses_tls() { "https" } else { "http" },
+        host = http.host,
+        port = http.port,
+    )
+}
+
 /// Appends `value` to a comma-separated `--conf` value in `submit_conf`, preserving any existing
 /// (e.g. user-supplied) entries and skipping `value` if it is already present. Used for the
 /// OpenLineage keys that must accumulate rather than clobber (`spark.extraListeners`, `spark.jars`).
@@ -101,21 +112,11 @@ pub(crate) fn openlineage_transport_env_vars(
 
 impl v1alpha1::SparkApplication {
     /// Resolves the stable OpenLineage job/app name (MVP §5), in priority order:
-    /// 1. `spec.lineage.jobName`, else
-    /// 2. `spark.app.name` from `sparkConf`, else
-    /// 3. `metadata.name`.
+    /// 1. `spark.app.name` from `sparkConf`, else
+    /// 2. `metadata.name`.
     ///
     /// Always yields a non-blank name — which is exactly what fixes the intermittent `unknown` bug.
     pub fn resolved_lineage_app_name(&self) -> Result<String, Error> {
-        if let Some(app_name) = self
-            .spec
-            .lineage
-            .as_ref()
-            .and_then(|lineage| lineage.job_name.clone())
-        {
-            return Ok(app_name);
-        }
-
         if let Some(app_name) = self.spec.spark_conf.get("spark.app.name") {
             return Ok(app_name.clone());
         }

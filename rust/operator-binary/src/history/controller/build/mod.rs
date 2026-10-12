@@ -1,24 +1,30 @@
 pub mod resource;
 
+use std::marker::PhantomData;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
-    v2::{builder::meta::ownerreference_from_resource, types::operator::RoleGroupName},
+    kvp::Labels,
+    v2::{
+        builder::meta::ownerreference_from_resource,
+        kvp::label,
+        types::operator::{RoleGroupName, RoleName},
+    },
 };
 
-use crate::{
-    crd::constants::HISTORY_ROLE_NAME,
-    history::controller::{
-        SparkHistoryResources,
-        build::resource::{
-            config_map::{self, build_config_map},
-            listener::build_group_listener,
-            pdb::build_pdb,
-            rbac::{build_role_binding, build_service_account},
-            service::build_rolegroup_metrics_service,
-            statefulset::{self, build_stateful_set},
-        },
-        validate::ValidatedSparkHistoryServer,
+use crate::history::controller::{
+    Prepared, SparkHistoryResources,
+    build::resource::{
+        config_map::{self, build_config_map},
+        listener::build_group_listener,
+        pdb::build_pdb,
+        rbac::{build_role_binding, build_service_account},
+        service::build_rolegroup_metrics_service,
+        statefulset::{self, build_stateful_set},
+    },
+    validate::{
+        CONTROLLER_NAME, NODE_ROLE_NAME, OPERATOR_NAME, PRODUCT_NAME, ValidatedSparkHistoryServer,
     },
 };
 
@@ -34,12 +40,13 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builds every Kubernetes resource for the given validated SparkHistoryServer.
-pub fn build(validated: &ValidatedSparkHistoryServer) -> Result<SparkHistoryResources> {
+pub fn build(validated: &ValidatedSparkHistoryServer) -> Result<SparkHistoryResources<Prepared>> {
     let log_dir = &validated.cluster_config.log_dir;
 
     let mut config_maps = vec![];
     let mut metrics_services = vec![];
     let mut stateful_sets = vec![];
+    let mut pod_disruption_budgets = vec![];
 
     for (role_group_name, rg) in &validated.role_groups {
         config_maps
@@ -53,20 +60,23 @@ pub fn build(validated: &ValidatedSparkHistoryServer) -> Result<SparkHistoryReso
 
     let listener = build_group_listener(
         validated,
-        HISTORY_ROLE_NAME,
+        &NODE_ROLE_NAME,
         validated.role_config.listener_class.clone(),
     );
 
-    let pod_disruption_budget = build_pdb(&validated.role_config.pdb, validated);
+    if let Some(pod_disruption_budget) = build_pdb(&validated.role_config.pdb, validated) {
+        pod_disruption_budgets.push(pod_disruption_budget);
+    }
 
     Ok(SparkHistoryResources {
-        service_account: build_service_account(validated),
-        role_binding: build_role_binding(validated),
+        service_accounts: vec![build_service_account(validated)],
+        role_bindings: vec![build_role_binding(validated)],
         config_maps,
         metrics_services,
         stateful_sets,
-        listener,
-        pod_disruption_budget,
+        listeners: vec![listener],
+        pod_disruption_budgets,
+        status: PhantomData,
     })
 }
 
@@ -83,8 +93,85 @@ pub(crate) fn object_meta(
         .name_and_namespace(validated)
         .name(name)
         .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-        .with_labels(validated.recommended_labels(role_group_name));
+        .with_labels(recommended_labels_for_role_group_resources(
+            validated,
+            role_group_name,
+        ));
     builder
+}
+
+/// Recommended labels for resources shared by the whole history server, like the RBAC resources.
+pub(crate) fn recommended_labels_for_cluster_resources(
+    server: &ValidatedSparkHistoryServer,
+) -> Labels {
+    label::recommended_labels_for_cluster_resources(
+        &server.name,
+        &PRODUCT_NAME,
+        &server.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+    )
+}
+
+/// Recommended labels for resources shared by all role groups of the single `node` role, like
+/// the group Listener.
+pub(crate) fn recommended_labels_for_role_resources(
+    server: &ValidatedSparkHistoryServer,
+    role_name: &RoleName,
+) -> Labels {
+    label::recommended_labels_for_role_resources(
+        &server.name,
+        &PRODUCT_NAME,
+        &server.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+    )
+}
+
+/// Recommended labels for resources of the given role group.
+pub(crate) fn recommended_labels_for_role_group_resources(
+    server: &ValidatedSparkHistoryServer,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::recommended_labels_for_role_group_resources(
+        &server.name,
+        &PRODUCT_NAME,
+        &server.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        &NODE_ROLE_NAME,
+        role_group_name,
+    )
+}
+
+/// Recommended labels for role group resources which cannot be mutated, like the listener PVC
+/// template. The version label is omitted so the labels stay stable across version upgrades.
+pub(crate) fn recommended_labels_for_unversioned_role_group_resources(
+    server: &ValidatedSparkHistoryServer,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::recommended_labels_for_unversioned_role_group_resources(
+        &server.name,
+        &PRODUCT_NAME,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        &NODE_ROLE_NAME,
+        role_group_name,
+    )
+}
+
+/// Selector labels matching the pods of a role group.
+pub(crate) fn role_group_selector(
+    server: &ValidatedSparkHistoryServer,
+    role_group_name: &RoleGroupName,
+) -> Labels {
+    label::role_group_selector(
+        &server.name,
+        &PRODUCT_NAME,
+        &NODE_ROLE_NAME,
+        role_group_name,
+    )
 }
 
 #[cfg(test)]

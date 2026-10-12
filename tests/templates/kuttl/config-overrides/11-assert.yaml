@@ -1,0 +1,6 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 60
+commands:
+  - script: kubectl -n $NAMESPACE logs job/spark-config-overrides -c spark-submit | grep -q 'Spark Command:'

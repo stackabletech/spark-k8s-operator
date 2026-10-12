@@ -6,15 +6,15 @@ metadata:
   # Note(@sbernauer): We could also call the Service something like
   # "product-operator-conversion-webhook". However, in the future we will have more webhooks, and
   # it seems like an overkill to have a dedicated Service per webhook.
-  name: {{ include "operator.fullname" . }}
+  name: {{ include "spark-k8s-operator.fullname" . }}
   labels:
-    {{- include "operator.labels" . | nindent 4 }}
+    {{- include "spark-k8s-operator.labels" . | nindent 4 }}
 spec:
   selector:
     {{- if .Values.maintenance.customResourceDefinitions.maintain }}
     webhook.stackable.tech/conversion: enabled
     {{- end }}
-    {{- include "operator.selectorLabels" . | nindent 4 }}
+    {{- include "spark-k8s-operator.selectorLabels" . | nindent 4 }}
   ports:
     - name: conversion-webhook
       protocol: TCP

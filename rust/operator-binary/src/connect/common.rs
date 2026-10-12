@@ -1,12 +1,14 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::{collections::BTreeMap, ops::Deref, str::FromStr};
 
 use snafu::{ResultExt, Snafu};
-use stackable_operator::v2::{
-    config_file_writer::{PropertiesWriterError, to_java_properties_string},
-    role_utils::JavaCommonConfig,
-    types::operator::RoleName,
+use stackable_operator::{
+    constant,
+    v2::{
+        config_file_writer::{PropertiesWriterError, to_java_properties_string},
+        role_utils::JavaCommonConfig,
+        types::operator::RoleName,
+    },
 };
-use strum::{Display, EnumIter};
 
 use super::crd::CONNECT_EXECUTOR_ROLE_NAME;
 use crate::{
@@ -30,26 +32,22 @@ pub enum Error {
     MetricsProperties { source: PropertiesWriterError },
 }
 
-#[derive(Clone, Debug, Display, EnumIter)]
-#[strum(serialize_all = "lowercase")]
+constant!(SERVER_ROLE_NAME: RoleName = CONNECT_SERVER_ROLE_NAME);
+constant!(EXECUTOR_ROLE_NAME: RoleName = CONNECT_EXECUTOR_ROLE_NAME);
+
+#[derive(Clone, Debug)]
 pub(crate) enum SparkConnectRole {
     Server,
     Executor,
 }
 
-impl From<SparkConnectRole> for RoleName {
-    fn from(value: SparkConnectRole) -> Self {
-        (&value).into()
-    }
-}
+impl Deref for SparkConnectRole {
+    type Target = RoleName;
 
-impl From<&SparkConnectRole> for RoleName {
-    fn from(value: &SparkConnectRole) -> Self {
-        match value {
-            SparkConnectRole::Server => RoleName::from_str(CONNECT_SERVER_ROLE_NAME)
-                .expect("CONNECT_SERVER_ROLE_NAME is a valid role name"),
-            SparkConnectRole::Executor => RoleName::from_str(CONNECT_EXECUTOR_ROLE_NAME)
-                .expect("CONNECT_EXECUTOR_ROLE_NAME is a valid role name"),
+    fn deref(&self) -> &Self::Target {
+        match self {
+            SparkConnectRole::Server => &SERVER_ROLE_NAME,
+            SparkConnectRole::Executor => &EXECUTOR_ROLE_NAME,
         }
     }
 }
@@ -131,18 +129,12 @@ pub(crate) fn metrics_properties(
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::v2::types::operator::RoleName;
-    use strum::IntoEnumIterator;
+    use super::*;
 
-    use super::SparkConnectRole;
-
-    /// Locks the invariant behind the `expect` in the `From<SparkConnectRole> for RoleName`
-    /// impls: every variant (present and future) must map to a valid `RoleName`.
     #[test]
-    fn every_spark_connect_role_maps_to_a_valid_role_name() {
-        for role in SparkConnectRole::iter() {
-            let _: RoleName = (&role).into();
-            let _: RoleName = role.into();
-        }
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *EXECUTOR_ROLE_NAME;
+        let _ = *SERVER_ROLE_NAME;
     }
 }

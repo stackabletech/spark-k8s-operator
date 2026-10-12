@@ -11,5 +11,11 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 commands:
   - script: |
+      # Wait for the spark-submit pod: the image pull can take minutes and
+      # kuttl would otherwise retry (and log) this whole script every second.
+      kubectl wait -n $NAMESPACE pod \
+          --selector batch.kubernetes.io/job-name=spark-pi-s3-1 \
+          --for=jsonpath='{.status.phase}'=Running \
+          --timeout=280s > /dev/null 2>&1 || exit 1
       SPARK_SUBMIT_POD=$(kubectl get -n $NAMESPACE pods --field-selector=status.phase=Running --selector batch.kubernetes.io/job-name=spark-pi-s3-1 -o jsonpath='{.items[0].metadata.name}')
       kubectl exec -n $NAMESPACE --container spark-submit $SPARK_SUBMIT_POD -- cat /stackable/log/containerdebug-state.json | jq --exit-status '"valid JSON"'

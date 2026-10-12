@@ -15,8 +15,12 @@ permissions: {}
 jobs:
   audit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # rustsec/audit-check publishes its results as a Check run, which requires this scope
+      checks: write
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0

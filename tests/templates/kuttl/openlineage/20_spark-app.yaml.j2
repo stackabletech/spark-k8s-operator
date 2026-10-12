@@ -60,8 +60,9 @@ spec:
     pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: "local:///stackable/spark/jobs/openlineage-job.py"
+  sparkConf:
+    spark.app.name: openlineage-test-app
   lineage:
-    jobName: openlineage-test-app
     connection:
       inline:
         http:

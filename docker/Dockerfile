@@ -26,6 +26,7 @@ ARG VERSION
 ARG RELEASE="1"
 
 # These are chosen at random and are this high on purpose to have very little chance to clash with an existing user or group on the host system
+# NOTE: Please also update default.nix accordingly!
 ARG STACKABLE_USER_GID="574654813"
 ARG STACKABLE_USER_UID="782252253"
 ARG STACKABLE_USER_NAME="stackable"

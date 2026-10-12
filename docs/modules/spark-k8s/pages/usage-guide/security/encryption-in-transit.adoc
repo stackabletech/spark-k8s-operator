@@ -1,0 +1,128 @@
+= Encryption in transit
+:description: Encrypt Apache Spark RPC and block transfer, shuffle and spill data, and the Web UI.
+
+Spark protects traffic and on-disk data with three unrelated mechanisms, each configured by its own set of properties.
+For the full property reference see the https://spark.apache.org/docs/latest/security.html[Spark security documentation]; this page covers what is specific to running Spark on the Stackable Data Platform (SDP).
+
+[cols="1,2,2"]
+|===
+| What you want to protect | Property namespace | Notes
+
+| RPC (control plane) and block transfer (shuffle data over the network)
+| `spark.network.crypto.\*` or `spark.ssl.rpc.*`
+| Two alternatives, described below. Pick one, never both.
+
+| Web UI and history server
+| `spark.ssl.ui.\*`, `spark.ssl.historyServer.*`
+| Independent of the RPC choice.
+
+| Shuffle files, shuffle spills, on-disk cached and broadcast blocks
+| `spark.io.encryption.*`
+| At-rest encryption of Spark's own temporary files, not a transport setting.
+|===
+
+WARNING: `spark.ssl.enabled=true` does not enable RPC encryption; `spark.ssl.rpc.enabled` must be set explicitly.
+
+== Authentication
+
+Both transport-encryption options build on Spark's shared-secret authentication, so set `spark.authenticate: "true"` first.
+On Kubernetes Spark generates and propagates the secret itself, so no `spark.authenticate.secret` is needed.
+The driver and the executors log `authentication enabled` once this is active.
+
+== Encrypting RPC with `spark.network.crypto` (recommended)
+
+Encrypts RPC *and* block transfer with AES, keyed off the authentication secret above.
+Upstream documents this as RPC encryption only; block transfer runs over the same transport and is covered as well.
+There are no keystores or passwords to deliver:
+
+[source,yaml]
+----
+sparkConf:
+  spark.authenticate: "true"
+  spark.network.crypto.enabled: "true"
+----
+
+== Encrypting RPC with TLS (`spark.ssl.rpc`)
+
+Use this when a policy explicitly demands TLS on internal traffic.
+Two requirements apply:
+
+1. The store passwords must reach the driver and the executors as environment variables.
+   Spark strips every `spark.ssl.*Password` property from the executor startup configuration and expects the password to arrive in `_SPARK_SSL_RPC_KEY_STORE_PASSWORD`, `_SPARK_SSL_RPC_KEY_PASSWORD` and `_SPARK_SSL_RPC_TRUST_STORE_PASSWORD` instead.
+   Use `spec.env`, which the operator propagates to the job pod and to both the driver and the executor pods.
+2. The PKCS#12 passphrase must not be empty.
+   The Stackable Secret Operator generates stores with an empty passphrase by default.
+   That is fine for the Web UI, but the RPC keystore holds a private key and cannot be loaded without a real password.
+
+Only the parts that differ from the <<complete-example,complete example>> are shown below; the volume mounts are the same.
+
+[source,yaml]
+----
+# SparkApplication, showing only what differs from the complete example
+spec:
+  sparkConf:
+    spark.authenticate: "true"
+    spark.ssl.rpc.enabled: "true" # <1>
+    spark.ssl.rpc.keyStore: /stackable/tls/keystore.p12
+    spark.ssl.rpc.keyStoreType: PKCS12
+    spark.ssl.rpc.trustStore: /stackable/tls/truststore.p12
+    spark.ssl.rpc.trustStoreType: PKCS12
+    spark.ssl.rpc.protocol: TLSv1.3 # <2>
+  env: # <3>
+    - name: _SPARK_SSL_RPC_KEY_STORE_PASSWORD
+      value: "changeit" # <4>
+    - name: _SPARK_SSL_RPC_KEY_PASSWORD
+      value: "changeit" # <4>
+    - name: _SPARK_SSL_RPC_TRUST_STORE_PASSWORD
+      value: "changeit" # <4>
+  volumes:
+    - name: tls
+      ephemeral:
+        volumeClaimTemplate:
+          metadata:
+            annotations:
+              secrets.stackable.tech/format.compatibility.tls-pkcs12.password: "changeit" # <4>
+----
+<1> Covers RPC and block transfer. Do not combine with `spark.network.crypto.enabled`.
+<2> `spark.ssl.rpc.protocol` has no default and must be set explicitly.
+<3> The store passwords, delivered to the job pod and to both the driver and the executor pods.
+<4> The PKCS#12 passphrase. Must be non-empty and identical in all four places.
+    It is hardcoded on purpose: the volume annotation only accepts a literal value, so the passphrase is visible in the `SparkApplication` either way.
+    Reading only the environment variables from a `Secret` would suggest a confidentiality that is not there.
+    If you also enable the Web UI over TLS, `spark.ssl.ui.keyStorePassword` must carry this same passphrase.
+
+=== Verifying that it took effect
+
+The driver and every executor log `RPC SSL enabled` when the mode is active, and `RPC SSL disabled` when RPC and block transfer are in plaintext.
+The two requirements above fail with distinct symptoms:
+
+* Missing password environment variables -- the driver fails during startup and no executor is created; look for `SSLFactory creation failed`.
+* Empty PKCS#12 passphrase -- both sides report `RPC SSL enabled` but no executor registers, and the driver logs a TLS `handshake_failure`.
+
+[IMPORTANT]
+====
+Collect these logs while the application is running.
+When an application reaches a terminal phase the operator deletes the driver pod -- regardless of `spark.kubernetes.driver.deleteOnTermination` -- and the executor pods are garbage-collected along with it, because they are owned by the driver pod.
+====
+
+== Web UI over TLS
+
+Unlike the RPC keystore, the UI keystore works with the Stackable Secret Operator's default empty passphrase; see the <<complete-example,complete example>>.
+
+The TLS listener binds to the UI port plus 400 (`4440` for the default `4040`).
+The plain port stays bound and answers with a `302` redirect to the TLS port; it serves no content of its own.
+
+[#complete-example]
+== Complete example
+
+The recommended combination -- authenticated, AES-encrypted transport, encrypted spill data and a TLS Web UI:
+
+[source,yaml]
+----
+include::example$example-sparkapp-encryption-crypto.yaml[]
+----
+<1> Shared-secret authentication; the secret is generated and propagated automatically.
+<2> RPC and block transfer encrypted with AES.
+<3> Shuffle files, spills, and on-disk cached and broadcast blocks encrypted at rest.
+<4> Web UI over TLS.
+<5> Provides the `keystore.p12` used above, from the `tls` SecretClass.

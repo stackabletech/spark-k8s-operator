@@ -62,7 +62,7 @@ dimensions:
       - 3.5.0
   - name: zookeeper-latest
     values:
-      - 3.9.5
+      - 3.9.6
   - name: ny-tlc-report
     values:
       - 0.3.0
@@ -88,6 +88,10 @@ tests:
     dimensions:
       - spark
       - openshift
+  - name: config-overrides
+    dimensions:
+      - spark
+      - openshift
   - name: spark-history-server
     dimensions:
       - spark
@@ -101,6 +105,14 @@ tests:
     dimensions:
       - spark
       - openshift
+  - name: signal-propagation
+    dimensions:
+      - spark
+      - openshift
+  - name: graceful-shutdown
+    dimensions:
+      - spark
+      - openshift
   - name: pyspark-ny-public-s3
     dimensions:
       - spark
@@ -111,6 +123,10 @@ tests:
       - ny-tlc-report
       - openshift
   - name: resources
+    dimensions:
+      - spark
+      - openshift
+  - name: transit-encryption
     dimensions:
       - spark
       - openshift

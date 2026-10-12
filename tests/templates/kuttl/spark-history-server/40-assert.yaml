@@ -1,0 +1,51 @@
+---
+# The recreated StatefulSet must come back to ready, and the recreated objects must
+# carry an owner reference back to the SparkHistoryServer so that garbage collection
+# still works for them.
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+metadata:
+  name: recreate-owned-resources
+timeout: 600
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spark-history-node-default
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+status:
+  readyReplicas: 1
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: spark-history-node
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark-history-serviceaccount
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-history-rolebinding
+  ownerReferences:
+    - apiVersion: spark.stackable.tech/v1alpha1
+      controller: true
+      kind: SparkHistoryServer
+      name: spark-history

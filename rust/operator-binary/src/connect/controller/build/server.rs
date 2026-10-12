@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    str::FromStr,
-};
+use std::{collections::BTreeMap, str::FromStr};
 
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -12,18 +9,20 @@ use stackable_operator::{
         meta::ObjectMetaBuilder,
         pod::{
             PodBuilder,
+            security::PodSecurityContextBuilder,
             volume::{
                 ListenerOperatorVolumeSourceBuilder, ListenerOperatorVolumeSourceBuilderError,
                 ListenerReference, VolumeBuilder,
             },
         },
     },
+    constants::RESTART_CONTROLLER_ENABLED_LABEL,
     crd::listener,
     k8s_openapi::{
         DeepMerge,
         api::{
             apps::v1::{StatefulSet, StatefulSetSpec},
-            core::v1::{ConfigMap, EnvVar, HTTPGetAction, PodSecurityContext, Probe, Service},
+            core::v1::{ConfigMap, HTTPGetAction, Probe, Service},
         },
         apimachinery::pkg::{apis::meta::v1::LabelSelector, util::intstr::IntOrString},
     },
@@ -45,7 +44,13 @@ use crate::{
     connect::{
         GRPC, HTTP,
         common::{self, SparkConnectRole, object_name},
-        controller::{build::object_meta, validate::ValidatedSparkConnectServer},
+        controller::{
+            build::{
+                object_meta, recommended_labels_for_role_resources,
+                recommended_labels_for_unversioned_role_resources, role_selector,
+            },
+            validate::ValidatedSparkConnectServer,
+        },
         crd::{
             CONNECT_GRPC_PORT, CONNECT_SERVER_ROLE_NAME, CONNECT_UI_PORT,
             DEFAULT_SPARK_CONNECT_GROUP_NAME, SparkConnectContainer, v1alpha1,
@@ -54,11 +59,12 @@ use crate::{
     },
     crd::{
         constants::{
-            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
-            LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE,
-            POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, VOLUME_MOUNT_NAME_CONFIG,
-            VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
-            VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            CONTAINERDEBUG_LOG_DIRECTORY, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR,
+            LISTENER_VOLUME_NAME, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
+            METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME,
+            SPARK_NO_DAEMONIZE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+            VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         listener_ext,
     },
@@ -177,7 +183,8 @@ pub(crate) fn build_stateful_set(
     let resolved_product_image = &validated.resolved_product_image;
     let resolved_s3 = &validated.cluster_config.resolved_s3;
 
-    let recommended_labels = validated.recommended_labels(SparkConnectRole::Server);
+    let recommended_labels =
+        recommended_labels_for_role_resources(validated, &SparkConnectRole::Server);
 
     let metadata = ObjectMetaBuilder::new()
         .with_labels(recommended_labels.clone())
@@ -206,18 +213,19 @@ pub(crate) fn build_stateful_set(
         .context(AddVolumeSnafu)?
         // This is needed for shared enpryDir volumes with other containers like the truststore
         // init container.
-        .security_context(PodSecurityContext {
-            fs_group: Some(1000),
-            ..PodSecurityContext::default()
-        });
+        .security_context(
+            PodSecurityContextBuilder::with_stackable_defaults()
+                .fs_group(1000)
+                .build(),
+        );
 
-    let container_env = env(Some(&validated.server_overrides.env_overrides))?;
+    let container_env = env(&validated.server_overrides.env_overrides);
 
     let (s3_volumes, s3_volume_mounts) = resolved_s3
         .volumes_and_mounts()
         .context(BuildS3VolumesAndMountsSnafu)?;
 
-    let mut container = new_container_builder(&SparkConnectContainer::Spark.to_container_name());
+    let mut container = new_container_builder(SparkConnectContainer::Spark.name());
     container
         .image_from_product_image(resolved_product_image)
         .resources(config.resources.clone().into())
@@ -233,17 +241,18 @@ pub(crate) fn build_stateful_set(
         .add_container_port(HTTP, CONNECT_UI_PORT.into())
         .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mount(LISTENER_VOLUME_NAME.as_ref(), LISTENER_VOLUME_DIR)
-        .context(AddVolumeMountSnafu)?
-        .add_volume_mounts(s3_volume_mounts)
-        .context(AddVolumeMountSnafu)?
+        .expect("The mount paths are statically defined and there should be no duplicates.")
         .readiness_probe(probe())
         .liveness_probe(probe());
 
-    // Add custom log4j config map volumes if configured
+    // Add custom log4j config map volumes if configured. The mount path is a constant, so the
+    // mount cannot collide with the other operator-managed mounts and adding it is infallible.
+    // It is added before the S3 mounts below, which are derived from user input. Adding the
+    // volume stays fallible, because the volume is built from computed arguments.
     if let Some(cm_name) = config.log_config_map() {
         pb.add_volume(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref())
@@ -257,8 +266,15 @@ pub(crate) fn build_stateful_set(
                 VOLUME_MOUNT_NAME_LOG_CONFIG.as_ref(),
                 VOLUME_MOUNT_PATH_LOG_CONFIG,
             )
-            .context(AddVolumeMountSnafu)?;
+            .expect("The mount paths are statically defined and there should be no duplicates.");
     }
+
+    // S3: Add mounts (credentials and certificates) needed for accessing S3 buckets. Their names
+    // embed the user-supplied SecretClass names, so they can collide with the operator-managed
+    // ones and this add stays fallible.
+    container
+        .add_volume_mounts(s3_volume_mounts)
+        .context(AddVolumeMountSnafu)?;
 
     pb.add_container(container.build());
 
@@ -275,7 +291,7 @@ pub(crate) fn build_stateful_set(
         };
 
         pb.add_container(vector_container(
-            &SparkConnectContainer::Vector.to_container_name(),
+            SparkConnectContainer::Vector.name(),
             resolved_product_image,
             vector_log_config,
             &vector_resource_names,
@@ -285,6 +301,11 @@ pub(crate) fn build_stateful_set(
         ));
     }
 
+    // Used for the listener PVC template, which cannot be modified once it is deployed. The
+    // version label is omitted so the labels stay stable across version upgrades.
+    let unversioned_recommended_labels =
+        recommended_labels_for_unversioned_role_resources(validated, &SparkConnectRole::Server);
+
     // Add listener volume
     // Listener endpoints for the Webserver role will use persistent volumes
     // so that load balancers can hard-code the target addresses. This will
@@ -293,7 +314,7 @@ pub(crate) fn build_stateful_set(
     let volume_claim_templates = Some(vec![
         ListenerOperatorVolumeSourceBuilder::new(
             &ListenerReference::ListenerName(listener_name.to_string()),
-            &recommended_labels,
+            &unversioned_recommended_labels,
         )
         .build_pvc(LISTENER_VOLUME_NAME.to_string())
         .context(BuildListenerVolumeSnafu)?,
@@ -304,7 +325,7 @@ pub(crate) fn build_stateful_set(
 
     // S3: Add truststore init container for S3 endpoint communication with TLS.
     if let Some(truststore_init_container) = resolved_s3
-        .truststore_init_container(resolved_product_image.clone())
+        .truststore_init_container(resolved_product_image)
         .context(TrustStoreInitContainerSnafu)?
     {
         pb.add_init_container(truststore_init_container);
@@ -320,17 +341,16 @@ pub(crate) fn build_stateful_set(
             object_name(&validated.name_any(), SparkConnectRole::Server),
             SparkConnectRole::Server,
         )
+        // Opt into the restarter-controller: it rolls the StatefulSet's Pods when a mounted
+        // ConfigMap or Secret changes. See stackabletech/issues#816.
+        .with_label(RESTART_CONTROLLER_ENABLED_LABEL.to_owned())
         .build(),
         spec: Some(StatefulSetSpec {
             template: pod_template,
             replicas: Some(1),
             volume_claim_templates,
             selector: LabelSelector {
-                match_labels: Some(
-                    validated
-                        .role_group_selector(SparkConnectRole::Server)
-                        .into(),
-                ),
+                match_labels: Some(role_selector(validated, &SparkConnectRole::Server).into()),
                 ..LabelSelector::default()
             },
             ..StatefulSetSpec::default()
@@ -359,33 +379,18 @@ pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
     vec![command]
 }
 
-#[allow(clippy::result_large_err)]
-fn env(env_overrides: Option<&HashMap<String, String>>) -> Result<Vec<EnvVar>, Error> {
-    let mut envs = BTreeMap::from([
-        // Needed by the `containerdebug` running in the background of the connect container
-        // to log its tracing information to.
-        (
-            "CONTAINERDEBUG_LOG_DIRECTORY".to_string(),
+/// The environment variables of the server container.
+///
+/// The user's `envOverrides` are merged in last so that they override any operator-set
+/// environment variable.
+fn env(env_overrides: &EnvVarSet) -> EnvVarSet {
+    EnvVarSet::new()
+        .with_value(
+            &CONTAINERDEBUG_LOG_DIRECTORY,
             format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
-        ),
-        // This env var prevents the connect server from detaching itself from the
-        // start script because this leads to the Pod terminating immediately.
-        ("SPARK_NO_DAEMONIZE".to_string(), "true".to_string()),
-    ]);
-
-    // Add env overrides
-    if let Some(user_env) = env_overrides {
-        envs.extend(user_env.clone());
-    }
-
-    Ok(envs
-        .into_iter()
-        .map(|(name, value)| EnvVar {
-            name: name.to_owned(),
-            value: Some(value.to_owned()),
-            value_from: None,
-        })
-        .collect())
+        )
+        .with_value(&SPARK_NO_DAEMONIZE, "true")
+        .merge(env_overrides.clone())
 }
 
 // Returns the contents of the spark properties file.
@@ -421,6 +426,10 @@ pub(crate) fn server_properties(
         (
             "spark.kubernetes.driver.container.image".to_string(),
             Some(spark_image.clone()),
+        ),
+        (
+            "spark.kubernetes.container.image.pullPolicy".to_string(),
+            Some(resolved_product_image.image_pull_policy.clone()),
         ),
         ("spark.kubernetes.namespace".to_string(), Some(namespace)),
         (
@@ -499,11 +508,12 @@ pub(crate) fn build_listener(
     let listener_name = format!(
         "{cluster}-{role}",
         cluster = validated.name_any(),
-        role = SparkConnectRole::Server
+        role = SparkConnectRole::Server.as_ref()
     );
 
     let listener_class = validated.role_config.listener_class.clone();
-    let recommended_object_labels = validated.recommended_labels(SparkConnectRole::Server);
+    let recommended_object_labels =
+        recommended_labels_for_role_resources(validated, &SparkConnectRole::Server);
 
     let listener_ports = [
         listener::v1alpha1::ListenerPort {
@@ -525,4 +535,104 @@ pub(crate) fn build_listener(
         recommended_object_labels,
         &listener_ports,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use stackable_operator::{
+        commons::product_image_selection::PullPolicy,
+        k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
+    };
+
+    use super::*;
+    use crate::connect::controller::build::test_support::{
+        minimal_validated_cluster, validated_cluster_with_s3_tls,
+    };
+
+    #[test]
+    fn image_pull_policy_is_set_on_every_server_container() {
+        let pull_policy = PullPolicy::Never;
+        let validated = validated_cluster_with_s3_tls(&pull_policy);
+        let config_map = ConfigMap {
+            metadata: ObjectMeta {
+                name: Some("my-connect-server".to_string()),
+                ..ObjectMeta::default()
+            },
+            ..ConfigMap::default()
+        };
+
+        let pod_spec = build_stateful_set(&validated, &config_map, "my-connect-server", vec![])
+            .expect("the StatefulSet can be built")
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the StatefulSet has a pod spec");
+
+        let policies: Vec<(&str, Option<&str>)> = pod_spec
+            .init_containers
+            .iter()
+            .flatten()
+            .chain(pod_spec.containers.iter())
+            .map(|container| {
+                (
+                    container.name.as_str(),
+                    container.image_pull_policy.as_deref(),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            vec![
+                ("tls-truststore-init", Some(pull_policy.as_ref())),
+                ("spark", Some(pull_policy.as_ref())),
+            ],
+            policies
+        );
+    }
+
+    /// `envOverrides` must be applied after all operator-set environment variables, so a user
+    /// override replaces the operator-set value instead of duplicating it or being ignored.
+    #[test]
+    fn env_overrides_override_operator_set_env_vars() {
+        let mut validated = minimal_validated_cluster();
+        validated.server_overrides.env_overrides = EnvVarSet::new().with_value(
+            &"SPARK_NO_DAEMONIZE".parse().expect("valid env var name"),
+            "overridden",
+        );
+
+        let config_map = ConfigMap {
+            metadata: ObjectMeta {
+                name: Some("my-connect-server".to_string()),
+                ..ObjectMeta::default()
+            },
+            ..ConfigMap::default()
+        };
+
+        let stateful_set = build_stateful_set(&validated, &config_map, "my-connect-server", vec![])
+            .expect("the StatefulSet can be built");
+
+        let env: Vec<EnvVar> = stateful_set
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the StatefulSet has a pod spec")
+            .containers
+            .iter()
+            .find(|container| container.name == "spark")
+            .expect("the spark container exists")
+            .env
+            .clone()
+            .expect("the spark container has env vars");
+
+        let matching: Vec<&EnvVar> = env
+            .iter()
+            .filter(|env_var| env_var.name == "SPARK_NO_DAEMONIZE")
+            .collect();
+
+        // The override must replace the operator-set value, not duplicate it.
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0].value.as_deref(), Some("overridden"));
+    }
 }

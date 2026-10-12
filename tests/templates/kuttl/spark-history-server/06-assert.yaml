@@ -7,6 +7,10 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: spark-history-node-default
+  # generation stays at 1: the restarter-controller label must not itself trigger a rollout.
+  generation: 1
+  labels:
+    restarter.stackable.tech/enabled: "true"
 status:
   readyReplicas: 1
 ---

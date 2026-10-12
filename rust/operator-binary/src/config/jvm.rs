@@ -4,7 +4,7 @@ use crate::crd::{
     Error,
     constants::{
         JVM_SECURITY_PROPERTIES_FILE, OPENLINEAGE_ADD_OPENS, STACKABLE_TLS_STORE_PASSWORD,
-        STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_CONFIG,
     },
     logdir::ResolvedLogDir,
     spark_major_version,
@@ -32,7 +32,7 @@ pub fn construct_extra_java_options(
     // kept the implementation as is. We can always re-visit this as needed.
 
     let mut jvm_args = vec![format!(
-        "-Djava.security.properties={VOLUME_MOUNT_PATH_LOG_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
+        "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
     )];
 
     if tls_secret_names(s3_conn, log_dir, open_lineage_conn).is_some() {
@@ -107,11 +107,11 @@ mod tests {
 
         assert_eq!(
             driver_extra_java_options,
-            "-Djava.security.properties=/stackable/log_config/security.properties"
+            "-Djava.security.properties=/stackable/spark/conf/security.properties"
         );
         assert_eq!(
             executor_extra_java_options,
-            "-Djava.security.properties=/stackable/log_config/security.properties"
+            "-Djava.security.properties=/stackable/spark/conf/security.properties"
         );
     }
 
@@ -145,7 +145,7 @@ mod tests {
 
         assert_eq!(
             driver_extra_java_options,
-            "-Djava.security.properties=/stackable/log_config/security.properties -Dhttps.proxyHost=from-driver"
+            "-Djava.security.properties=/stackable/spark/conf/security.properties -Dhttps.proxyHost=from-driver"
         );
         assert_eq!(
             executor_extra_java_options,

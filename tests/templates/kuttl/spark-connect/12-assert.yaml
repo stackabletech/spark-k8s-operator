@@ -7,12 +7,14 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: spark-connect-server
+  # generation stays at 1: the restarter-controller label must not itself trigger a rollout.
+  generation: 1
   labels:
     app.kubernetes.io/component: server
     app.kubernetes.io/instance: spark-connect
     app.kubernetes.io/managed-by: spark.stackable.tech_connect
     app.kubernetes.io/name: spark-connect
-    app.kubernetes.io/role-group: default
+    restarter.stackable.tech/enabled: "true"
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1
@@ -26,7 +28,6 @@ spec:
       app.kubernetes.io/component: server
       app.kubernetes.io/instance: spark-connect
       app.kubernetes.io/name: spark-connect
-      app.kubernetes.io/role-group: default
 status:
   readyReplicas: 1
   replicas: 1
@@ -40,7 +41,6 @@ metadata:
     app.kubernetes.io/instance: spark-connect
     app.kubernetes.io/managed-by: spark.stackable.tech_connect
     app.kubernetes.io/name: spark-connect
-    app.kubernetes.io/role-group: default
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1
@@ -57,7 +57,6 @@ metadata:
     app.kubernetes.io/instance: spark-connect
     app.kubernetes.io/managed-by: spark.stackable.tech_connect
     app.kubernetes.io/name: spark-connect
-    app.kubernetes.io/role-group: default
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1
@@ -74,7 +73,6 @@ metadata:
     app.kubernetes.io/instance: spark-connect
     app.kubernetes.io/managed-by: spark.stackable.tech_connect
     app.kubernetes.io/name: spark-connect
-    app.kubernetes.io/role-group: default
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1
@@ -113,7 +111,6 @@ metadata:
     app.kubernetes.io/instance: spark-connect
     app.kubernetes.io/managed-by: spark.stackable.tech_connect
     app.kubernetes.io/name: spark-connect
-    app.kubernetes.io/role-group: default
     prometheus.io/scrape: "true"
     stackable.tech/vendor: Stackable
   ownerReferences:
@@ -144,7 +141,6 @@ metadata:
     app.kubernetes.io/instance: spark-connect
     app.kubernetes.io/managed-by: spark.stackable.tech_connect
     app.kubernetes.io/name: spark-connect
-    app.kubernetes.io/role-group: default
     stackable.tech/vendor: Stackable
   ownerReferences:
     - apiVersion: spark.stackable.tech/v1alpha1

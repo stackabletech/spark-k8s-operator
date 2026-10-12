@@ -1,0 +1,61 @@
+---
+# An executor whose Pod is deleted (node drain, eviction, downscale) has to be told to stop while
+# it is running a task. If SIGTERM is not forwarded to the JVM, the container ignores it and is
+# SIGKILLed when the grace period expires, taking the running task with it (docker-images#1564).
+#
+# TestStep and not TestAssert: kuttl retries asserts until they time out, which would turn every
+# failure into a generic timeout.
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - timeout: 600
+    script: |
+      set -eu
+
+      selector="spark-role=executor,app.kubernetes.io/instance=graceful-shutdown"
+      budget_seconds=20
+
+      victim=$(kubectl -n "$NAMESPACE" get pods -o name -l "$selector" | head -1 | cut -d/ -f2)
+      if [ -z "$victim" ]; then
+        echo "FAIL: no executor Pod found to stop"
+        exit 1
+      fi
+
+      echo "stopping executor $victim"
+
+      # The log cannot be read once the Pod object is gone, so stream it away first.
+      log=$(mktemp)
+      kubectl -n "$NAMESPACE" logs -f "$victim" -c spark >"$log" 2>&1 &
+      logs_pid=$!
+      sleep 2
+
+      if ! grep -q 'Running task' "$log"; then
+        echo "FAIL: could not stream the log of $victim, so its shutdown cannot be observed"
+        tail -5 "$log"
+        exit 1
+      fi
+
+      kubectl -n "$NAMESPACE" delete pod "$victim" --wait=false
+
+      start=$(date +%s)
+      stopped=no
+      while [ $(( $(date +%s) - start )) -lt "$budget_seconds" ]; do
+        if grep -q 'shutdown-hook' "$log"; then
+          stopped=yes
+          break
+        fi
+        sleep 1
+      done
+      elapsed=$(( $(date +%s) - start ))
+      kill "$logs_pid" 2>/dev/null || true
+
+      if [ "$stopped" != yes ]; then
+        echo "FAIL: ${elapsed}s after its Pod was deleted the executor had run no shutdown hook,"
+        echo "so SIGTERM did not reach the JVM and the kubelet will SIGKILL it at the end of the"
+        echo "grace period, killing the task it is running."
+        tail -5 "$log"
+        exit 1
+      fi
+
+      rm -f "$log"
+      echo "OK: the executor ran its shutdown hooks ${elapsed}s after its Pod was deleted"

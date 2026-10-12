@@ -1,0 +1,16 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  # Test that there is no spark driver pod left hanging. The Pod list is captured in its own step so
+  # that a failing kubectl cannot be mistaken for "no driver Pod present".
+  - script: |
+      set -eu
+
+      pods=$(kubectl -n "$NAMESPACE" get pods -o name)
+      if echo "$pods" | grep -qE 'driver$'; then
+        echo "FAIL: a driver Pod is still present after the application reached a terminal phase:"
+        echo "$pods" | grep -E 'driver$'
+        exit 1
+      fi

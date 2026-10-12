@@ -43,6 +43,6 @@ data:
     test.sparkConf=true
 
   spark-env.sh: |-
-    export TEST_SPARK-ENV-SH_FROM_RG="ROLEGROUP"
-    export TEST_SPARK-ENV-SH_RG="ROLEGROUP"
-    export TEST_SPARK-ENV-SH_ROLE="ROLE"
+    export TEST_SPARK_ENV_SH_FROM_RG="ROLEGROUP"
+    export TEST_SPARK_ENV_SH_RG="ROLEGROUP"
+    export TEST_SPARK_ENV_SH_ROLE="ROLE"

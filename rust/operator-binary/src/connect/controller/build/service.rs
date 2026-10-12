@@ -7,7 +7,10 @@ use stackable_operator::{
 use crate::connect::{
     GRPC, HTTP,
     common::SparkConnectRole,
-    controller::{build::object_meta, validate::ValidatedSparkConnectServer},
+    controller::{
+        build::{object_meta, role_selector},
+        validate::ValidatedSparkConnectServer,
+    },
     crd::{CONNECT_GRPC_PORT, CONNECT_UI_PORT},
 };
 
@@ -17,10 +20,10 @@ pub(crate) fn build_headless_service(validated: &ValidatedSparkConnectServer) ->
     let service_name = format!(
         "{cluster}-{role}-headless",
         cluster = validated.name_any(),
-        role = SparkConnectRole::Server
+        role = SparkConnectRole::Server.as_ref()
     );
 
-    let selector = validated.role_selector(SparkConnectRole::Server).into();
+    let selector = role_selector(validated, &SparkConnectRole::Server).into();
 
     Service {
         metadata: object_meta(validated, service_name, SparkConnectRole::Server).build(),
@@ -41,7 +44,7 @@ pub(crate) fn build_headless_service(validated: &ValidatedSparkConnectServer) ->
             ]),
             selector: Some(selector),
             // The flag `publish_not_ready_addresses` *must* be `true` to allow for readiness
-            // probes. Without it, the driver runs into a deadlock beacuse the Pod cannot become
+            // probes. Without it, the driver runs into a deadlock because the Pod cannot become
             // "ready" until the Service is "ready" and vice versa.
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
@@ -55,10 +58,10 @@ pub(crate) fn build_metrics_service(validated: &ValidatedSparkConnectServer) -> 
     let service_name = format!(
         "{cluster}-{role}-metrics",
         cluster = validated.name_any(),
-        role = SparkConnectRole::Server
+        role = SparkConnectRole::Server.as_ref()
     );
 
-    let selector = validated.role_selector(SparkConnectRole::Server).into();
+    let selector = role_selector(validated, &SparkConnectRole::Server).into();
 
     Service {
         metadata: object_meta(validated, service_name, SparkConnectRole::Server)
@@ -76,7 +79,7 @@ pub(crate) fn build_metrics_service(validated: &ValidatedSparkConnectServer) -> 
             ports: Some(metrics_ports()),
             selector: Some(selector),
             // The flag `publish_not_ready_addresses` *must* be `true` to allow for readiness
-            // probes. Without it, the driver runs into a deadlock beacuse the Pod cannot become
+            // probes. Without it, the driver runs into a deadlock because the Pod cannot become
             // "ready" until the Service is "ready" and vice versa.
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()

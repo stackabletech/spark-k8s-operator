@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Stackable Operator for Apache Spark-on-Kubernetes",
+  "description": "Values accepted by the operator Helm chart. Product configuration lives in the SparkApplication, SparkApplicationTemplate, SparkHistoryServer and SparkConnectServer custom resources, not here.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "title": "Operator image",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "title": "Operator image registry and namespace",
+          "description": "Registry and namespace holding the operator image, without the image name. Set automatically when the chart is packaged, from the registry it is published to: oci.stackable.tech/sdp or quay.io/stackable/sdp.",
+          "type": "string"
+        },
+        "productRepository": {
+          "title": "Product image registry and namespace",
+          "description": "Registry and namespace holding the product images, if they should come from somewhere other than the operator image. Defaults to image.repository. This only sets where product images are pulled from. Credentials for that registry are configured per cluster in spec.image.pullSecrets on the custom resource, not here.",
+          "type": "string"
+        },
+        "tag": {
+          "title": "Image tag",
+          "description": "Overrides the operator image tag. Defaults to the chart appVersion, which is the SDP release.",
+          "type": "string"
+        },
+        "pullPolicy": {
+          "title": "Image pull policy",
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
+          "default": "IfNotPresent",
+          "description": "When to pull the operator image. Release tags are immutable, so IfNotPresent is enough."
+        },
+        "pullSecrets": {
+          "title": "Image pull secrets",
+          "description": "Secrets used to pull the operator image from a private registry. These apply to the operator pod only. Product images are pulled by the pods the operator creates, which take their pull secrets from spec.image.pullSecrets on the custom resource.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ]
+          }
+        }
+      },
+      "description": "Where the operator image is pulled from and how."
+    },
+    "nameOverride": {
+      "title": "Name override",
+      "description": "Replaces the chart name inside generated resource names. The release name is still prefixed. Installing release my-release with nameOverride=foo gives my-release-foo-deployment instead of my-release-spark-k8s-operator-deployment.",
+      "type": "string",
+      "default": ""
+    },
+    "fullnameOverride": {
+      "title": "Full name override",
+      "description": "Replaces the generated name entirely, including the release name prefix. Installing release my-release with fullnameOverride=bar gives bar-deployment instead of my-release-spark-k8s-operator-deployment.",
+      "type": "string",
+      "default": ""
+    },
+    "serviceAccount": {
+      "title": "Service account",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "title": "Create the service account",
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the chart creates the ServiceAccount the operator runs as. Set to false to bring your own, then name it in serviceAccount.name. The ClusterRole and the ClusterRoleBinding that grants it are created by the chart either way, so an existing ServiceAccount still receives the operator's permissions."
+        },
+        "annotations": {
+          "title": "Service account annotations",
+          "type": "object",
+          "default": {},
+          "description": "Annotations on the created ServiceAccount, for example an IAM role for IRSA or Workload Identity. Only applies when serviceAccount.create is true."
+        },
+        "name": {
+          "title": "Service account name",
+          "description": "Name of the ServiceAccount the operator pod runs as. Leave empty to use the generated name, <release>-spark-k8s-operator-serviceaccount. Required when serviceAccount.create is false, where it tells the chart which existing ServiceAccount the Deployment should run as and the ClusterRoleBinding should grant.",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "description": "Identity the operator pod runs as. The chart binds it to the operator's ClusterRole, which is what grants the operator permission to watch and manage its custom resources cluster-wide. Product pods run as their own service accounts, created per cluster by the operator, not this one."
+    },
+    "podAnnotations": {
+      "title": "Pod annotations",
+      "description": "Annotations added to the operator pod.",
+      "type": "object",
+      "default": {}
+    },
+    "labels": {
+      "title": "Labels",
+      "description": "Labels attached to every resource the chart deploys.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {
+        "stackable.tech/vendor": "Stackable"
+      }
+    },
+    "podSecurityContext": {
+      "title": "Pod security context",
+      "description": "Pod-level security context for the operator pod, for example fsGroup. Passed through to Kubernetes unchanged. Applies to the operator pod only.",
+      "type": "object",
+      "default": {}
+    },
+    "securityContext": {
+      "title": "Container security context",
+      "description": "Container-level security context for the operator container, for example readOnlyRootFilesystem or runAsNonRoot. Passed through to Kubernetes unchanged. Applies to the operator container only.",
+      "type": "object",
+      "default": {}
+    },
+    "resources": {
+      "title": "Resource requests and limits",
+      "description": "Resources for the operator itself. This does not affect the products it manages, which are sized in their custom resources.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "title": "Limits",
+          "description": "Maximum CPU and memory the operator container may use.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/resourceQuantities"
+            }
+          ]
+        },
+        "requests": {
+          "title": "Requests",
+          "description": "CPU and memory reserved for the operator container.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/resourceQuantities"
+            }
+          ]
+        }
+      }
+    },
+    "nodeSelector": {
+      "title": "Node selector",
+      "type": "object",
+      "default": {},
+      "description": "Node labels the operator pod must match to be scheduled. Product pods are placed by their own custom resource, not here."
+    },
+    "tolerations": {
+      "title": "Tolerations",
+      "type": "array",
+      "default": [],
+      "description": "Taints the operator pod tolerates. Product pods take their tolerations from their own custom resource, not here."
+    },
+    "affinity": {
+      "title": "Affinity",
+      "type": "object",
+      "default": {},
+      "description": "Affinity and anti-affinity rules for the operator pod. Product pod affinity is configured in their own custom resource, not here."
+    },
+    "priorityClassName": {
+      "title": "Priority class name",
+      "description": "PriorityClass for the operator pod. Unset means the cluster default.",
+      "type": "string"
+    },
+    "kubernetesClusterDomain": {
+      "title": "Kubernetes cluster domain",
+      "description": "Set this when the cluster does not use the default cluster.local domain. See https://docs.stackable.tech/home/stable/guides/kubernetes-cluster-domain",
+      "type": "string"
+    },
+    "maintenance": {
+      "title": "Maintenance behaviour",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "endOfSupportCheck": {
+          "title": "End-of-support check",
+          "description": "Warns when the running SDP release has reached end of support.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether the operator logs a warning once the running SDP release is out of support."
+            },
+            "mode": {
+              "title": "Check mode",
+              "description": "Only offline is implemented: the check uses the release date compiled into the operator and makes no network calls.",
+              "type": "string",
+              "enum": [
+                "offline"
+              ]
+            },
+            "interval": {
+              "title": "Check interval",
+              "description": "How often the check runs, as a duration such as 24h.",
+              "type": "string"
+            }
+          }
+        },
+        "customResourceDefinitions": {
+          "title": "CustomResourceDefinitions",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maintain": {
+              "title": "Let the operator manage its CRDs",
+              "description": "The operator applies and updates its own CRDs at startup. Disable this only if CRDs are applied out of band, for example by a cluster admin with elevated rights.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "description": "How the operator handles its own CustomResourceDefinitions."
+        }
+      },
+      "description": "Background housekeeping the operator performs, independent of reconciling custom resources."
+    },
+    "telemetry": {
+      "title": "Telemetry",
+      "description": "Operator logging and tracing. See https://docs.stackable.tech/home/stable/concepts/telemetry/",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "consoleLog": {
+          "title": "Console logs",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether the operator logs to stdout."
+            },
+            "level": {
+              "title": "Console log level",
+              "description": "Verbosity of the console logs. A tracing filter directive, for example INFO, or something more targeted like info,stackable_spark_k8s_operator=debug.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/logLevel"
+                }
+              ]
+            },
+            "format": {
+              "title": "Log format",
+              "type": "string",
+              "enum": [
+                "plain",
+                "json"
+              ],
+              "default": "plain",
+              "description": "plain is human-readable and coloured unless NO_COLOR is set. json is structured, for log collectors that parse it."
+            }
+          },
+          "description": "Logs written to stdout, which is what kubectl logs shows."
+        },
+        "fileLog": {
+          "title": "File logs",
+          "description": "Writes logs to /stackable/logs inside the container.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether the operator also writes logs to /stackable/logs inside the container. Off by default: it needs a volume to be useful, otherwise the logs vanish with the pod."
+            },
+            "level": {
+              "title": "File log level",
+              "description": "Verbosity of the file logs, independent of the console log level. Same syntax.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/logLevel"
+                }
+              ]
+            },
+            "rotationPeriod": {
+              "title": "Rotation period",
+              "type": "string",
+              "enum": [
+                "minutely",
+                "hourly",
+                "daily",
+                "never"
+              ],
+              "default": "hourly",
+              "description": "How often a new log file is started."
+            },
+            "maxFiles": {
+              "title": "Files to keep",
+              "type": "integer",
+              "minimum": 1,
+              "default": 6,
+              "description": "How many rotated files to keep. Older ones are deleted."
+            }
+          }
+        },
+        "otelLogExporter": {
+          "title": "OpenTelemetry log exporter",
+          "description": "Exports operator logs to an OTLP collector.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/otelExporter"
+            }
+          ]
+        },
+        "otelTraceExporter": {
+          "title": "OpenTelemetry trace exporter",
+          "description": "Exports operator traces to an OTLP collector.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/otelExporter"
+            }
+          ]
+        }
+      }
+    },
+    "global": {
+      "title": "Global values",
+      "description": "Values shared with parent and sibling charts when this chart is used as a subchart. Not read by this chart.",
+      "type": "object"
+    }
+  },
+  "definitions": {
+    "resourceQuantities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": {
+          "title": "CPU",
+          "description": "Kubernetes quantity, for example 100m or 1.",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "memory": {
+          "title": "Memory",
+          "description": "Kubernetes quantity, for example 128Mi.",
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      }
+    },
+    "logLevel": {
+      "title": "Log level",
+      "description": "A tracing filter directive, for example INFO, or something more specific like info,stackable_spark_k8s_operator=debug. Not a fixed set of values.",
+      "type": "string"
+    },
+    "otelExporter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "level": {
+          "$ref": "#/definitions/logLevel"
+        },
+        "endpoint": {
+          "title": "OTLP endpoint",
+          "description": "Collector to send to. Defaults to the OpenTelemetry SDK default when unset.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

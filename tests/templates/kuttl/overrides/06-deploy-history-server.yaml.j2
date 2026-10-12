@@ -49,8 +49,8 @@ spec:
         test.securityProperties.role: role
         test.securityProperties.fromRg: role
       spark-env.sh:
-        TEST_SPARK-ENV-SH_ROLE: ROLE
-        TEST_SPARK-ENV-SH_FROM_RG: ROLE
+        TEST_SPARK_ENV_SH_ROLE: ROLE
+        TEST_SPARK_ENV_SH_FROM_RG: ROLE
     roleGroups:
       default:
         replicas: 1
@@ -64,8 +64,8 @@ spec:
             test.securityProperties.fromRg: rolegroup
             test.securityProperties.rg: rolegroup
           spark-env.sh:
-            TEST_SPARK-ENV-SH_FROM_RG: ROLEGROUP
-            TEST_SPARK-ENV-SH_RG: ROLEGROUP
+            TEST_SPARK_ENV_SH_FROM_RG: ROLEGROUP
+            TEST_SPARK_ENV_SH_RG: ROLEGROUP
         podOverrides:
           spec:
             containers:

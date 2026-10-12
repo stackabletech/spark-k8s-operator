@@ -23,7 +23,7 @@ For the example above, the listener operator creates a service named `spark-hist
 
 == Spark Connect services
 
-Connect pods can be exposed using listener classes in exactly tha same fashion as History Servers (with the exception for the role):
+Connect pods can be exposed using listener classes in exactly the same fashion as History Servers (with the exception for the role):
 
 [source,yaml]
 ----

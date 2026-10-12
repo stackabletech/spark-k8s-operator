@@ -11,10 +11,13 @@ use history::controller;
 use stackable_operator::{
     YamlSchema,
     cli::{Command, OperatorEnvironmentOptions, RunArguments},
+    crd::listener,
     eos::EndOfSupportChecker,
     k8s_openapi::api::{
         apps::v1::StatefulSet,
-        core::v1::{ConfigMap, Pod, Service},
+        core::v1::{ConfigMap, Pod, Service, ServiceAccount},
+        policy::v1::PodDisruptionBudget,
+        rbac::v1::RoleBinding,
     },
     kube::{
         CustomResourceExt as _,
@@ -29,6 +32,7 @@ use stackable_operator::{
     shared::yaml::SerializeOptions,
     telemetry::Tracing,
     utils::signal::{self, SignalWatcher},
+    webhook::health::HealthCheckRegistry,
 };
 use tracing::info_span;
 use tracing_futures::Instrument;
@@ -38,8 +42,8 @@ use crate::{
     crd::{
         SparkApplication,
         constants::{
-            HISTORY_FULL_CONTROLLER_NAME, OPERATOR_NAME, POD_DRIVER_FULL_CONTROLLER_NAME,
-            SPARK_CONTROLLER_NAME, SPARK_FULL_CONTROLLER_NAME,
+            HISTORY_FULL_CONTROLLER_NAME, POD_DRIVER_FULL_CONTROLLER_NAME, SPARK_CONTROLLER_NAME,
+            SPARK_FULL_CONTROLLER_NAME, SPARK_OPERATOR_NAME,
         },
         history::SparkHistoryServer,
         template_spec::{SparkApplicationTemplate, SparkApplicationTemplateVersion},
@@ -60,7 +64,14 @@ pub(crate) mod test_support;
 mod webhooks;
 
 mod built_info {
+    use std::{str::FromStr, sync::LazyLock};
+
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
+
+    pub static PKG_VERSION_SEMVER: LazyLock<semver::Version> = LazyLock::new(|| {
+        semver::Version::from_str(PKG_VERSION)
+            .expect("PKG_VERSION must be able to be parsed as semver")
+    });
 }
 
 #[derive(Parser)]
@@ -123,14 +134,33 @@ async fn main() -> anyhow::Result<()> {
                     .map(anyhow::Ok);
 
             let client = stackable_operator::client::initialize_operator(
-                Some(OPERATOR_NAME.to_string()),
+                Some(SPARK_OPERATOR_NAME.to_string()),
                 &common.cluster_info,
             )
             .await?;
 
+            let mut readiness_checks = HealthCheckRegistry::new();
+            let spark_history_server_crd_check = readiness_checks.register(format!(
+                "CRD {crd} established",
+                crd = crd::history::v1alpha1::SparkHistoryServer::crd_name()
+            ));
+            let spark_connect_server_crd_check = readiness_checks.register(format!(
+                "CRD {crd} established",
+                crd = connect::crd::v1alpha1::SparkConnectServer::crd_name()
+            ));
+            let spark_application_crd_check = readiness_checks.register(format!(
+                "CRD {crd} established",
+                crd = crd::v1alpha1::SparkApplication::crd_name()
+            ));
+            let spark_application_template_crd_check = readiness_checks.register(format!(
+                "CRD {crd} established",
+                crd = crd::template_spec::v1alpha1::SparkApplicationTemplate::crd_name()
+            ));
+
             let webhook_server = create_webhook_server(
                 &operator_environment,
                 maintenance.disable_crd_maintenance,
+                readiness_checks,
                 client.as_kube_client(),
             )
             .await?;
@@ -199,7 +229,7 @@ async fn main() -> anyhow::Result<()> {
             let pod_driver_controller = Controller::new(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
                 watcher::Config::default()
-                 .labels(&format!("app.kubernetes.io/managed-by={OPERATOR_NAME}_{SPARK_CONTROLLER_NAME},spark-role=driver")),
+                 .labels(&format!("app.kubernetes.io/managed-by={SPARK_OPERATOR_NAME}_{SPARK_CONTROLLER_NAME},spark-role=driver")),
             )
             .owns(
                 watch_namespace.get_api::<DeserializeGuard<Pod>>(&client),
@@ -258,7 +288,19 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<listener::v1alpha1::Listener>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<PodDisruptionBudget>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<RoleBinding>>(&client),
                 watcher::Config::default(),
             )
             .owns(
@@ -266,7 +308,11 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ServiceAccount>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
                 watcher::Config::default(),
             )
             .graceful_shutdown_on(sigterm_watcher.handle())
@@ -324,7 +370,15 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<listener::v1alpha1::Listener>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<RoleBinding>>(&client),
                 watcher::Config::default(),
             )
             .owns(
@@ -332,7 +386,11 @@ async fn main() -> anyhow::Result<()> {
                 watcher::Config::default(),
             )
             .owns(
-                watch_namespace.get_api::<DeserializeGuard<ConfigMap>>(&client),
+                watch_namespace.get_api::<DeserializeGuard<ServiceAccount>>(&client),
+                watcher::Config::default(),
+            )
+            .owns(
+                watch_namespace.get_api::<DeserializeGuard<StatefulSet>>(&client),
                 watcher::Config::default(),
             )
             .graceful_shutdown_on(sigterm_watcher.handle())
@@ -365,9 +423,9 @@ async fn main() -> anyhow::Result<()> {
                 signal::crd_established(
                     &client,
                     crd::history::v1alpha1::SparkHistoryServer::crd_name(),
-                    None,
                 )
                 .await?;
+                spark_history_server_crd_check.mark_passed();
                 history_controller.await
             };
 
@@ -375,15 +433,22 @@ async fn main() -> anyhow::Result<()> {
                 signal::crd_established(
                     &client,
                     connect::crd::v1alpha1::SparkConnectServer::crd_name(),
-                    None,
                 )
                 .await?;
+                spark_connect_server_crd_check.mark_passed();
                 connect_controller.await
             };
 
             let delayed_app_controller = async {
-                signal::crd_established(&client, crd::v1alpha1::SparkApplication::crd_name(), None)
+                signal::crd_established(&client, crd::v1alpha1::SparkApplication::crd_name())
                     .await?;
+                spark_application_crd_check.mark_passed();
+                signal::crd_established(
+                    &client,
+                    crd::template_spec::v1alpha1::SparkApplicationTemplate::crd_name(),
+                )
+                .await?;
+                spark_application_template_crd_check.mark_passed();
                 app_controller.await
             };
 

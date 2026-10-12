@@ -3,20 +3,21 @@
 use std::{
     cmp::max,
     collections::{BTreeMap, HashMap},
+    str::FromStr,
 };
 
 use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
 use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu, ensure};
 use stackable_operator::{
     builder::pod::volume::{
         SecretFormat, SecretOperatorVolumeSourceBuilder, SecretOperatorVolumeSourceBuilderError,
         VolumeBuilder,
     },
     commons::{
-        product_image_selection::ProductImage,
+        product_image_selection::{ProductImage, ResolvedProductImage},
         resources::{CpuLimits, MemoryLimits, Resources},
         secret_class::SecretClassVolumeProvisionParts,
     },
@@ -24,6 +25,7 @@ use stackable_operator::{
         fragment::{self, ValidationError},
         merge::Merge,
     },
+    constant,
     crd::{openlineage, s3},
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
@@ -32,12 +34,13 @@ use stackable_operator::{
     kube::{CustomResource, ResourceExt},
     memory::{BinaryMultiple, MemoryQuantity},
     product_logging,
-    role_utils::{CommonConfiguration, RoleGroup},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
     v2::{
-        config_overrides::KeyValueConfigOverrides, role_utils::JavaCommonConfig,
+        builder::pod::container::{EnvVarName, EnvVarSet},
+        config_overrides::KeyValueConfigOverrides,
+        role_utils::{CommonConfiguration, JavaCommonConfig, RoleGroup},
         types::kubernetes::ConfigMapName,
     },
     versioned::versioned,
@@ -52,7 +55,7 @@ use crate::{
             SubmitConfig, SubmitConfigFragment, VolumeMounts,
         },
     },
-    lineage::{append_conf_csv, openlineage_transport_env_vars},
+    lineage::{append_conf_csv, openlineage_transport_env_vars, transport_base_url},
 };
 
 pub mod affinity;
@@ -71,17 +74,8 @@ pub enum Error {
     #[snafu(display("object has no namespace associated"))]
     NoNamespace,
 
-    #[snafu(display("object defines no deploy mode"))]
-    ObjectHasNoDeployMode,
-
-    #[snafu(display("object defines no application artifact"))]
-    ObjectHasNoArtifact,
-
     #[snafu(display("object has no name"), visibility(pub(crate)))]
     ObjectHasNoName,
-
-    #[snafu(display("application has no Spark image"))]
-    NoSparkImage,
 
     #[snafu(display("failed to convert java heap config to unit [{unit}]"))]
     FailedToConvertJavaHeap {
@@ -113,6 +107,17 @@ pub enum Error {
         source: s3::v1alpha1::ConnectionError,
     },
 
+    #[snafu(display("invalid environment variable name in the `env` list"))]
+    ParseSparkEnvVarName {
+        source: stackable_operator::v2::builder::pod::container::Error,
+    },
+
+    #[snafu(display(
+        "invalid key [{key}] in the {SPARK_ENV_SH_FILE_NAME} configOverrides: the file is sourced \
+        by the shell, so keys must be valid shell identifiers matching [a-zA-Z_][a-zA-Z0-9_]*"
+    ))]
+    InvalidSparkEnvShKey { key: String },
+
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
 
@@ -138,6 +143,15 @@ pub(crate) fn spark_major_version(product_version: &str) -> Result<u64, Error> {
             product_version: product_version.to_string(),
         })
 }
+
+// `_STACKABLE_PRE_HOOK` is evaluated by the entrypoint script (run-spark.sh) in the Spark images
+// before the actual JVM process is started; the operator uses it to run `containerdebug` in the
+// background of every `spark` container.
+constant!(pub STACKABLE_PRE_HOOK: EnvVarName = "_STACKABLE_PRE_HOOK");
+constant!(PYTHONPATH: EnvVarName = "PYTHONPATH");
+// The environment variable holding the trust store password; its value is the
+// `STACKABLE_TLS_STORE_PASSWORD` string constant.
+constant!(STACKABLE_TLS_STORE_PASSWORD_ENV: EnvVarName = "STACKABLE_TLS_STORE_PASSWORD");
 
 pub type SparkApplicationJobRoleType =
     CommonConfiguration<SubmitConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
@@ -312,7 +326,11 @@ impl v1alpha1::SparkApplication {
     }
 
     pub fn pod_template_config_map_name(&self, role: SparkApplicationRole) -> String {
-        format!("{app_name}-{role}-pod-template", app_name = self.name_any())
+        format!(
+            "{app_name}-{role}-pod-template",
+            app_name = self.name_any(),
+            role = role.as_ref()
+        )
     }
 
     pub fn application_artifact(&self) -> &str {
@@ -601,8 +619,7 @@ impl v1alpha1::SparkApplication {
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         log_dir: &Option<ResolvedLogDir>,
-        spark_image: &str,
-        product_version: &str,
+        spark_image: &ResolvedProductImage,
         open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
@@ -642,11 +659,11 @@ impl v1alpha1::SparkApplication {
             ),
             format!(
                 "--conf spark.kubernetes.driver.podTemplateContainerName={container_name}",
-                container_name = SparkContainer::Spark
+                container_name = SparkContainer::Spark.name()
             ),
             format!(
                 "--conf spark.kubernetes.executor.podTemplateContainerName={container_name}",
-                container_name = SparkContainer::Spark
+                container_name = SparkContainer::Spark.name()
             ),
             format!(
                 "--conf spark.kubernetes.namespace={}",
@@ -654,11 +671,11 @@ impl v1alpha1::SparkApplication {
             ),
             format!(
                 "--conf spark.kubernetes.driver.container.image={}",
-                spark_image.to_string()
+                spark_image.image
             ),
             format!(
                 "--conf spark.kubernetes.executor.container.image={}",
-                spark_image.to_string()
+                spark_image.image
             ),
             format!(
                 "--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
@@ -707,7 +724,7 @@ impl v1alpha1::SparkApplication {
                 self,
                 s3conn,
                 log_dir,
-                product_version,
+                &spark_image.product_version,
                 open_lineage_conn,
             )?;
         submit_cmd.extend(vec![
@@ -750,6 +767,11 @@ impl v1alpha1::SparkApplication {
         submit_conf.insert(
             "spark.kubernetes.memoryOverheadFactor".to_string(),
             "0.0".to_string(),
+        );
+
+        submit_conf.insert(
+            "spark.kubernetes.container.image.pullPolicy".to_string(),
+            spark_image.image_pull_policy.clone(),
         );
 
         resources_to_driver_props(
@@ -808,7 +830,7 @@ impl v1alpha1::SparkApplication {
                 );
                 submit_conf.insert(
                     "spark.openlineage.transport.url".to_string(),
-                    http.transport_url(),
+                    transport_base_url(http),
                 );
                 submit_conf.insert(
                     "spark.openlineage.transport.endpoint".to_string(),
@@ -865,13 +887,25 @@ impl v1alpha1::SparkApplication {
         Ok(vec![submit_cmd.join(" ")])
     }
 
+    /// The base environment for the submit, driver and executor containers: the user-defined
+    /// `spec.env` entries plus the environment variables set by the operator.
+    ///
+    /// The role-specific `envOverrides` are merged on top in [`Self::merged_env`], so they take
+    /// precedence over everything set here.
     pub fn env(
         &self,
         s3conn: &Option<s3::v1alpha1::ConnectionSpec>,
         logdir: &Option<ResolvedLogDir>,
         open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
-    ) -> Vec<EnvVar> {
-        let mut e: Vec<EnvVar> = self.spec.env.clone();
+    ) -> Result<EnvVarSet, Error> {
+        // The CRD accepts raw `EnvVar` objects in `spec.env`, so the names are only validated
+        // here.
+        let mut env = EnvVarSet::new();
+        for env_var in self.spec.env.clone() {
+            env = env
+                .with_env_var(env_var)
+                .context(ParseSparkEnvVarNameSnafu)?;
+        }
 
         // These env variables enable the `containerdebug` process in driver and executor pods.
         // More precisely, this process runs in the background of every `spark` container.
@@ -880,34 +914,29 @@ impl v1alpha1::SparkApplication {
         // - `_STACKABLE_PRE_HOOK` - is evaluated by the entrypoint script (run-spark.sh) in the Spark images
         // before the actual JVM process is started. The result of this evaluation is that the
         // `containerdebug` process is executed in the background.
-        e.extend(vec![
-            EnvVar {
-                name: "CONTAINERDEBUG_LOG_DIRECTORY".into(),
-                value: Some(format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug")),
-                value_from: None,
-            },
-            EnvVar {
-                name: "_STACKABLE_PRE_HOOK".into(),
-                value: Some(format!( "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &")),
-                value_from: None,
-            },
-        ]);
+        env = env
+            .with_value(
+                &CONTAINERDEBUG_LOG_DIRECTORY,
+                format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+            )
+            .with_value(
+                &STACKABLE_PRE_HOOK,
+                format!(
+                    "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+                ),
+            );
 
         if self.requirements().is_some() {
-            e.push(EnvVar {
-                name: "PYTHONPATH".to_string(),
-                value: Some(format!(
-                    "$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"
-                )),
-                value_from: None,
-            });
+            env = env.with_value(
+                &PYTHONPATH,
+                format!("$SPARK_HOME/python:{VOLUME_MOUNT_PATH_REQ}:$PYTHONPATH"),
+            );
         }
         if tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn).is_some() {
-            e.push(EnvVar {
-                name: "STACKABLE_TLS_STORE_PASSWORD".to_string(),
-                value: Some(STACKABLE_TLS_STORE_PASSWORD.to_string()),
-                value_from: None,
-            });
+            env = env.with_value(
+                &STACKABLE_TLS_STORE_PASSWORD_ENV,
+                STACKABLE_TLS_STORE_PASSWORD,
+            );
         }
         // OpenLineage HTTP transport auth: when the connection sets `credentialsSecretName`, deliver
         // the WHOLE transport (type, URL and bearer-token auth) to the driver's OpenLineage listener
@@ -917,14 +946,18 @@ impl v1alpha1::SparkApplication {
         if let Some(connection) = open_lineage_conn {
             let http = crate::lineage::http_transport(connection);
             if let Some(secret_name) = &http.credentials_secret_name {
-                e.extend(openlineage_transport_env_vars(
-                    &http.transport_url(),
+                for env_var in openlineage_transport_env_vars(
+                    &transport_base_url(http),
                     &http.path,
                     secret_name,
-                ));
+                ) {
+                    env = env
+                        .with_env_var(env_var)
+                        .context(ParseSparkEnvVarNameSnafu)?;
+                }
             }
         }
-        e
+        Ok(env)
     }
 
     pub fn submit_config(&self) -> Result<SubmitConfig, Error> {
@@ -969,35 +1002,24 @@ impl v1alpha1::SparkApplication {
         }
     }
 
-    pub fn merged_env(&self, role: SparkApplicationRole, env: &[EnvVar]) -> Vec<EnvVar> {
-        // Use a BTreeMap internally to enable replacement of existing keys
-        let mut env: BTreeMap<&String, EnvVar> = env
-            .iter()
-            .map(|env_var| (&env_var.name, env_var.clone()))
-            .collect();
-
-        // Merge the role-specific envOverrides on top
-        let role_envs = match role {
+    /// The given base environment with the role-specific `envOverrides` merged on top.
+    ///
+    /// The overrides are merged in last so that they override any operator-set environment
+    /// variable. Callers must therefore add every operator-set environment variable to `env`
+    /// rather than appending it to the container afterwards.
+    pub fn merged_env(&self, role: SparkApplicationRole, env: EnvVarSet) -> EnvVarSet {
+        let role_env_overrides = match role {
             SparkApplicationRole::Submit => self.spec.job.as_ref().map(|j| &j.env_overrides),
             SparkApplicationRole::Driver => self.spec.driver.as_ref().map(|d| &d.env_overrides),
             SparkApplicationRole::Executor => {
                 self.spec.executor.as_ref().map(|e| &e.config.env_overrides)
             }
         };
-        if let Some(role_envs) = role_envs {
-            env.extend(role_envs.iter().map(|(k, v)| {
-                (
-                    k,
-                    EnvVar {
-                        name: k.clone(),
-                        value: Some(v.clone()),
-                        ..Default::default()
-                    },
-                )
-            }))
-        }
 
-        env.into_values().collect()
+        match role_env_overrides {
+            Some(env_overrides) => env.merge(env_overrides.clone().into()),
+            None => env,
+        }
     }
 
     pub fn retry_on_failure_count(&self) -> i32 {
@@ -1166,18 +1188,28 @@ fn resources_to_executor_props(
     Ok(())
 }
 
-/// Create the content of the file spark-env.sh.
-/// The properties are serialized in the form 'export {k}="{v}"',
-/// escaping neither the key nor the value. The user is responsible for
-/// providing escaped values.
-pub fn to_spark_env_sh_string<'a, T>(properties: T) -> String
+/// Create the content of the file spark-env.sh, serializing the properties as 'export {k}="{v}"'.
+/// The file is sourced by the shell, so keys that are not valid shell identifiers are rejected.
+/// Values are left unescaped on purpose, so that they can reference other variables.
+pub fn to_spark_env_sh_string<'a, T>(properties: T) -> Result<String, Error>
 where
     T: Iterator<Item = (&'a String, &'a String)>,
 {
     properties
-        .map(|(k, v)| format!("export {k}=\"{v}\""))
-        .collect::<Vec<String>>()
-        .join("\n")
+        .map(|(k, v)| {
+            ensure!(is_shell_identifier(k), InvalidSparkEnvShKeySnafu { key: k });
+            Ok(format!("export {k}=\"{v}\""))
+        })
+        .collect::<Result<Vec<String>, Error>>()
+        .map(|lines| lines.join("\n"))
+}
+
+fn is_shell_identifier(key: &str) -> bool {
+    let mut chars = key.chars();
+    chars
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|char| char.is_ascii_alphanumeric() || char == '_')
 }
 
 #[cfg(test)]
@@ -1198,6 +1230,57 @@ mod tests {
 
     use super::*;
     use crate::crd::roles::SparkStorageConfig;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *PYTHONPATH;
+        let _ = *STACKABLE_PRE_HOOK;
+        let _ = *STACKABLE_TLS_STORE_PASSWORD_ENV;
+    }
+
+    #[rstest]
+    #[case("SPARK_HISTORY_OPTS")]
+    #[case("_LEADING_UNDERSCORE")]
+    #[case("TRAILING_DIGITS_123")]
+    #[case("lowercase")]
+    fn to_spark_env_sh_string_accepts_shell_identifiers(#[case] key: &str) {
+        let overrides = BTreeMap::from([(key.to_string(), "value".to_string())]);
+
+        assert_eq!(
+            to_spark_env_sh_string(overrides.iter()).expect("the key is a valid shell identifier"),
+            format!("export {key}=\"value\"")
+        );
+    }
+
+    #[rstest]
+    #[case("TEST_SPARK-ENV-SH")]
+    #[case("1_LEADING_DIGIT")]
+    #[case("WITH SPACE")]
+    #[case("with.dot")]
+    #[case("")]
+    fn to_spark_env_sh_string_rejects_other_keys(#[case] key: &str) {
+        let overrides = BTreeMap::from([(key.to_string(), "value".to_string())]);
+
+        assert!(matches!(
+            to_spark_env_sh_string(overrides.iter()),
+            Err(Error::InvalidSparkEnvShKey { key: invalid }) if invalid == key
+        ));
+    }
+
+    /// Values are shell-evaluated by design, so references to other variables must survive.
+    #[test]
+    fn to_spark_env_sh_string_leaves_values_untouched() {
+        let overrides = BTreeMap::from([(
+            "SPARK_HISTORY_OPTS".to_string(),
+            "$SPARK_HISTORY_OPTS -Dsome.token=$SAS_TOKEN".to_string(),
+        )]);
+
+        assert_eq!(
+            to_spark_env_sh_string(overrides.iter()).expect("the key is a valid shell identifier"),
+            r#"export SPARK_HISTORY_OPTS="$SPARK_HISTORY_OPTS -Dsome.token=$SAS_TOKEN""#
+        );
+    }
 
     #[test]
     fn test_default_resource_limits() {
@@ -1729,12 +1812,32 @@ spec:
             .build_command(
                 &None,
                 &None,
-                "test-image",
-                product_version,
+                &test_product_image(&spark_application, product_version),
                 open_lineage_conn.as_ref(),
             )
             .unwrap()
             .join(" ")
+    }
+
+    /// Resolves the product image of the application, reporting `product_version` as the resolved
+    /// Spark version (the YAML fixtures use a placeholder version).
+    fn test_product_image(
+        spark_application: &v1alpha1::SparkApplication,
+        product_version: &str,
+    ) -> ResolvedProductImage {
+        let mut image = spark_application
+            .spec
+            .spark_image
+            .resolve(
+                "spark-k8s",
+                "oci.example.org/sdp",
+                &"0.0.0-dev"
+                    .parse()
+                    .expect("static semantic version must parse"),
+            )
+            .expect("the product image resolves");
+        image.product_version = product_version.to_string();
+        image
     }
 
     const MINIMAL_APP: &str = indoc! {r#"
@@ -1757,7 +1860,7 @@ spec:
         openlineage::v1alpha1::OpenLineageConnectionSpec {
             transport: openlineage::v1alpha1::OpenLineageTransport::Http(
                 openlineage::v1alpha1::HttpTransport {
-                    host: "marquez".to_string(),
+                    host: "marquez".parse().expect("valid host name"),
                     port: 5000,
                     path: openlineage::v1alpha1::HttpTransport::DEFAULT_PATH.to_string(),
                     tls: stackable_operator::commons::tls_verification::TlsClientDetails {
@@ -1775,7 +1878,10 @@ spec:
             serde_yaml::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
         let connection = test_openlineage_connection(Some("ol-token".to_string()));
 
-        let env = spark_application.env(&None, &None, Some(&connection));
+        let env: Vec<EnvVar> = spark_application
+            .env(&None, &None, Some(&connection))
+            .unwrap()
+            .into();
         let value = |name| {
             env.iter()
                 .find(|v| v.name == name)
@@ -1817,7 +1923,10 @@ spec:
         let connection = test_openlineage_connection(None);
 
         // A connection but no credentialsSecretName: transport stays in --conf, no OL env vars.
-        let env = spark_application.env(&None, &None, Some(&connection));
+        let env: Vec<EnvVar> = spark_application
+            .env(&None, &None, Some(&connection))
+            .unwrap()
+            .into();
 
         for name in [
             OPENLINEAGE_TRANSPORT_TYPE_ENV,
@@ -1845,7 +1954,12 @@ spec:
         let connection = test_openlineage_connection(Some("ol-token".to_string()));
 
         let command = spark_application
-            .build_command(&None, &None, "test-image", "3.5.8", Some(&connection))
+            .build_command(
+                &None,
+                &None,
+                &test_product_image(&spark_application, "3.5.8"),
+                Some(&connection),
+            )
             .unwrap()
             .join(" ");
 
@@ -2112,31 +2226,6 @@ spec:
     }
 
     #[rstest]
-    #[case::explicit_app_name(
-        indoc! {r#"
-            ---
-            apiVersion: spark.stackable.tech/v1alpha1
-            kind: SparkApplication
-            metadata:
-              name: metadata-name
-              namespace: default
-            spec:
-              mode: cluster
-              mainApplicationFile: test.py
-              sparkImage:
-                productVersion: 1.2.3
-              lineage:
-                connection:
-                  inline:
-                    http:
-                      host: marquez
-                      port: 5000
-                jobName: explicit-name
-              sparkConf:
-                spark.app.name: spark-conf-name
-        "#},
-        "explicit-name"
-    )]
     #[case::spark_app_name(
         indoc! {r#"
             ---
@@ -2190,6 +2279,71 @@ spec:
         let resolved = spark_application.resolved_lineage_app_name().unwrap();
 
         assert_eq!(resolved, expected_name);
+    }
+
+    #[rstest]
+    #[case::from_spark_image(None, "IfNotPresent")]
+    #[case::spark_conf_wins(Some("Never"), "Never")]
+    fn spark_image_pull_policy_is_passed_to_spark_submit(
+        #[case] spark_conf_override: Option<&str>,
+        #[case] expected: &str,
+    ) {
+        let spark_conf = spark_conf_override
+            .map(|policy| {
+                format!("\n  sparkConf:\n    spark.kubernetes.container.image.pullPolicy: {policy}")
+            })
+            .unwrap_or_default();
+        let yaml = format!(
+            indoc! {r#"
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: spark-example
+                  namespace: default
+                spec:
+                  mode: cluster
+                  mainApplicationFile: test.py
+                  sparkImage:
+                    productVersion: 1.2.3
+                    pullPolicy: IfNotPresent{spark_conf}
+            "#},
+            spark_conf = spark_conf
+        );
+        let deserializer = serde_yaml::Deserializer::from_str(&yaml);
+        let spark_application: v1alpha1::SparkApplication =
+            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+                .expect("invalid test SparkApplication YAML");
+
+        let resolved_product_image = spark_application
+            .spec
+            .spark_image
+            .resolve(
+                "spark-k8s",
+                "oci.example.org/sdp",
+                &"0.0.0-dev"
+                    .parse()
+                    .expect("static semantic version must parse"),
+            )
+            .expect("the product image resolves");
+
+        let command = spark_application
+            .build_command(&None, &None, &resolved_product_image, None)
+            .expect("the submit command can be built")
+            .join(" ");
+
+        let occurrences = command
+            .matches("spark.kubernetes.container.image.pullPolicy=")
+            .count();
+        assert_eq!(
+            1, occurrences,
+            "the property must be passed exactly once, so that it is unambiguous"
+        );
+        assert!(
+            command.contains(&format!(
+                r#"--conf "spark.kubernetes.container.image.pullPolicy={expected}""#
+            )),
+            "expected pull policy {expected} in: {command}"
+        );
     }
 
     impl RoundtripTestData for v1alpha1::SparkApplicationSpec {

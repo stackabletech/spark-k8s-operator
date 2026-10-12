@@ -4,18 +4,92 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
+  ([#773]).
+- The history server and Spark Connect server StatefulSets now carry the
+  `restarter.stackable.tech/enabled: "true"` label, opting them into the restarter-controller so
+  that their Pods are automatically rolled when a mounted ConfigMap or Secret changes ([#754]).
+- Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#779]).
+
 ### Changed
 
+- Bump `stackable-operator` to 0.118.0 ([#732], [#753], [#773]).
+- BREAKING: `spec.image.stackableVersion` must now be a full, valid semver version, e.g. `26.7.1`.
+  Abbreviated values such as `26.7` are no longer accepted ([#773]).
+- BREAKING: `spec.image.pullPolicy` now defaults to `IfNotPresent` for non-floating tags instead of
+  always defaulting to `Always` ([#773]).
 - Internal operator refactoring: introduce a build() step in the history and connect
   server reconcilers that assembles all relevant Kubernetes resources before anything
   is applied ([#721]).
-- Bump stackable-operator to 0.114.0 ([#732]).
 - The RBAC ServiceAccounts and RoleBindings of the history and connect servers are now
   built with the operator-rs `v2::rbac` functions and carry the recommended labels ([#727]).
+- All product containers now run with `securityContext.runAsNonRoot` set to `true` to improve security ([#744]).
+- The reconcilers now apply resources in a discrete apply step; the connect server and application
+  controllers additionally update the status in a discrete update_status step (the history server
+  CRD has no status) ([#746]).
+- BREAKING: Remove the `app.kubernetes.io/component` and `app.kubernetes.io/role-group` labels
+  from the resources they don't apply to (previously set to `none` or a placeholder value such as
+  `sparkapplication` or `default`). StatefulSets created by older operator versions cannot be
+  updated in place: after the operator upgrade, delete each history server and Spark Connect
+  StatefulSet so that the operator immediately recreates it with the new labels ([#753]).
+- Environment variable overrides (`envOverrides`) are now applied after all environment variables
+  set by the operator. In particular, `SPARK_CONF_DIR` of a SparkApplication can now be overridden,
+  whereas previously the operator's values always took precedence ([#753]).
+- BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
+  identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
+- Make operations infallible where dependent on static inputs ([#766], [#769]).
+- Bump stackable-operator to 0.120.0 ([#779]).
+- test: Bump vector-aggregator to 0.58.0 ([#784]).
+
+### Fixed
+
+- Fix a longstanding problem of including empty `categories`, `shortNames` and `additionalPrinterColumns` in the CRDs,
+  which could cause problems with GitOps tools (e.g. ArgoCD) reporting a diff in the custom resources.
+  See [our internal issue](https://github.com/stackabletech/hdfs-operator/issues/626) and [the fix](https://github.com/kube-rs/kube/pull/2042) for details ([#744]).
+- BREAKING (behaviour): The `config` and `cliOverrides` of a SparkApplication role now take
+  precedence over the ones of a referenced SparkApplicationTemplate. Previously the template
+  value won and the value set on the SparkApplication was silently discarded ([#745]).
+- BREAKING (behaviour): The `jvmArgumentOverrides` of a SparkApplication role are no longer
+  discarded when the application references a SparkApplicationTemplate. The overrides of the
+  template are now applied first and the ones of the SparkApplication on top of them, so an
+  application can also remove a JVM argument that one of its templates added ([#745]).
+- BREAKING: The connect and history-server listener PVC templates now carry the recommended
+  labels without the version label, so that the labels stay stable across upgrades.
+  Existing connect and history-server StatefulSets must be deleted once before the new operator
+  can reconcile them (connect server: [#750], history server: [#753]).
+- The history and connect controllers now watch all resources that they create, the missing RBAC
+  `watch` permissions were added, and all controllers early-exit the reconcile action when the object
+  is marked for deletion ([#757]).
+- Re-added the ownerRef on driver pod to ensure GC cascade ([#758]).
+- The `configOverrides` for `spark-env.sh` and `security.properties` of a SparkApplication now take
+  effect in the submit, driver and executor Pods ([#761]).
+- BREAKING (behaviour): The image pull policy is no longer ignored by several containers.
+  `sparkImage.pullPolicy` of a SparkApplication now covers the driver and executor containers, the
+  `job`, `requirements` and `tls` init containers and the user-supplied `spec.image`, and
+  `image.pullPolicy` of a SparkConnectServer now covers its truststore init container and its
+  executors. With the default `Always`, these containers pull on every start instead of using the
+  node's image cache ([#764]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
 [#732]: https://github.com/stackabletech/spark-k8s-operator/pull/732
+[#744]: https://github.com/stackabletech/spark-k8s-operator/pull/744
+[#745]: https://github.com/stackabletech/spark-k8s-operator/pull/745
+[#746]: https://github.com/stackabletech/spark-k8s-operator/pull/746
+[#750]: https://github.com/stackabletech/spark-k8s-operator/pull/750
+[#753]: https://github.com/stackabletech/spark-k8s-operator/pull/753
+[#754]: https://github.com/stackabletech/spark-k8s-operator/pull/754
+[#757]: https://github.com/stackabletech/spark-k8s-operator/pull/757
+[#758]: https://github.com/stackabletech/spark-k8s-operator/pull/758
+[#761]: https://github.com/stackabletech/spark-k8s-operator/pull/761
+[#764]: https://github.com/stackabletech/spark-k8s-operator/pull/764
+[#766]: https://github.com/stackabletech/spark-k8s-operator/pull/766
+[#769]: https://github.com/stackabletech/spark-k8s-operator/pull/769
+[#773]: https://github.com/stackabletech/spark-k8s-operator/pull/773
+[#779]: https://github.com/stackabletech/spark-k8s-operator/pull/779
+[#784]: https://github.com/stackabletech/spark-k8s-operator/pull/784
 
 ## [26.7.0] - 2026-07-21
 
@@ -224,7 +298,7 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 - Support for Spark versions 3.5.2 has been dropped ([#570]).
-- Integration test spark-pi-public-s3 because the AWS SDK >2.24 doesn't suuport anonymous S3 access anymore ([#574]).
+- Integration test spark-pi-public-s3 because the AWS SDK >2.24 doesn't support anonymous S3 access anymore ([#574]).
 - Remove the `lastUpdateTime` field from the stacklet status ([#592]).
 - Remove role binding to legacy service accounts ([#592]).
 

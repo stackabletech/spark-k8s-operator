@@ -13,7 +13,7 @@
 //! each role is named "default". These roles are transparent to the user.
 //!
 //! The history server has its own role completely unrelated to this module.
-use std::{slice, str::FromStr};
+use std::{ops::Deref, slice, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 use stackable_operator::{
@@ -28,24 +28,48 @@ use stackable_operator::{
         fragment::Fragment,
         merge::{Atomic, Merge},
     },
+    constant,
     crd::{openlineage, s3},
     k8s_openapi::{api::core::v1::VolumeMount, apimachinery::pkg::api::resource::Quantity},
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
     shared::time::Duration,
     utils::crds::raw_object_list_schema,
-    v2::types::kubernetes::ContainerName,
+    v2::types::{kubernetes::ContainerName, operator::RoleName},
 };
 use strum::{Display, EnumIter};
 
 use crate::crd::{ResolvedLogDir, constants::DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT, v1alpha1};
 
-#[derive(Clone, Debug, Deserialize, Display, Eq, PartialEq, Serialize, JsonSchema)]
-#[strum(serialize_all = "kebab-case")]
+constant!(SUBMIT_ROLE_NAME: RoleName = "submit");
+constant!(DRIVER_ROLE_NAME: RoleName = "driver");
+constant!(EXECUTOR_ROLE_NAME: RoleName = "executor");
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SparkApplicationRole {
     Submit,
     Driver,
     Executor,
+}
+
+impl Deref for SparkApplicationRole {
+    type Target = RoleName;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            SparkApplicationRole::Submit => &SUBMIT_ROLE_NAME,
+            SparkApplicationRole::Driver => &DRIVER_ROLE_NAME,
+            SparkApplicationRole::Executor => &EXECUTOR_ROLE_NAME,
+        }
+    }
+}
+
+impl SparkApplicationRole {
+    /// The type-safe name of this role, e.g. to build
+    /// [`ResourceNames`](stackable_operator::v2::role_group_utils::ResourceNames).
+    pub fn role_name(&self) -> RoleName {
+        RoleName::clone(self)
+    }
 }
 
 #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
@@ -90,13 +114,29 @@ pub enum SparkContainer {
     Tls,
 }
 
+// Typed container names. They must match the strum `Display` (kebab-case) of the variants above,
+// which is pinned by a unit test.
+constant!(SPARK_SUBMIT_CONTAINER_NAME: ContainerName = "spark-submit");
+constant!(JOB_CONTAINER_NAME: ContainerName = "job");
+constant!(REQUIREMENTS_CONTAINER_NAME: ContainerName = "requirements");
+constant!(SPARK_CONTAINER_NAME: ContainerName = "spark");
+constant!(VECTOR_CONTAINER_NAME: ContainerName = "vector");
+constant!(TLS_CONTAINER_NAME: ContainerName = "tls");
+
 impl SparkContainer {
-    /// The type-safe container name for this variant (matching its kebab-case serialization).
-    pub fn to_container_name(&self) -> ContainerName {
-        ContainerName::from_str(&self.to_string())
-            .expect("a SparkContainer variant name is a valid container name")
+    /// The typed container name of this variant.
+    pub fn name(&self) -> &'static ContainerName {
+        match self {
+            SparkContainer::SparkSubmit => &SPARK_SUBMIT_CONTAINER_NAME,
+            SparkContainer::Job => &JOB_CONTAINER_NAME,
+            SparkContainer::Requirements => &REQUIREMENTS_CONTAINER_NAME,
+            SparkContainer::Spark => &SPARK_CONTAINER_NAME,
+            SparkContainer::Vector => &VECTOR_CONTAINER_NAME,
+            SparkContainer::Tls => &TLS_CONTAINER_NAME,
+        }
     }
 }
+
 #[derive(Clone, Debug, Deserialize, Display, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
@@ -262,5 +302,35 @@ impl<'a> IntoIterator for &'a VolumeMounts {
 impl From<VolumeMounts> for Vec<VolumeMount> {
     fn from(value: VolumeMounts) -> Self {
         value.volume_mounts
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use strum::IntoEnumIterator;
+
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // Test that dereferencing the constants does not panic.
+        let _ = *DRIVER_ROLE_NAME;
+        let _ = *EXECUTOR_ROLE_NAME;
+        let _ = *SUBMIT_ROLE_NAME;
+        let _ = *SPARK_SUBMIT_CONTAINER_NAME;
+        let _ = *JOB_CONTAINER_NAME;
+        let _ = *REQUIREMENTS_CONTAINER_NAME;
+        let _ = *SPARK_CONTAINER_NAME;
+        let _ = *VECTOR_CONTAINER_NAME;
+        let _ = *TLS_CONTAINER_NAME;
+    }
+
+    /// The typed container names returned by `name` must agree with the strum `Display` of
+    /// `SparkContainer`, which `build_log4j2` still uses for the log directory path.
+    #[test]
+    fn container_names_match_display() {
+        for container in SparkContainer::iter() {
+            assert_eq!(container.name().to_string(), container.to_string());
+        }
     }
 }

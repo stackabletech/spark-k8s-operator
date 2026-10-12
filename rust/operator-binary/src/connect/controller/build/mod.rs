@@ -10,18 +10,22 @@ pub(crate) mod rbac;
 pub(crate) mod server;
 pub(crate) mod service;
 
+use std::marker::PhantomData;
+
 use snafu::{ResultExt, Snafu};
 use stackable_operator::{
-    builder::meta::ObjectMetaBuilder, kube::ResourceExt,
-    v2::builder::meta::ownerreference_from_resource,
+    builder::meta::ObjectMetaBuilder,
+    kube::ResourceExt,
+    kvp::Labels,
+    v2::{builder::meta::ownerreference_from_resource, kvp::label, types::operator::RoleName},
 };
 
 use crate::connect::{
     common::{self, SparkConnectRole},
     controller::{
-        SparkConnectResources,
+        Prepared, SparkConnectResources,
         build::rbac::{build_role_binding, build_service_account},
-        validate::ValidatedSparkConnectServer,
+        validate::{CONTROLLER_NAME, OPERATOR_NAME, PRODUCT_NAME, ValidatedSparkConnectServer},
     },
 };
 
@@ -62,7 +66,7 @@ pub enum Error {
 pub(crate) fn build(
     validated: &ValidatedSparkConnectServer,
     user_args: &[String],
-) -> Result<SparkConnectResources, Error> {
+) -> Result<SparkConnectResources<Prepared>, Error> {
     let resolved_s3 = &validated.cluster_config.resolved_s3;
 
     // Headless service used by executors to connect back to the driver, plus the metrics service.
@@ -104,12 +108,13 @@ pub(crate) fn build(
             .context(BuildServerStatefulSetSnafu)?;
 
     Ok(SparkConnectResources {
-        service_account: build_service_account(validated),
-        role_binding: build_role_binding(validated),
+        service_accounts: vec![build_service_account(validated)],
+        role_bindings: vec![build_role_binding(validated)],
         services: vec![headless_service, metrics_service],
         config_maps: vec![executor_config_map, server_config_map],
-        listener,
-        stateful_set,
+        listeners: vec![listener],
+        stateful_sets: vec![stateful_set],
+        status: PhantomData,
     })
 }
 
@@ -125,14 +130,73 @@ pub(crate) fn object_meta(
         .name_and_namespace(validated)
         .name(name)
         .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-        .with_labels(validated.recommended_labels(role));
+        .with_labels(recommended_labels_for_role_resources(validated, &role));
     builder
+}
+
+/// Recommended labels for resources shared by the whole Spark Connect server, like the RBAC
+/// resources.
+pub(crate) fn recommended_labels_for_cluster_resources(
+    server: &ValidatedSparkConnectServer,
+) -> Labels {
+    label::recommended_labels_for_cluster_resources(
+        &server.name,
+        &PRODUCT_NAME,
+        &server.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+    )
+}
+
+/// Recommended labels for resources of the given role.
+///
+/// Spark Connect has no role groups, so all role resources use these labels (without a role
+/// group label).
+pub(crate) fn recommended_labels_for_role_resources(
+    server: &ValidatedSparkConnectServer,
+    role_name: &RoleName,
+) -> Labels {
+    label::recommended_labels_for_role_resources(
+        &server.name,
+        &PRODUCT_NAME,
+        &server.product_version,
+        &OPERATOR_NAME,
+        &CONTROLLER_NAME,
+        role_name,
+    )
+}
+
+/// Recommended labels for role resources which cannot be mutated and should therefore not
+/// include the product version, like the listener PVC in the StatefulSet's
+/// `volumeClaimTemplates`.
+///
+/// Spark Connect has no role groups, so all role resources use these labels (without a role
+/// group label).
+pub(crate) fn recommended_labels_for_unversioned_role_resources(
+    server: &ValidatedSparkConnectServer,
+    role_name: &RoleName,
+) -> Labels {
+    Labels::from_iter([
+        label::label_app_kubernetes_io_instance(&server.name),
+        label::label_app_kubernetes_io_name(&PRODUCT_NAME),
+        label::label_app_kubernetes_io_component(role_name),
+        label::label_app_kubernetes_io_managed_by(&OPERATOR_NAME, &CONTROLLER_NAME),
+        label::label_stackable_tech_vendor(),
+    ])
+}
+
+/// Selector labels matching the pods of the given role.
+pub(crate) fn role_selector(server: &ValidatedSparkConnectServer, role_name: &RoleName) -> Labels {
+    label::role_selector(&server.name, &PRODUCT_NAME, role_name)
 }
 
 #[cfg(test)]
 pub(crate) mod test_support {
     use indoc::indoc;
-    use stackable_operator::{cli::OperatorEnvironmentOptions, utils::yaml_from_str_singleton_map};
+    use stackable_operator::{
+        cli::OperatorEnvironmentOptions, commons::product_image_selection::PullPolicy,
+        utils::yaml_from_str_singleton_map,
+    };
 
     use crate::connect::{
         controller::{
@@ -161,6 +225,12 @@ pub(crate) mod test_support {
             productVersion: 4.1.2
         "#};
 
+    /// [`CONNECT_YAML`] with an explicit `pullPolicy`, appended to the `spec.image` block that
+    /// [`CONNECT_YAML`] ends with.
+    fn connect_yaml_with_pull_policy(pull_policy: &PullPolicy) -> String {
+        format!("{CONNECT_YAML}    pullPolicy: {}\n", pull_policy.as_ref())
+    }
+
     /// Runs the real validate step against the minimal fixture.
     pub fn minimal_validated_cluster() -> ValidatedSparkConnectServer {
         let scs: v1alpha1::SparkConnectServer = yaml_from_str_singleton_map(CONNECT_YAML)
@@ -177,5 +247,75 @@ pub(crate) mod test_support {
             },
         )
         .expect("validate should succeed for the test fixture")
+    }
+
+    pub fn validated_cluster_with_s3_tls(pull_policy: &PullPolicy) -> ValidatedSparkConnectServer {
+        let scs: v1alpha1::SparkConnectServer =
+            yaml_from_str_singleton_map(&connect_yaml_with_pull_policy(pull_policy))
+                .expect("invalid test SparkConnectServer YAML");
+        validate(
+            &scs,
+            DereferencedSparkConnectServer {
+                resolved_s3: ResolvedS3::tls_connection(),
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+        .expect("validate should succeed for the test fixture")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::*;
+    use stackable_operator::commons::product_image_selection::PullPolicy;
+
+    use super::*;
+    use crate::{connect::common::object_name, crd::constants::SPARK_DEFAULTS_FILE_NAME};
+
+    const PULL_POLICY_PROPERTY: &str = "spark.kubernetes.container.image.pullPolicy";
+
+    #[rstest]
+    #[case::from_the_resolved_image(None, None, "Never")]
+    #[case::server_config_override_wins(Some("Always"), None, "Always")]
+    #[case::executor_config_override_wins(None, Some("Always"), "Always")]
+    fn config_overrides_override_the_operator_set_pull_policy(
+        #[case] server_override: Option<&str>,
+        #[case] executor_override: Option<&str>,
+        #[case] expected: &str,
+    ) {
+        let mut validated = test_support::validated_cluster_with_s3_tls(&PullPolicy::Never);
+        for (overrides, value) in [
+            (&mut validated.server_overrides, server_override),
+            (&mut validated.executor_overrides, executor_override),
+        ] {
+            if let Some(value) = value {
+                overrides
+                    .config_overrides
+                    .spark_defaults_conf
+                    .overrides
+                    .insert(PULL_POLICY_PROPERTY.to_string(), value.to_string());
+            }
+        }
+
+        let resources = build(&validated, &[]).expect("the resources can be built");
+        let server_cm_name = object_name(&validated.name_any(), SparkConnectRole::Server);
+        let spark_defaults = resources
+            .config_maps
+            .iter()
+            .find(|cm| cm.name_any() == server_cm_name)
+            .and_then(|cm| cm.data.as_ref())
+            .and_then(|data| data.get(SPARK_DEFAULTS_FILE_NAME))
+            .expect("the server ConfigMap contains spark-defaults.conf");
+
+        assert!(
+            spark_defaults
+                .lines()
+                .any(|line| line == format!("{PULL_POLICY_PROPERTY}={expected}")),
+            "expected {PULL_POLICY_PROPERTY}={expected} in\n {spark_defaults}"
+        )
     }
 }

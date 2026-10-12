@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add support for emitting [OpenLineage](https://openlineage.io/) events from `SparkApplications` via `spec.lineage` ([#726]).
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#773]).
 - The history server and Spark Connect server StatefulSets now carry the
@@ -73,6 +74,7 @@ All notable changes to this project will be documented in this file.
   node's image cache ([#764]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
+[#726]: https://github.com/stackabletech/spark-k8s-operator/pull/726
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
 [#732]: https://github.com/stackabletech/spark-k8s-operator/pull/732
 [#744]: https://github.com/stackabletech/spark-k8s-operator/pull/744
@@ -99,7 +101,6 @@ All notable changes to this project will be documented in this file.
 
 - BREAKING: Add required CLI argument and env var to set the image repository used to construct final product image names: `IMAGE_REPOSITORY` (`--image-repository`), eg. `oci.example.org/my/namespace` ([#684]).
 - Support for Spark `4.1.2` ([#708])
-- Add `spec.lineage` to enable OpenLineage lineage emission: injects the OpenLineage Spark listener, HTTP transport (endpoint built from the connection's `host`, `port` and `path` fields), a stable job name, and the required `--add-opens` JVM flag. When the connection configures TLS server verification against a `secretClass` CA, that certificate is mounted into the driver and added to its trust store ([#726]).
 
 ### Fixed
 
@@ -138,7 +139,6 @@ All notable changes to this project will be documented in this file.
 [#716]: https://github.com/stackabletech/spark-k8s-operator/pull/716
 [#719]: https://github.com/stackabletech/spark-k8s-operator/pull/719
 [#720]: https://github.com/stackabletech/spark-k8s-operator/pull/720
-[#726]: https://github.com/stackabletech/spark-k8s-operator/pull/726
 
 ## [26.3.0] - 2026-03-16
 

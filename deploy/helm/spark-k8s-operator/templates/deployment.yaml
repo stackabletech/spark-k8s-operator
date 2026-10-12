@@ -92,6 +92,11 @@ spec:
             periodSeconds: 3
             failureThreshold: 30
             timeoutSeconds: 3
+          {{- if .Values.telemetry.fileLog.enabled }}
+          volumeMounts:
+            - name: log
+              mountPath: {{ include "spark-k8s-operator.telemetry.fileLogDirectory" . }}
+          {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -106,4 +111,9 @@ spec:
       {{- end }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
+      {{- end }}
+      {{- if .Values.telemetry.fileLog.enabled }}
+      volumes:
+        - name: log
+          emptyDir: {}
       {{- end }}

@@ -115,14 +115,12 @@ pub const DEFAULT_LISTENER_CLASS: &str = "cluster-internal";
 
 pub const DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT: u16 = 0;
 
-// --- OpenLineage (see the OpenLineage usage guide) ---
-
 /// The OpenLineage Spark listener, appended to `spark.extraListeners` when OpenLineage is enabled.
 pub const OPENLINEAGE_LISTENER_CLASS: &str = "io.openlineage.spark.agent.OpenLineageSparkListener";
 
 /// `local://` URI of the OpenLineage jar baked into the Spark image, referenced via `spark.jars` so
-/// it shares the (child) classloader with `--packages` connectors. Delivering it this way — rather
-/// than on `extraClassPath` (system classloader) — is what lets OpenLineage's connector probes
+/// it shares the (child) classloader with `--packages` connectors. Delivering it this way, rather
+/// than on `extraClassPath` (system classloader), is what lets OpenLineage's connector probes
 /// succeed; see the classpath discussion in the OpenLineage usage guide.
 ///
 /// This is a stable, version- and Scala-independent symlink the image maintains (mirroring the
@@ -133,7 +131,7 @@ pub const OPENLINEAGE_LISTENER_CLASS: &str = "io.openlineage.spark.agent.OpenLin
 pub const OPENLINEAGE_JAR_LOCAL_URI: &str =
     "local:///stackable/spark/openlineage/openlineage-spark.jar";
 
-/// Java module-system flag OpenLineage requires on Spark 4.x: without it the driver throws a
+/// Java module-system flag OpenLineage requires: without it the driver throws a
 /// non-fatal `InaccessibleObjectException` and silently degrades extension-interface lineage.
 /// Appended to both driver and executor `extraJavaOptions`.
 pub const OPENLINEAGE_ADD_OPENS: &str = "--add-opens java.base/java.security=ALL-UNNAMED";

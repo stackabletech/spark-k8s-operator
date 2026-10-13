@@ -120,28 +120,6 @@ pub enum Error {
 
     #[snafu(display("failed to configure log directory"))]
     ConfigureLogDir { source: logdir::Error },
-
-    #[snafu(display(
-        "failed to parse the Spark major version from the resolved product version {product_version:?}"
-    ))]
-    UnparsableSparkVersion {
-        source: std::num::ParseIntError,
-        product_version: String,
-    },
-}
-
-/// Parses the Spark major version from a resolved product version string such as `4.1.2` or
-/// `3.5.8`. Used to gate version-specific OpenLineage wiring — the `--add-opens` JVM flag, which is
-/// only needed on (and safe for) the JDK 17+/Spark 4.x line and can break the Spark 3.5.x JVMs.
-pub(crate) fn spark_major_version(product_version: &str) -> Result<u64, Error> {
-    product_version
-        .split('.')
-        .next()
-        .unwrap_or_default()
-        .parse::<u64>()
-        .context(UnparsableSparkVersionSnafu {
-            product_version: product_version.to_string(),
-        })
 }
 
 // `_STACKABLE_PRE_HOOK` is evaluated by the entrypoint script (run-spark.sh) in the Spark images
@@ -720,13 +698,7 @@ impl v1alpha1::SparkApplication {
         }
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(
-                self,
-                s3conn,
-                log_dir,
-                &spark_image.product_version,
-                open_lineage_conn,
-            )?;
+            construct_extra_java_options(self, s3conn, log_dir, open_lineage_conn)?;
         submit_cmd.extend(vec![
             format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),
             format!("--conf spark.executor.extraJavaOptions=\"{executor_extra_java_options}\""),
@@ -940,7 +912,7 @@ impl v1alpha1::SparkApplication {
         }
         // OpenLineage HTTP transport auth: when the connection sets `credentialsSecretName`, deliver
         // the WHOLE transport (type, URL and bearer-token auth) to the driver's OpenLineage listener
-        // via the client's `OPENLINEAGE__` env-var configuration — see `openlineage_transport_env_vars`
+        // via the client's `OPENLINEAGE__` env-var configuration. See `openlineage_transport_env_vars`
         // and the matching skip of the `spark.openlineage.transport.*` `--conf` in `build_command`.
         // The token is sourced from the referenced Secret, so it never lands in the `--conf` args.
         if let Some(connection) = open_lineage_conn {
@@ -2021,7 +1993,7 @@ spec:
         assert!(command.contains(&format!(
             r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
         )));
-        // --add-opens reaches both driver and executor on Spark 4.x.
+        // --add-opens reaches both driver and executor.
         assert_eq!(
             command.matches(OPENLINEAGE_ADD_OPENS).count(),
             2,
@@ -2030,18 +2002,15 @@ spec:
     }
 
     #[test]
-    fn test_openlineage_stable_jar_uri_and_no_add_opens_on_spark_3() {
+    fn test_openlineage_stable_jar_uri_and_add_opens_on_spark_3() {
         // On the JDK 17 Spark 3.5.x images the operator references the same stable jar symlink (the
-        // image points it at the Scala 2.12 build) and must NOT emit `--add-opens`.
+        // image points it at the Scala 2.12 build) and emits `--add-opens` as on Spark 4.x.
         let command = build_command_with_openlineage(OPENLINEAGE_ENABLED_APP, "3.5.8");
 
         assert!(command.contains(&format!(
             r#"--conf "spark.jars={OPENLINEAGE_JAR_LOCAL_URI}""#
         )));
-        assert!(
-            !command.contains(OPENLINEAGE_ADD_OPENS),
-            "--add-opens must not be emitted on Spark 3.x"
-        );
+        assert_eq!(command.matches(OPENLINEAGE_ADD_OPENS).count(), 2);
         // The rest of the OpenLineage wiring is still present on Spark 3.x.
         assert!(command.contains(&format!(
             r#"--conf "spark.extraListeners={OPENLINEAGE_LISTENER_CLASS}""#

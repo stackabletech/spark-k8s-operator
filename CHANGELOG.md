@@ -41,7 +41,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
   identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
 - Make operations infallible where dependent on static inputs ([#766], [#769]).
-- Bump stackable-operator to 0.120.0 ([#779]).
+- Bump stackable-operator to 0.119.0, 0.120.0 ([#779], [#726]).
 - test: Bump vector-aggregator to 0.58.0 ([#784]).
 
 ### Fixed

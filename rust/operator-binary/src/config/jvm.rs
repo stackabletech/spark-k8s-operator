@@ -7,7 +7,6 @@ use crate::crd::{
         STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_CONFIG,
     },
     logdir::ResolvedLogDir,
-    spark_major_version,
     tlscerts::tls_secret_names,
     v1alpha1::SparkApplication,
 };
@@ -18,14 +17,10 @@ use crate::crd::{
 ///
 /// Returns `(driver, executor)`: the operator-generated base arguments with the role's
 /// `jvmArgumentOverrides` applied on top.
-///
-/// `product_version` is the resolved Spark product version (e.g. `4.1.2`); it gates the
-/// version-specific OpenLineage `--add-opens` flag.
 pub fn construct_extra_java_options(
     spark_application: &SparkApplication,
     s3_conn: &Option<s3::v1alpha1::ConnectionSpec>,
     log_dir: &Option<ResolvedLogDir>,
-    product_version: &str,
     open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
 ) -> Result<(String, String), Error> {
     // Note (@sbernauer): As of 2025-03-04, we did not set any heap related JVM arguments, so I
@@ -43,20 +38,15 @@ pub fn construct_extra_java_options(
         ]);
     }
 
-    // OpenLineage on Spark 4.x needs `java.base/java.security` opened to the unnamed module,
-    // otherwise the driver throws a non-fatal `InaccessibleObjectException` and silently degrades
-    // extension-interface lineage (MVP §7). Added to both driver and executor.
-    //
-    // This is scoped to Spark 4.x: the flag is unnecessary — and on the JDK 17 Spark 3.5.x images the
-    // operator also ships, potentially a startup error — so it must not be emitted there.
-    if spark_application.lineage_enabled() && spark_major_version(product_version)? >= 4 {
+    // OpenLineage needs `java.base/java.security` opened to the unnamed module, otherwise the
+    // driver throws a non-fatal `InaccessibleObjectException` and silently degrades
+    // extension-interface lineage. Added to both driver and executor.
+    if spark_application.lineage_enabled() {
         jvm_args.push(OPENLINEAGE_ADD_OPENS.to_string());
     }
 
     // The role's `jvmArgumentOverrides` are applied on top of the operator-generated arguments
-    // above. Note this is not purely additive: a role may also remove or replace operator-set
-    // arguments (e.g. a `removeRegex` dropping the `-Djava.security.properties` default) — see the
-    // unit tests below.
+    // above.
     let driver = match &spark_application.spec.driver {
         Some(driver) => driver
             .product_specific_common_config
@@ -103,7 +93,7 @@ mod tests {
         "#,
         );
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None, "4.1.2", None).unwrap();
+            construct_extra_java_options(&spark_app, &None, &None, None).unwrap();
 
         assert_eq!(
             driver_extra_java_options,
@@ -141,7 +131,7 @@ mod tests {
         "#,
         );
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None, "4.1.2", None).unwrap();
+            construct_extra_java_options(&spark_app, &None, &None, None).unwrap();
 
         assert_eq!(
             driver_extra_java_options,
@@ -183,20 +173,20 @@ mod tests {
             productVersion: PLACEHOLDER
     "#;
 
-    /// `--add-opens` is emitted only on Spark 4.x with OpenLineage enabled — never on the Scala
-    /// 2.12 / JDK 17 Spark 3.5.x images, and never when OpenLineage is absent.
+    /// `--add-opens` is emitted on every Spark version when OpenLineage is enabled, and never when
+    /// OpenLineage is absent.
     #[rstest]
-    #[case::enabled_spark_3(OPENLINEAGE_ENABLED, "3.5.8", false)]
+    #[case::enabled_spark_3(OPENLINEAGE_ENABLED, "3.5.8", true)]
     #[case::enabled_spark_4(OPENLINEAGE_ENABLED, "4.1.2", true)]
     #[case::absent_spark_4(OPENLINEAGE_ABSENT, "4.1.2", false)]
-    fn test_openlineage_add_opens_is_version_gated(
+    fn test_openlineage_add_opens(
         #[case] yaml_template: &str,
         #[case] product_version: &str,
         #[case] expect_add_opens: bool,
     ) {
         let spark_app = spark_app_from_yaml(&yaml_template.replace("PLACEHOLDER", product_version));
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None, product_version, None).unwrap();
+            construct_extra_java_options(&spark_app, &None, &None, None).unwrap();
 
         assert_eq!(
             driver_extra_java_options.contains(OPENLINEAGE_ADD_OPENS),

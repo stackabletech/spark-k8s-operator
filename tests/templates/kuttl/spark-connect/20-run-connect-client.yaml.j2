@@ -67,6 +67,15 @@ data:
       print(f"Reading data back from {ingest_bucket}")
       data = spark.read.parquet(ingest_bucket)
 
+      # Regression guard. `count` returns rows to the client through Spark Connect's Arrow
+      # conversion, and the closure that shipped to the executors is defined in the Connect jar.
+      #
+      # Without this assertion the test passes against a Connect server that cannot return a single row to a client.
+      print("Counting rows read back...")
+      row_count = data.count()
+      print(f"Row count: {row_count}")
+      assert row_count == 1000, f"expected 1000 rows, got {row_count}"
+
       print("Computing statistics...")
       stats = data.groupBy(fn.month(fn.col("date_field")).alias("month")).agg(
         fn.count("*").alias("count"),

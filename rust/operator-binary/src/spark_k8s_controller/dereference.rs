@@ -87,7 +87,8 @@ pub async fn dereference(
     // 3. OpenLineage connection (inline or referenced `OpenLineageConnection`).
     let open_lineage_connection = match merged_app.spec.lineage.as_ref() {
         Some(job) => Some(
-            job.connection
+            job.open_lineage
+                .connection
                 .clone()
                 .resolve(client, namespace)
                 .await

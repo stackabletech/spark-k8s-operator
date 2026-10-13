@@ -1762,6 +1762,13 @@ spec:
                   See the [OpenLineage usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/openlineage).
                 nullable: true
                 properties:
+                  appName:
+                    default: ''
+                    description: |-
+                      A stable OpenLineage application (job) name. Setting this prevents fragmented run
+                      history. If empty, the name resolves to `spark.app.name` from `sparkConf` and then to
+                      the name of the `SparkApplication`.
+                    type: string
                   connection:
                     description: |-
                       The OpenLineage backend connection, either inlined or referencing an
@@ -6587,6 +6594,13 @@ spec:
                   See the [OpenLineage usage guide](https://docs.stackable.tech/home/nightly/spark-k8s/usage-guide/openlineage).
                 nullable: true
                 properties:
+                  appName:
+                    default: ''
+                    description: |-
+                      A stable OpenLineage application (job) name. Setting this prevents fragmented run
+                      history. If empty, the name resolves to `spark.app.name` from `sparkConf` and then to
+                      the name of the `SparkApplication`.
+                    type: string
                   connection:
                     description: |-
                       The OpenLineage backend connection, either inlined or referencing an

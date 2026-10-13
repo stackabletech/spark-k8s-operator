@@ -270,7 +270,22 @@ pub mod versioned {
         /// The backend connection is either inlined or references an `OpenLineageConnection` resource.
         /// See the [OpenLineage usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/openlineage).
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub lineage: Option<openlineage::v1alpha1::OpenLineageConfig>,
+        pub lineage: Option<SparkLineageConfig>,
+    }
+
+    /// OpenLineage configuration of a `SparkApplication`: the shared OpenLineage config, plus
+    /// Spark specific settings.
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct SparkLineageConfig {
+        #[serde(flatten)]
+        pub open_lineage: openlineage::v1alpha1::OpenLineageConfig,
+
+        /// A stable OpenLineage application (job) name. Setting this prevents fragmented run
+        /// history. If empty, the name resolves to `spark.app.name` from `sparkConf` and then to
+        /// the name of the `SparkApplication`.
+        #[serde(default)]
+        pub app_name: String,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]
@@ -812,7 +827,7 @@ impl v1alpha1::SparkApplication {
 
             submit_conf.insert(
                 "spark.openlineage.namespace".to_string(),
-                lineage.namespace.clone(),
+                lineage.open_lineage.namespace.clone(),
             );
 
             // Stable job name — fixes the intermittent `unknown` bug (see the usage guide).
@@ -1772,7 +1787,7 @@ spec:
                 .spec
                 .lineage
                 .as_ref()
-                .map(|job| match &job.connection {
+                .map(|job| match &job.open_lineage.connection {
                     InlineConnectionOrReference::Inline(spec) => spec.clone(),
                     InlineConnectionOrReference::Reference(name) => {
                         panic!(
@@ -2209,6 +2224,56 @@ spec:
               sparkImage:
                 productVersion: 1.2.3
               lineage:
+                connection:
+                  inline:
+                    http:
+                      host: marquez
+                      port: 5000
+              sparkConf:
+                spark.app.name: spark-conf-name
+        "#},
+        "spark-conf-name"
+    )]
+    #[case::lineage_app_name(
+        indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: metadata-name
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              lineage:
+                appName: lineage-name
+                connection:
+                  inline:
+                    http:
+                      host: marquez
+                      port: 5000
+              sparkConf:
+                spark.app.name: spark-conf-name
+        "#},
+        "lineage-name"
+    )]
+    #[case::empty_lineage_app_name(
+        indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: metadata-name
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              lineage:
+                appName: ""
                 connection:
                   inline:
                     http:

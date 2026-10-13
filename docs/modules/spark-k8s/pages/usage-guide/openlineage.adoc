@@ -37,6 +37,7 @@ spec:
           #       caCert:
           #         secretClass: marquez-ca
     # namespace: orders-lineage # <3>
+    # appName: orders-by-nation # <4>
   ...
 ----
 <1> Adding the `lineage` block enables OpenLineage event emission. Omit it entirely to leave OpenLineage off (the default), in which case the operator emits nothing OpenLineage-related and behaviour is unchanged.
@@ -45,6 +46,8 @@ spec:
     Required. The connection selects a transport; `http` is currently the only one supported.
 <3> Optional. The OpenLineage namespace events are reported under.
     Defaults to `default`.
+<4> Optional. A stable OpenLineage application (job) name, see <<job-name>>.
+    Defaults to an empty string which means it is resolved from `sparkConf` or the resource name.
 
 The `OpenLineageConnection` resource (`lineage.stackable.tech`) is a reusable definition of a
 connection to an OpenLineage backend, provided by the Stackable operator library. Reference it to
@@ -122,12 +125,13 @@ Consequently, do **not** override `spark.openlineage.transport.*` via `sparkConf
 
 The OpenLineage job name is resolved in the following order:
 
+. `lineage.appName`, if not empty.
 . `spark.app.name` from `sparkConf`, if set.
 . `metadata.name` as a last resort.
 
 The last case additionally emits a Kubernetes warning event.
 Falling back to `metadata.name` is discouraged: if that name carries a timestamp or other run-specific suffix (as generated names often do), every run becomes a separate job in the backend and the run history fragments.
-Set `spark.app.name` in `spec.sparkConf` to a stable value to keep all runs of the same logical job together.
+Set `lineage.appName` to a stable value to keep all runs of the same logical job together.
 
 == Overriding injected configuration
 

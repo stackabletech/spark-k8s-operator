@@ -44,7 +44,7 @@ pub(crate) fn build_headless_service(validated: &ValidatedSparkConnectServer) ->
             ]),
             selector: Some(selector),
             // The flag `publish_not_ready_addresses` *must* be `true` to allow for readiness
-            // probes. Without it, the driver runs into a deadlock beacuse the Pod cannot become
+            // probes. Without it, the driver runs into a deadlock because the Pod cannot become
             // "ready" until the Service is "ready" and vice versa.
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()
@@ -79,7 +79,7 @@ pub(crate) fn build_metrics_service(validated: &ValidatedSparkConnectServer) -> 
             ports: Some(metrics_ports()),
             selector: Some(selector),
             // The flag `publish_not_ready_addresses` *must* be `true` to allow for readiness
-            // probes. Without it, the driver runs into a deadlock beacuse the Pod cannot become
+            // probes. Without it, the driver runs into a deadlock because the Pod cannot become
             // "ready" until the Service is "ready" and vice versa.
             publish_not_ready_addresses: Some(true),
             ..ServiceSpec::default()

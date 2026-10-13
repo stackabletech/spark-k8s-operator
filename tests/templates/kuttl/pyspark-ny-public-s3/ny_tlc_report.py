@@ -30,7 +30,7 @@ def check_args() -> Namespace:
 
 
 def build_report(spark: SparkSession, args: Namespace) -> DataFrame:
-    """Compute the total number of passangers plus the average fare and distance per day of week"""
+    """Compute the total number of passengers plus the average fare and distance per day of week"""
 
     input_df = spark.read.options(header=True, inferSchema=True).csv(args.input)
 

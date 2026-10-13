@@ -124,7 +124,7 @@ pub enum Error {
     #[snafu(display(
         "failed to parse the Spark major version from the resolved product version {product_version:?}"
     ))]
-    UnparseableSparkVersion {
+    UnparsableSparkVersion {
         source: std::num::ParseIntError,
         product_version: String,
     },
@@ -139,7 +139,7 @@ pub(crate) fn spark_major_version(product_version: &str) -> Result<u64, Error> {
         .next()
         .unwrap_or_default()
         .parse::<u64>()
-        .context(UnparseableSparkVersionSnafu {
+        .context(UnparsableSparkVersionSnafu {
             product_version: product_version.to_string(),
         })
 }

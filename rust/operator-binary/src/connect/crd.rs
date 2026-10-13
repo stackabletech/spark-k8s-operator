@@ -480,7 +480,7 @@ mod tests {
 
     #[test]
     fn test_cr_minimal_deserialization() {
-        let _spark_connect_cr = serde_yaml::from_str::<v1alpha1::SparkConnectServer>(indoc! { r#"
+        let _spark_connect_cr = yaml_serde::from_str::<v1alpha1::SparkConnectServer>(indoc! { r#"
         apiVersion: spark.stackable.tech/v1alpha1
         kind: SparkConnectServer
         metadata:
@@ -508,9 +508,9 @@ mod tests {
                 - reference: my-s3-bucket
         "# };
 
-        let deserializer = serde_yaml::Deserializer::from_str(input);
+        let deserializer = yaml_serde::Deserializer::from_str(input);
         let _spark_connect_cr: v1alpha1::SparkConnectServer =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+            yaml_serde::with::singleton_map_recursive::deserialize(deserializer)
                 .expect("Failed to deserialize SparkConnectServer with S3 connectors CR");
     }
 
@@ -543,9 +543,9 @@ mod tests {
                                 secretClass: minio-tls-ca
         "# };
 
-        let deserializer = serde_yaml::Deserializer::from_str(input);
+        let deserializer = yaml_serde::Deserializer::from_str(input);
         let _spark_connect_cr: v1alpha1::SparkConnectServer =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+            yaml_serde::with::singleton_map_recursive::deserialize(deserializer)
                 .expect("Failed to deserialize SparkConnectServer with S3 connectors CR");
     }
 

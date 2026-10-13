@@ -1156,7 +1156,7 @@ mod tests {
 
     #[test]
     fn test_default_resource_limits() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {"
+        let spark_application = yaml_serde::from_str::<v1alpha1::SparkApplication>(indoc! {"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1185,7 +1185,7 @@ mod tests {
 
     #[test]
     fn test_merged_resource_limits() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_application = yaml_serde::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1261,7 +1261,7 @@ mod tests {
 
     #[test]
     fn test_role_affinities() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_application = yaml_serde::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
@@ -1599,7 +1599,7 @@ spec:
 
     #[test]
     fn test_job_volume_mounts() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_application = yaml_serde::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1682,9 +1682,9 @@ spec:
             "#},
             spark_conf = spark_conf
         );
-        let deserializer = serde_yaml::Deserializer::from_str(&yaml);
+        let deserializer = yaml_serde::Deserializer::from_str(&yaml);
         let spark_application: v1alpha1::SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+            yaml_serde::with::singleton_map_recursive::deserialize(deserializer)
                 .expect("invalid test SparkApplication YAML");
 
         let resolved_product_image = spark_application

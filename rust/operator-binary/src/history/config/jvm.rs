@@ -143,9 +143,9 @@ mod tests {
     /// config, mirroring the controller's validate path so the JVM args are built from a real
     /// [`HistoryRoleGroupConfig`].
     fn construct_jvm_config_for_test(history_server: &str) -> String {
-        let deserializer = serde_yaml::Deserializer::from_str(history_server);
+        let deserializer = yaml_serde::Deserializer::from_str(history_server);
         let history_server: SparkHistoryServer =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+            yaml_serde::with::singleton_map_recursive::deserialize(deserializer).unwrap();
 
         let resolved_log_dir = ResolvedLogDir::Custom("local:/tmp/foo".to_owned());
 

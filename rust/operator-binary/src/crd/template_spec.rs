@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn try_from_parses_annotations_and_sorts_template_names() {
         let spark_application =
-            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
                 ---
                 apiVersion: spark.stackable.tech/v1alpha1
                 kind: SparkApplication
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn try_from_without_annotations_returns_default_options() {
         let spark_application =
-            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
                 ---
                 apiVersion: spark.stackable.tech/v1alpha1
                 kind: SparkApplication
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn spark_application_namespace_returns_namespace() {
         let spark_application =
-            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
                 ---
                 apiVersion: spark.stackable.tech/v1alpha1
                 kind: SparkApplication
@@ -480,7 +480,7 @@ mod tests {
     #[test]
     fn spark_application_namespace_returns_error_when_missing() {
         let spark_application =
-            serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
                 ---
                 apiVersion: spark.stackable.tech/v1alpha1
                 kind: SparkApplication

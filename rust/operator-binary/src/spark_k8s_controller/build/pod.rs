@@ -457,9 +457,9 @@ mod tests {
                 requirements:
                   - pandas
         "#};
-        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let deserializer = yaml_serde::Deserializer::from_str(yaml);
         let spark_application: v1alpha1::SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+            yaml_serde::with::singleton_map_recursive::deserialize(deserializer)
                 .expect("invalid test SparkApplication YAML");
 
         let s3_connection = s3::v1alpha1::ConnectionSpec {
@@ -536,9 +536,9 @@ mod tests {
                 envOverrides:
                   CONTAINERDEBUG_LOG_DIRECTORY: /custom/log/dir
         "#};
-        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let deserializer = yaml_serde::Deserializer::from_str(yaml);
         let spark_application: v1alpha1::SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+            yaml_serde::with::singleton_map_recursive::deserialize(deserializer)
                 .expect("invalid test SparkApplication YAML");
 
         let validated = validate(
@@ -609,9 +609,9 @@ mod tests {
         yaml: &str,
         s3_connection: Option<s3::v1alpha1::ConnectionSpec>,
     ) -> validate::ValidatedSparkApplication {
-        let deserializer = serde_yaml::Deserializer::from_str(yaml);
+        let deserializer = yaml_serde::Deserializer::from_str(yaml);
         let spark_application: v1alpha1::SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+            yaml_serde::with::singleton_map_recursive::deserialize(deserializer)
                 .expect("invalid test SparkApplication YAML");
 
         validate(

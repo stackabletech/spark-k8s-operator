@@ -381,9 +381,8 @@ mod test {
                   TEST_SPARK_HIST_VAR: ROLEGROUP
         "#};
 
-        let deserializer = yaml_serde::Deserializer::from_str(input);
         let history: v1alpha1::SparkHistoryServer =
-            yaml_serde::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+            stackable_operator::utils::yaml_from_str_singleton_map(input).unwrap();
 
         let validated: ValidatedSparkHistoryServer = validate(
             &history,

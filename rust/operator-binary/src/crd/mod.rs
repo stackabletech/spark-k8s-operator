@@ -1682,9 +1682,8 @@ spec:
             "#},
             spark_conf = spark_conf
         );
-        let deserializer = yaml_serde::Deserializer::from_str(&yaml);
         let spark_application: v1alpha1::SparkApplication =
-            yaml_serde::with::singleton_map_recursive::deserialize(deserializer)
+            stackable_operator::utils::yaml_from_str_singleton_map(&yaml)
                 .expect("invalid test SparkApplication YAML");
 
         let resolved_product_image = spark_application

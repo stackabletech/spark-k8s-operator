@@ -224,9 +224,8 @@ mod tests {
                 envOverrides:
                   SPARK_CONF_DIR: /custom/conf
         "#};
-        let deserializer = serde_yaml::Deserializer::from_str(yaml);
         let spark_application: v1alpha1::SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+            stackable_operator::utils::yaml_from_str_singleton_map(yaml)
                 .expect("invalid test SparkApplication YAML");
 
         let validated = validate(

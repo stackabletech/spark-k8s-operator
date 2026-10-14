@@ -77,9 +77,8 @@ mod tests {
                 productVersion: 1.2.3
         "#;
 
-        let deserializer = serde_yaml::Deserializer::from_str(input);
         let spark_app: SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+            stackable_operator::utils::yaml_from_str_singleton_map(input).unwrap();
         let (driver_extra_java_options, executor_extra_java_options) =
             construct_extra_java_options(&spark_app, &None, &None);
 
@@ -117,9 +116,8 @@ mod tests {
                     - -Djava.security.properties=.*
         "#;
 
-        let deserializer = serde_yaml::Deserializer::from_str(input);
         let spark_app: SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+            stackable_operator::utils::yaml_from_str_singleton_map(input).unwrap();
         let (driver_extra_java_options, executor_extra_java_options) =
             construct_extra_java_options(&spark_app, &None, &None);
 

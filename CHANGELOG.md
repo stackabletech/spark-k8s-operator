@@ -16,6 +16,8 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Bump `stackable-operator` to 0.118.0 ([#732], [#753], [#773]).
+- Replace the unmaintained `serde_yaml` with `yaml_serde` ([#787]).
+- All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#787]).
 - BREAKING: `spec.image.stackableVersion` must now be a full, valid semver version, e.g. `26.7.1`.
   Abbreviated values such as `26.7` are no longer accepted ([#773]).
 - BREAKING: `spec.image.pullPolicy` now defaults to `IfNotPresent` for non-floating tags instead of
@@ -94,6 +96,7 @@ All notable changes to this project will be documented in this file.
 [#773]: https://github.com/stackabletech/spark-k8s-operator/pull/773
 [#779]: https://github.com/stackabletech/spark-k8s-operator/pull/779
 [#784]: https://github.com/stackabletech/spark-k8s-operator/pull/784
+[#787]: https://github.com/stackabletech/spark-k8s-operator/pull/787
 
 ## [26.7.0] - 2026-07-21
 

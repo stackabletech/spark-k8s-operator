@@ -53,7 +53,7 @@ pub enum Error {
     ExecutorPodTemplate { source: executor::Error },
 
     #[snafu(display("failed to serialize executor pod template"))]
-    ExecutorPodTemplateSerde { source: serde_yaml::Error },
+    ExecutorPodTemplateSerde { source: yaml_serde::Error },
 
     #[snafu(display("failed to build spark connect server config map for {name}"))]
     BuildServerConfigMap { source: server::Error, name: String },
@@ -87,7 +87,7 @@ pub(crate) fn build(
             name: validated.name_any(),
         })?;
 
-    let executor_pod_template = serde_yaml::to_string(
+    let executor_pod_template = yaml_serde::to_string(
         &executor::executor_pod_template(validated, &executor_config_map)
             .context(ExecutorPodTemplateSnafu)?,
     )

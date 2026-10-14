@@ -73,9 +73,8 @@ mod test {
                   cleaner: true
         "#;
 
-        let deserializer = serde_yaml::Deserializer::from_str(input);
         let history: v1alpha1::SparkHistoryServer =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+            stackable_operator::utils::yaml_from_str_singleton_map(input).unwrap();
         let expected: StackableAffinity = StackableAffinity {
             node_affinity: None,
             node_selector: None,

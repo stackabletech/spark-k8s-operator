@@ -34,7 +34,7 @@ pub enum Error {
     BuildPodTemplate { source: pod::Error },
 
     #[snafu(display("pod template serialization"))]
-    PodTemplateSerde { source: serde_yaml::Error },
+    PodTemplateSerde { source: yaml_serde::Error },
 
     #[snafu(display("failed to serialize [{JVM_SECURITY_PROPERTIES_FILE}] for {role}", role = role.as_ref()))]
     JvmSecurityProperties {
@@ -120,7 +120,7 @@ pub(crate) fn pod_template_config_map(
         .metadata(object_meta(validated, &cm_name, &POD_TEMPLATES_COMPONENT_NAME).build())
         .add_data(
             POD_TEMPLATE_FILE,
-            serde_yaml::to_string(&template).context(PodTemplateSerdeSnafu)?,
+            yaml_serde::to_string(&template).context(PodTemplateSerdeSnafu)?,
         );
 
     if let Some(log4j2) =

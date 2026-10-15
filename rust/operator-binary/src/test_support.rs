@@ -46,7 +46,7 @@ where
     Fut: Future<Output = Result<Action, E>>,
     E: Debug,
 {
-    let object: DeserializeGuard<K> = serde_yaml::from_str(yaml)
+    let object: DeserializeGuard<K> = yaml_serde::from_str(yaml)
         .expect("YAML parses; the invalid spec is captured inside the DeserializeGuard");
 
     let action = tokio::runtime::Builder::new_current_thread()

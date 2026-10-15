@@ -72,15 +72,9 @@ mod tests {
 
     use super::*;
 
-    fn spark_app_from_yaml(input: &str) -> SparkApplication {
-        let deserializer = serde_yaml::Deserializer::from_str(input);
-        serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap()
-    }
-
     #[test]
     fn test_construct_jvm_arguments_defaults() {
-        let spark_app = spark_app_from_yaml(
-            r#"
+        let input = r#"
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
             metadata:
@@ -89,9 +83,12 @@ mod tests {
               mode: cluster
               mainApplicationFile: test.py
               sparkImage:
-                productVersion: 4.1.2
-        "#,
-        );
+                productVersion: 1.2.3
+        "#;
+
+        let spark_app: SparkApplication =
+            stackable_operator::utils::yaml_from_str_singleton_map(input).unwrap();
+
         let (driver_extra_java_options, executor_extra_java_options) =
             construct_extra_java_options(&spark_app, &None, &None, None).unwrap();
 
@@ -107,8 +104,7 @@ mod tests {
 
     #[test]
     fn test_construct_jvm_argument_overrides() {
-        let spark_app = spark_app_from_yaml(
-            r#"
+        let input = r#"
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
             metadata:
@@ -128,8 +124,11 @@ mod tests {
                     - -Dhttps.proxyHost=from-executor
                   removeRegex:
                     - -Djava.security.properties=.*
-        "#,
-        );
+        "#;
+
+        let spark_app: SparkApplication =
+            stackable_operator::utils::yaml_from_str_singleton_map(input).unwrap();
+
         let (driver_extra_java_options, executor_extra_java_options) =
             construct_extra_java_options(&spark_app, &None, &None, None).unwrap();
 
@@ -184,7 +183,10 @@ mod tests {
         #[case] product_version: &str,
         #[case] expect_add_opens: bool,
     ) {
-        let spark_app = spark_app_from_yaml(&yaml_template.replace("PLACEHOLDER", product_version));
+        let spark_app = stackable_operator::utils::yaml_from_str_singleton_map(
+            &yaml_template.replace("PLACEHOLDER", product_version),
+        )
+        .unwrap();
         let (driver_extra_java_options, executor_extra_java_options) =
             construct_extra_java_options(&spark_app, &None, &None, None).unwrap();
 

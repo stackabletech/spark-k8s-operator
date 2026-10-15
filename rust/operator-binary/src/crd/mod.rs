@@ -1271,7 +1271,7 @@ mod tests {
 
     #[test]
     fn test_default_resource_limits() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {"
+        let spark_application = yaml_serde::from_str::<v1alpha1::SparkApplication>(indoc! {"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1300,7 +1300,7 @@ mod tests {
 
     #[test]
     fn test_merged_resource_limits() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_application = yaml_serde::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1376,7 +1376,7 @@ mod tests {
 
     #[test]
     fn test_role_affinities() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_application = yaml_serde::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
@@ -1714,7 +1714,7 @@ spec:
 
     #[test]
     fn test_job_volume_mounts() {
-        let spark_application = serde_yaml::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_application = yaml_serde::from_str::<v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1779,9 +1779,8 @@ spec:
 
         // `singleton_map_recursive` so externally-tagged enums (the OpenLineage `connection`) use
         // the `inline:`/`reference:` map form that k8s/JSON uses, rather than serde_yaml's `!tag`.
-        let deserializer = serde_yaml::Deserializer::from_str(yaml);
         let spark_application: v1alpha1::SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+            stackable_operator::utils::yaml_from_str_singleton_map(yaml).unwrap();
         let open_lineage_conn =
             spark_application
                 .spec
@@ -1862,7 +1861,7 @@ spec:
     #[test]
     fn test_openlineage_full_transport_delivered_via_env_when_authenticated() {
         let spark_application =
-            serde_yaml::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
+            yaml_serde::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
         let connection = test_openlineage_connection(Some("ol-token".to_string()));
 
         let env: Vec<EnvVar> = spark_application
@@ -1906,7 +1905,7 @@ spec:
     #[test]
     fn test_no_openlineage_transport_env_vars_when_unauthenticated() {
         let spark_application =
-            serde_yaml::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
+            yaml_serde::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
         let connection = test_openlineage_connection(None);
 
         // A connection but no credentialsSecretName: transport stays in --conf, no OL env vars.
@@ -1934,10 +1933,8 @@ spec:
         // `spark.openlineage.transport.*` --conf (that would make OpenLineage drop the env auth).
         // namespace / appName / listener stay in --conf (OPENLINEAGE_ENABLED_APP has the block).
         let spark_application: v1alpha1::SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(
-                serde_yaml::Deserializer::from_str(OPENLINEAGE_ENABLED_APP),
-            )
-            .unwrap();
+            stackable_operator::utils::yaml_from_str_singleton_map(OPENLINEAGE_ENABLED_APP)
+                .unwrap();
         let connection = test_openlineage_connection(Some("ol-token".to_string()));
 
         let command = spark_application
@@ -2307,9 +2304,8 @@ spec:
         "metadata-name"
     )]
     fn test_openlineage_app_name_resolution(#[case] yaml: &str, #[case] expected_name: &str) {
-        let deserializer = serde_yaml::Deserializer::from_str(yaml);
         let spark_application: v1alpha1::SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer).unwrap();
+            stackable_operator::utils::yaml_from_str_singleton_map(yaml).unwrap();
         let resolved = spark_application.resolved_lineage_app_name().unwrap();
 
         assert_eq!(resolved, expected_name);
@@ -2343,9 +2339,8 @@ spec:
             "#},
             spark_conf = spark_conf
         );
-        let deserializer = serde_yaml::Deserializer::from_str(&yaml);
         let spark_application: v1alpha1::SparkApplication =
-            serde_yaml::with::singleton_map_recursive::deserialize(deserializer)
+            stackable_operator::utils::yaml_from_str_singleton_map(&yaml)
                 .expect("invalid test SparkApplication YAML");
 
         let resolved_product_image = spark_application

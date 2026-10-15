@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_basic() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -306,7 +306,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_metadata_namespace_overlay_wins() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -361,7 +361,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_spark_conf() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -404,7 +404,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -440,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_job() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -454,7 +454,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_config_overrides() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -518,7 +518,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -615,7 +615,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_config_overrides_base_only() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -635,7 +635,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -667,7 +667,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_config_overrides_overlay_only() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -684,7 +684,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -727,7 +727,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_env_overrides() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -754,7 +754,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -828,7 +828,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_pod_overrides() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -864,7 +864,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1005,7 +1005,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_pod_overrides_container_resources() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1028,7 +1028,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1094,7 +1094,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_pod_overrides_base_only() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1116,7 +1116,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1157,7 +1157,7 @@ mod tests {
 
     #[test]
     fn test_deep_merge_pod_overrides_overlay_only() {
-        let base = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1174,7 +1174,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let overlay = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1223,7 +1223,7 @@ mod tests {
 
     #[test]
     fn test_merge_two_templates_into_spark_application() {
-        let template_a = serde_yaml::from_str::<
+        let template_a = yaml_serde::from_str::<
             crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
         >(indoc! {r#"
             ---
@@ -1247,7 +1247,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let template_b = serde_yaml::from_str::<
+        let template_b = yaml_serde::from_str::<
             crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
         >(indoc! {r#"
             ---
@@ -1272,7 +1272,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_app = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1356,7 +1356,7 @@ mod tests {
 
     #[test]
     fn test_merge_template_role_affinities_into_spark_application() {
-        let template = serde_yaml::from_str::<
+        let template = yaml_serde::from_str::<
             crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
         >(indoc! {r#"
             ---
@@ -1463,7 +1463,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_app = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
@@ -1613,7 +1613,7 @@ mod tests {
 
     #[test]
     fn test_merge_template_role_config_into_spark_application() {
-        let template = serde_yaml::from_str::<
+        let template = yaml_serde::from_str::<
             crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
         >(indoc! {r#"
             ---
@@ -1651,7 +1651,7 @@ mod tests {
         "#})
         .unwrap();
 
-        let spark_app = serde_yaml::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+        let spark_app = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
             ---
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication

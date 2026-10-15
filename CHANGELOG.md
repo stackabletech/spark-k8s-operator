@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add support for emitting [OpenLineage](https://openlineage.io/) events from `SparkApplications` via `spec.lineage` ([#726]).
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#773]).
 - The history server and Spark Connect server StatefulSets now carry the
@@ -42,6 +43,8 @@ All notable changes to this project will be documented in this file.
 - BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
   identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
 - Make operations infallible where dependent on static inputs ([#766], [#769]).
+- Bump stackable-operator to 0.119.0, 0.120.0 ([#779], [#726]).
+- test: Bump vector-aggregator to 0.58.0 ([#784]).
 - Support Vector 0.58.0 ([#784], [#788]).
 
 ### Fixed
@@ -77,6 +80,7 @@ All notable changes to this project will be documented in this file.
   node's image cache ([#764]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
+[#726]: https://github.com/stackabletech/spark-k8s-operator/pull/726
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
 [#732]: https://github.com/stackabletech/spark-k8s-operator/pull/732
 [#744]: https://github.com/stackabletech/spark-k8s-operator/pull/744

@@ -56,6 +56,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Prepared>> {
     let spark_application = &validated.spark_application;
     let opt_s3conn = &validated.cluster_config.s3_connection;
+    let opt_open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let logdir = &validated.cluster_config.log_dir;
     let resolved_product_image = &validated.resolved_product_image;
 
@@ -63,7 +64,13 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Pre
         resource::serviceaccount::build_spark_role_serviceaccount(validated);
 
     let env_vars = spark_application
-        .env(opt_s3conn, logdir)
+        .env(opt_s3conn, logdir, opt_open_lineage_conn)
+        .context(BuildEnvVarsSnafu)?;
+
+    // The OpenLineage listener only runs in the driver JVM, so only the submit Job and the driver
+    // pod template get the transport env vars (which include the auth token reference).
+    let driver_env_vars = spark_application
+        .with_openlineage_transport_env(env_vars.clone(), opt_open_lineage_conn)
         .context(BuildEnvVarsSnafu)?;
 
     let driver_config = spark_application
@@ -82,7 +89,7 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Pre
         SparkApplicationRole::Driver,
         &driver_config,
         &driver_config_overrides,
-        &env_vars,
+        &driver_env_vars,
         &service_account,
     )
     .context(BuildConfigMapSnafu)?;
@@ -109,7 +116,12 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Pre
     .context(BuildConfigMapSnafu)?;
 
     let job_commands = spark_application
-        .build_command(opt_s3conn, logdir, resolved_product_image)
+        .build_command(
+            opt_s3conn,
+            logdir,
+            resolved_product_image,
+            opt_open_lineage_conn,
+        )
         .context(BuildCommandSnafu)?;
 
     let submit_config = spark_application
@@ -130,7 +142,7 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Pre
     let job = resource::job::spark_job(
         validated,
         &service_account,
-        &env_vars,
+        &driver_env_vars,
         &job_commands,
         &submit_config,
     )
@@ -272,6 +284,7 @@ mod tests {
                 resolved_template_refs: Vec::new(),
                 s3_connection: None,
                 log_dir: None,
+                open_lineage_connection: None,
             },
             &OperatorEnvironmentOptions {
                 operator_namespace: "stackable-operators".to_string(),

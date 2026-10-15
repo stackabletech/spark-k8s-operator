@@ -82,6 +82,7 @@ fn init_containers(
     let spark_application = &validated.spark_application;
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
+    let open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let spark_image = &validated.resolved_product_image;
     let mut jcb = new_container_builder(SparkContainer::Job.name());
     let job_container = match &spark_application.spec.image {
@@ -191,7 +192,7 @@ fn init_containers(
     let mut tcb = new_container_builder(SparkContainer::Tls.name());
     let mut args = Vec::new();
 
-    let tls_container = match tlscerts::tls_secret_names(s3conn, logdir) {
+    let tls_container = match tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn) {
         Some(cert_secrets) => {
             // The static truststore mount is added first; the certificate mounts below embed the
             // user-supplied SecretClass names and therefore stay fallible.
@@ -259,6 +260,7 @@ pub(crate) fn pod_template(
     let spark_application = &validated.spark_application;
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
+    let open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let spark_image = &validated.resolved_product_image;
     let mut cb = new_container_builder(SparkContainer::Spark.name());
 
@@ -297,7 +299,12 @@ pub(crate) fn pod_template(
     cb.add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
         .expect("The mount paths are statically defined and there should be no duplicates.")
         // These mounts include the user-supplied `volumeMounts`, so this add stays fallible.
-        .add_volume_mounts(config.volume_mounts(spark_application, s3conn, logdir))
+        .add_volume_mounts(config.volume_mounts(
+            spark_application,
+            s3conn,
+            logdir,
+            open_lineage_conn,
+        ))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env)
         .resources(config.resources.clone().into())
@@ -480,6 +487,7 @@ mod tests {
 
         let validated = validate(
             DereferencedSparkApplication {
+                open_lineage_connection: None,
                 spark_application,
                 resolved_template_refs: Vec::new(),
                 s3_connection: Some(s3_connection),
@@ -541,6 +549,7 @@ mod tests {
 
         let validated = validate(
             DereferencedSparkApplication {
+                open_lineage_connection: None,
                 spark_application,
                 resolved_template_refs: Vec::new(),
                 s3_connection: None,
@@ -560,7 +569,7 @@ mod tests {
             .expect("the driver config resolves");
         let env = validated
             .spark_application
-            .env(&None, &None)
+            .env(&None, &None, None)
             .expect("the base environment can be built");
         let service_account = ServiceAccount {
             metadata: ObjectMeta {
@@ -613,6 +622,7 @@ mod tests {
 
         validate(
             DereferencedSparkApplication {
+                open_lineage_connection: None,
                 spark_application,
                 resolved_template_refs: Vec::new(),
                 s3_connection,
@@ -670,7 +680,7 @@ mod tests {
             .expect("the driver config resolves");
         let env = validated
             .spark_application
-            .env(&None, &None)
+            .env(&None, &None, None)
             .expect("the base environment can be built");
 
         let result = pod_template(
@@ -729,7 +739,7 @@ mod tests {
             .expect("the driver config resolves");
         let env = validated
             .spark_application
-            .env(s3conn, &None)
+            .env(s3conn, &None, None)
             .expect("the base environment can be built");
         let requested_secret_lifetime = driver_config
             .requested_secret_lifetime
@@ -737,7 +747,7 @@ mod tests {
 
         let volumes = validated
             .spark_application
-            .volumes(s3conn, &None, None, &requested_secret_lifetime)
+            .volumes(s3conn, &None, None, &requested_secret_lifetime, None)
             .expect("the SparkApplication volumes can be built");
         let volume_names: Vec<&str> = volumes.iter().map(|volume| volume.name.as_str()).collect();
         assert!(volume_names.contains(&"s3-creds"), "{volume_names:?}");

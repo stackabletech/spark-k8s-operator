@@ -4,7 +4,7 @@ use stackable_operator::{
     commons::tls_verification::{
         CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification,
     },
-    crd::s3,
+    crd::{openlineage, s3},
 };
 
 use crate::crd::{
@@ -33,9 +33,32 @@ pub fn tls_secret_name(s3conn: &s3::v1alpha1::ConnectionSpec) -> Option<&str> {
     None
 }
 
+/// Extracts the SecretClass name backing the CA cert for a resolved OpenLineage connection, if the
+/// connection verifies the server's TLS certificate against a SecretClass CA. Mirrors
+/// [`tls_secret_name`] for S3 connections — both carry a flattened [`TlsClientDetails`].
+pub fn openlineage_tls_secret_name(
+    conn: &openlineage::ResolvedOpenLineageConnection,
+) -> Option<&str> {
+    if let TlsClientDetails {
+        tls:
+            Some(Tls {
+                verification:
+                    TlsVerification::Server(TlsServerVerification {
+                        ca_cert: CaCert::SecretClass(secret_name),
+                    }),
+            }),
+    } = &crate::lineage::http_transport(conn).tls
+    {
+        return Some(secret_name);
+    }
+
+    None
+}
+
 pub fn tls_secret_names<'a>(
     s3conn: &'a Option<s3::v1alpha1::ConnectionSpec>,
     logdir: &'a Option<ResolvedLogDir>,
+    open_lineage_conn: Option<&'a openlineage::ResolvedOpenLineageConnection>,
 ) -> Option<Vec<&'a str>> {
     // Ensure there are no duplicate secret names.
     let mut names = BTreeSet::new();
@@ -47,6 +70,10 @@ pub fn tls_secret_names<'a>(
     if let Some(logdir) = logdir
         && let Some(secret_name) = logdir.tls_secret_name()
     {
+        names.insert(secret_name);
+    }
+
+    if let Some(secret_name) = open_lineage_conn.and_then(openlineage_tls_secret_name) {
         names.insert(secret_name);
     }
     if names.is_empty() {

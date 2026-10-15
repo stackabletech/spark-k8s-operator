@@ -1247,9 +1247,9 @@ rec {
       };
       "combine" = rec {
         crateName = "combine";
-        version = "4.6.8";
+        version = "4.6.9";
         edition = "2018";
-        sha256 = "0ppwzwdmszpan9ybx1myc6ldg5zih2sazf9idckdxrh9gn9j1hyg";
+        sha256 = "14izj50knw6rgl6ky3903k43pnl6qjgyw4d30n6ljdb4jykfnmj3";
         authors = [
           "Markus Westerlind <marwes91@gmail.com>"
         ];

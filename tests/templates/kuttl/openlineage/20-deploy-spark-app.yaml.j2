@@ -1,0 +1,7 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # `envsubst '$NAMESPACE'` fills in the connection host FQDN (and the TLS secretClass name) while
+  # leaving any other `$` tokens in the PySpark script untouched.
+  - script: envsubst '$NAMESPACE' < 20_spark-app.yaml | kubectl apply -n $NAMESPACE -f -

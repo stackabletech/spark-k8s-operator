@@ -1,0 +1,7 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # `envsubst` injects the kuttl-assigned $NAMESPACE (only $NAMESPACE, so the nginx config's own
+  # `$` tokens are left untouched) into the SecretClass name / cert scope.
+  - script: envsubst '$NAMESPACE' < 10_receiver.yaml | kubectl apply -n $NAMESPACE -f -

@@ -877,6 +877,9 @@ impl v1alpha1::SparkApplication {
     /// The base environment for the submit, driver and executor containers: the user-defined
     /// `spec.env` entries plus the environment variables set by the operator.
     ///
+    /// Driver-only variables (the OpenLineage transport) are added separately by
+    /// [`Self::with_openlineage_transport_env`].
+    ///
     /// The role-specific `envOverrides` are merged on top in [`Self::merged_env`], so they take
     /// precedence over everything set here.
     pub fn env(
@@ -925,11 +928,19 @@ impl v1alpha1::SparkApplication {
                 STACKABLE_TLS_STORE_PASSWORD,
             );
         }
-        // OpenLineage HTTP transport auth: when the connection sets `credentialsSecretName`, deliver
-        // the WHOLE transport (type, URL and bearer-token auth) to the driver's OpenLineage listener
-        // via the client's `OPENLINEAGE__` env-var configuration. See `openlineage_transport_env_vars`
-        // and the matching skip of the `spark.openlineage.transport.*` `--conf` in `build_command`.
-        // The token is sourced from the referenced Secret, so it never lands in the `--conf` args.
+        Ok(env)
+    }
+
+    /// Adds the OpenLineage HTTP transport environment variables to `env`, the environment of the
+    /// containers that run the driver JVM.
+    ///
+    /// The listener only runs in the driver JVM, so executors do not need the transport,
+    /// and must not get the token.
+    pub fn with_openlineage_transport_env(
+        &self,
+        mut env: EnvVarSet,
+        open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
+    ) -> Result<EnvVarSet, Error> {
         if let Some(connection) = open_lineage_conn {
             let http = crate::lineage::http_transport(connection);
             if let Some(secret_name) = &http.credentials_secret_name {
@@ -1864,8 +1875,19 @@ spec:
             yaml_serde::from_str::<v1alpha1::SparkApplication>(MINIMAL_APP).unwrap();
         let connection = test_openlineage_connection(Some("ol-token".to_string()));
 
-        let env: Vec<EnvVar> = spark_application
+        let base_env = spark_application
             .env(&None, &None, Some(&connection))
+            .unwrap();
+        // Shared by all roles, so it must not carry the transport or the token reference.
+        let shared: Vec<EnvVar> = base_env.clone().into();
+        assert!(
+            !shared.iter().any(|v| v.name == OPENLINEAGE_AUTH_API_KEY_ENV
+                || v.name == OPENLINEAGE_TRANSPORT_URL_ENV),
+            "OpenLineage transport env vars must not be in the env shared with executors"
+        );
+
+        let env: Vec<EnvVar> = spark_application
+            .with_openlineage_transport_env(base_env, Some(&connection))
             .unwrap()
             .into();
         let value = |name| {
@@ -1910,7 +1932,12 @@ spec:
 
         // A connection but no credentialsSecretName: transport stays in --conf, no OL env vars.
         let env: Vec<EnvVar> = spark_application
-            .env(&None, &None, Some(&connection))
+            .with_openlineage_transport_env(
+                spark_application
+                    .env(&None, &None, Some(&connection))
+                    .unwrap(),
+                Some(&connection),
+            )
             .unwrap()
             .into();
 

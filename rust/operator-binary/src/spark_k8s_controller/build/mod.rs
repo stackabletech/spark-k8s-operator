@@ -67,6 +67,12 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Pre
         .env(opt_s3conn, logdir, opt_open_lineage_conn)
         .context(BuildEnvVarsSnafu)?;
 
+    // The OpenLineage listener only runs in the driver JVM, so only the submit Job and the driver
+    // pod template get the transport env vars (which include the auth token reference).
+    let driver_env_vars = spark_application
+        .with_openlineage_transport_env(env_vars.clone(), opt_open_lineage_conn)
+        .context(BuildEnvVarsSnafu)?;
+
     let driver_config = spark_application
         .driver_config()
         .context(FailedToResolveConfigSnafu)?;
@@ -83,7 +89,7 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Pre
         SparkApplicationRole::Driver,
         &driver_config,
         &driver_config_overrides,
-        &env_vars,
+        &driver_env_vars,
         &service_account,
     )
     .context(BuildConfigMapSnafu)?;
@@ -136,7 +142,7 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Pre
     let job = resource::job::spark_job(
         validated,
         &service_account,
-        &env_vars,
+        &driver_env_vars,
         &job_commands,
         &submit_config,
     )

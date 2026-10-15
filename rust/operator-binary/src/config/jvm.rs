@@ -1,7 +1,6 @@
 use stackable_operator::crd::{openlineage, s3};
 
 use crate::crd::{
-    Error,
     constants::{
         JVM_SECURITY_PROPERTIES_FILE, OPENLINEAGE_ADD_OPENS, STACKABLE_TLS_STORE_PASSWORD,
         STACKABLE_TRUST_STORE, VOLUME_MOUNT_PATH_CONFIG,
@@ -22,7 +21,7 @@ pub fn construct_extra_java_options(
     s3_conn: &Option<s3::v1alpha1::ConnectionSpec>,
     log_dir: &Option<ResolvedLogDir>,
     open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
-) -> Result<(String, String), Error> {
+) -> (String, String) {
     // Note (@sbernauer): As of 2025-03-04, we did not set any heap related JVM arguments, so I
     // kept the implementation as is. We can always re-visit this as needed.
 
@@ -63,7 +62,7 @@ pub fn construct_extra_java_options(
         None => jvm_args.clone(),
     };
 
-    Ok((driver.join(" "), executor.join(" ")))
+    (driver.join(" "), executor.join(" "))
 }
 
 #[cfg(test)]
@@ -90,7 +89,7 @@ mod tests {
             stackable_operator::utils::yaml_from_str_singleton_map(input).unwrap();
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None, None).unwrap();
+            construct_extra_java_options(&spark_app, &None, &None, None);
 
         assert_eq!(
             driver_extra_java_options,
@@ -130,7 +129,7 @@ mod tests {
             stackable_operator::utils::yaml_from_str_singleton_map(input).unwrap();
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None, None).unwrap();
+            construct_extra_java_options(&spark_app, &None, &None, None);
 
         assert_eq!(
             driver_extra_java_options,
@@ -188,7 +187,7 @@ mod tests {
         )
         .unwrap();
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(&spark_app, &None, &None, None).unwrap();
+            construct_extra_java_options(&spark_app, &None, &None, None);
 
         assert_eq!(
             driver_extra_java_options.contains(OPENLINEAGE_ADD_OPENS),

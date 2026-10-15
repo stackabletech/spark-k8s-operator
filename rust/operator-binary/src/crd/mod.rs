@@ -713,7 +713,7 @@ impl v1alpha1::SparkApplication {
         }
 
         let (driver_extra_java_options, executor_extra_java_options) =
-            construct_extra_java_options(self, s3conn, log_dir, open_lineage_conn)?;
+            construct_extra_java_options(self, s3conn, log_dir, open_lineage_conn);
         submit_cmd.extend(vec![
             format!("--conf spark.driver.extraJavaOptions=\"{driver_extra_java_options}\""),
             format!("--conf spark.executor.extraJavaOptions=\"{executor_extra_java_options}\""),

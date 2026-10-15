@@ -70,6 +70,15 @@ When the connection verifies the server against a `secretClass` CA (as in the co
 above), the operator mounts that SecretClass certificate into the driver and adds it to the driver's
 trust store, so the OpenLineage listener trusts the backend's certificate.
 
+[WARNING]
+====
+Disabling TLS server verification (`tls.verification: none`) is not supported for OpenLineage.
+The OpenLineage HTTP transport has no option to skip certificate verification, so if the backend presents a certificate that the driver JVM does not trust, the TLS handshake fails.
+The Spark application keeps running, but the lineage events are dropped, and the only trace is an error in the driver log.
+
+If the backend uses a certificate signed by a private CA, configure `tls.verification.server.caCert` as shown above instead.
+====
+
 You can still override any of the injected values — including the full `spark.openlineage.transport.url` — through `sparkConf`.
 
 [#authentication]

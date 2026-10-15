@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Bump `stackable-operator` to 0.118.0 ([#732], [#753], [#773]).
+- Bump `stackable-operator` to 0.121.0 ([#732], [#753], [#773], [#779], [#787]).
 - Replace the unmaintained `serde_yaml` with `yaml_serde` ([#787]).
 - All pods now set `securityContext.seccompProfile.type` to `RuntimeDefault` ([#787]).
 - BREAKING: `spec.image.stackableVersion` must now be a full, valid semver version, e.g. `26.7.1`.
@@ -42,8 +42,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
   identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
 - Make operations infallible where dependent on static inputs ([#766], [#769]).
-- Bump stackable-operator to 0.119.0 ([#779]).
-- test: Bump vector-aggregator to 0.58.0 ([#784]).
+- Support Vector 0.58.0 ([#784], [#788]).
 
 ### Fixed
 
@@ -97,6 +96,7 @@ All notable changes to this project will be documented in this file.
 [#779]: https://github.com/stackabletech/spark-k8s-operator/pull/779
 [#784]: https://github.com/stackabletech/spark-k8s-operator/pull/784
 [#787]: https://github.com/stackabletech/spark-k8s-operator/pull/787
+[#788]: https://github.com/stackabletech/spark-k8s-operator/pull/788
 
 ## [26.7.0] - 2026-07-21
 

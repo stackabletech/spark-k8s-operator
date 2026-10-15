@@ -47,7 +47,7 @@ spec:
 <3> Optional. The OpenLineage namespace events are reported under.
     Defaults to `default`.
 <4> Optional. A stable OpenLineage application (job) name, see <<job-name>>.
-    Defaults to an empty string which means it is resolved from `sparkConf` or the resource name.
+    If not set, it is resolved from `sparkConf` or the resource name.
 
 The `OpenLineageConnection` resource (`lineage.stackable.tech`) is a reusable definition of a
 connection to an OpenLineage backend, provided by the Stackable operator library. Reference it to

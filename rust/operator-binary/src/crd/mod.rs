@@ -282,10 +282,10 @@ pub mod versioned {
         pub open_lineage: openlineage::v1alpha1::OpenLineageConfig,
 
         /// A stable OpenLineage application (job) name. Setting this prevents fragmented run
-        /// history. If empty, the name resolves to `spark.app.name` from `sparkConf` and then to
-        /// the name of the `SparkApplication`.
-        #[serde(default)]
-        pub app_name: String,
+        /// history. If not set (or empty), the name resolves to `spark.app.name` from `sparkConf`
+        /// and then to the name of the `SparkApplication`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub app_name: Option<String>,
     }
 
     #[derive(Clone, Debug, Default, Deserialize, JsonSchema, PartialEq, Serialize, Merge)]

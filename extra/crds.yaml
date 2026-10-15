@@ -1763,11 +1763,11 @@ spec:
                 nullable: true
                 properties:
                   appName:
-                    default: ''
                     description: |-
                       A stable OpenLineage application (job) name. Setting this prevents fragmented run
-                      history. If empty, the name resolves to `spark.app.name` from `sparkConf` and then to
-                      the name of the `SparkApplication`.
+                      history. If not set (or empty), the name resolves to `spark.app.name` from `sparkConf`
+                      and then to the name of the `SparkApplication`.
+                    nullable: true
                     type: string
                   connection:
                     description: |-
@@ -6595,11 +6595,11 @@ spec:
                 nullable: true
                 properties:
                   appName:
-                    default: ''
                     description: |-
                       A stable OpenLineage application (job) name. Setting this prevents fragmented run
-                      history. If empty, the name resolves to `spark.app.name` from `sparkConf` and then to
-                      the name of the `SparkApplication`.
+                      history. If not set (or empty), the name resolves to `spark.app.name` from `sparkConf`
+                      and then to the name of the `SparkApplication`.
+                    nullable: true
                     type: string
                   connection:
                     description: |-

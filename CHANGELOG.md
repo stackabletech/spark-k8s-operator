@@ -42,7 +42,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING (behaviour): Keys of the `spark-env.sh` `configOverrides` must be valid shell
   identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
 - Make operations infallible where dependent on static inputs ([#766], [#769]).
-- Support Vector 0.58.0 ([#784], [#788]).
+- Support Vector 0.58.0 ([#784], [#788], [#789]).
 
 ### Fixed
 
@@ -97,6 +97,7 @@ All notable changes to this project will be documented in this file.
 [#784]: https://github.com/stackabletech/spark-k8s-operator/pull/784
 [#787]: https://github.com/stackabletech/spark-k8s-operator/pull/787
 [#788]: https://github.com/stackabletech/spark-k8s-operator/pull/788
+[#789]: https://github.com/stackabletech/spark-k8s-operator/pull/789
 
 ## [26.7.0] - 2026-07-21
 

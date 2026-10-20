@@ -45,6 +45,7 @@ All notable changes to this project will be documented in this file.
 - Make operations infallible where dependent on static inputs ([#766], [#769]).
 - Support Vector 0.58.0 ([#784], [#788], [#789]).
 - Deprecate support for Spark `4.1.2` ([#790]).
+- ClusterRoles for Spark driver and Spark Connect now allow managing `networkpolicies`, which Spark 4.2 creates for executors by default ([#790]).
 
 ### Removed
 

@@ -9,5 +9,5 @@
 
 Some reasons why Spark 4 is considered experimental (as of September 2025):
 
-- Missing HBase compatibility (See: https://github.com/apache/hbase-connectors/pull/130)
+- Missing HBase compatibility (See: https://issues.apache.org/jira/browse/HBASE-30178)
 - Executors fail to load logging libs (maybe related: https://issues.apache.org/jira/browse/SPARK-52585)

@@ -10,6 +10,6 @@
 
 Apache Spark 4.1.1 has the following known issues (as of February 2026):
 
-- Missing HBase compatibility (See: https://github.com/apache/hbase-connectors/pull/130)
+- Missing HBase compatibility (See: https://issues.apache.org/jira/browse/HBASE-30178)
 - No Iceberg Spark runtime release with support for Spark 4.1 available yet.
 - No Delta Lake release with support for Spark 4.1 available yet.

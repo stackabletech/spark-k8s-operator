@@ -5,34 +5,34 @@ dimensions:
       - "false"
   - name: spark
     values:
-      - 3.5.8
-      - 4.1.1
       - 4.1.2
+      - 4.1.3
+      - 4.2.0
       # Alternatively, if you want to use a custom image, append a comma and the full image name to the product version
       # as in the example below.
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
   - name: spark-logging
     values:
-      - 3.5.8
-      - 4.1.1
       - 4.1.2
-  - name: spark-hbase-connector
-    values:
-      - 3.5.8
-      # No hbase-connector release with support for Spark 4 yet.
-      # - 4.1.1
+      - 4.1.3
+      - 4.2.0
+  # No hbase-connector release with support for Spark 4 yet, so the hbase-connector test is disabled
+  # until one is available.
+  # - name: spark-hbase-connector
+  #   values:
+  #     - 3.5.8
   - name: spark-delta-lake
     values:
-      - 3.5.8
-      - 4.1.1
       - 4.1.2
+      - 4.1.3
+      - 4.2.0
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
   # Note: We keep this list, as new Spark versions are only supported delayed by Iceberg
   - name: spark-iceberg
     values:
-      - 3.5.8
-      - 4.1.1
       - 4.1.2
+      - 4.1.3
+      # - 4.2.0 # No iceberg-spark-runtime-4.2 release yet
   - name: iceberg-latest
     values:
       - 1.11.0
@@ -41,9 +41,9 @@ dimensions:
       - 4.0.0
   - name: spark-connect
     values:
-      - 3.5.8
-      - 4.1.1
       - 4.1.2
+      - 4.1.3
+      # - 4.2.0 # No iceberg-spark-runtime-4.2 release yet
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
   - name: spark-regression
     values:
@@ -136,13 +136,13 @@ tests:
     dimensions:
       - spark-delta-lake
       - openshift
-  - name: hbase-connector
-    dimensions:
-      - spark-hbase-connector
-      - hbase
-      - hdfs-latest
-      - zookeeper-latest
-      - openshift
+  # - name: hbase-connector
+  #   dimensions:
+  #     - spark-hbase-connector
+  #     - hbase
+  #     - hdfs-latest
+  #     - zookeeper-latest
+  #     - openshift
   - name: custom-log-directory
     dimensions:
       - spark

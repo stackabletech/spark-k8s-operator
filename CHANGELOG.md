@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Support for Spark `4.1.3` and `4.2.0` ([#790]).
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#773]).
 - The history server and Spark Connect server StatefulSets now carry the
@@ -43,6 +44,11 @@ All notable changes to this project will be documented in this file.
   identifiers (matching `[a-zA-Z_][a-zA-Z0-9_]*`) and are now rejected if they are not ([#761]).
 - Make operations infallible where dependent on static inputs ([#766], [#769]).
 - Support Vector 0.58.0 ([#784], [#788], [#789]).
+- Deprecate support for Spark `4.1.2` ([#790]).
+
+### Removed
+
+- Support for Spark `3.5.8` and `4.1.1` ([#790]).
 
 ### Fixed
 
@@ -98,6 +104,7 @@ All notable changes to this project will be documented in this file.
 [#787]: https://github.com/stackabletech/spark-k8s-operator/pull/787
 [#788]: https://github.com/stackabletech/spark-k8s-operator/pull/788
 [#789]: https://github.com/stackabletech/spark-k8s-operator/pull/789
+[#790]: https://github.com/stackabletech/spark-k8s-operator/pull/790
 
 ## [26.7.0] - 2026-07-21
 

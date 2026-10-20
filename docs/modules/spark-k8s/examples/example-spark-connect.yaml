@@ -5,10 +5,10 @@ metadata:
   name: spark-connect # <1>
 spec:
   image:
-    productVersion: "3.5.8" # <2>
+    productVersion: "4.1.3" # <2>
     pullPolicy: IfNotPresent
   args:
-    - "--packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.11.0" # <3>
+    - "--packages org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0" # <3>
   server:
     podOverrides:
       spec:

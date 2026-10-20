@@ -47,7 +47,7 @@ dimensions:
       # - 3.5.6,oci.stackable.tech/sandbox/spark-k8s:3.5.6-stackable0.0.0-dev
   - name: spark-regression
     values:
-      - 3.5.8
+      - 4.2.0
   - name: krb5
     values:
       - 1.21.1

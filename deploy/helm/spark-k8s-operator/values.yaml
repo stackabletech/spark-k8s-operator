@@ -37,16 +37,21 @@ podAnnotations: {}
 labels:
   stackable.tech/vendor: Stackable
 
-podSecurityContext: {}
-  # fsGroup: 2000
+# Satisfies the restricted Pod Security Standard.
+# Already standard on OpenShift.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  # Not part of the restricted profile.
+  # Anything the operator writes has to go to a mounted volume.
+  readOnlyRootFilesystem: true
 
 resources:
   limits:

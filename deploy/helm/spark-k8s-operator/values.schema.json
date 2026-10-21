@@ -115,13 +115,26 @@
       "title": "Pod security context",
       "description": "Pod-level security context for the operator pod, for example fsGroup. Passed through to Kubernetes unchanged. Applies to the operator pod only.",
       "type": "object",
-      "default": {}
+      "default": {
+        "runAsNonRoot": true,
+        "seccompProfile": {
+          "type": "RuntimeDefault"
+        }
+      }
     },
     "securityContext": {
       "title": "Container security context",
       "description": "Container-level security context for the operator container, for example readOnlyRootFilesystem or runAsNonRoot. Passed through to Kubernetes unchanged. Applies to the operator container only.",
       "type": "object",
-      "default": {}
+      "default": {
+        "allowPrivilegeEscalation": false,
+        "capabilities": {
+          "drop": [
+            "ALL"
+          ]
+        },
+        "readOnlyRootFilesystem": true
+      }
     },
     "resources": {
       "title": "Resource requests and limits",
@@ -265,14 +278,14 @@
         },
         "fileLog": {
           "title": "File logs",
-          "description": "Writes logs to /stackable/logs inside the container.",
+          "description": "Writes logs to /var/log/spark-k8s-operator inside the container, on an emptyDir volume.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "enabled": {
               "type": "boolean",
               "default": false,
-              "description": "Whether the operator also writes logs to /stackable/logs inside the container. Off by default: it needs a volume to be useful, otherwise the logs vanish with the pod."
+              "description": "Whether the operator also writes logs to /var/log/spark-k8s-operator inside the container. Off by default. The logs survive container restarts but not the Pod."
             },
             "level": {
               "title": "File log level",

@@ -46,6 +46,7 @@ All notable changes to this project will be documented in this file.
 - Support Vector 0.58.0 ([#784], [#788], [#789]).
 - Deprecate support for Spark `4.1.2` ([#790]).
 - ClusterRoles for Spark driver and Spark Connect now allow managing `networkpolicies`, which Spark 4.2 creates for executors by default ([#790]).
+- The operator Deployment runs with a restricted security context and a read-only root filesystem, so it can be deployed into namespaces that enforce the `restricted` Pod Security Standard ([#795]).
 
 ### Removed
 
@@ -106,6 +107,7 @@ All notable changes to this project will be documented in this file.
 [#788]: https://github.com/stackabletech/spark-k8s-operator/pull/788
 [#789]: https://github.com/stackabletech/spark-k8s-operator/pull/789
 [#790]: https://github.com/stackabletech/spark-k8s-operator/pull/790
+[#795]: https://github.com/stackabletech/spark-k8s-operator/pull/795
 
 ## [26.7.0] - 2026-07-21
 

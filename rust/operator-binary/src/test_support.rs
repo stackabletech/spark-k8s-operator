@@ -73,3 +73,29 @@ where
 
     assert_eq!(action, Action::await_change());
 }
+
+/// Asserts that `script` runs `set +x`, without a later `set -x`, before the first line
+/// containing `needle`.
+///
+/// The containers run under `bash -x`, which prints every command with its variables
+/// expanded.
+/// Anything that reads a secret must have xtrace set to off.
+///
+/// Panics if no line contains `needle`.
+pub fn assert_not_traced(script: &str, needle: &str) {
+    let lines: Vec<&str> = script.lines().map(str::trim).collect();
+    let position = lines
+        .iter()
+        .position(|line| line.contains(needle))
+        .unwrap_or_else(|| panic!("no line contains {needle:?} in:\n{script}"));
+    let last_toggle = lines[..position]
+        .iter()
+        .rev()
+        .find(|line| matches!(**line, "set +x" | "set -x"));
+
+    assert_eq!(
+        last_toggle,
+        Some(&"set +x"),
+        "{needle:?} is traced in:\n{script}"
+    );
+}

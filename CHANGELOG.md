@@ -83,6 +83,7 @@ All notable changes to this project will be documented in this file.
   `image.pullPolicy` of a SparkConnectServer now covers its truststore init container and its
   executors. With the default `Always`, these containers pull on every start instead of using the
   node's image cache ([#764]).
+- The submit Job and the history server no longer print S3 credentials to the container log ([#796]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
@@ -108,6 +109,7 @@ All notable changes to this project will be documented in this file.
 [#789]: https://github.com/stackabletech/spark-k8s-operator/pull/789
 [#790]: https://github.com/stackabletech/spark-k8s-operator/pull/790
 [#795]: https://github.com/stackabletech/spark-k8s-operator/pull/795
+[#796]: https://github.com/stackabletech/spark-k8s-operator/pull/796
 
 ## [26.7.0] - 2026-07-21
 

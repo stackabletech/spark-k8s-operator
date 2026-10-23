@@ -598,10 +598,6 @@ impl v1alpha1::SparkApplication {
         };
 
         let mut submit_cmd = vec![
-            format!(
-                "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-            ),
-            build_truststore_commands,
             "/stackable/spark/bin/spark-submit".to_string(),
             "--verbose".to_string(),
             "--master k8s://https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
@@ -776,7 +772,16 @@ impl v1alpha1::SparkApplication {
 
         submit_cmd.extend(self.spec.args.clone());
 
-        Ok(vec![submit_cmd.join(" ")])
+        Ok(vec![
+            format!(
+                "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+            ),
+            build_truststore_commands,
+            // xtrace prints expanded credentials, `--verbose` prints the config redacted
+            "set +x".to_string(),
+            "echo 'Running \"spark-submit [...]\", which is not shown as it can contain credentials'".to_string(),
+            submit_cmd.join(" "),
+        ])
     }
 
     /// The base environment for the submit, driver and executor containers: the user-defined
@@ -1095,13 +1100,15 @@ mod tests {
         commons::{
             affinity::StackableAffinity,
             resources::{CpuLimits, MemoryLimits, NoRuntimeLimits, Resources},
+            secret_class::SecretClassVolume,
+            tls_verification::TlsClientDetails,
         },
         product_logging::spec::Logging,
         versioned::test_utils::RoundtripTestData,
     };
 
     use super::*;
-    use crate::crd::roles::SparkStorageConfig;
+    use crate::{crd::roles::SparkStorageConfig, test_support::assert_not_traced};
 
     #[test]
     fn test_constants() {
@@ -1652,6 +1659,53 @@ spec:
         ];
 
         assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn s3_credentials_are_not_traced() {
+        let spark_application: v1alpha1::SparkApplication =
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc! {r#"
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: spark-example
+                  namespace: default
+                spec:
+                  mode: cluster
+                  mainApplicationFile: test.py
+                  sparkImage:
+                    productVersion: 1.2.3
+            "#})
+            .expect("invalid test SparkApplication YAML");
+        let resolved_product_image = spark_application
+            .spec
+            .spark_image
+            .resolve(
+                "spark-k8s",
+                "oci.example.org/sdp",
+                &"0.0.0-dev"
+                    .parse()
+                    .expect("static semantic version must parse"),
+            )
+            .expect("the product image resolves");
+        let s3conn = Some(s3::v1alpha1::ConnectionSpec {
+            host: "my-s3".to_string().try_into().expect("valid host"),
+            port: None,
+            access_style: Default::default(),
+            credentials: Some(SecretClassVolume {
+                secret_class: "s3-credentials".to_string(),
+                scope: None,
+            }),
+            tls: TlsClientDetails { tls: None },
+            region: Default::default(),
+        });
+
+        let script = spark_application
+            .build_command(&s3conn, &None, &resolved_product_image)
+            .expect("the submit command can be built")
+            .join("\n");
+
+        assert_not_traced(&script, "fs.s3a.secret.key=");
     }
 
     #[rstest]

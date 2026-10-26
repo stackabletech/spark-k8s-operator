@@ -111,7 +111,7 @@ spec:
       spark-defaults.conf:
         spark.driver.cores: "3"
         # Overrides the operator-set value; asserts that a server-level configOverride survives the merge with the executor properties.
-        spark.kubernetes.container.image.pullPolicy: "Always"
+        spark.ui.prometheus.enabled: "false"
   executor:
     configOverrides:
       spark-defaults.conf:

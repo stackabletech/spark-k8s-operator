@@ -16,11 +16,11 @@ dimensions:
       - 4.1.2
       - 4.1.3
       - 4.2.0
-  # No hbase-connector release with support for Spark 4 yet, so the hbase-connector test is disabled
-  # until one is available.
-  # - name: spark-hbase-connector
-  #   values:
-  #     - 3.5.8
+  - name: spark-hbase-connector
+    values:
+      # - 4.1.2  # skip this version to reduce the number of tests
+      - 4.1.3
+      - 4.2.0
   - name: spark-delta-lake
     values:
       - 4.1.2
@@ -56,7 +56,7 @@ dimensions:
       - "CLUSTER.LOCAL"
   - name: hbase
     values:
-      - 2.6.6
+      - 2.6.7
   - name: hdfs-latest
     values:
       - 3.5.0
@@ -136,13 +136,13 @@ tests:
     dimensions:
       - spark-delta-lake
       - openshift
-  # - name: hbase-connector
-  #   dimensions:
-  #     - spark-hbase-connector
-  #     - hbase
-  #     - hdfs-latest
-  #     - zookeeper-latest
-  #     - openshift
+  - name: hbase-connector
+    dimensions:
+      - spark-hbase-connector
+      - hbase
+      - hdfs-latest
+      - zookeeper-latest
+      - openshift
   - name: custom-log-directory
     dimensions:
       - spark

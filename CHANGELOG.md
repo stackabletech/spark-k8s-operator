@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
   `restarter.stackable.tech/enabled: "true"` label, opting them into the restarter-controller so
   that their Pods are automatically rolled when a mounted ConfigMap or Secret changes ([#754]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#779]).
+- Add support for Spark 4.x and HBase connectors ([#797]).
 
 ### Changed
 
@@ -110,6 +111,7 @@ All notable changes to this project will be documented in this file.
 [#790]: https://github.com/stackabletech/spark-k8s-operator/pull/790
 [#795]: https://github.com/stackabletech/spark-k8s-operator/pull/795
 [#796]: https://github.com/stackabletech/spark-k8s-operator/pull/796
+[#797]: https://github.com/stackabletech/spark-k8s-operator/pull/797
 
 ## [26.7.0] - 2026-07-21
 

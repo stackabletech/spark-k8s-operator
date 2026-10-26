@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Add support for emitting [OpenLineage](https://openlineage.io/) events from `SparkApplications` via `spec.lineage` ([#726]).
+- Support for Spark `4.1.3` and `4.2.0` ([#790]).
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
   ([#773]).
 - The history server and Spark Connect server StatefulSets now carry the
@@ -45,7 +46,14 @@ All notable changes to this project will be documented in this file.
 - Make operations infallible where dependent on static inputs ([#766], [#769]).
 - Bump stackable-operator to 0.119.0, 0.120.0 ([#779], [#726]).
 - test: Bump vector-aggregator to 0.58.0 ([#784]).
-- Support Vector 0.58.0 ([#784], [#788]).
+- Support Vector 0.58.0 ([#784], [#788], [#789]).
+- Deprecate support for Spark `4.1.2` ([#790]).
+- ClusterRoles for Spark driver and Spark Connect now allow managing `networkpolicies`, which Spark 4.2 creates for executors by default ([#790]).
+- The operator Deployment runs with a restricted security context and a read-only root filesystem, so it can be deployed into namespaces that enforce the `restricted` Pod Security Standard ([#795]).
+
+### Removed
+
+- Support for Spark `3.5.8` and `4.1.1` ([#790]).
 
 ### Fixed
 
@@ -78,6 +86,7 @@ All notable changes to this project will be documented in this file.
   `image.pullPolicy` of a SparkConnectServer now covers its truststore init container and its
   executors. With the default `Always`, these containers pull on every start instead of using the
   node's image cache ([#764]).
+- The submit Job and the history server no longer print S3 credentials to the container log ([#796]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
 [#726]: https://github.com/stackabletech/spark-k8s-operator/pull/726
@@ -101,6 +110,10 @@ All notable changes to this project will be documented in this file.
 [#784]: https://github.com/stackabletech/spark-k8s-operator/pull/784
 [#787]: https://github.com/stackabletech/spark-k8s-operator/pull/787
 [#788]: https://github.com/stackabletech/spark-k8s-operator/pull/788
+[#789]: https://github.com/stackabletech/spark-k8s-operator/pull/789
+[#790]: https://github.com/stackabletech/spark-k8s-operator/pull/790
+[#795]: https://github.com/stackabletech/spark-k8s-operator/pull/795
+[#796]: https://github.com/stackabletech/spark-k8s-operator/pull/796
 
 ## [26.7.0] - 2026-07-21
 

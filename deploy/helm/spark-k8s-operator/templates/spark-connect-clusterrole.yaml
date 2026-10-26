@@ -27,6 +27,15 @@ rules:
       - patch
       - update
       - watch
+  # Spark 4.2 and later apply (server-side) a NetworkPolicy for the executor pods. It is owned by
+  # the driver pod and thereby garbage collected, so no delete is needed.
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+    verbs:
+      - create
+      - patch
 {{ if .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
   - apiGroups:
       - security.openshift.io

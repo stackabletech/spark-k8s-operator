@@ -274,9 +274,13 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
     let mut command = vec![];
 
     if let Some(secret_dir) = logdir.credentials_mount_path() {
+        // xtrace (the x setting) would print the expanded S3 credentials to the container log.
         command.extend(vec![
+            "set +x".to_string(),
+            "echo 'Exporting AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, which is not shown as it leaks the S3 credentials'".to_string(),
             format!("export AWS_ACCESS_KEY_ID=\"$(cat {secret_dir}/{ACCESS_KEY_ID})\""),
             format!("export AWS_SECRET_ACCESS_KEY=\"$(cat {secret_dir}/{SECRET_ACCESS_KEY})\""),
+            "set -x".to_string(),
         ]);
     }
 
@@ -295,10 +299,17 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use stackable_operator::k8s_openapi::api::core::v1::EnvVar;
+    use stackable_operator::{
+        commons::{secret_class::SecretClassVolume, tls_verification::TlsClientDetails},
+        crd::s3,
+        k8s_openapi::api::core::v1::EnvVar,
+    };
 
     use super::*;
-    use crate::history::controller::build::test_support::minimal_validated_cluster;
+    use crate::{
+        crd::logdir::S3LogDir, history::controller::build::test_support::minimal_validated_cluster,
+        test_support::assert_not_traced,
+    };
 
     #[test]
     fn test_constants() {
@@ -359,5 +370,31 @@ mod tests {
         // The override must replace the operator-set value, not duplicate it.
         assert_eq!(matching.len(), 1);
         assert_eq!(matching[0].value.as_deref(), Some("overridden"));
+    }
+
+    #[test]
+    fn s3_credentials_are_not_traced() {
+        let log_dir = ResolvedLogDir::S3(S3LogDir {
+            bucket: s3::v1alpha1::ResolvedBucket {
+                bucket_name: "my-bucket".to_string(),
+                connection: s3::v1alpha1::ConnectionSpec {
+                    host: "my-s3".to_string().try_into().expect("valid host"),
+                    port: None,
+                    access_style: Default::default(),
+                    credentials: Some(SecretClassVolume {
+                        secret_class: "s3-credentials".to_string(),
+                        scope: None,
+                    }),
+                    tls: TlsClientDetails { tls: None },
+                    region: Default::default(),
+                },
+            },
+            prefix: "prefix".to_string(),
+        });
+
+        let script = command_args(&log_dir).join("\n");
+
+        assert_not_traced(&script, "AWS_ACCESS_KEY_ID=");
+        assert_not_traced(&script, "AWS_SECRET_ACCESS_KEY=");
     }
 }

@@ -88,7 +88,6 @@ data:
     spark._jvm.org.apache.hadoop.hbase.spark.HBaseContext(
       spark._jsc.sc(),
       spark._jvm.org.apache.hadoop.hbase.HBaseConfiguration.create(),
-      None,
     )
 
     catalog = '{\
@@ -101,7 +100,8 @@ data:
 
     df\
       .write\
-      .format("org.apache.hadoop.hbase.spark")\
+      .format("org.apache.hadoop.hbase.spark.datasources.HBaseTableProvider")\
+      .mode("append")\
       .option('catalog', catalog)\
       .option('newtable', '5')\
       .save()
@@ -117,7 +117,7 @@ data:
     # scan, which is all this test needs.
     read_df = spark\
       .read\
-      .format("org.apache.hadoop.hbase.spark")\
+      .format("org.apache.hadoop.hbase.spark.datasources.HBaseTableProvider")\
       .option('catalog', catalog)\
       .option('hbase.spark.pushdown.columnfilter', 'false')\
       .load()

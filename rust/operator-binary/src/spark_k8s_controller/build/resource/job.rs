@@ -61,6 +61,7 @@ pub(crate) fn spark_job(
     let spark_image = &validated.resolved_product_image;
     let s3conn = &validated.cluster_config.s3_connection;
     let logdir = &validated.cluster_config.log_dir;
+    let open_lineage_conn = validated.cluster_config.open_lineage_connection.as_ref();
     let mut cb = new_container_builder(SparkContainer::SparkSubmit.name());
 
     // The SPARK_SUBMIT_OPTS env var is used to configure the JVM settings of the spark-submit job.
@@ -70,7 +71,7 @@ pub(crate) fn spark_job(
     let mut spark_submit_opts_env = vec![format!(
         "-Djava.security.properties={VOLUME_MOUNT_PATH_CONFIG}/{JVM_SECURITY_PROPERTIES_FILE}"
     )];
-    if tlscerts::tls_secret_names(s3conn, logdir).is_some() {
+    if tlscerts::tls_secret_names(s3conn, logdir, open_lineage_conn).is_some() {
         spark_submit_opts_env.push(format!(
             "-Djavax.net.ssl.trustStore={STACKABLE_TRUST_STORE}/truststore.p12"
         ));
@@ -102,7 +103,11 @@ pub(crate) fn spark_job(
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
         .expect("The mount paths are statically defined and there should be no duplicates.")
         // These mounts include the user-supplied `volumeMounts`, so this add stays fallible.
-        .add_volume_mounts(spark_application.spark_job_volume_mounts(s3conn, logdir))
+        .add_volume_mounts(spark_application.spark_job_volume_mounts(
+            s3conn,
+            logdir,
+            open_lineage_conn,
+        ))
         .context(AddVolumeMountSnafu)?
         .add_env_vars(merged_env);
 
@@ -126,7 +131,13 @@ pub(crate) fn spark_job(
         .context(MissingSecretLifetimeSnafu)?;
     volumes.extend(
         spark_application
-            .volumes(s3conn, logdir, None, &requested_secret_lifetime)
+            .volumes(
+                s3conn,
+                logdir,
+                None,
+                &requested_secret_lifetime,
+                open_lineage_conn,
+            )
             .context(CreateVolumesSnafu)?,
     );
 
@@ -230,6 +241,7 @@ mod tests {
 
         let validated = validate(
             DereferencedSparkApplication {
+                open_lineage_connection: None,
                 spark_application,
                 resolved_template_refs: Vec::new(),
                 s3_connection: None,
@@ -249,7 +261,7 @@ mod tests {
             .expect("the submit config resolves");
         let env = validated
             .spark_application
-            .env(&None, &None)
+            .env(&None, &None, None)
             .expect("the base environment can be built");
         let service_account = ServiceAccount {
             metadata: ObjectMeta {

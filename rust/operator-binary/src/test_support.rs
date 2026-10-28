@@ -7,7 +7,14 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     client::Client,
     commons::networking::DomainName,
-    kube::{Client as KubeClient, Config, core::DeserializeGuard, runtime::controller::Action},
+    kube::{
+        Client as KubeClient, Config,
+        core::DeserializeGuard,
+        runtime::{
+            controller::Action,
+            events::{Recorder, Reporter},
+        },
+    },
     utils::cluster_info::KubernetesClusterInfo,
 };
 
@@ -47,12 +54,13 @@ where
         .build()
         .expect("current-thread tokio runtime")
         .block_on(async {
+            let kube_client = KubeClient::try_from(Config::new(
+                "http://127.0.0.1:1".parse().expect("valid static URI"),
+            ))
+            .expect("client from static config");
             let ctx = Arc::new(Ctx {
                 client: Client::new(
-                    KubeClient::try_from(Config::new(
-                        "http://127.0.0.1:1".parse().expect("valid static URI"),
-                    ))
-                    .expect("client from static config"),
+                    kube_client.clone(),
                     None,
                     "default".to_owned(),
                     KubernetesClusterInfo {
@@ -65,6 +73,13 @@ where
                     operator_service_name: "spark-k8s-operator".to_owned(),
                     image_repository: "oci.stackable.tech/sdp".to_owned(),
                 },
+                event_recorder: Recorder::new(
+                    kube_client,
+                    Reporter {
+                        controller: "test".to_owned(),
+                        instance: None,
+                    },
+                ),
             });
 
             reconcile(Arc::new(object), ctx).await

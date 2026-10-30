@@ -18,7 +18,8 @@ use crate::{
 /// For a given SparkApplication, we create a ServiceAccount with a RoleBinding to the ClusterRole
 /// that allows the driver to create pods etc.
 /// Both objects have an owner reference to the SparkApplication, as well as the same name as the app.
-/// They are deleted when the job is deleted.
+/// Once the driver finished, the pod driver controller hands them over to the spark-submit Job,
+/// and they are deleted together with it.
 pub(crate) fn build_spark_role_serviceaccount(
     validated: &validate::ValidatedSparkApplication,
 ) -> (ServiceAccount, RoleBinding) {

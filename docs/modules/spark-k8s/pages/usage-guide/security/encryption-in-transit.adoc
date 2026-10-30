@@ -101,8 +101,9 @@ The two requirements above fail with distinct symptoms:
 
 [IMPORTANT]
 ====
-Collect these logs while the application is running.
-When an application reaches a terminal phase the operator deletes the driver pod -- regardless of `spark.kubernetes.driver.deleteOnTermination` -- and the executor pods are garbage-collected along with it, because they are owned by the driver pod.
+Collect the executor logs while the application is running.
+Spark deletes the executor Pods when the application ends, unless `spark.kubernetes.executor.deleteOnTermination` is `false`.
+The driver Pod is kept for `spec.job.config.ttlAfterFinished` after it finished, see xref:usage-guide/operations/applications.adoc#_clean_up_of_finished_applications[Clean-up of finished applications].
 ====
 
 == Web UI over TLS

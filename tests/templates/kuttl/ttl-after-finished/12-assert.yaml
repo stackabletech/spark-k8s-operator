@@ -1,0 +1,32 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+commands:
+  - script: |
+      set -eu
+
+      app=ttl-after-finished
+      owned_by_job='
+        def owned_by_job($job):
+          .metadata.ownerReferences as $owners
+          | ($owners | length) == 1
+            and $owners[0].apiVersion == "batch/v1"
+            and $owners[0].kind == "Job"
+            and $owners[0].name == $job
+            and (($owners[0].controller // false) | not)
+            and (($owners[0].blockOwnerDeletion // false) | not);
+      '
+
+      for object in \
+        "serviceaccount/$app" \
+        "rolebinding/$app" \
+        "configmap/$app-submit-job" \
+        "configmap/$app-driver-pod-template" \
+        "configmap/$app-executor-pod-template"; do
+        kubectl -n "$NAMESPACE" get "$object" -o json \
+          | jq -e --arg job "$app" "$owned_by_job owned_by_job(\$job)" > /dev/null
+      done
+
+      kubectl -n "$NAMESPACE" get pods -l "spark-role=driver,app.kubernetes.io/instance=$app" -o json \
+        | jq -e --arg job "$app" "$owned_by_job .items | length == 1 and all(.[]; owned_by_job(\$job))" > /dev/null

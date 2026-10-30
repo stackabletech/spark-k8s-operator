@@ -13,9 +13,10 @@
 //! each role is named "default". These roles are transparent to the user.
 //!
 //! The history server has its own role completely unrelated to this module.
-use std::{ops::Deref, slice, str::FromStr};
+use std::{borrow::Cow, fmt::Display, ops::Deref, slice, str::FromStr};
 
 use serde::{Deserialize, Serialize};
+use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     commons::{
         affinity::StackableAffinity,
@@ -33,7 +34,7 @@ use stackable_operator::{
     k8s_openapi::{api::core::v1::VolumeMount, apimachinery::pkg::api::resource::Quantity},
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
-    shared::time::Duration,
+    shared::time::{Duration, DurationParseError},
     utils::crds::raw_object_list_schema,
     v2::types::{kubernetes::ContainerName, operator::RoleName},
 };
@@ -220,6 +221,91 @@ impl RoleConfig {
     }
 }
 
+#[derive(Debug, Snafu)]
+#[snafu(display(
+    "invalid ttlAfterFinished {input:?}, expected \"never\" or a duration such as \"10m\""
+))]
+pub struct ParseTtlAfterFinishedError {
+    input: String,
+    source: DurationParseError,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(try_from = "String", into = "String")]
+pub enum TtlAfterFinished {
+    Never,
+    After(Duration),
+}
+
+impl TtlAfterFinished {
+    const NEVER: &'static str = "never";
+
+    pub fn job_ttl_seconds(&self) -> Option<i32> {
+        match self {
+            Self::Never => None,
+            Self::After(duration) => Some(i32::try_from(duration.as_secs()).unwrap_or(i32::MAX)),
+        }
+    }
+
+    pub fn is_immediate(&self) -> bool {
+        self.job_ttl_seconds() == Some(0)
+    }
+}
+
+impl FromStr for TtlAfterFinished {
+    type Err = ParseTtlAfterFinishedError;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        if input == Self::NEVER {
+            return Ok(Self::Never);
+        }
+        Duration::from_str(input)
+            .map(Self::After)
+            .context(ParseTtlAfterFinishedSnafu { input })
+    }
+}
+
+impl Display for TtlAfterFinished {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Never => f.write_str(Self::NEVER),
+            Self::After(duration) => duration.fmt(f),
+        }
+    }
+}
+
+impl TryFrom<String> for TtlAfterFinished {
+    type Error = ParseTtlAfterFinishedError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl From<TtlAfterFinished> for String {
+    fn from(value: TtlAfterFinished) -> Self {
+        value.to_string()
+    }
+}
+
+impl JsonSchema for TtlAfterFinished {
+    fn schema_name() -> Cow<'static, str> {
+        "TtlAfterFinished".into()
+    }
+
+    fn json_schema(generator: &mut schemars::generate::SchemaGenerator) -> schemars::Schema {
+        String::json_schema(generator)
+    }
+}
+
+impl Default for TtlAfterFinished {
+    fn default() -> Self {
+        Self::After(Duration::from_minutes_unchecked(10))
+    }
+}
+
+impl Atomic for TtlAfterFinished {}
+
 #[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
@@ -252,6 +338,13 @@ pub struct SubmitConfig {
     /// Number of times to retry the submit job on failure. Default is `0` (no retries).
     #[fragment_attrs(serde(default))]
     pub retry_on_failure_count: u16,
+
+    /// How long the spark-submit Job, the driver Pod and the objects the operator created for
+    /// the application are kept after the Job finished. A duration such as `10m` (default),
+    /// `0s` to delete them right away, or `never` to keep them until the SparkApplication is
+    /// deleted.
+    #[fragment_attrs(serde(default))]
+    pub ttl_after_finished: TtlAfterFinished,
 }
 
 impl SubmitConfig {
@@ -275,6 +368,7 @@ impl SubmitConfig {
             volume_mounts: Some(VolumeMounts::default()),
             requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
             retry_on_failure_count: Some(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT),
+            ttl_after_finished: Some(TtlAfterFinished::default()),
         }
     }
 }
@@ -307,6 +401,7 @@ impl From<VolumeMounts> for Vec<VolumeMount> {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use strum::IntoEnumIterator;
 
     use super::*;
@@ -332,5 +427,31 @@ mod tests {
         for container in SparkContainer::iter() {
             assert_eq!(container.name().to_string(), container.to_string());
         }
+    }
+    #[rstest]
+    #[case::never("never", TtlAfterFinished::Never)]
+    #[case::zero("0s", TtlAfterFinished::After(Duration::from_secs(0)))]
+    #[case::ten_minutes("10m", TtlAfterFinished::After(Duration::from_minutes_unchecked(10)))]
+    fn ttl_after_finished_round_trips(#[case] input: &str, #[case] expected: TtlAfterFinished) {
+        let parsed: TtlAfterFinished = input.parse().expect("the input is valid");
+        assert_eq!(parsed, expected);
+        assert_eq!(parsed.to_string(), input);
+    }
+
+    #[rstest]
+    #[case::empty("")]
+    #[case::typo("nevr")]
+    fn ttl_after_finished_rejects_invalid_input(#[case] input: &str) {
+        assert!(input.parse::<TtlAfterFinished>().is_err());
+    }
+
+    #[rstest]
+    #[case::never(TtlAfterFinished::Never, None)]
+    #[case::zero(TtlAfterFinished::After(Duration::from_secs(0)), Some(0))]
+    fn ttl_after_finished_job_seconds(
+        #[case] ttl: TtlAfterFinished,
+        #[case] expected: Option<i32>,
+    ) {
+        assert_eq!(ttl.job_ttl_seconds(), expected);
     }
 }

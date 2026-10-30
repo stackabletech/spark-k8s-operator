@@ -9,6 +9,44 @@ As the operator creates the necessary resources, the status of the application t
 NOTE: The operator never reconciles an application once it has been created.
 To resubmit an application, a new SparkApplication resource must be created.
 
+== Clean-up of finished applications
+
+While an application runs, the SparkApplication owns everything the operator created for it: the spark-submit Job, the driver Pod, the ServiceAccount, the RoleBinding and the ConfigMaps.
+Once the driver Pod finished, the operator hands the driver Pod and these objects over to the Job.
+Kubernetes deletes the Job after it finished and its time to live expired, and everything that was handed over to it is deleted together with it.
+The executors are owned by the driver Pod and are deleted with it, if Spark has not already deleted them.
+
+The time to live is set with `spec.job.config.ttlAfterFinished`:
+
+* a duration such as `30m`: the objects are kept for this long after the Job finished. The default is `10m`.
+* `0s`: the driver Pod is deleted as soon as it finished, the other objects when the Job finished.
+* `never`: the objects are kept until the SparkApplication is deleted.
+
+[source,yaml]
+----
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: example
+spec:
+  job:
+    config:
+      ttlAfterFinished: 1h
+  ...
+----
+
+Deleting the SparkApplication deletes all of these objects at any time.
+The phase of the application is kept in the status of the SparkApplication after the objects were deleted.
+
+NOTE: The time to live is fixed when the operator creates the Job.
+Changing `ttlAfterFinished` of an application that was already submitted has no effect.
+
+NOTE: With `spark.kubernetes.submission.waitAppCompletion: "false"`, the Job finishes right after the submission and its time to live starts then.
+If the Job is already deleted when the driver finishes, the operator deletes the driver Pod and the other objects right away.
+
+NOTE: If `spark.kubernetes.driver.pod.name` is set and `retryOnFailureCount` is greater than 0, the operator always uses `0s`, so that a retry can create a driver Pod with the same name.
+It logs a warning in this case.
+
 == Monitoring
 
 [NOTE]

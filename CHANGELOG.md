@@ -15,6 +15,11 @@ All notable changes to this project will be documented in this file.
   that their Pods are automatically rolled when a mounted ConfigMap or Secret changes ([#754]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#779]).
 - Add support for Spark 4.x and HBase connectors ([#797]).
+- New `spec.job.config.ttlAfterFinished` field controlling how long the spark-submit Job, the
+  driver Pod and the ServiceAccount, RoleBinding and ConfigMaps the operator created for a
+  SparkApplication are kept after the spark-submit Job finished: a duration such as `10m`
+  (default), `0s` to delete them right away, or `never` to keep them until the SparkApplication
+  is deleted ([#798]).
 
 ### Changed
 
@@ -51,6 +56,12 @@ All notable changes to this project will be documented in this file.
 - Deprecate support for Spark `4.1.2` ([#790]).
 - ClusterRoles for Spark driver and Spark Connect now allow managing `networkpolicies`, which Spark 4.2 creates for executors by default ([#790]).
 - The operator Deployment runs with a restricted security context and a read-only root filesystem, so it can be deployed into namespaces that enforce the `restricted` Pod Security Standard ([#795]).
+- BREAKING (behaviour): Finished driver Pods are no longer deleted immediately but kept for
+  `spec.job.config.ttlAfterFinished` (default `10m`), together with the spark-submit Job and the
+  ServiceAccount, RoleBinding and ConfigMaps the operator created, which previously lived until
+  the SparkApplication was deleted. Set `ttlAfterFinished` to `0s` to delete the driver Pod right
+  away as before. Applications with a fixed `spark.kubernetes.driver.pod.name` and a
+  `retryOnFailureCount` greater than 0 always use `0s`, so that retries can reuse the name ([#798]).
 
 ### Removed
 
@@ -116,6 +127,7 @@ All notable changes to this project will be documented in this file.
 [#795]: https://github.com/stackabletech/spark-k8s-operator/pull/795
 [#796]: https://github.com/stackabletech/spark-k8s-operator/pull/796
 [#797]: https://github.com/stackabletech/spark-k8s-operator/pull/797
+[#798]: https://github.com/stackabletech/spark-k8s-operator/pull/798
 
 ## [26.7.0] - 2026-07-21
 

@@ -14,9 +14,10 @@ rules:
     verbs:
       - get
   # The pod-driver controller watches Spark driver pods
-  # (labelled spark-role=driver) to track SparkApplication completion. It also
-  # deletes driver pods once the application reaches a terminal phase (Succeeded
-  # or Failed).
+  # (labelled spark-role=driver) to track SparkApplication completion. Once a driver
+  # pod reaches a terminal phase (Succeeded or Failed), the controller hands it over
+  # to the spark-submit Job by replacing its owner references (patch), or deletes it
+  # (delete) when the Job TTL is 0 or the Job or SparkApplication is gone.
   - apiGroups:
       - ""
     resources:
@@ -25,6 +26,7 @@ rules:
       - delete
       - get
       - list
+      - patch
       - watch
   - apiGroups:
       - ""
@@ -32,13 +34,17 @@ rules:
       # ConfigMaps hold pod templates and Spark configuration. All three controllers apply
       # them via Server-Side Apply (create + patch). The history and connect controllers
       # track them for orphan cleanup (list + delete). All controllers watch ConfigMaps via
-      # .owns(ConfigMap) so that changes trigger re-reconciliation.
+      # .owns(ConfigMap) so that changes trigger re-reconciliation. The pod-driver controller
+      # hands the ConfigMaps of a SparkApplication over to its spark-submit Job (patch) or
+      # deletes them (delete) once the driver finished.
       # get is required for the ReconciliationPaused strategy in cluster_resources.add().
       - configmaps
       # ServiceAccounts are created per SparkApplication (directly via client.apply_patch,
       # referencing spark-k8s-clusterrole) and per SparkHistoryServer/SparkConnectServer
       # (via cluster_resources.add). The history and connect controllers track them for
-      # orphan cleanup (list + delete) and watch them via .owns(ServiceAccount).
+      # orphan cleanup (list + delete) and watch them via .owns(ServiceAccount). The pod-driver
+      # controller hands the ServiceAccount of a SparkApplication over to its spark-submit Job
+      # (patch) or deletes it (delete) once the driver finished.
       # get is required for the ReconciliationPaused strategy in cluster_resources.add().
       - serviceaccounts
       # Services expose Spark History Server and Spark Connect Server for metrics and
@@ -58,7 +64,9 @@ rules:
   # binding to spark-k8s-clusterrole) and per SparkHistoryServer/SparkConnectServer
   # (via cluster_resources.add, binding to their respective ClusterRoles). The history
   # and connect controllers track them for orphan cleanup (list + delete) and watch
-  # them via .owns(RoleBinding).
+  # them via .owns(RoleBinding). The pod-driver controller hands the RoleBinding of a
+  # SparkApplication over to its spark-submit Job (patch) or deletes it (delete) once the
+  # driver finished.
   # get is required for the ReconciliationPaused strategy in cluster_resources.add().
   - apiGroups:
       - rbac.authorization.k8s.io
@@ -100,13 +108,15 @@ rules:
   # A Kubernetes Job is created per SparkApplication via Server-Side Apply to run
   # spark-submit. The app controller applies Jobs directly (not via cluster_resources),
   # so only create + patch (SSA) are needed. Jobs are not watched and not tracked for
-  # orphan cleanup by any controller.
+  # orphan cleanup by any controller. Get is required for handing the driver pod
+  # ownership to the Job.
   - apiGroups:
       - batch
     resources:
       - jobs
     verbs:
       - create
+      - get
       - patch
   # PodDisruptionBudgets limit voluntary disruptions to Spark History Server pods.
   # Applied via Server-Side Apply, tracked for orphan cleanup by the history

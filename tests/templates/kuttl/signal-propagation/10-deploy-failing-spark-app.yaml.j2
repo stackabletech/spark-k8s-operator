@@ -35,6 +35,9 @@ spec:
     pullPolicy: IfNotPresent
   mode: cluster
   mainApplicationFile: "local:///stackable/spark/jobs/failing-job.py"
+  job:
+    config:
+      ttlAfterFinished: 0s
   driver:
     config:
       logging:

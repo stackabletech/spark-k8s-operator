@@ -1,0 +1,19 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 240
+commands:
+  - script: |
+      set -eu
+
+      gone() {
+        [ -z "$(kubectl -n "$NAMESPACE" get "$@" --ignore-not-found -o name)" ]
+      }
+
+      app=ttl-after-finished
+      gone job "$app"
+      gone serviceaccount "$app"
+      gone rolebinding "$app"
+      gone configmap "$app-submit-job" "$app-driver-pod-template" "$app-executor-pod-template"
+      gone pods -l "app.kubernetes.io/instance=$app"
+      [ "$(kubectl -n "$NAMESPACE" get sparkapplication "$app" -o jsonpath='{.status.phase}')" = Succeeded ]

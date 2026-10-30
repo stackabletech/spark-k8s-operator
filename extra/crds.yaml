@@ -1671,6 +1671,14 @@ spec:
                         minimum: 0.0
                         nullable: true
                         type: integer
+                      ttlAfterFinished:
+                        description: |-
+                          How long the spark-submit Job, the driver Pod and the objects the operator created for
+                          the application are kept after the Job finished. A duration such as `10m` (default),
+                          `0s` to delete them right away, or `never` to keep them until the SparkApplication is
+                          deleted.
+                        nullable: true
+                        type: string
                       volumeMounts:
                         description: Volume mounts for the spark-submit, driver and executor pods.
                         items:
@@ -6503,6 +6511,14 @@ spec:
                         minimum: 0.0
                         nullable: true
                         type: integer
+                      ttlAfterFinished:
+                        description: |-
+                          How long the spark-submit Job, the driver Pod and the objects the operator created for
+                          the application are kept after the Job finished. A duration such as `10m` (default),
+                          `0s` to delete them right away, or `never` to keep them until the SparkApplication is
+                          deleted.
+                        nullable: true
+                        type: string
                       volumeMounts:
                         description: Volume mounts for the spark-submit, driver and executor pods.
                         items:

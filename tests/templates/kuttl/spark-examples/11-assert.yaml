@@ -3,5 +3,6 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 900
 commands:
-  # Test that there is no spark driver pod left hanging
-  - script: test -z "$(kubectl -n $NAMESPACE get pods -o name | grep -E 'driver$')"
+  - script: |
+      kubectl -n "$NAMESPACE" get pods -l spark-role=driver,app.kubernetes.io/instance=spark-examples -o json \
+        | jq -e '.items | length == 1 and all(.[]; [.metadata.ownerReferences[] | {kind, name}] == [{"kind": "Job", "name": "spark-examples"}])'

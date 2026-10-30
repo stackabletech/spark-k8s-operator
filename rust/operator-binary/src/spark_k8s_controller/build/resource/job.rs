@@ -34,6 +34,8 @@ constant!(SPARK_SUBMIT_OPTS: EnvVarName = "SPARK_SUBMIT_OPTS");
 // The Spark configuration directory of the spark-submit job.
 constant!(SPARK_CONF_DIR: EnvVarName = "SPARK_CONF_DIR");
 
+const SPARK_DRIVER_POD_NAME: &str = "spark.kubernetes.driver.pod.name";
+
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("failed to add needed volumeMount"))]
@@ -175,6 +177,7 @@ pub(crate) fn spark_job(
         pod.merge_from(submit_pod_overrides);
     }
 
+    let backoff_limit = spark_application.retry_on_failure_count();
     let job = Job {
         metadata: object_meta(
             validated,
@@ -184,8 +187,12 @@ pub(crate) fn spark_job(
         .build(),
         spec: Some(JobSpec {
             template: pod,
-            ttl_seconds_after_finished: Some(600),
-            backoff_limit: Some(spark_application.retry_on_failure_count()),
+            ttl_seconds_after_finished: ttl_seconds_after_finished(
+                validated,
+                job_config,
+                backoff_limit,
+            ),
+            backoff_limit: Some(backoff_limit),
             ..Default::default()
         }),
         status: None,
@@ -194,9 +201,35 @@ pub(crate) fn spark_job(
     Ok(job)
 }
 
+/// The configured TTL, or 0 for a fixed driver pod name with retries: the pod driver controller
+/// deletes the driver right away when the Job TTL is 0, which frees the name for the next attempt.
+fn ttl_seconds_after_finished(
+    validated: &validate::ValidatedSparkApplication,
+    job_config: &SubmitConfig,
+    backoff_limit: i32,
+) -> Option<i32> {
+    let configured = &job_config.ttl_after_finished;
+    match validated
+        .spark_application
+        .spec
+        .spark_conf
+        .get(SPARK_DRIVER_POD_NAME)
+    {
+        Some(driver_pod_name) if backoff_limit > 0 && !configured.is_immediate() => {
+            tracing::warn!(
+                spark_application = %validated.name,
+                "Using ttlAfterFinished 0s instead of {configured}, because retryOnFailureCount is {backoff_limit} and retries must be able to reuse the fixed driver pod name {driver_pod_name:?}"
+            );
+            Some(0)
+        }
+        _ => configured.job_ttl_seconds(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use indoc::indoc;
+    use indoc::{formatdoc, indoc};
+    use rstest::rstest;
     use stackable_operator::{
         cli::OperatorEnvironmentOptions,
         k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
@@ -215,26 +248,7 @@ mod tests {
         let _ = *SPARK_SUBMIT_OPTS;
     }
 
-    /// `envOverrides` must be applied after all operator-set environment variables, so a user
-    /// override replaces the operator-set value instead of duplicating it or being ignored.
-    #[test]
-    fn env_overrides_override_operator_set_env_vars() {
-        let yaml = indoc! {r#"
-            apiVersion: spark.stackable.tech/v1alpha1
-            kind: SparkApplication
-            metadata:
-              name: spark-example
-              namespace: default
-              uid: 12345678-1234-1234-1234-123456789012
-            spec:
-              mode: cluster
-              mainApplicationFile: test.py
-              sparkImage:
-                productVersion: 1.2.3
-              job:
-                envOverrides:
-                  SPARK_CONF_DIR: /custom/conf
-        "#};
+    fn spark_job_from_yaml(yaml: &str) -> Job {
         let spark_application: v1alpha1::SparkApplication =
             stackable_operator::utils::yaml_from_str_singleton_map(yaml)
                 .expect("invalid test SparkApplication YAML");
@@ -271,14 +285,37 @@ mod tests {
             ..ServiceAccount::default()
         };
 
-        let job = spark_job(
+        spark_job(
             &validated,
             &service_account,
             &env,
             &["echo test".to_string()],
             &submit_config,
         )
-        .expect("the spark-submit Job can be built");
+        .expect("the spark-submit Job can be built")
+    }
+
+    /// `envOverrides` must be applied after all operator-set environment variables, so a user
+    /// override replaces the operator-set value instead of duplicating it or being ignored.
+    #[test]
+    fn env_overrides_override_operator_set_env_vars() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              job:
+                envOverrides:
+                  SPARK_CONF_DIR: /custom/conf
+        "#};
+        let job = spark_job_from_yaml(yaml);
 
         let env: Vec<EnvVar> = job
             .spec
@@ -302,5 +339,66 @@ mod tests {
         // The override must replace the operator-set value, not duplicate it.
         assert_eq!(matching.len(), 1);
         assert_eq!(matching[0].value.as_deref(), Some("/custom/conf"));
+    }
+
+    #[rstest]
+    #[case::default("{}", "{}", Some(600))]
+    #[case::immediately("{}", "{ttlAfterFinished: 0s}", Some(0))]
+    #[case::custom("{}", "{ttlAfterFinished: 2s}", Some(2))]
+    #[case::never("{}", "{ttlAfterFinished: never}", None)]
+    #[case::generated_name_with_retries("{}", "{retryOnFailureCount: 3}", Some(600))]
+    #[case::fixed_name_without_retries(
+        "{spark.kubernetes.driver.pod.name: fixed}",
+        "{ttlAfterFinished: never}",
+        None
+    )]
+    #[case::fixed_name_with_retries(
+        "{spark.kubernetes.driver.pod.name: fixed}",
+        "{retryOnFailureCount: 3}",
+        Some(0)
+    )]
+    #[case::fixed_name_with_retries_custom(
+        "{spark.kubernetes.driver.pod.name: fixed}",
+        "{retryOnFailureCount: 3, ttlAfterFinished: 2s}",
+        Some(0)
+    )]
+    #[case::fixed_name_with_retries_never(
+        "{spark.kubernetes.driver.pod.name: fixed}",
+        "{retryOnFailureCount: 3, ttlAfterFinished: never}",
+        Some(0)
+    )]
+    #[case::fixed_name_with_retries_immediately(
+        "{spark.kubernetes.driver.pod.name: fixed}",
+        "{retryOnFailureCount: 3, ttlAfterFinished: 0s}",
+        Some(0)
+    )]
+    fn ttl_after_finished_is_picked_up(
+        #[case] spark_conf: &str,
+        #[case] job_config: &str,
+        #[case] expected: Option<i32>,
+    ) {
+        let yaml = formatdoc! {"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              sparkConf: {spark_conf}
+              job:
+                config: {job_config}
+        "};
+        let job = spark_job_from_yaml(&yaml);
+        assert_eq!(
+            job.spec
+                .expect("the job has a spec")
+                .ttl_seconds_after_finished,
+            expected
+        );
     }
 }

@@ -43,6 +43,8 @@ Of course, your applications need to write their logs to the same location.
 === Kubernetes resources
 
 For every SparkApplication deployed to the cluster the operator creates a Job, a ServiceAccount and a few ConfigMaps.
+Once the application finished, they are kept for a configurable time, see
+xref:usage-guide/operations/applications.adoc#_clean_up_of_finished_applications[Clean-up of finished applications].
 
 image::spark_overview.drawio.svg[A diagram depicting the Kubernetes resources created by the operator]
 

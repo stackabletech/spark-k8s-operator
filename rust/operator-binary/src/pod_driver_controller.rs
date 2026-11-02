@@ -29,7 +29,11 @@ use stackable_operator::{
 };
 use strum::{EnumDiscriminants, IntoStaticStr};
 
-use crate::crd::{constants::POD_DRIVER_CONTROLLER_NAME, roles::SparkApplicationRole, v1alpha1};
+use crate::crd::{
+    constants::{FIXED_DRIVER_POD_NAME_ANNOTATION, POD_DRIVER_CONTROLLER_NAME},
+    roles::SparkApplicationRole,
+    v1alpha1,
+};
 
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
 
@@ -103,7 +107,9 @@ impl ReconcilerError for Error {
     }
 }
 
-/// Mirrors the phase of the driver into the SparkApplication status.
+/// Mirrors the phase of the driver into the SparkApplication status. This includes a driver that
+/// is being deleted, e.g. evicted, whose terminal phase is the only record of how the application
+/// ended.
 ///
 /// Once a driver finished, it and the objects the operator created for its SparkApplication are
 /// handed over to the spark-submit Job, which keeps them until its TTL expires. Without a usable
@@ -119,10 +125,6 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
         .as_ref()
         .map_err(error_boundary::InvalidObject::clone)
         .context(InvalidPodSnafu)?;
-
-    if pod.metadata.deletion_timestamp.is_some() {
-        return Ok(Action::await_change());
-    }
 
     // if ownership has already transferred to job, nothing to do anymore
     if owner_uid::<Job>(&pod.metadata).is_some() {
@@ -183,7 +185,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
         .get_opt::<Job>(app_name, namespace)
         .await
         .context(GetJobSnafu { name: app_name })?;
-    let retention = decide_retention(job.as_ref(), app_uid)?;
+    let retention = decide_retention(job.as_ref(), app_uid, pod)?;
     tracing::info!(
         "Driver pod {pod_name:?} of SparkApplication {app_name:?} finished with phase {phase:?}, application objects: {objects}, driver: {driver}",
         objects = retention.objects,
@@ -264,10 +266,14 @@ struct Retention {
 
 /// Decides what happens to the application objects and the driver once the driver finished.
 ///
-/// A Job TTL of 0 deletes the driver right away instead of handing it over. Besides a configured
-/// `0s`, this is the TTL `ttl_seconds_after_finished` in `job.rs` forces for a fixed
-/// `spark.kubernetes.driver.pod.name` with retries, so that the next attempt can reuse the name.
-fn decide_retention(job: Option<&Job>, app_uid: &str) -> Result<Retention> {
+/// The driver is deleted right away instead of handed over if it is already being deleted, or if
+/// its name is fixed by `spark.kubernetes.driver.pod.name` (see
+/// [`FIXED_DRIVER_POD_NAME_ANNOTATION`]): a kept driver would block the name for the next
+/// submission.
+///
+/// A Job TTL of 0 needs no special case: the Job is usually gone by the time the driver is seen,
+/// and otherwise it takes the handed-over driver with it moments later.
+fn decide_retention(job: Option<&Job>, app_uid: &str, driver: &Pod) -> Result<Retention> {
     let Some(job) = job.filter(|job| {
         job.metadata.deletion_timestamp.is_none()
             && owner_uid::<v1alpha1::SparkApplication>(&job.metadata) == Some(app_uid)
@@ -284,13 +290,15 @@ fn decide_retention(job: Option<&Job>, app_uid: &str) -> Result<Retention> {
             .build()
             .context(BuildJobOwnerReferenceSnafu)?,
     );
-    let ttl_is_zero = job
-        .spec
+    let driver_name_is_fixed = job
+        .metadata
+        .annotations
         .as_ref()
-        .and_then(|spec| spec.ttl_seconds_after_finished)
-        == Some(0);
+        .and_then(|annotations| annotations.get(FIXED_DRIVER_POD_NAME_ANNOTATION))
+        .is_some_and(|fixed_name| driver.metadata.name.as_ref() == Some(fixed_name));
+    let driver_is_being_deleted = driver.metadata.deletion_timestamp.is_some();
     Ok(Retention {
-        driver: if ttl_is_zero {
+        driver: if driver_name_is_fixed || driver_is_being_deleted {
             ObjectAction::Delete
         } else {
             hand_over.clone()
@@ -373,6 +381,8 @@ fn ignore_not_found<T>(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use rstest::rstest;
     use stackable_operator::{
         k8s_openapi::{
@@ -384,6 +394,7 @@ mod tests {
     use super::*;
 
     const APP_UID: &str = "12345678-1234-1234-1234-123456789012";
+    const DRIVER_NAME: &str = "app-0123456789abcdef-driver";
 
     fn job(
         owner: Option<&str>,
@@ -415,6 +426,25 @@ mod tests {
         }
     }
 
+    fn with_fixed_driver_pod_name(mut job: Job, name: &str) -> Job {
+        job.metadata.annotations = Some(BTreeMap::from([(
+            FIXED_DRIVER_POD_NAME_ANNOTATION.to_string(),
+            name.to_string(),
+        )]));
+        job
+    }
+
+    fn driver(name: &str, being_deleted: bool) -> Pod {
+        Pod {
+            metadata: ObjectMeta {
+                name: Some(name.to_string()),
+                deletion_timestamp: being_deleted.then_some(Time(Timestamp::UNIX_EPOCH)),
+                ..ObjectMeta::default()
+            },
+            ..Pod::default()
+        }
+    }
+
     fn label(action: &ObjectAction) -> &'static str {
         match action {
             ObjectAction::HandOver(_) => "hand over",
@@ -425,7 +455,7 @@ mod tests {
     #[rstest]
     #[case::missing(None, ("delete", "delete"))]
     #[case::default_ttl(Some(job(Some(APP_UID), Some(600), false)), ("hand over", "hand over"))]
-    #[case::immediate(Some(job(Some(APP_UID), Some(0), false)), ("hand over", "delete"))]
+    #[case::immediate(Some(job(Some(APP_UID), Some(0), false)), ("hand over", "hand over"))]
     #[case::never(Some(job(Some(APP_UID), None, false)), ("hand over", "hand over"))]
     #[case::being_deleted(Some(job(Some(APP_UID), Some(600), true)), ("delete", "delete"))]
     #[case::other_instance(
@@ -434,8 +464,8 @@ mod tests {
     )]
     #[case::no_owner(Some(job(None, Some(600), false)), ("delete", "delete"))]
     fn retention(#[case] job: Option<Job>, #[case] expected: (&str, &str)) {
-        let retention =
-            decide_retention(job.as_ref(), APP_UID).expect("the Job has a name and a UID");
+        let retention = decide_retention(job.as_ref(), APP_UID, &driver(DRIVER_NAME, false))
+            .expect("the Job has a name and a UID");
 
         assert_eq!(
             (label(&retention.objects), label(&retention.driver)),
@@ -443,12 +473,46 @@ mod tests {
         );
     }
 
+    #[rstest]
+    #[case::generated_name(
+        job(Some(APP_UID), Some(600), false),
+        driver(DRIVER_NAME, false),
+        "hand over"
+    )]
+    #[case::fixed_name(
+        with_fixed_driver_pod_name(job(Some(APP_UID), Some(600), false), "fixed"),
+        driver("fixed", false),
+        "delete"
+    )]
+    #[case::fixed_name_never(
+        with_fixed_driver_pod_name(job(Some(APP_UID), None, false), "fixed"),
+        driver("fixed", false),
+        "delete"
+    )]
+    #[case::other_fixed_name(
+        with_fixed_driver_pod_name(job(Some(APP_UID), Some(600), false), "fixed"),
+        driver(DRIVER_NAME, false),
+        "hand over"
+    )]
+    #[case::driver_being_deleted(
+        job(Some(APP_UID), Some(600), false),
+        driver(DRIVER_NAME, true),
+        "delete"
+    )]
+    fn driver_retention(#[case] job: Job, #[case] driver: Pod, #[case] expected: &str) {
+        let retention =
+            decide_retention(Some(&job), APP_UID, &driver).expect("the Job has a name and a UID");
+
+        assert_eq!(label(&retention.objects), "hand over");
+        assert_eq!(label(&retention.driver), expected);
+    }
+
     #[test]
     fn hand_over_points_at_the_job() {
         let job = job(Some(APP_UID), Some(600), false);
 
-        let retention =
-            decide_retention(Some(&job), APP_UID).expect("the Job has a name and a UID");
+        let retention = decide_retention(Some(&job), APP_UID, &driver(DRIVER_NAME, false))
+            .expect("the Job has a name and a UID");
         let ObjectAction::HandOver(owner) = retention.objects else {
             panic!("expected the Job to take over");
         };

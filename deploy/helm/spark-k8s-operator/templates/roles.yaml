@@ -17,7 +17,7 @@ rules:
   # (labelled spark-role=driver) to track SparkApplication completion. Once a driver
   # pod reaches a terminal phase (Succeeded or Failed), the controller hands it over
   # to the spark-submit Job by replacing its owner references (patch), or deletes it
-  # (delete) when the Job TTL is 0 or the Job or SparkApplication is gone.
+  # (delete) when its name is fixed or the Job or SparkApplication is gone.
   - apiGroups:
       - ""
     resources:

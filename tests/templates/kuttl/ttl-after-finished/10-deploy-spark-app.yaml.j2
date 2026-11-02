@@ -18,9 +18,7 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: "local:///stackable/spark/examples/jars/spark-examples.jar"
-  job:
-    config:
-      ttlAfterFinished: 60s
+  ttlAfterFinished: 60s
   driver:
     config:
       logging:

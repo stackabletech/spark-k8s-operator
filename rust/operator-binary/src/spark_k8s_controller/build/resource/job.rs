@@ -177,53 +177,31 @@ pub(crate) fn spark_job(
         pod.merge_from(submit_pod_overrides);
     }
 
-    let backoff_limit = spark_application.retry_on_failure_count();
+    let mut metadata = object_meta(
+        validated,
+        validated.name.to_string(),
+        &SPARK_JOB_COMPONENT_NAME,
+    )
+    .build();
+    if let Some(driver_pod_name) = spark_application.spec.spark_conf.get(SPARK_DRIVER_POD_NAME) {
+        metadata.annotations.get_or_insert_default().insert(
+            FIXED_DRIVER_POD_NAME_ANNOTATION.to_owned(),
+            driver_pod_name.clone(),
+        );
+    }
+
     let job = Job {
-        metadata: object_meta(
-            validated,
-            validated.name.to_string(),
-            &SPARK_JOB_COMPONENT_NAME,
-        )
-        .build(),
+        metadata,
         spec: Some(JobSpec {
             template: pod,
-            ttl_seconds_after_finished: ttl_seconds_after_finished(
-                validated,
-                job_config,
-                backoff_limit,
-            ),
-            backoff_limit: Some(backoff_limit),
+            ttl_seconds_after_finished: spark_application.ttl_after_finished().job_ttl_seconds(),
+            backoff_limit: Some(spark_application.retry_on_failure_count()),
             ..Default::default()
         }),
         status: None,
     };
 
     Ok(job)
-}
-
-/// The configured TTL, or 0 for a fixed driver pod name with retries: the pod driver controller
-/// deletes the driver right away when the Job TTL is 0, which frees the name for the next attempt.
-fn ttl_seconds_after_finished(
-    validated: &validate::ValidatedSparkApplication,
-    job_config: &SubmitConfig,
-    backoff_limit: i32,
-) -> Option<i32> {
-    let configured = &job_config.ttl_after_finished;
-    match validated
-        .spark_application
-        .spec
-        .spark_conf
-        .get(SPARK_DRIVER_POD_NAME)
-    {
-        Some(driver_pod_name) if backoff_limit > 0 && !configured.is_immediate() => {
-            tracing::warn!(
-                spark_application = %validated.name,
-                "Using ttlAfterFinished 0s instead of {configured}, because retryOnFailureCount is {backoff_limit} and retries must be able to reuse the fixed driver pod name {driver_pod_name:?}"
-            );
-            Some(0)
-        }
-        _ => configured.job_ttl_seconds(),
-    }
 }
 
 #[cfg(test)]
@@ -342,40 +320,38 @@ mod tests {
     }
 
     #[rstest]
-    #[case::default("{}", "{}", Some(600))]
-    #[case::immediately("{}", "{ttlAfterFinished: 0s}", Some(0))]
-    #[case::custom("{}", "{ttlAfterFinished: 2s}", Some(2))]
-    #[case::never("{}", "{ttlAfterFinished: never}", None)]
-    #[case::generated_name_with_retries("{}", "{retryOnFailureCount: 3}", Some(600))]
-    #[case::fixed_name_without_retries(
+    #[case::default("{}", "{}", "null", Some(600), None)]
+    #[case::immediately("{}", "{}", "0s", Some(0), None)]
+    #[case::custom("{}", "{}", "2s", Some(2), None)]
+    #[case::never("{}", "{}", "never", None, None)]
+    #[case::generated_name_with_retries("{}", "{retryOnFailureCount: 3}", "null", Some(600), None)]
+    #[case::fixed_name(
         "{spark.kubernetes.driver.pod.name: fixed}",
-        "{ttlAfterFinished: never}",
-        None
+        "{}",
+        "null",
+        Some(600),
+        Some("fixed")
+    )]
+    #[case::fixed_name_never(
+        "{spark.kubernetes.driver.pod.name: fixed}",
+        "{}",
+        "never",
+        None,
+        Some("fixed")
     )]
     #[case::fixed_name_with_retries(
         "{spark.kubernetes.driver.pod.name: fixed}",
         "{retryOnFailureCount: 3}",
-        Some(0)
+        "2s",
+        Some(2),
+        Some("fixed")
     )]
-    #[case::fixed_name_with_retries_custom(
-        "{spark.kubernetes.driver.pod.name: fixed}",
-        "{retryOnFailureCount: 3, ttlAfterFinished: 2s}",
-        Some(0)
-    )]
-    #[case::fixed_name_with_retries_never(
-        "{spark.kubernetes.driver.pod.name: fixed}",
-        "{retryOnFailureCount: 3, ttlAfterFinished: never}",
-        Some(0)
-    )]
-    #[case::fixed_name_with_retries_immediately(
-        "{spark.kubernetes.driver.pod.name: fixed}",
-        "{retryOnFailureCount: 3, ttlAfterFinished: 0s}",
-        Some(0)
-    )]
-    fn ttl_after_finished_is_picked_up(
+    fn ttl_after_finished_and_fixed_driver_pod_name_are_picked_up(
         #[case] spark_conf: &str,
         #[case] job_config: &str,
-        #[case] expected: Option<i32>,
+        #[case] ttl_after_finished: &str,
+        #[case] expected_ttl: Option<i32>,
+        #[case] expected_fixed_driver_pod_name: Option<&str>,
     ) {
         let yaml = formatdoc! {"
             apiVersion: spark.stackable.tech/v1alpha1
@@ -390,15 +366,24 @@ mod tests {
               sparkImage:
                 productVersion: 1.2.3
               sparkConf: {spark_conf}
+              ttlAfterFinished: {ttl_after_finished}
               job:
                 config: {job_config}
         "};
         let job = spark_job_from_yaml(&yaml);
         assert_eq!(
+            job.metadata
+                .annotations
+                .as_ref()
+                .and_then(|annotations| annotations.get(FIXED_DRIVER_POD_NAME_ANNOTATION))
+                .map(String::as_str),
+            expected_fixed_driver_pod_name
+        );
+        assert_eq!(
             job.spec
                 .expect("the job has a spec")
                 .ttl_seconds_after_finished,
-            expected
+            expected_ttl
         );
     }
 }

@@ -11,10 +11,10 @@ permissions: {}
 
 env:
   CARGO_TERM_COLOR: always
-  NIX_PKG_MANAGER_VERSION: "2.33.3"
-  RUST_TOOLCHAIN_VERSION: "nightly-2026-08-23"
-  HADOLINT_VERSION: "v2.14.0"
-  JINJA2_CLI_VERSION: "1.0.0"
+  NIX_PKG_MANAGER_VERSION: "2.35.4"
+  RUST_TOOLCHAIN_VERSION: "nightly-2026-11-02"
+  HADOLINT_VERSION: "v2.15.1"
+  JINJA2_CLI_VERSION: "1.0.1"
 
 jobs:
   prek:
@@ -27,12 +27,12 @@ jobs:
         with:
           packages: protobuf-compiler krb5-user libkrb5-dev libclang-dev liblzma-dev libssl-dev pkg-config apt-transport-https
           version: ubuntu-latest
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: recursive
           fetch-depth: 0
-      - uses: stackabletech/actions/run-prek@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+      - uses: stackabletech/actions/run-prek@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           rust: ${{ env.RUST_TOOLCHAIN_VERSION }}
           hadolint: ${{ env.HADOLINT_VERSION }}

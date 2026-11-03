@@ -90,6 +90,7 @@ allow = [
     "Unicode-DFS-2016",
     "Zlib",
     "Unlicense",
+    "Apache-2.0 WITH LLVM-exception", # Needed for ar_archive_writer crate (transitive dependency)
 ]
 private = { ignore = true }
 

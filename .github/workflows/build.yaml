@@ -23,10 +23,10 @@ on:
 
 env:
   OPERATOR_NAME: "spark-k8s-operator"
-  RUST_NIGHTLY_TOOLCHAIN_VERSION: "nightly-2026-08-23"
-  NIX_PKG_MANAGER_VERSION: "2.33.3"
-  RUST_TOOLCHAIN_VERSION: "1.97.1"
-  HADOLINT_VERSION: "v2.14.0"
+  RUST_NIGHTLY_TOOLCHAIN_VERSION: "nightly-2026-11-02"
+  NIX_PKG_MANAGER_VERSION: "2.35.4"
+  RUST_TOOLCHAIN_VERSION: "1.99.0"
+  HADOLINT_VERSION: "v2.15.1"
   PYTHON_VERSION: "3.14"
   CARGO_TERM_COLOR: always
 
@@ -43,14 +43,14 @@ jobs:
       contents: read
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
 
       - name: Check for changed files
         id: check
-        uses: stackabletech/actions/detect-changes@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/detect-changes@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           patterns: |
             - '.github/workflows/build.yaml'
@@ -107,7 +107,7 @@ jobs:
           version: ubuntu-latest
 
       - name: Checkout Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: recursive
@@ -157,7 +157,7 @@ jobs:
           version: ${{ matrix.runner.name }}
 
       - name: Checkout Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: recursive
@@ -198,7 +198,7 @@ jobs:
           echo "OPERATOR_VERSION=$NEW_VERSION" | tee -a "$GITHUB_OUTPUT"
 
       - name: Install Nix
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
+        uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
 
       - name: Install Rust ${{ env.RUST_TOOLCHAIN_VERSION }} Toolchain
         shell: bash
@@ -206,7 +206,7 @@ jobs:
 
       - name: Build Container Image
         id: build
-        uses: stackabletech/actions/build-container-image@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/build-container-image@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           image-name: ${{ env.OPERATOR_NAME }}
           image-index-manifest-tag: ${{ steps.version.outputs.OPERATOR_VERSION }}
@@ -215,7 +215,7 @@ jobs:
 
       - name: Publish Container Image to oci.stackable.tech
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: stackabletech/actions/publish-image@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/publish-image@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -226,7 +226,7 @@ jobs:
 
       - name: Publish Container Image to quay.io
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: stackabletech/actions/publish-image@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/publish-image@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           image-registry-uri: quay.io
           image-registry-username: stackable+robot_sdp_github_action_build
@@ -251,12 +251,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Publish and Sign Image Index to oci.stackable.tech
-        uses: stackabletech/actions/publish-image-index-manifest@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/publish-image-index-manifest@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           image-registry-uri: oci.stackable.tech
           image-registry-username: robot$sdp+github-action-build
@@ -265,7 +265,7 @@ jobs:
           canonical-image-index-manifest-tag: ${{ needs.build-container-image.outputs.operator-version }}
 
       - name: Publish and Sign Image Index to quay.io
-        uses: stackabletech/actions/publish-image-index-manifest@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/publish-image-index-manifest@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           image-registry-uri: quay.io
           image-registry-username: stackable+robot_sdp_github_action_build
@@ -289,13 +289,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: recursive
 
       - name: Package, Publish, and Sign Helm Chart to oci.stackable.tech
-        uses: stackabletech/actions/publish-helm-chart@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/publish-helm-chart@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           chart-registry-uri: oci.stackable.tech
           chart-registry-username: robot$sdp-charts+github-action-build
@@ -307,7 +307,7 @@ jobs:
           publish-and-sign: ${{ !github.event.pull_request.head.repo.fork }}
 
       - name: Package, Publish, and Sign Helm Chart to quay.io
-        uses: stackabletech/actions/publish-helm-chart@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/publish-helm-chart@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           chart-registry-uri: quay.io
           chart-registry-username: stackable+robot_sdp_charts_github_action_build
@@ -339,13 +339,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run OpenShift Preflight Check for oci.stackable.tech
-        uses: stackabletech/actions/run-openshift-preflight@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/run-openshift-preflight@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           image-index-uri: oci.stackable.tech/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
 
       - name: Run OpenShift Preflight Check for quay.io
-        uses: stackabletech/actions/run-openshift-preflight@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/run-openshift-preflight@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           image-index-uri: quay.io/stackable/sdp/${{ env.OPERATOR_NAME }}:${{ needs.build-container-image.outputs.operator-version }}
           image-architecture: ${{ matrix.arch }}
@@ -432,7 +432,7 @@ jobs:
           echo "COMBINED_CHECKS_RESULT=$COMBINED_CHECKS_RESULT" | tee -a "$GITHUB_OUTPUT"
 
       - name: Send Notification
-        uses: stackabletech/actions/send-slack-notification@34a64229959b15db6c5f307db8809805ba7edc55 # v0.18.3
+        uses: stackabletech/actions/send-slack-notification@d5c85b3cef351617f19de803812b42b839e20168 # v0.18.4
         with:
           combined-checks-result: ${{ steps.combine.outputs.COMBINED_CHECKS_RESULT }}
           publish-helm-chart-result: ${{ needs.publish-helm-chart.result }}

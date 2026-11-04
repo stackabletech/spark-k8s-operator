@@ -24,7 +24,7 @@ annotations:
   # Artifact Hub currently infers this from "operator" in the chart name but I don't want to rely on the heuristics.
   artifacthub.io/operator: "true"
   # Unset means Artifact Hub predicts a category from the keywords, which it gets wrong a lot for our stuff
-  artifacthub.io/category: integration-delivery
+  artifacthub.io/category: data-processing
   artifacthub.io/alternativeName: spark
   # A link named "support" is rendered highlighted by Artifact Hub. Keep it lowercase.
   artifacthub.io/links: |

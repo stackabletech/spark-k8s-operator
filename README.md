@@ -10,12 +10,14 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-green.svg)](https://docs.stackable.tech/home/stable/contributor/index.html)
 [![License OSL3.0](https://img.shields.io/badge/license-OSL3.0-green)](./LICENSE)
 
-[Documentation](https://docs.stackable.tech/home/stable/spark-k8s) | [Stackable Data Platform](https://stackable.tech/) | [Platform Docs](https://docs.stackable.tech/) | [Discussions](https://github.com/orgs/stackabletech/discussions) | [Discord](https://discord.gg/7kZ3BNnCAF)
+[Documentation](https://docs.stackable.tech/home/stable/spark-k8s) | [Stackable Data Platform](https://stackable.tech/) | [Platform Docs](https://docs.stackable.tech/) | [Stackable Hub](https://hub.stackable.tech/components/spark) | [Discussions](https://github.com/orgs/stackabletech/discussions) | [Discord](https://discord.gg/7kZ3BNnCAF)
 
 This is a Kubernetes operator to manage [Apache Spark](https://spark.apache.org/) jobs.
 
 <!-- markdownlint-disable MD041 MD051 -->
-It is part of the Stackable Data Platform, a curated selection of the best open source data apps like Apache Kafka®, OpenSearch, Trino or Apache Spark™, [all](#other-operators) working together seamlessly. Based on Kubernetes, it runs everywhere – [on prem or in the cloud](#supported-platforms).
+It is part of the Stackable Data Platform (SDP), a set of Kubernetes operators for open source data products such as Apache Kafka®, Apache Spark™, Apache Superset™, Trino and OpenSearch, [all listed below](#other-operators).
+You describe each product in a single custom resource, and the operator takes care of running it, including configuration, security with TLS, Kerberos and Open Policy Agent, upgrades and the connections between products.
+It runs on Kubernetes and OpenShift, [on premises, in the cloud or on a laptop](#supported-platforms).
 
 ## Installation
 
@@ -34,59 +36,69 @@ The stable documentation for this operator can be found in our [Stackable Data P
 If you are interested in the most recent state of this repository, check out the [nightly docs](https://docs.stackable.tech/home/nightly/spark-k8s) instead.
 
 The documentation for all Stackable products can be found at [docs.stackable.tech](https://docs.stackable.tech).
+Release information, the supported product and platform versions, and the reference for every custom resource are on the [Stackable Hub](https://hub.stackable.tech/).
 
 If you have a question about the Stackable Data Platform, contact us via our [homepage](https://stackable.tech/) or ask a public question in our [Discussions forum](https://github.com/orgs/stackabletech/discussions).
 
 <!-- markdownlint-disable MD041 -->
+## Stackable operators or Helm charts?
+
+Without SDP, you assemble each product yourself: from the project's own Helm chart where one exists, otherwise from a third-party chart or your own manifests.
+Each product then runs, and everything between the products is yours to build and keep working, for example TLS certificates and Kerberos across products, authorization, service discovery, exposing services outside the cluster, and testing upgrades together.
+SDP covers that part.
+The products in a release are released together, handle cross-cutting concerns such as security, logging, monitoring and lineage the same way, and get upgrades and fixes as one platform on a predictable schedule.
+Every image is signed and comes with an SBOM, see [verifying image signatures](https://docs.stackable.tech/home/stable/guides/enabling-verification-of-image-signatures/) and [viewing and verifying SBOMs](https://docs.stackable.tech/home/stable/guides/viewing-and-verifying-sboms/).
+
+If you run a single product, a well-maintained chart exists for it, and you are happy to own its configuration, security and upgrades yourself, that chart can be a reasonable choice.
+
 ## About The Stackable Data Platform
 
-This operator is written and maintained by [Stackable](https://stackable.tech) and it is part of a larger data platform.
+This operator is written and maintained by [Stackable](https://stackable.tech) and is part of the Stackable Data Platform.
 
-![Stackable Data Platform Overview](./.readme/static/borrowed/stackable_overview.png)
+![The Stackable Data Platform: Apache Superset for visualization; Apache Spark for analytics and AI; Trino, Apache Hive, Apache NiFi and Apache Spark for data processing; Apache Druid (deprecated), Apache HBase with Apache Phoenix, Apache Hadoop HDFS and OpenSearch for storage; Apache NiFi and Apache Kafka for data ingestion; Apache Airflow and Apache ZooKeeper for orchestration; Open Policy Agent for security, Prometheus metrics for monitoring and Vector for logging; all on Kubernetes and OpenShift](./.readme/static/borrowed/stackable_overview.svg)
 
-Stackable makes it easy to operate data applications in any Kubernetes cluster.
+Underneath the product operators, the commons, secret and listener operators provide what all products share: S3 and authentication settings, TLS certificates and Kerberos keytabs, exposing services outside the cluster and more.
 
-The data platform offers many operators, new ones being added continuously. All our operators are designed and built to be easily interconnected and to be consistent to work with.
-
-The [Stackable GmbH](https://stackable.tech/) is the company behind the Stackable Data Platform. Offering professional services, paid support plans and custom development.
-
-We love open-source!
+[Stackable GmbH](https://stackable.tech/) is the company behind the Stackable Data Platform and offers professional services, support subscriptions and custom development.
 
 ## Supported Platforms
 
-We develop and test our operators on the following cloud platforms:
+We develop and test our operators on the following platforms:
 
 * AKS on Microsoft Azure
 * EKS on Amazon Web Services (AWS)
 * GKE on Google Cloud Platform (GCP)
 * [IONOS Cloud Managed Kubernetes](https://cloud.ionos.com/managed/kubernetes)
 * K3s
-* Kubernetes (for an up to date list of supported versions please check the release notes in our [docs](https://docs.stackable.tech))
+* kind, for example on a laptop, as in the [getting started guide](https://docs.stackable.tech/home/stable/getting-started)
+* Kubernetes
 * Red Hat OpenShift
+
+The Kubernetes and OpenShift versions each release supports are listed on [hub.stackable.tech](https://hub.stackable.tech/releases).
 
 ## Other Operators
 
 These are the operators that are currently part of the Stackable Data Platform:
 
 * [Stackable Operator for Apache Airflow](https://github.com/stackabletech/airflow-operator)
-* [Stackable Operator for Apache Druid](https://github.com/stackabletech/druid-operator)
+* [Stackable Operator for Apache Druid](https://github.com/stackabletech/druid-operator), deprecated since SDP 26.7
 * [Stackable Operator for Apache HBase](https://github.com/stackabletech/hbase-operator)
 * [Stackable Operator for Apache Hadoop HDFS](https://github.com/stackabletech/hdfs-operator)
 * [Stackable Operator for Apache Hive](https://github.com/stackabletech/hive-operator)
 * [Stackable Operator for Apache Kafka](https://github.com/stackabletech/kafka-operator)
 * [Stackable Operator for Apache NiFi](https://github.com/stackabletech/nifi-operator)
+* [Stackable Operator for the Open Policy Agent (OPA)](https://github.com/stackabletech/opa-operator)
 * [Stackable Operator for OpenSearch](https://github.com/stackabletech/opensearch-operator)
 * [Stackable Operator for Apache Spark](https://github.com/stackabletech/spark-k8s-operator)
 * [Stackable Operator for Apache Superset](https://github.com/stackabletech/superset-operator)
 * [Stackable Operator for Trino](https://github.com/stackabletech/trino-operator)
 * [Stackable Operator for Apache ZooKeeper](https://github.com/stackabletech/zookeeper-operator)
 
-And our internal operators:
+And the operators they all build on:
 
-* [Commons Operator](https://github.com/stackabletech/commons-operator)
-* [Listener Operator](https://github.com/stackabletech/listener-operator)
-* [OpenPolicyAgent Operator](https://github.com/stackabletech/opa-operator)
-* [Secret Operator](https://github.com/stackabletech/secret-operator)
+* [Stackable Commons Operator](https://github.com/stackabletech/commons-operator)
+* [Stackable Listener Operator](https://github.com/stackabletech/listener-operator)
+* [Stackable Secret Operator](https://github.com/stackabletech/secret-operator)
 
 ## Contributing
 

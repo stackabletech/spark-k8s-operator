@@ -46,7 +46,8 @@ pub enum Error {
 
     #[snafu(display("SparkConnectServer object is invalid"))]
     InvalidSparkConnectServer {
-        source: error_boundary::InvalidObject,
+        #[snafu(source(from(error_boundary::InvalidObject, Box::new)))]
+        source: Box<error_boundary::InvalidObject>,
     },
 
     #[snafu(display("failed to dereference SparkConnectServer"))]

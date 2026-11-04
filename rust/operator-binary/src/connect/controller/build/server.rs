@@ -34,6 +34,7 @@ use stackable_operator::{
             service::{Scraping, prometheus_labels},
         },
         product_logging::framework::vector_container,
+        rbac::RbacResourceNames,
         role_group_utils::ResourceNames,
         role_utils::JavaCommonConfig,
         types::operator::{RoleGroupName, RoleName},

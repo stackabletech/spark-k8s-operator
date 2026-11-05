@@ -1,4 +1,5 @@
 = Environment variables
+:description: Environment variables the Stackable operator for Apache Spark accepts, with their default values and what each one controls.
 
 This operator accepts the following environment variables:
 

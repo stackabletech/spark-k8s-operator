@@ -1,4 +1,5 @@
 = Resource Requests
+:description: CPU and memory for Apache Spark jobs, drivers, executors and the history server, with examples of how to size each of them.
 
 include::home:concepts:stackable_resource_requests.adoc[]
 

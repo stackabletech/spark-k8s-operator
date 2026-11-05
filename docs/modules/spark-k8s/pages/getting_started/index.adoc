@@ -1,4 +1,5 @@
 = Getting started
+:description: Getting started with Apache Spark on Kubernetes, covering the Stackable operator and its dependencies and a first Spark job and its result.
 
 This guide gets you started with Spark using the Stackable operator for Apache Spark.
 It guides you through the installation of the operator and its dependencies, executing your first Spark job and reviewing its result.

@@ -1,4 +1,5 @@
 = OpenLineage
+:description: OpenLineage events from Apache Spark applications to a backend such as Marquez, covering authentication and job naming without manual sparkConf wiring.
 
 https://openlineage.io/[OpenLineage] is an open standard for data lineage collection.
 The Spark operator can automatically emit lineage events for a `SparkApplication` to an OpenLineage-compatible backend such as https://marquezproject.github.io/marquez/[Marquez], without any manual `sparkConf` wiring.

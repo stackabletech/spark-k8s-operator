@@ -342,7 +342,7 @@ mod tests {
             .expect("the default role group exists")
             .config
             .env_overrides = EnvVarSet::new().with_value(
-            &EnvVarName::from_str("SPARK_NO_DAEMONIZE").expect("valid env var name"),
+            &EnvVarName::from_str_unsafe("SPARK_NO_DAEMONIZE"),
             "overridden",
         );
 

@@ -553,6 +553,7 @@ mod tests {
     use stackable_operator::{
         commons::product_image_selection::PullPolicy,
         k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
+        v2::builder::pod::container::EnvVarName,
     };
 
     use super::*;
@@ -608,7 +609,7 @@ mod tests {
     fn env_overrides_override_operator_set_env_vars() {
         let mut validated = minimal_validated_cluster();
         validated.server_overrides.env_overrides = EnvVarSet::new().with_value(
-            &"SPARK_NO_DAEMONIZE".parse().expect("valid env var name"),
+            &EnvVarName::from_str_unsafe("SPARK_NO_DAEMONIZE"),
             "overridden",
         );
 

@@ -8,6 +8,14 @@ It is the user's responsibility to install and configure the vector aggregator, 
 
 NOTE: Only logs produced by the application's driver and executors are collected. Logs produced by `spark-submit` are discarded.
 
+NOTE: The logs of the xref:concepts:observability/containerdebug.adoc[`containerdebug` process] are collected as well, from the driver and executor Pods and from the history server.
+They are labelled `container: containerdebug`, although no such Kubernetes container exists.
+The process runs in the background of the `spark` and `spark-history` containers.
+It also runs in the `spark-submit` Pod, whose logs are discarded as described above.
+The label comes from `/stackable/log/containerdebug`, the directory which the operator sets with the `FILE_LOG_DIRECTORY` environment variable and from which the Vector agent derives the container name.
+Overriding `FILE_LOG_DIRECTORY` with `envOverrides` therefore changes how these logs are aggregated.
+The agent only collects files one level below `/stackable/log`, so a sibling directory such as `/stackable/log/spark` relabels the events instead of dropping them, while any deeper or shallower path stops the aggregation.
+
 == History server
 
 The following snippet shows how to configure log aggregation for the history server:

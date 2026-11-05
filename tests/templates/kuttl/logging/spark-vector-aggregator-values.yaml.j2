@@ -22,76 +22,117 @@ customConfig:
   transforms:
     validEvents:
       type: filter
-      inputs: [vector]
+      inputs:
+        - vector
       condition: is_null(.errors)
 
     # SparkHistoryServer spark-history
 
+    filteredSparkHistoryAutomaticLogConfigContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "spark-history-node-automatic-log-config-0" &&
+        .container == "containerdebug"
     filteredSparkHistoryAutomaticLogConfigSparkHistory:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "spark-history-node-automatic-log-config-0" &&
         .container == "spark-history"
     filteredSparkHistoryAutomaticLogConfigVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "spark-history-node-automatic-log-config-0" &&
         .container == "vector"
+    filteredSparkHistoryCustomLogConfigContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .pod == "spark-history-node-custom-log-config-0" &&
+        .container == "containerdebug"
     filteredSparkHistoryCustomLogConfigSparkHistory:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "spark-history-node-custom-log-config-0" &&
         .container == "spark-history"
     filteredSparkHistoryCustomLogConfigVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .pod == "spark-history-node-custom-log-config-0" &&
         .container == "vector"
 
     # SparkApplication spark-automatic-log-config
 
+    filteredSparkAutomaticLogConfigDriverContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .cluster == "spark-automatic-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
+        .container == "containerdebug"
     filteredSparkAutomaticLogConfigDriverSpark:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "spark"
     filteredSparkAutomaticLogConfigDriverJob:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "job"
     filteredSparkAutomaticLogConfigDriverVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "vector"
+    filteredSparkAutomaticLogConfigExecutorContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .cluster == "spark-automatic-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
+        .container == "containerdebug"
     filteredSparkAutomaticLogConfigExecutorSpark:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "spark"
     filteredSparkAutomaticLogConfigExecutorJob:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "job"
     filteredSparkAutomaticLogConfigExecutorVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
@@ -99,44 +140,66 @@ customConfig:
 
     # SparkApplication spark-custom-log-config
 
+    filteredSparkCustomLogConfigDriverContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .cluster == "spark-custom-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
+        .container == "containerdebug"
     filteredSparkCustomLogConfigDriverSpark:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "spark"
     filteredSparkCustomLogConfigDriverJob:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "job"
     filteredSparkCustomLogConfigDriverVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "vector"
+    filteredSparkCustomLogConfigExecutorContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .cluster == "spark-custom-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
+        .container == "containerdebug"
     filteredSparkCustomLogConfigExecutorSpark:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "spark"
     filteredSparkCustomLogConfigExecutorJob:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "job"
     filteredSparkCustomLogConfigExecutorVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "spark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
@@ -144,44 +207,66 @@ customConfig:
 
     # SparkApplication pyspark-automatic-log-config
 
+    filteredPysparkAutomaticLogConfigDriverContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .cluster == "pyspark-automatic-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
+        .container == "containerdebug"
     filteredPysparkAutomaticLogConfigDriverSpark:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "spark"
     filteredPysparkAutomaticLogConfigDriverRequirements:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "requirements"
     filteredPysparkAutomaticLogConfigDriverVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "vector"
+    filteredPysparkAutomaticLogConfigExecutorContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .cluster == "pyspark-automatic-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
+        .container == "containerdebug"
     filteredPysparkAutomaticLogConfigExecutorSpark:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "spark"
     filteredPysparkAutomaticLogConfigExecutorRequirements:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "requirements"
     filteredPysparkAutomaticLogConfigExecutorVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-automatic-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
@@ -189,44 +274,66 @@ customConfig:
 
     # SparkApplication pyspark-custom-log-config
 
+    filteredPysparkCustomLogConfigDriverContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .cluster == "pyspark-custom-log-config" &&
+        ends_with(string!(.pod), "-driver") &&
+        .container == "containerdebug"
     filteredPysparkCustomLogConfigDriverSpark:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "spark"
     filteredPysparkCustomLogConfigDriverRequirements:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "requirements"
     filteredPysparkCustomLogConfigDriverVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-driver") &&
         .container == "vector"
+    filteredPysparkCustomLogConfigExecutorContainerdebug:
+      type: filter
+      inputs:
+        - validEvents
+      condition: >-
+        .cluster == "pyspark-custom-log-config" &&
+        ends_with(string!(.pod), "-exec-1") &&
+        .container == "containerdebug"
     filteredPysparkCustomLogConfigExecutorSpark:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "spark"
     filteredPysparkCustomLogConfigExecutorRequirements:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
         .container == "requirements"
     filteredPysparkCustomLogConfigExecutorVector:
       type: filter
-      inputs: [validEvents]
+      inputs:
+        - validEvents
       condition: >-
         .cluster == "pyspark-custom-log-config" &&
         ends_with(string!(.pod), "-exec-1") &&
@@ -236,7 +343,8 @@ customConfig:
 
     filteredInvalidEvents:
       type: filter
-      inputs: [vector]
+      inputs:
+        - vector
       condition: |-
         .timestamp == from_unix_timestamp!(0) ||
         is_null(.level) ||
@@ -244,11 +352,29 @@ customConfig:
         is_null(.message)
   sinks:
     test:
-      inputs: [filtered*]
+      inputs:
+        - filtered*
       type: blackhole
+    # Shows all events received from the agents. This sink is intentional and
+    # not a debugging leftover: if a "filtered*" transform gathers no event,
+    # then the assertion only reports a count, whereas this log shows which
+    # pod and container names actually arrived. A failure in CI cannot be
+    # reproduced by enabling this afterwards, so it is kept enabled at the
+    # price of the log volume.
+    stdout:
+      inputs:
+        - vector
+      type: console
+      encoding:
+        codec: json
+      buffer:
+        # Avoid back pressure from a stalling stdout. The test should not
+        # fail because of a sink which only aids debugging.
+        when_full: drop_newest
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
     aggregator:
-      inputs: [vector]
+      inputs:
+        - vector
       type: vector
       routing:
         endpoints:

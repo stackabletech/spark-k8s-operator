@@ -103,6 +103,285 @@ tests:
               }
 
               assert_eq!(expected_log_event, .)
+  - name: Test tracing-rs log
+    inputs:
+      - type: log
+        insert_at: processed_files_tracing_rs
+        log_fields:
+          file: /stackable/log/containerdebug/containerdebug.2026-11-02-14.tracing-rs.json
+          message: '{"timestamp":"2026-11-02T14:49:28.028922Z","level":"INFO","fields":{"message":"found disk","disk.name":"overlay"},"target":"containerdebug::system_information::disk"}'
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2026-11-02T14:49:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        expected_event_count: 1
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "containerdebug",
+                "file": "containerdebug.2026-11-02-14.tracing-rs.json",
+                "level": "INFO",
+                "logger": "containerdebug::system_information::disk",
+                "message": "found disk\n\ndisk.name=overlay",
+                "timestamp": t'2026-11-02T14:49:28.028922Z',
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test unparsable tracing-rs log
+    inputs:
+      - type: log
+        insert_at: processed_files_tracing_rs
+        log_fields:
+          file: /stackable/log/containerdebug/containerdebug.2026-11-02-14.tracing-rs.json
+          message: '{ unparsable'
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2026-11-02T14:49:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        expected_event_count: 1
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "containerdebug",
+                "errors": [
+                  .errors[0]
+                ],
+                "file": "containerdebug.2026-11-02-14.tracing-rs.json",
+                "level": "INFO",
+                "logger": "",
+                "message": "{ unparsable",
+                "timestamp": .timestamp,
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default"
+              }
+
+              assert_eq!(expected_log_event, .)
+
+              # The remainder of the message contains character offsets into
+              # the VRL source, so only the stable prefix is asserted.
+              assert!(starts_with!(.errors[0], "JSON not parsable: "))
+  - name: Test tracing-rs log which is not a JSON object
+    inputs:
+      - type: log
+        insert_at: processed_files_tracing_rs
+        log_fields:
+          file: /stackable/log/containerdebug/containerdebug.2026-11-02-14.tracing-rs.json
+          message: 'false'
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2026-11-02T14:49:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        expected_event_count: 1
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "containerdebug",
+                "errors": [
+                  "Parsed event is not a JSON object."
+                ],
+                "file": "containerdebug.2026-11-02-14.tracing-rs.json",
+                "level": "INFO",
+                "logger": "",
+                "message": "false",
+                "timestamp": .timestamp,
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test tracing-rs log with invalid fields
+    inputs:
+      - type: log
+        insert_at: processed_files_tracing_rs
+        log_fields:
+          file: /stackable/log/containerdebug/containerdebug.2026-11-02-14.tracing-rs.json
+          message: '{"timestamp":"unparsable","level":"INVALID","fields":"none","target":null}'
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2026-11-02T14:49:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        expected_event_count: 1
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "containerdebug",
+                "errors": [
+                  .errors[0],
+                  "Logger/target not found.",
+                  "Level \"INVALID\" unknown, using \"INFO\" instead.",
+                  "Fields are not an object."
+                ],
+                "file": "containerdebug.2026-11-02-14.tracing-rs.json",
+                "level": "INFO",
+                "logger": "",
+                "message": "{\"timestamp\":\"unparsable\",\"level\":\"INVALID\",\"fields\":\"none\",\"target\":null}",
+                "timestamp": .timestamp,
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default"
+              }
+
+              assert_eq!(expected_log_event, .)
+
+              # The remainder of the message contains character offsets into
+              # the VRL source, so only the stable prefix is asserted.
+              assert!(starts_with!(.errors[0], "Timestamp not parsable, using current time instead: "))
+  - name: Test tracing-rs log without a timestamp
+    inputs:
+      - type: log
+        insert_at: processed_files_tracing_rs
+        log_fields:
+          file: /stackable/log/containerdebug/containerdebug.2026-11-02-14.tracing-rs.json
+          message: '{"level":"INFO","fields":{"message":"found disk"},"target":"containerdebug::system_information::disk"}'
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2026-11-02T14:49:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        expected_event_count: 1
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "containerdebug",
+                "errors": [
+                  "Timestamp not found, using current time instead."
+                ],
+                "file": "containerdebug.2026-11-02-14.tracing-rs.json",
+                "level": "INFO",
+                "logger": "containerdebug::system_information::disk",
+                "message": "found disk",
+                "timestamp": .timestamp,
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default"
+              }
+
+              assert_eq!(expected_log_event, .)
+
+              # The current time is used and not the timestamp which the file
+              # source attached to the event. The latter reaches the transform
+              # as a string, whereas now() yields a timestamp.
+              assert!(is_timestamp(.timestamp))
+  - name: Test tracing-rs log without a message but with other fields
+    inputs:
+      - type: log
+        insert_at: processed_files_tracing_rs
+        log_fields:
+          file: /stackable/log/containerdebug/containerdebug.2026-11-02-14.tracing-rs.json
+          message: '{"timestamp":"2026-11-02T14:49:28.028922Z","level":"INFO","fields":{"disk.name":"overlay"},"target":"containerdebug::system_information::disk"}'
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2026-11-02T14:49:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        expected_event_count: 1
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "containerdebug",
+                "file": "containerdebug.2026-11-02-14.tracing-rs.json",
+                "level": "INFO",
+                "logger": "containerdebug::system_information::disk",
+                "message": "disk.name=overlay",
+                "timestamp": t'2026-11-02T14:49:28.028922Z',
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test tracing-rs log with a message which is not a string
+    inputs:
+      - type: log
+        insert_at: processed_files_tracing_rs
+        log_fields:
+          file: /stackable/log/containerdebug/containerdebug.2026-11-02-14.tracing-rs.json
+          message: '{"timestamp":"2026-11-02T14:49:28.028922Z","level":"INFO","fields":{"message":42,"disk.name":"overlay"},"target":"containerdebug::system_information::disk"}'
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2026-11-02T14:49:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        expected_event_count: 1
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "containerdebug",
+                "file": "containerdebug.2026-11-02-14.tracing-rs.json",
+                "level": "INFO",
+                "logger": "containerdebug::system_information::disk",
+                "message": "disk.name=overlay\nmessage=42",
+                "timestamp": t'2026-11-02T14:49:28.028922Z',
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default"
+              }
+
+              assert_eq!(expected_log_event, .)
+  - name: Test tracing-rs log without any fields
+    inputs:
+      - type: log
+        insert_at: processed_files_tracing_rs
+        log_fields:
+          file: /stackable/log/containerdebug/containerdebug.2026-11-02-14.tracing-rs.json
+          message: '{"timestamp":"2026-11-02T14:49:28.028922Z","level":"INFO","fields":{},"target":"containerdebug::system_information::disk"}'
+          pod: spark-node-default-0
+          source_type: file
+          timestamp: 2026-11-02T14:49:29.473487331Z
+    outputs:
+      - extract_from: extended_logs
+        expected_event_count: 1
+        conditions:
+          - type: vrl
+            source: |
+              expected_log_event = {
+                "cluster": "spark",
+                "container": "containerdebug",
+                "errors": [
+                  "Message not found."
+                ],
+                "file": "containerdebug.2026-11-02-14.tracing-rs.json",
+                "level": "INFO",
+                "logger": "containerdebug::system_information::disk",
+                "message": "",
+                "timestamp": t'2026-11-02T14:49:28.028922Z',
+                "namespace": "default",
+                "pod": "spark-node-default-0",
+                "role": "node",
+                "roleGroup": "default"
+              }
+
+              assert_eq!(expected_log_event, .)
   - name: Test Vector internal logs
     inputs:
       - type: log

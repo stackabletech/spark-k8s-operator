@@ -25,6 +25,12 @@ sources:
       - ${LOG_DIR}/*/*.log4j2.xml
     line_delimiter: "\r\n"
 
+  # Reads the logs of the containerdebug process
+  files_tracing_rs:
+    type: file
+    include:
+      - ${LOG_DIR}/*/*.tracing-rs.json
+
 transforms:
   processed_files_stdout:
     inputs:
@@ -173,12 +179,93 @@ transforms:
         }
       }
 
+  # Transforms the tracing-rs JSON logs written by the containerdebug process
+  processed_files_tracing_rs:
+    inputs:
+      - files_tracing_rs
+    type: remap
+    source: |
+      raw_message = string!(.message)
+
+      .timestamp = now()
+      .logger = ""
+      .level = "INFO"
+      .message = ""
+      .errors = []
+
+      parsed_event, err = parse_json(raw_message)
+      if err != null {
+        error = "JSON not parsable: " + err
+        .errors = push(.errors, error)
+        log(error, level: "warn")
+        .message = raw_message
+      } else if !is_object(parsed_event) {
+        error = "Parsed event is not a JSON object."
+        .errors = push(.errors, error)
+        log(error, level: "warn")
+        .message = raw_message
+      } else {
+        event = object!(parsed_event)
+
+        timestamp_string, err = string(event.timestamp)
+        if err == null {
+          parsed_timestamp, err = parse_timestamp(timestamp_string, "%+")
+          if err == null {
+            .timestamp = parsed_timestamp
+          } else {
+            .errors = push(.errors, "Timestamp not parsable, using current time instead: " + err)
+          }
+        } else {
+          .errors = push(.errors, "Timestamp not found, using current time instead.")
+        }
+
+        .logger, err = string(event.target)
+        if err != null || is_empty(.logger) {
+          .errors = push(.errors, "Logger/target not found.")
+        }
+
+        level, err = string(event.level)
+        if err != null {
+          .errors = push(.errors, "Level not found, using \"" + .level + "\" instead.")
+        } else if !includes(["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"], upcase(level)) {
+          .errors = push(.errors, "Level \"" + level + "\" unknown, using \"" + .level + "\" instead.")
+        } else {
+          .level = upcase(level)
+        }
+
+        fields, err = object(event.fields)
+        if err == null {
+          message, err = string(fields.message)
+          if err == null {
+            # The message is prepended to the other fields, so remove it from
+            # them.
+            del(fields.message)
+          } else {
+            # Keep an unusable message among the other fields instead of
+            # discarding its content.
+            message = ""
+          }
+
+          other_fields = encode_key_value(fields, field_delimiter: "\n")
+          .message = join!(compact([message, other_fields]), "\n\n")
+        } else {
+          .errors = push(.errors, "Fields are not an object.")
+          # Fall back to the raw line, so that its content is not lost.
+          .message = raw_message
+        }
+
+        if is_empty(.message) {
+          .errors = push(.errors, "Message not found.")
+        }
+      }
+
   # Extends the processed files with the fields "container" and "file"
   extended_logs_files:
     inputs:
       - processed_files_stdout
       - processed_files_stderr
       - processed_files_log4j2
+      - processed_files_tracing_rs
     type: remap
     source: |
       del(.source_type)

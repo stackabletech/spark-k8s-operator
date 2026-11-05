@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
+use const_format::concatcp;
 use indoc::formatdoc;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -60,12 +61,12 @@ use crate::{
     },
     crd::{
         constants::{
-            CONTAINERDEBUG_LOG_DIRECTORY, JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR,
-            LISTENER_VOLUME_NAME, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
-            METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME,
-            SPARK_NO_DAEMONIZE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
-            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
-            VOLUME_MOUNT_PATH_LOG_CONFIG,
+            FILE_LOG_DIRECTORY, FILE_LOG_MAX_FILES, FILE_LOG_ROTATION_PERIOD,
+            JVM_SECURITY_PROPERTIES_FILE, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME,
+            LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE,
+            POD_TEMPLATE_FILE, SPARK_DEFAULTS_FILE_NAME, SPARK_NO_DAEMONIZE,
+            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
+            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         listener_ext,
     },
@@ -207,6 +208,9 @@ pub(crate) fn build_stateful_set(
             VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
                 .with_empty_dir(
                     None::<String>,
+                    // Only the Spark log files are budgeted. The `containerdebug` files in this
+                    // volume are rotated by time, not by size, so they have no budget; raising
+                    // `FILE_LOG_LEVEL` via `envOverrides` can therefore evict the Pod.
                     Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
                 )
                 .build(),
@@ -363,6 +367,7 @@ pub(crate) fn build_stateful_set(
 #[allow(clippy::result_large_err)]
 pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
     let mut command = formatdoc! { "
+    mkdir --parents \"$FILE_LOG_DIRECTORY\"
     containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &
 
     cp {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME} /tmp/spark.properties
@@ -387,9 +392,12 @@ pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
 fn env(env_overrides: &EnvVarSet) -> EnvVarSet {
     EnvVarSet::new()
         .with_value(
-            &CONTAINERDEBUG_LOG_DIRECTORY,
-            format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+            &FILE_LOG_DIRECTORY,
+            concatcp!(VOLUME_MOUNT_PATH_LOG, "/containerdebug"),
         )
+        // Rotation is opt-in, so without these the file would grow unbounded.
+        .with_value(&FILE_LOG_ROTATION_PERIOD, "hourly")
+        .with_value(&FILE_LOG_MAX_FILES, "2")
         .with_value(&SPARK_NO_DAEMONIZE, "true")
         .merge(env_overrides.clone())
 }

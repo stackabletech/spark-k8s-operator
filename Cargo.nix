@@ -9824,10 +9824,10 @@ rec {
       };
       "serde-saphyr" = rec {
         crateName = "serde-saphyr";
-        version = "2.1.0";
+        version = "2.0.0";
         edition = "2024";
         crateBin = [];
-        sha256 = "1diixjn80w882xrgqqqci3rdifj4f0nn0yg9lqbj8qy59xqw4k9z";
+        sha256 = "0i2waflcwhxz5nyg7y9pl9mplk2gr7y1ckpq3ai2s0rlxbyyslx2";
         libName = "serde_saphyr";
         license = "MIT OR Apache-2.0";
         dependencies = [
@@ -9838,7 +9838,7 @@ rec {
           }
           {
             name = "base64";
-            packageId = "base64 0.23.1";
+            packageId = "base64 0.22.1";
             optional = true;
           }
           {
@@ -10931,7 +10931,7 @@ rec {
           "time" = [ "stackable-shared/time" ];
           "webhook" = [ "dep:stackable-webhook" ];
         };
-        resolvedDefaultFeatures = [ "crds" "default" "webhook" ];
+        resolvedDefaultFeatures = [ "crds" "default" "test-support" "webhook" ];
       };
       "stackable-operator-derive" = rec {
         crateName = "stackable-operator-derive";
@@ -11154,6 +11154,11 @@ rec {
           {
             name = "rstest";
             packageId = "rstest";
+          }
+          {
+            name = "stackable-operator";
+            packageId = "stackable-operator";
+            features = [ "webhook" "test-support" ];
           }
         ];
 

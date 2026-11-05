@@ -541,7 +541,7 @@ mod tests {
                 productVersion: 1.2.3
               driver:
                 envOverrides:
-                  CONTAINERDEBUG_LOG_DIRECTORY: /custom/log/dir
+                  FILE_LOG_DIRECTORY: /custom/log/dir
         "#};
         let spark_application: v1alpha1::SparkApplication =
             stackable_operator::utils::yaml_from_str_singleton_map(yaml)
@@ -602,7 +602,7 @@ mod tests {
 
         let matching: Vec<&EnvVar> = env
             .iter()
-            .filter(|env_var| env_var.name == "CONTAINERDEBUG_LOG_DIRECTORY")
+            .filter(|env_var| env_var.name == "FILE_LOG_DIRECTORY")
             .collect();
 
         // The override must replace the operator-set value, not duplicate it.

@@ -113,6 +113,10 @@ tests:
     dimensions:
       - spark
       - openshift
+  - name: ttl-after-finished
+    dimensions:
+      - spark
+      - openshift
   - name: pyspark-ny-public-s3
     dimensions:
       - spark

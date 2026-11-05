@@ -73,6 +73,11 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
             .log_file_directory
             .clone()
             .or_else(|| base.spec.log_file_directory.clone()),
+        ttl_after_finished: overlay
+            .spec
+            .ttl_after_finished
+            .clone()
+            .or_else(|| base.spec.ttl_after_finished.clone()),
 
         // Product image: overlay takes precedence
         spark_image: overlay.spec.spark_image.clone(),
@@ -281,7 +286,8 @@ fn merge_deps(
 
 #[cfg(test)]
 mod tests {
-    use indoc::indoc;
+    use indoc::{formatdoc, indoc};
+    use rstest::rstest;
     use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 
     use super::*;
@@ -484,6 +490,38 @@ mod tests {
                 .retry_on_failure_count,
             Some(2u16)
         );
+    }
+
+    #[rstest]
+    #[case::overlay_wins("1h", "0s", "0s")]
+    #[case::base_only("1h", "null", "1h")]
+    #[case::overlay_only("null", "never", "never")]
+    #[case::default("null", "null", "10m")]
+    fn test_deep_merge_ttl_after_finished(
+        #[case] base_ttl: &str,
+        #[case] overlay_ttl: &str,
+        #[case] expected_ttl: &str,
+    ) {
+        let app = |name: &str, ttl: &str| {
+            yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(&formatdoc! {"
+                ---
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: {name}
+                spec:
+                  mode: cluster
+                  mainApplicationFile: {name}.py
+                  sparkImage:
+                    productVersion: \"4.1.0\"
+                  ttlAfterFinished: {ttl}
+            "})
+            .unwrap()
+        };
+
+        let merged = deep_merge(&app("base", base_ttl), &app("overlay", overlay_ttl));
+
+        assert_eq!(merged.ttl_after_finished().to_string(), expected_ttl);
     }
 
     #[test]

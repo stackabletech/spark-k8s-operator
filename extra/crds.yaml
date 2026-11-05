@@ -2332,6 +2332,14 @@ spec:
                     - LatestPatch
                     type: string
                 type: object
+              ttlAfterFinished:
+                description: |-
+                  How long the spark-submit Job, the driver Pod and the objects the operator created for
+                  the application are kept after the Job finished. A duration such as `10m` (default),
+                  `0s` to delete them right away, or `never` to keep them until the SparkApplication is
+                  deleted.
+                nullable: true
+                type: string
               vectorAggregatorConfigMapName:
                 description: |-
                   Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).
@@ -7164,6 +7172,14 @@ spec:
                     - LatestPatch
                     type: string
                 type: object
+              ttlAfterFinished:
+                description: |-
+                  How long the spark-submit Job, the driver Pod and the objects the operator created for
+                  the application are kept after the Job finished. A duration such as `10m` (default),
+                  `0s` to delete them right away, or `never` to keep them until the SparkApplication is
+                  deleted.
+                nullable: true
+                type: string
               vectorAggregatorConfigMapName:
                 description: |-
                   Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).

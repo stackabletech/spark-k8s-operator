@@ -34,6 +34,8 @@ constant!(SPARK_SUBMIT_OPTS: EnvVarName = "SPARK_SUBMIT_OPTS");
 // The Spark configuration directory of the spark-submit job.
 constant!(SPARK_CONF_DIR: EnvVarName = "SPARK_CONF_DIR");
 
+const SPARK_DRIVER_POD_NAME: &str = "spark.kubernetes.driver.pod.name";
+
 #[derive(Snafu, Debug)]
 pub enum Error {
     #[snafu(display("failed to add needed volumeMount"))]
@@ -175,16 +177,24 @@ pub(crate) fn spark_job(
         pod.merge_from(submit_pod_overrides);
     }
 
+    let mut metadata = object_meta(
+        validated,
+        validated.name.to_string(),
+        &SPARK_JOB_COMPONENT_NAME,
+    )
+    .build();
+    if let Some(driver_pod_name) = spark_application.spec.spark_conf.get(SPARK_DRIVER_POD_NAME) {
+        metadata.annotations.get_or_insert_default().insert(
+            FIXED_DRIVER_POD_NAME_ANNOTATION.to_owned(),
+            driver_pod_name.clone(),
+        );
+    }
+
     let job = Job {
-        metadata: object_meta(
-            validated,
-            validated.name.to_string(),
-            &SPARK_JOB_COMPONENT_NAME,
-        )
-        .build(),
+        metadata,
         spec: Some(JobSpec {
             template: pod,
-            ttl_seconds_after_finished: Some(600),
+            ttl_seconds_after_finished: spark_application.ttl_after_finished().job_ttl_seconds(),
             backoff_limit: Some(spark_application.retry_on_failure_count()),
             ..Default::default()
         }),
@@ -196,7 +206,8 @@ pub(crate) fn spark_job(
 
 #[cfg(test)]
 mod tests {
-    use indoc::indoc;
+    use indoc::{formatdoc, indoc};
+    use rstest::rstest;
     use stackable_operator::{
         cli::OperatorEnvironmentOptions,
         k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
@@ -215,26 +226,7 @@ mod tests {
         let _ = *SPARK_SUBMIT_OPTS;
     }
 
-    /// `envOverrides` must be applied after all operator-set environment variables, so a user
-    /// override replaces the operator-set value instead of duplicating it or being ignored.
-    #[test]
-    fn env_overrides_override_operator_set_env_vars() {
-        let yaml = indoc! {r#"
-            apiVersion: spark.stackable.tech/v1alpha1
-            kind: SparkApplication
-            metadata:
-              name: spark-example
-              namespace: default
-              uid: 12345678-1234-1234-1234-123456789012
-            spec:
-              mode: cluster
-              mainApplicationFile: test.py
-              sparkImage:
-                productVersion: 1.2.3
-              job:
-                envOverrides:
-                  SPARK_CONF_DIR: /custom/conf
-        "#};
+    fn spark_job_from_yaml(yaml: &str) -> Job {
         let spark_application: v1alpha1::SparkApplication =
             stackable_operator::utils::yaml_from_str_singleton_map(yaml)
                 .expect("invalid test SparkApplication YAML");
@@ -271,14 +263,37 @@ mod tests {
             ..ServiceAccount::default()
         };
 
-        let job = spark_job(
+        spark_job(
             &validated,
             &service_account,
             &env,
             &["echo test".to_string()],
             &submit_config,
         )
-        .expect("the spark-submit Job can be built");
+        .expect("the spark-submit Job can be built")
+    }
+
+    /// `envOverrides` must be applied after all operator-set environment variables, so a user
+    /// override replaces the operator-set value instead of duplicating it or being ignored.
+    #[test]
+    fn env_overrides_override_operator_set_env_vars() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              job:
+                envOverrides:
+                  SPARK_CONF_DIR: /custom/conf
+        "#};
+        let job = spark_job_from_yaml(yaml);
 
         let env: Vec<EnvVar> = job
             .spec
@@ -302,5 +317,73 @@ mod tests {
         // The override must replace the operator-set value, not duplicate it.
         assert_eq!(matching.len(), 1);
         assert_eq!(matching[0].value.as_deref(), Some("/custom/conf"));
+    }
+
+    #[rstest]
+    #[case::default("{}", "{}", "null", Some(600), None)]
+    #[case::immediately("{}", "{}", "0s", Some(0), None)]
+    #[case::custom("{}", "{}", "2s", Some(2), None)]
+    #[case::never("{}", "{}", "never", None, None)]
+    #[case::generated_name_with_retries("{}", "{retryOnFailureCount: 3}", "null", Some(600), None)]
+    #[case::fixed_name(
+        "{spark.kubernetes.driver.pod.name: fixed}",
+        "{}",
+        "null",
+        Some(600),
+        Some("fixed")
+    )]
+    #[case::fixed_name_never(
+        "{spark.kubernetes.driver.pod.name: fixed}",
+        "{}",
+        "never",
+        None,
+        Some("fixed")
+    )]
+    #[case::fixed_name_with_retries(
+        "{spark.kubernetes.driver.pod.name: fixed}",
+        "{retryOnFailureCount: 3}",
+        "2s",
+        Some(2),
+        Some("fixed")
+    )]
+    fn ttl_after_finished_and_fixed_driver_pod_name_are_picked_up(
+        #[case] spark_conf: &str,
+        #[case] job_config: &str,
+        #[case] ttl_after_finished: &str,
+        #[case] expected_ttl: Option<i32>,
+        #[case] expected_fixed_driver_pod_name: Option<&str>,
+    ) {
+        let yaml = formatdoc! {"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              sparkConf: {spark_conf}
+              ttlAfterFinished: {ttl_after_finished}
+              job:
+                config: {job_config}
+        "};
+        let job = spark_job_from_yaml(&yaml);
+        assert_eq!(
+            job.metadata
+                .annotations
+                .as_ref()
+                .and_then(|annotations| annotations.get(FIXED_DRIVER_POD_NAME_ANNOTATION))
+                .map(String::as_str),
+            expected_fixed_driver_pod_name
+        );
+        assert_eq!(
+            job.spec
+                .expect("the job has a spec")
+                .ttl_seconds_after_finished,
+            expected_ttl
+        );
     }
 }

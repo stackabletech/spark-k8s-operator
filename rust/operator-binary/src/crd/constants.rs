@@ -94,6 +94,12 @@ pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
 pub const POD_DRIVER_FULL_CONTROLLER_NAME: &str =
     concatcp!(POD_DRIVER_CONTROLLER_NAME, '.', SPARK_OPERATOR_NAME);
 
+/// Annotation on the spark-submit Job that carries a fixed `spark.kubernetes.driver.pod.name`.
+/// The pod driver controller deletes such a driver right away instead of handing it over to the
+/// Job, so that the name is free for the next submission.
+pub const FIXED_DRIVER_POD_NAME_ANNOTATION: &str =
+    concatcp!(SPARK_OPERATOR_NAME, "/fixed-driver-pod-name");
+
 pub const HISTORY_CONTROLLER_NAME: &str = "history";
 pub const HISTORY_FULL_CONTROLLER_NAME: &str =
     concatcp!(HISTORY_CONTROLLER_NAME, '.', SPARK_OPERATOR_NAME);

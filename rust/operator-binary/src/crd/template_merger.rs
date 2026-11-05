@@ -58,6 +58,11 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
             .vector_aggregator_config_map_name
             .clone()
             .or_else(|| base.spec.vector_aggregator_config_map_name.clone()),
+        container_debug: overlay
+            .spec
+            .container_debug
+            .clone()
+            .or_else(|| base.spec.container_debug.clone()),
         lineage: overlay
             .spec
             .lineage
@@ -823,6 +828,48 @@ mod tests {
         assert_eq!(
             env_value(executor_env, "TEST_OVERLAY_ONLY"),
             Some("overlay".to_string())
+        );
+    }
+
+    #[test]
+    fn test_deep_merge_container_debug() {
+        let base = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: base-app
+            spec:
+              mode: cluster
+              mainApplicationFile: base.py
+              sparkImage:
+                productVersion: "3.5.8"
+              containerDebug:
+                enabled: true
+        "#})
+        .unwrap();
+
+        let overlay = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: overlay-app
+            spec:
+              mode: cluster
+              mainApplicationFile: overlay.py
+              sparkImage:
+                productVersion: "4.1.0"
+              containerDebug:
+                enabled: false
+        "#})
+        .unwrap();
+
+        let merged = deep_merge(&base, &overlay);
+
+        assert_eq!(
+            merged.spec.container_debug.map(|config| config.enabled),
+            Some(false)
         );
     }
 

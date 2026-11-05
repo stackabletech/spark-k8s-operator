@@ -33,6 +33,15 @@ spec:
                 items:
                   type: string
                 type: array
+              containerDebug:
+                description: Configure the containerdebug process for this application. It is enabled by default.
+                nullable: true
+                properties:
+                  enabled:
+                    default: true
+                    description: Whether to run containerdebug. Defaults to `true`.
+                    type: boolean
+                type: object
               deps:
                 default:
                   excludePackages: []
@@ -4865,6 +4874,15 @@ spec:
                 items:
                   type: string
                 type: array
+              containerDebug:
+                description: Configure the containerdebug process for this application. It is enabled by default.
+                nullable: true
+                properties:
+                  enabled:
+                    default: true
+                    description: Whether to run containerdebug. Defaults to `true`.
+                    type: boolean
+                type: object
               deps:
                 default:
                   excludePackages: []

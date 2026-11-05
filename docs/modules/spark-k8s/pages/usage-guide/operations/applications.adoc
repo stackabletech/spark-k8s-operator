@@ -23,3 +23,25 @@ Application driver pods expose Prometheus metrics at the following endpoints:
 * `/metrics/executors/prometheus` for executor instances.
 
 These endpoints are available on the same port as the Spark UI, which is 4040 by default.
+
+== Container diagnostics
+
+The `containerdebug` process runs by default in the submit, driver, and executor containers. To
+disable it for a SparkApplication, set `spec.containerDebug.enabled` to `false`:
+
+[source,yaml]
+----
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: spark-example
+spec:
+  mode: cluster
+  mainApplicationFile: local:///path/to/application.py
+  sparkImage:
+    productVersion: 3.5.8
+  containerDebug:
+    enabled: false
+----
+
+Omitting `containerDebug` or `enabled` keeps the process enabled.

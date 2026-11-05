@@ -209,6 +209,10 @@ pub mod versioned {
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
+        /// Configure the containerdebug process for this application. It is enabled by default.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub container_debug: Option<ContainerDebugConfig>,
+
         /// The job builds a spark-submit command, complete with arguments and referenced dependencies
         /// such as templates, and passes it on to Spark.
         /// The reason this property uses its own type (SubmitConfigFragment) is because logging is not
@@ -271,6 +275,19 @@ pub mod versioned {
         /// See the [OpenLineage usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/openlineage).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub lineage: Option<SparkLineageConfig>,
+    }
+
+    /// Configuration for the containerdebug process.
+    #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ContainerDebugConfig {
+        /// Whether to run containerdebug. Defaults to `true`.
+        #[serde(default = "default_true")]
+        pub enabled: bool,
+    }
+
+    fn default_true() -> bool {
+        true
     }
 
     /// OpenLineage configuration of a `SparkApplication`: the shared OpenLineage config, plus
@@ -867,16 +884,29 @@ impl v1alpha1::SparkApplication {
 
         submit_cmd.extend(self.spec.args.clone());
 
-        Ok(vec![
-            format!(
+        let mut commands = Vec::new();
+        if self.container_debug_enabled() {
+            commands.push(format!(
                 "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-            ),
+            ));
+        }
+        commands.extend([
             build_truststore_commands,
             // xtrace prints expanded credentials, `--verbose` prints the config redacted
             "set +x".to_string(),
             "echo 'Running \"spark-submit [...]\", which is not shown as it can contain credentials'".to_string(),
             submit_cmd.join(" "),
-        ])
+        ]);
+
+        Ok(commands)
+    }
+
+    fn container_debug_enabled(&self) -> bool {
+        self.spec
+            .container_debug
+            .as_ref()
+            .map(|config| config.enabled)
+            .unwrap_or(true)
     }
 
     /// The base environment for the submit, driver and executor containers: the user-defined
@@ -902,24 +932,20 @@ impl v1alpha1::SparkApplication {
                 .context(ParseSparkEnvVarNameSnafu)?;
         }
 
-        // These env variables enable the `containerdebug` process in driver and executor pods.
-        // More precisely, this process runs in the background of every `spark` container.
-        // - `CONTAINERDEBUG_LOG_DIRECTORY` - is the location where tracing information from the process
-        // is written. This directory is created by the process itself.
-        // - `_STACKABLE_PRE_HOOK` - is evaluated by the entrypoint script (run-spark.sh) in the Spark images
-        // before the actual JVM process is started. The result of this evaluation is that the
-        // `containerdebug` process is executed in the background.
-        env = env
-            .with_value(
-                &CONTAINERDEBUG_LOG_DIRECTORY,
-                format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
-            )
-            .with_value(
-                &STACKABLE_PRE_HOOK,
-                format!(
-                    "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-                ),
-            );
+        if self.container_debug_enabled() {
+            // These env variables enable the `containerdebug` process in driver and executor pods.
+            env = env
+                .with_value(
+                    &CONTAINERDEBUG_LOG_DIRECTORY,
+                    format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+                )
+                .with_value(
+                    &STACKABLE_PRE_HOOK,
+                    format!(
+                        "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+                    ),
+                );
+        }
 
         if self.requirements().is_some() {
             env = env.with_value(
@@ -2089,6 +2115,29 @@ spec:
     }
 
     #[test]
+    fn test_containerdebug_is_enabled_by_default_and_can_be_disabled() {
+        let default_command = build_command_with_openlineage(MINIMAL_APP, "4.1.2");
+        assert!(default_command.contains("containerdebug --output="));
+
+        let disabled_yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: test
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              containerDebug:
+                enabled: false
+        "#};
+        let disabled_command = build_command_with_openlineage(disabled_yaml, "4.1.2");
+        assert!(!disabled_command.contains("containerdebug"));
+    }
+
+    #[test]
     fn test_openlineage_appends_to_existing_extra_listeners() {
         let yaml = indoc! {r#"
             ---
@@ -2467,6 +2516,8 @@ spec:
                 mainClass: org.apache.spark.examples.SparkPi
                 mainApplicationFile: /stackable/spark/examples/jars/spark-examples.jar
                 vectorAggregatorConfigMapName: vector-aggregator-discovery
+                containerDebug:
+                  enabled: false
                 args:
                   - "--verbose"
                   - "--input"

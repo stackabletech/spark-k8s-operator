@@ -610,6 +610,66 @@ mod tests {
         assert_eq!(matching[0].value.as_deref(), Some("/custom/log/dir"));
     }
 
+    #[test]
+    fn containerdebug_can_be_disabled_for_driver_pods() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              containerDebug:
+                enabled: false
+        "#};
+        let validated = validated_from_yaml(yaml, None);
+        let driver_config = validated
+            .spark_application
+            .driver_config()
+            .expect("the driver config resolves");
+        let env = validated
+            .spark_application
+            .env(&None, &None, None)
+            .expect("the base environment can be built");
+
+        let template = pod_template(
+            &validated,
+            SparkApplicationRole::Driver,
+            &driver_config,
+            &[],
+            &env,
+            &test_service_account(),
+        )
+        .expect("the driver pod template can be built");
+
+        let env = template
+            .spec
+            .expect("the pod template has a spec")
+            .containers
+            .iter()
+            .find(|container| container.name == "spark")
+            .expect("the spark container exists")
+            .env
+            .as_ref()
+            .expect("the spark container has env vars");
+
+        assert!(
+            !env.iter()
+                .any(|env_var| env_var.name == "CONTAINERDEBUG_LOG_DIRECTORY")
+        );
+        let pre_hook = env
+            .iter()
+            .find(|env_var| env_var.name == "_STACKABLE_PRE_HOOK")
+            .and_then(|env_var| env_var.value.as_deref())
+            .expect("the Spark environment bootstrap hook remains configured");
+        assert!(!pre_hook.contains("containerdebug"));
+        assert!(pre_hook.contains("spark-env.sh"));
+    }
+
     /// Runs the real validate step against the given SparkApplication YAML, optionally with a
     /// dereferenced S3 connection.
     fn validated_from_yaml(

@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add a `containerDebug.enabled` opt-out for SparkApplication submit, driver, and executor containers ([#730]).
 - Add support for emitting [OpenLineage](https://openlineage.io/) events from `SparkApplications` via `spec.lineage` ([#726]).
 - Support for Spark `4.1.3` and `4.2.0` ([#790]).
 - Support floating tags for product images via the new `spec.image.stackableVersionPolicy` field
@@ -90,6 +91,7 @@ All notable changes to this project will be documented in this file.
 - The submit Job and the history server no longer print S3 credentials to the container log ([#796]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721
+[#730]: https://github.com/stackabletech/spark-k8s-operator/issues/730
 [#726]: https://github.com/stackabletech/spark-k8s-operator/pull/726
 [#727]: https://github.com/stackabletech/spark-k8s-operator/pull/727
 [#732]: https://github.com/stackabletech/spark-k8s-operator/pull/732

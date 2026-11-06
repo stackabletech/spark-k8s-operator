@@ -1,4 +1,5 @@
 = Operations
+:description: Operating Apache Spark with the Stackable operator, covering Spark applications, graceful shutdown, Pod disruptions and Pod placement.
 
 This section of the documentation is intended for the operations teams that maintain a Stackable Data Platform installation.
 

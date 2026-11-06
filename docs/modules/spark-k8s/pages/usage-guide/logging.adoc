@@ -1,4 +1,5 @@
 = Logging
+:description: Logging for Apache Spark applications and the history server, covering the Vector agent the operator adds and forwarding logs to an aggregator.
 
 The Spark operator installs a https://vector.dev/docs/setup/deployment/roles/#agent[vector agent] as a side-car container in every application Pod except the `job` Pod that runs `spark-submit`.
 It also configures the logging framework to output logs in XML format.

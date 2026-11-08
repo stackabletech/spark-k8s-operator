@@ -1,4 +1,5 @@
 = Allowed Pod disruptions
+:description: PodDisruptionBudgets for the Apache Spark history server, and why the Stackable operator writes none for driver and executor Pods.
 
 == Spark applications
 

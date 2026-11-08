@@ -1,3 +1,4 @@
 = Usage guide
+:description: Guides for the Stackable operator for Apache Spark beyond the basics, covering job dependencies, S3 connections and examples of usage scenarios.
 
 Learn how to load your own xref:usage-guide/job-dependencies.adoc[] or configure an xref:usage-guide/s3.adoc[S3 connection] to access data. Have a look at the xref:usage-guide/examples.adoc[] to learn more about different usage scenarios.

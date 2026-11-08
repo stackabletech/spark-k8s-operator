@@ -1,3 +1,4 @@
 = CRD Reference
+:description: CRD reference for the Stackable operator for Apache Spark on the Stackable Hub, covering every field, default and API version.
 
 Find all CRD reference for the Stackable Operator for Apache Spark at: {crd-ref}{crd-ref-release}&operator=spark-k8s-operator.

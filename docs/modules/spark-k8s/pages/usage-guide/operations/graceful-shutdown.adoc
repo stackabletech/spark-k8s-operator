@@ -1,4 +1,5 @@
 = Graceful shutdown
+:description: Graceful shutdown for Apache Spark, which the Stackable operator has no settings for, with Spark itself creating and stopping driver and executor Pods.
 
 Normally you can configure the graceful shutdown as described in xref:concepts:operations/graceful_shutdown.adoc[].
 

@@ -1,4 +1,5 @@
 = Reference
+:description: Reference for the Stackable operator for Apache Spark, covering CRD fields, command-line parameters and environment variables.
 
 Consult the reference documentation section to find exhaustive information on:
 

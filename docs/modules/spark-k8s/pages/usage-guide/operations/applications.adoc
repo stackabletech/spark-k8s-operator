@@ -1,4 +1,5 @@
 = Spark applications
+:description: The lifecycle of Apache Spark applications submitted as SparkApplication resources, covering resubmission and their Prometheus metrics.
 
 Spark applications are submitted to the Spark Operator as SparkApplication resources.
 These resources are used to define the configuration of the Spark job, including the image to use, the main application file, and the number of executors to start.

@@ -9824,10 +9824,10 @@ rec {
       };
       "serde-saphyr" = rec {
         crateName = "serde-saphyr";
-        version = "2.0.0";
+        version = "2.1.1";
         edition = "2024";
         crateBin = [];
-        sha256 = "0i2waflcwhxz5nyg7y9pl9mplk2gr7y1ckpq3ai2s0rlxbyyslx2";
+        sha256 = "1zh7iwfc84z3brgqgbfyips049hq6l4pv3d557wyc1qbalnvhgyl";
         libName = "serde_saphyr";
         license = "MIT OR Apache-2.0";
         dependencies = [
@@ -9838,7 +9838,7 @@ rec {
           }
           {
             name = "base64";
-            packageId = "base64 0.22.1";
+            packageId = "base64 0.23.1";
             optional = true;
           }
           {

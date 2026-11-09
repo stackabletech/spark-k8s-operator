@@ -602,7 +602,7 @@ mod tests {
 
         let matching: Vec<&EnvVar> = env
             .iter()
-            .filter(|env_var| env_var.name == "FILE_LOG_DIRECTORY")
+            .filter(|env_var| env_var.name == FILE_LOG_DIRECTORY.as_ref())
             .collect();
 
         // The override must replace the operator-set value, not duplicate it.

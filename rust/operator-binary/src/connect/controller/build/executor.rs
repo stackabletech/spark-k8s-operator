@@ -383,8 +383,11 @@ mod tests {
     };
 
     use super::*;
-    use crate::connect::controller::build::test_support::{
-        minimal_validated_cluster, validated_cluster_with_s3_tls,
+    use crate::{
+        connect::controller::build::test_support::{
+            minimal_validated_cluster, validated_cluster_with_s3_tls,
+        },
+        crd::constants::FILE_LOG_DIRECTORY,
     };
 
     #[test]
@@ -460,7 +463,7 @@ mod tests {
 
         let matching: Vec<&EnvVar> = env
             .iter()
-            .filter(|env_var| env_var.name == "FILE_LOG_DIRECTORY")
+            .filter(|env_var| env_var.name == FILE_LOG_DIRECTORY.as_ref())
             .collect();
 
         // Exactly once, so a future operator-set value cannot end up duplicated next to it.

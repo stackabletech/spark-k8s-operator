@@ -872,7 +872,10 @@ impl v1alpha1::SparkApplication {
             // The log directory is created here, because `FILE_LOG_MAX_FILES` makes the telemetry
             // library prune old log files before it creates the first one, which complains about
             // the directory not existing yet.
-            "mkdir --parents \"$FILE_LOG_DIRECTORY\"".to_owned(),
+            format!(
+                "mkdir --parents \"${file_log_directory}\" || true",
+                file_log_directory = FILE_LOG_DIRECTORY.as_ref()
+            ),
             format!(
                 "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
             ),
@@ -928,7 +931,8 @@ impl v1alpha1::SparkApplication {
             .with_value(
                 &STACKABLE_PRE_HOOK,
                 format!(
-                    "mkdir --parents \"$FILE_LOG_DIRECTORY\"; containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+                    "mkdir --parents \"${file_log_directory}\" || true; containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &",
+                    file_log_directory = FILE_LOG_DIRECTORY.as_ref()
                 ),
             );
 

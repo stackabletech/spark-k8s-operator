@@ -367,7 +367,7 @@ pub(crate) fn build_stateful_set(
 #[allow(clippy::result_large_err)]
 pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
     let mut command = formatdoc! { "
-    mkdir --parents \"$FILE_LOG_DIRECTORY\"
+    mkdir --parents \"${file_log_directory}\" || true
     containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &
 
     cp {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME} /tmp/spark.properties
@@ -376,7 +376,8 @@ pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
     /stackable/spark/sbin/start-connect-server.sh \\
     --deploy-mode client \\
     --master k8s://https://${{KUBERNETES_SERVICE_HOST}}:${{KUBERNETES_SERVICE_PORT_HTTPS}} \\
-    --properties-file /tmp/spark.properties"};
+    --properties-file /tmp/spark.properties",
+    file_log_directory = FILE_LOG_DIRECTORY.as_ref()};
 
     // Append user-provided command line arguments as continuation lines.
     for user_arg in user_args {

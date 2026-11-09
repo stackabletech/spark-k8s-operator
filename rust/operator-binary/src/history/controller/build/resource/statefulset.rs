@@ -300,7 +300,10 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
     }
 
     command.extend(vec![
-        "mkdir --parents \"$FILE_LOG_DIRECTORY\"".to_owned(),
+        format!(
+            "mkdir --parents \"${file_log_directory}\" || true",
+            file_log_directory = FILE_LOG_DIRECTORY.as_ref()
+        ),
         format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
         format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);

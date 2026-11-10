@@ -39,9 +39,13 @@ pub const VOLUME_MOUNT_PATH_LOG_CONFIG: &str = "/stackable/log_config";
 constant!(pub VOLUME_MOUNT_NAME_LOG: VolumeName = "log");
 pub const VOLUME_MOUNT_PATH_LOG: &str = "/stackable/log";
 
-// Tells the `containerdebug` process running in the background of a product container where to
-// write its tracing information.
-constant!(pub CONTAINERDEBUG_LOG_DIRECTORY: EnvVarName = "CONTAINERDEBUG_LOG_DIRECTORY");
+// Let the `containerdebug` process write its tracing information to a file. These are the generic
+// `stackable-telemetry` variables and apply to the whole product container, so any other
+// telemetry-based process in it would log into the same directory and the Vector agent would label
+// its events with `container: containerdebug`.
+constant!(pub FILE_LOG_DIRECTORY: EnvVarName = "FILE_LOG_DIRECTORY");
+constant!(pub FILE_LOG_MAX_FILES: EnvVarName = "FILE_LOG_MAX_FILES");
+constant!(pub FILE_LOG_ROTATION_PERIOD: EnvVarName = "FILE_LOG_ROTATION_PERIOD");
 // Prevents the history/connect server from detaching itself from the start script, which would
 // terminate the Pod immediately.
 constant!(pub SPARK_NO_DAEMONIZE: EnvVarName = "SPARK_NO_DAEMONIZE");
@@ -193,7 +197,9 @@ mod tests {
     #[test]
     fn test_constants() {
         // Test that dereferencing the constants does not panic.
-        let _ = *CONTAINERDEBUG_LOG_DIRECTORY;
+        let _ = *FILE_LOG_DIRECTORY;
+        let _ = *FILE_LOG_MAX_FILES;
+        let _ = *FILE_LOG_ROTATION_PERIOD;
         let _ = *LISTENER_VOLUME_NAME;
         let _ = *SPARK_NO_DAEMONIZE;
         let _ = *VOLUME_MOUNT_NAME_CONFIG;

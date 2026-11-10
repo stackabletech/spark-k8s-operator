@@ -29,6 +29,7 @@ yaml_serde.workspace = true
 [dev-dependencies]
 indoc.workspace = true
 rstest.workspace = true
+stackable-operator = { workspace = true, features = ["test-support"] }
 
 [build-dependencies]
 built.workspace = true

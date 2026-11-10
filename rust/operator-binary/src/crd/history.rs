@@ -317,7 +317,6 @@ fn default_listener_class() -> ListenerClassName {
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
 
     use indoc::indoc;
     use stackable_operator::{
@@ -420,7 +419,7 @@ mod test {
 
         assert_eq!(
             env_overrides
-                .get(&EnvVarName::from_str("TEST_SPARK_HIST_VAR").expect("valid env var name"))
+                .get(&EnvVarName::from_str_unsafe("TEST_SPARK_HIST_VAR"))
                 .and_then(|env_var| env_var.value.clone()),
             Some("ROLEGROUP".to_string())
         );

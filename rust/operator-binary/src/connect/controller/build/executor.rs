@@ -38,10 +38,10 @@ use crate::{
         s3,
     },
     crd::constants::{
-        CONTAINERDEBUG_LOG_DIRECTORY, JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE,
-        MAX_SPARK_LOG_FILES_SIZE, METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE,
-        VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-        VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+        JVM_SECURITY_PROPERTIES_FILE, LOG4J2_CONFIG_FILE, MAX_SPARK_LOG_FILES_SIZE,
+        METRICS_PROPERTIES_FILE, POD_TEMPLATE_FILE, VOLUME_MOUNT_NAME_CONFIG,
+        VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG,
+        VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
     },
     product_logging,
 };
@@ -93,7 +93,10 @@ pub fn executor_pod_template(
     let config = &validated.executor_config;
     let resolved_product_image = &validated.resolved_product_image;
     let resolved_s3 = &validated.cluster_config.resolved_s3;
-    let container_env = executor_env(&validated.executor_overrides.env_overrides);
+    // The operator sets no environment variables on the executor container, so the user's
+    // `envOverrides` are all there is. `FILE_LOG_DIRECTORY` in particular would have no effect,
+    // because `containerdebug` is not started in the executor containers.
+    let container_env = validated.executor_overrides.env_overrides.clone();
 
     let (s3_volumes, s3_volume_mounts) = resolved_s3
         .volumes_and_mounts()
@@ -101,11 +104,16 @@ pub fn executor_pod_template(
 
     let mut container = new_container_builder(SparkConnectContainer::Spark.name());
     container
-        .add_env_vars(container_env)
         .add_volume_mount(VOLUME_MOUNT_NAME_CONFIG.as_ref(), VOLUME_MOUNT_PATH_CONFIG)
         .expect("The mount paths are statically defined and there should be no duplicates.")
         .add_volume_mount(VOLUME_MOUNT_NAME_LOG.as_ref(), VOLUME_MOUNT_PATH_LOG)
         .expect("The mount paths are statically defined and there should be no duplicates.");
+
+    // `add_env_vars` creates the `env` list even for an empty set, which would show up as
+    // `env: []` in the rendered pod template.
+    if container_env.iter().next().is_some() {
+        container.add_env_vars(container_env);
+    }
 
     let metadata = ObjectMetaBuilder::new()
         .with_labels(recommended_labels_for_role_resources(
@@ -211,19 +219,6 @@ pub fn executor_pod_template(
     result.merge_from(validated.executor_overrides.pod_overrides.clone());
 
     Ok(result)
-}
-
-/// The environment variables of the executor container.
-///
-/// The user's `envOverrides` are merged in last so that they override any operator-set
-/// environment variable.
-fn executor_env(env_overrides: &EnvVarSet) -> EnvVarSet {
-    EnvVarSet::new()
-        .with_value(
-            &CONTAINERDEBUG_LOG_DIRECTORY,
-            format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
-        )
-        .merge(env_overrides.clone())
 }
 
 pub(crate) fn executor_properties(
@@ -384,11 +379,15 @@ mod tests {
     use stackable_operator::{
         commons::product_image_selection::PullPolicy,
         k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
+        v2::builder::pod::container::EnvVarName,
     };
 
     use super::*;
-    use crate::connect::controller::build::test_support::{
-        minimal_validated_cluster, validated_cluster_with_s3_tls,
+    use crate::{
+        connect::controller::build::test_support::{
+            minimal_validated_cluster, validated_cluster_with_s3_tls,
+        },
+        crd::constants::FILE_LOG_DIRECTORY,
     };
 
     #[test]
@@ -430,15 +429,13 @@ mod tests {
         );
     }
 
-    /// `envOverrides` must be applied after all operator-set environment variables, so a user
-    /// override replaces the operator-set value instead of duplicating it or being ignored.
+    /// The user's `envOverrides` must reach the executor container exactly once. The operator
+    /// sets no environment variables there, so there is no operator-set value to replace.
     #[test]
-    fn env_overrides_override_operator_set_env_vars() {
+    fn env_overrides_are_applied_to_the_executor_container() {
         let mut validated = minimal_validated_cluster();
         validated.executor_overrides.env_overrides = EnvVarSet::new().with_value(
-            &"CONTAINERDEBUG_LOG_DIRECTORY"
-                .parse()
-                .expect("valid env var name"),
+            &EnvVarName::from_str_unsafe("FILE_LOG_DIRECTORY"),
             "/custom/log/dir",
         );
 
@@ -466,10 +463,10 @@ mod tests {
 
         let matching: Vec<&EnvVar> = env
             .iter()
-            .filter(|env_var| env_var.name == "CONTAINERDEBUG_LOG_DIRECTORY")
+            .filter(|env_var| env_var.name == FILE_LOG_DIRECTORY.as_ref())
             .collect();
 
-        // The override must replace the operator-set value, not duplicate it.
+        // Exactly once, so a future operator-set value cannot end up duplicated next to it.
         assert_eq!(matching.len(), 1);
         assert_eq!(matching[0].value.as_deref(), Some("/custom/log/dir"));
     }

@@ -6,6 +6,7 @@ use std::{
     str::FromStr,
 };
 
+use const_format::concatcp;
 use constants::*;
 use history::LogFileDirectorySpec;
 use logdir::ResolvedLogDir;
@@ -669,11 +670,11 @@ impl v1alpha1::SparkApplication {
             format!(
                 "--conf spark.driver.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
             ),
-            format!("--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*"),
+            "--conf spark.driver.extraClassPath=/stackable/spark/extra-jars/*".to_owned(),
             format!(
                 "--conf spark.executor.defaultJavaOptions=-Dlog4j.configurationFile={VOLUME_MOUNT_PATH_LOG_CONFIG}/{LOG4J2_CONFIG_FILE}"
             ),
-            format!("--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*"),
+            "--conf spark.executor.extraClassPath=/stackable/spark/extra-jars/*".to_owned(),
         ];
 
         // See https://spark.apache.org/docs/latest/running-on-kubernetes.html#dependency-management
@@ -859,7 +860,7 @@ impl v1alpha1::SparkApplication {
             self.spec
                 .main_class
                 .clone()
-                .map(|mc| format! {"--class {mc}"}),
+                .map(|mc| format!("--class {mc}")),
         );
 
         let artifact = self.application_artifact();
@@ -868,6 +869,13 @@ impl v1alpha1::SparkApplication {
         submit_cmd.extend(self.spec.args.clone());
 
         Ok(vec![
+            // The log directory is created here, because `FILE_LOG_MAX_FILES` makes the telemetry
+            // library prune old log files before it creates the first one, which complains about
+            // the directory not existing yet.
+            format!(
+                "mkdir --parents \"${file_log_directory}\" || true",
+                file_log_directory = FILE_LOG_DIRECTORY.as_ref()
+            ),
             format!(
                 "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
             ),
@@ -904,20 +912,27 @@ impl v1alpha1::SparkApplication {
 
         // These env variables enable the `containerdebug` process in driver and executor pods.
         // More precisely, this process runs in the background of every `spark` container.
-        // - `CONTAINERDEBUG_LOG_DIRECTORY` - is the location where tracing information from the process
-        // is written. This directory is created by the process itself.
+        // - `FILE_LOG_DIRECTORY` - is the location where tracing information from the process is
+        // written. It must be exactly one level below the log directory, because the Vector agent
+        // derives the container name from that path segment. The rotation is opt-in, so without
+        // the other two variables the file would grow unbounded.
         // - `_STACKABLE_PRE_HOOK` - is evaluated by the entrypoint script (run-spark.sh) in the Spark images
         // before the actual JVM process is started. The result of this evaluation is that the
-        // `containerdebug` process is executed in the background.
+        // `containerdebug` process is executed in the background. The log directory is created
+        // there, because `FILE_LOG_MAX_FILES` makes the telemetry library prune old log files
+        // before it creates the first one, which complains about the directory not existing yet.
         env = env
             .with_value(
-                &CONTAINERDEBUG_LOG_DIRECTORY,
-                format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+                &FILE_LOG_DIRECTORY,
+                concatcp!(VOLUME_MOUNT_PATH_LOG, "/containerdebug"),
             )
+            .with_value(&FILE_LOG_ROTATION_PERIOD, "hourly")
+            .with_value(&FILE_LOG_MAX_FILES, "2")
             .with_value(
                 &STACKABLE_PRE_HOOK,
                 format!(
-                    "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
+                    "mkdir --parents \"${file_log_directory}\" || true; containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &",
+                    file_log_directory = FILE_LOG_DIRECTORY.as_ref()
                 ),
             );
 

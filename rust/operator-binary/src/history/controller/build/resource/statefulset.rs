@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use const_format::concatcp;
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
     builder::{
@@ -43,11 +44,12 @@ constant!(SPARK_HISTORY_OPTS: EnvVarName = "SPARK_HISTORY_OPTS");
 use crate::{
     crd::{
         constants::{
-            ACCESS_KEY_ID, CONTAINERDEBUG_LOG_DIRECTORY, HISTORY_UI_PORT, LISTENER_VOLUME_DIR,
-            LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE, METRICS_PORT, SECRET_ACCESS_KEY,
-            SPARK_DEFAULTS_FILE_NAME, SPARK_NO_DAEMONIZE, STACKABLE_TRUST_STORE,
-            VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG, VOLUME_MOUNT_NAME_LOG_CONFIG,
-            VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG, VOLUME_MOUNT_PATH_LOG_CONFIG,
+            ACCESS_KEY_ID, FILE_LOG_DIRECTORY, FILE_LOG_MAX_FILES, FILE_LOG_ROTATION_PERIOD,
+            HISTORY_UI_PORT, LISTENER_VOLUME_DIR, LISTENER_VOLUME_NAME, MAX_SPARK_LOG_FILES_SIZE,
+            METRICS_PORT, SECRET_ACCESS_KEY, SPARK_DEFAULTS_FILE_NAME, SPARK_NO_DAEMONIZE,
+            STACKABLE_TRUST_STORE, VOLUME_MOUNT_NAME_CONFIG, VOLUME_MOUNT_NAME_LOG,
+            VOLUME_MOUNT_NAME_LOG_CONFIG, VOLUME_MOUNT_PATH_CONFIG, VOLUME_MOUNT_PATH_LOG,
+            VOLUME_MOUNT_PATH_LOG_CONFIG,
         },
         history::SparkHistoryServerContainer,
         logdir::ResolvedLogDir,
@@ -151,6 +153,9 @@ pub(crate) fn build_stateful_set(
         VolumeBuilder::new(VOLUME_MOUNT_NAME_LOG.as_ref())
             .with_empty_dir(
                 None::<String>,
+                // Only the Spark log files are budgeted. The `containerdebug` files in this
+                // volume are rotated by time, not by size, so they have no budget; raising
+                // `FILE_LOG_LEVEL` via `envOverrides` can therefore evict the Pod.
                 Some(calculate_log_volume_size_limit(&[MAX_SPARK_LOG_FILES_SIZE])),
             )
             .build(),
@@ -172,9 +177,12 @@ pub(crate) fn build_stateful_set(
     // overrides are merged in last so that they override any operator-set environment variable.
     let merged_env = EnvVarSet::new()
         .with_value(
-            &CONTAINERDEBUG_LOG_DIRECTORY,
-            format!("{VOLUME_MOUNT_PATH_LOG}/containerdebug"),
+            &FILE_LOG_DIRECTORY,
+            concatcp!(VOLUME_MOUNT_PATH_LOG, "/containerdebug"),
         )
+        // Rotation is opt-in, so without these the file would grow unbounded.
+        .with_value(&FILE_LOG_ROTATION_PERIOD, "hourly")
+        .with_value(&FILE_LOG_MAX_FILES, "2")
         .with_value(&SPARK_NO_DAEMONIZE, "true")
         .with_value(&SPARK_DAEMON_CLASSPATH, "/stackable/spark/extra-jars/*")
         .with_value(
@@ -292,6 +300,10 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
     }
 
     command.extend(vec![
+        format!(
+            "mkdir --parents \"${file_log_directory}\" || true",
+            file_log_directory = FILE_LOG_DIRECTORY.as_ref()
+        ),
         format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
         format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
@@ -333,7 +345,7 @@ mod tests {
             .expect("the default role group exists")
             .config
             .env_overrides = EnvVarSet::new().with_value(
-            &EnvVarName::from_str("SPARK_NO_DAEMONIZE").expect("valid env var name"),
+            &EnvVarName::from_str_unsafe("SPARK_NO_DAEMONIZE"),
             "overridden",
         );
 

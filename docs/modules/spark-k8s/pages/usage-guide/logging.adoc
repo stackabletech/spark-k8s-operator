@@ -16,6 +16,7 @@ It also runs in the `spark-submit` Pod, whose logs are discarded as described ab
 The label comes from `/stackable/log/containerdebug`, the directory which the operator sets with the `FILE_LOG_DIRECTORY` environment variable and from which the Vector agent derives the container name.
 Overriding `FILE_LOG_DIRECTORY` with `envOverrides` therefore changes how these logs are aggregated.
 The agent only collects files one level below `/stackable/log`, so a sibling directory such as `/stackable/log/spark` relabels the events instead of dropping them, while any deeper or shallower path stops the aggregation.
+A path outside `/stackable/log` also leaves the size-capped log volume.
 
 == History server
 

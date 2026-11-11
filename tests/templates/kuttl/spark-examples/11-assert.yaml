@@ -1,7 +1,11 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 900
+timeout: 30
 commands:
-  # Test that there is no spark driver pod left hanging
-  - script: test -z "$(kubectl -n $NAMESPACE get pods -o name | grep -E 'driver$')"
+  # The application has finished (see 10-assert.yaml), but the driver pod is kept
+  # for `ttlAfterFinished` (60s) so that its logs can still be inspected.
+  - script: |
+      DRIVER_POD=$(kubectl -n $NAMESPACE get pods -o name | grep -E 'driver$') || exit 1
+      test "$(kubectl -n $NAMESPACE get $DRIVER_POD -o jsonpath='{.status.phase}')" = "Succeeded"
+      kubectl -n $NAMESPACE logs $DRIVER_POD | grep -q .

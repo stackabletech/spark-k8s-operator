@@ -1,0 +1,8 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  # Test that the finished driver pod is deleted once its TTL has elapsed,
+  # so that there is no spark driver pod left hanging
+  - script: test -z "$(kubectl -n $NAMESPACE get pods -o name | grep -E 'driver$')"

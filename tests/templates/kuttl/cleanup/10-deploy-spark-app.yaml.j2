@@ -1,8 +1,9 @@
+{% for outcome in ['succeeded', 'failed'] %}
 ---
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: ttl-after-finished
+  name: cleanup-{{ outcome }}
 spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery
@@ -18,13 +19,28 @@ spec:
   mode: cluster
   mainClass: org.apache.spark.examples.SparkPi
   mainApplicationFile: "local:///stackable/spark/examples/jars/spark-examples.jar"
-  ttlAfterFinished: 60s
+  cleanup:
+    afterSucceeded: 60s
+    afterFailed: 1h
   driver:
     config:
       logging:
+{% if outcome == 'failed' %}
+        enableVectorAgent: false
+    podOverrides:
+      spec:
+        containers:
+          - name: spark
+            command:
+              - sh
+              - -c
+              - exit 1
+{% else %}
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+{% endif %}
   executor:
     replicas: 1
     config:
       logging:
         enableVectorAgent: {{ lookup('env', 'VECTOR_AGGREGATOR') | length > 0 }}
+{% endfor %}

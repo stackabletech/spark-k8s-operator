@@ -177,14 +177,24 @@ pub(crate) fn spark_job(
         pod.merge_from(submit_pod_overrides);
     }
 
+    let cleanup = spark_application.cleanup();
     let mut metadata = object_meta(
         validated,
         validated.name.to_string(),
         &SPARK_JOB_COMPONENT_NAME,
     )
     .build();
+    let annotations = metadata.annotations.get_or_insert_default();
+    annotations.insert(
+        CLEANUP_AFTER_SUCCEEDED_ANNOTATION.to_owned(),
+        cleanup.after_succeeded().to_string(),
+    );
+    annotations.insert(
+        CLEANUP_AFTER_FAILED_ANNOTATION.to_owned(),
+        cleanup.after_failed().to_string(),
+    );
     if let Some(driver_pod_name) = spark_application.spec.spark_conf.get(SPARK_DRIVER_POD_NAME) {
-        metadata.annotations.get_or_insert_default().insert(
+        annotations.insert(
             FIXED_DRIVER_POD_NAME_ANNOTATION.to_owned(),
             driver_pod_name.clone(),
         );
@@ -194,7 +204,7 @@ pub(crate) fn spark_job(
         metadata,
         spec: Some(JobSpec {
             template: pod,
-            ttl_seconds_after_finished: spark_application.ttl_after_finished().job_ttl_seconds(),
+            ttl_seconds_after_finished: cleanup.initial_job_ttl_seconds(),
             backoff_limit: Some(spark_application.retry_on_failure_count()),
             ..Default::default()
         }),
@@ -319,41 +329,8 @@ mod tests {
         assert_eq!(matching[0].value.as_deref(), Some("/custom/conf"));
     }
 
-    #[rstest]
-    #[case::default("{}", "{}", "null", Some(600), None)]
-    #[case::immediately("{}", "{}", "0s", Some(0), None)]
-    #[case::custom("{}", "{}", "2s", Some(2), None)]
-    #[case::never("{}", "{}", "never", None, None)]
-    #[case::generated_name_with_retries("{}", "{retryOnFailureCount: 3}", "null", Some(600), None)]
-    #[case::fixed_name(
-        "{spark.kubernetes.driver.pod.name: fixed}",
-        "{}",
-        "null",
-        Some(600),
-        Some("fixed")
-    )]
-    #[case::fixed_name_never(
-        "{spark.kubernetes.driver.pod.name: fixed}",
-        "{}",
-        "never",
-        None,
-        Some("fixed")
-    )]
-    #[case::fixed_name_with_retries(
-        "{spark.kubernetes.driver.pod.name: fixed}",
-        "{retryOnFailureCount: 3}",
-        "2s",
-        Some(2),
-        Some("fixed")
-    )]
-    fn ttl_after_finished_and_fixed_driver_pod_name_are_picked_up(
-        #[case] spark_conf: &str,
-        #[case] job_config: &str,
-        #[case] ttl_after_finished: &str,
-        #[case] expected_ttl: Option<i32>,
-        #[case] expected_fixed_driver_pod_name: Option<&str>,
-    ) {
-        let yaml = formatdoc! {"
+    fn spark_job_with(spark_conf: &str, cleanup: &str) -> Job {
+        spark_job_from_yaml(&formatdoc! {"
             apiVersion: spark.stackable.tech/v1alpha1
             kind: SparkApplication
             metadata:
@@ -366,24 +343,57 @@ mod tests {
               sparkImage:
                 productVersion: 1.2.3
               sparkConf: {spark_conf}
-              ttlAfterFinished: {ttl_after_finished}
-              job:
-                config: {job_config}
-        "};
-        let job = spark_job_from_yaml(&yaml);
-        assert_eq!(
-            job.metadata
-                .annotations
-                .as_ref()
-                .and_then(|annotations| annotations.get(FIXED_DRIVER_POD_NAME_ANNOTATION))
-                .map(String::as_str),
-            expected_fixed_driver_pod_name
-        );
+              cleanup: {cleanup}
+        "})
+    }
+
+    fn annotation<'a>(job: &'a Job, key: &str) -> Option<&'a str> {
+        job.metadata
+            .annotations
+            .as_ref()
+            .and_then(|annotations| annotations.get(key))
+            .map(String::as_str)
+    }
+
+    #[rstest]
+    #[case::default("null", Some(600), ("10m", "10m"))]
+    #[case::immediately("{afterSucceeded: 0s, afterFailed: 0s}", Some(0), ("0s", "0s"))]
+    #[case::failed_longer("{afterSucceeded: 2s, afterFailed: 1h}", Some(3600), ("2s", "1h"))]
+    #[case::succeeded_longer("{afterSucceeded: 1h, afterFailed: 0s}", Some(3600), ("1h", "0s"))]
+    #[case::only_failed("{afterFailed: never}", None, ("10m", "never"))]
+    #[case::never("{afterSucceeded: never, afterFailed: never}", None, ("never", "never"))]
+    fn job_starts_with_the_longer_ttl_and_carries_both(
+        #[case] cleanup: &str,
+        #[case] expected_ttl: Option<i32>,
+        #[case] expected_annotations: (&str, &str),
+    ) {
+        let job = spark_job_with("{}", cleanup);
+
         assert_eq!(
             job.spec
+                .as_ref()
                 .expect("the job has a spec")
                 .ttl_seconds_after_finished,
             expected_ttl
         );
+        assert_eq!(
+            (
+                annotation(&job, CLEANUP_AFTER_SUCCEEDED_ANNOTATION),
+                annotation(&job, CLEANUP_AFTER_FAILED_ANNOTATION)
+            ),
+            (Some(expected_annotations.0), Some(expected_annotations.1))
+        );
+    }
+
+    #[rstest]
+    #[case::generated_name("{}", None)]
+    #[case::fixed_name("{spark.kubernetes.driver.pod.name: fixed}", Some("fixed"))]
+    fn fixed_driver_pod_name_is_annotated(
+        #[case] spark_conf: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let job = spark_job_with(spark_conf, "null");
+
+        assert_eq!(annotation(&job, FIXED_DRIVER_POD_NAME_ANNOTATION), expected);
     }
 }

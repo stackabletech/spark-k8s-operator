@@ -1,0 +1,32 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 900
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cleanup-succeeded
+spec:
+  ttlSecondsAfterFinished: 60
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: cleanup-succeeded
+status:
+  phase: Succeeded
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cleanup-failed
+spec:
+  ttlSecondsAfterFinished: 3600
+---
+apiVersion: spark.stackable.tech/v1alpha1
+kind: SparkApplication
+metadata:
+  name: cleanup-failed
+status:
+  phase: Failed

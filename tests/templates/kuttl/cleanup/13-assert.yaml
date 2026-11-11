@@ -1,0 +1,27 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 240
+commands:
+  - script: |
+      set -eu
+
+      gone() {
+        [ -z "$(kubectl -n "$NAMESPACE" get "$@" --ignore-not-found -o name)" ]
+      }
+      phase() {
+        kubectl -n "$NAMESPACE" get sparkapplication "$1" -o jsonpath='{.status.phase}'
+      }
+
+      app=cleanup-succeeded
+      gone job "$app"
+      gone serviceaccount "$app"
+      gone rolebinding "$app"
+      gone configmap "$app-submit-job" "$app-driver-pod-template" "$app-executor-pod-template"
+      gone pods -l "app.kubernetes.io/instance=$app"
+      [ "$(phase "$app")" = Succeeded ]
+
+      app=cleanup-failed
+      kubectl -n "$NAMESPACE" get job "$app" serviceaccount/"$app" rolebinding/"$app" > /dev/null
+      [ "$(kubectl -n "$NAMESPACE" get pods -l "spark-role=driver,app.kubernetes.io/instance=$app" -o name | wc -l)" -eq 1 ]
+      [ "$(phase "$app")" = Failed ]

@@ -108,8 +108,8 @@ rules:
   # A Kubernetes Job is created per SparkApplication via Server-Side Apply to run
   # spark-submit. The app controller applies Jobs directly (not via cluster_resources),
   # so only create + patch (SSA) are needed. Jobs are not watched and not tracked for
-  # orphan cleanup by any controller. Get is required for handing the driver pod
-  # ownership to the Job.
+  # orphan cleanup by any controller. The pod-driver controller reads the Job (get) to
+  # hand the driver pod over to it, and sets its TTL from the outcome of the driver (patch).
   - apiGroups:
       - batch
     resources:

@@ -50,17 +50,18 @@ use stackable_operator::{
 use crate::{
     config::jvm::construct_extra_java_options,
     crd::{
+        cleanup::Cleanup,
         job_dependencies::JobDependencies,
         roles::{
             RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
             SubmitConfig, SubmitConfigFragment, VolumeMounts,
         },
-        ttl_after_finished::TtlAfterFinished,
     },
     lineage::{append_conf_csv, openlineage_transport_env_vars, transport_base_url},
 };
 
 pub mod affinity;
+pub mod cleanup;
 pub mod constants;
 pub mod history;
 pub mod job_dependencies;
@@ -70,7 +71,6 @@ pub mod roles;
 pub mod template_merger;
 pub mod template_spec;
 pub mod tlscerts;
-pub mod ttl_after_finished;
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -213,11 +213,10 @@ pub mod versioned {
         pub vector_aggregator_config_map_name: Option<ConfigMapName>,
 
         /// How long the spark-submit Job, the driver Pod and the objects the operator created for
-        /// the application are kept after the Job finished. A duration such as `10m` (default),
-        /// `0s` to delete them right away, or `never` to keep them until the SparkApplication is
-        /// deleted.
+        /// the application are kept after the driver finished, separately for a succeeded and a
+        /// failed driver.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub ttl_after_finished: Option<TtlAfterFinished>,
+        pub cleanup: Option<Cleanup>,
 
         /// The job builds a spark-submit command, complete with arguments and referenced dependencies
         /// such as templates, and passes it on to Spark.
@@ -1060,8 +1059,8 @@ impl v1alpha1::SparkApplication {
         effective_retry_on_failure_count as i32
     }
 
-    pub fn ttl_after_finished(&self) -> TtlAfterFinished {
-        self.spec.ttl_after_finished.clone().unwrap_or_default()
+    pub fn cleanup(&self) -> Cleanup {
+        self.spec.cleanup.clone().unwrap_or_default()
     }
 }
 

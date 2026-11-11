@@ -104,6 +104,14 @@ pub const POD_DRIVER_FULL_CONTROLLER_NAME: &str =
 pub const FIXED_DRIVER_POD_NAME_ANNOTATION: &str =
     concatcp!(SPARK_OPERATOR_NAME, "/fixed-driver-pod-name");
 
+/// Annotations on the spark-submit Job that carry the resolved `cleanup.afterSucceeded` and
+/// `cleanup.afterFailed`. The Job is created with the longer of the two TTLs, and the pod driver
+/// controller sets the one matching the outcome of the driver when it hands the driver over.
+pub const CLEANUP_AFTER_SUCCEEDED_ANNOTATION: &str =
+    concatcp!(SPARK_OPERATOR_NAME, "/cleanup-after-succeeded");
+pub const CLEANUP_AFTER_FAILED_ANNOTATION: &str =
+    concatcp!(SPARK_OPERATOR_NAME, "/cleanup-after-failed");
+
 pub const HISTORY_CONTROLLER_NAME: &str = "history";
 pub const HISTORY_FULL_CONTROLLER_NAME: &str =
     concatcp!(HISTORY_CONTROLLER_NAME, '.', SPARK_OPERATOR_NAME);

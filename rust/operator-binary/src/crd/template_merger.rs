@@ -13,7 +13,7 @@ use stackable_operator::{
     },
 };
 
-use super::v1alpha1::SparkApplication;
+use super::{cleanup::Cleanup, v1alpha1::SparkApplication};
 
 /// Deep merge two SparkApplication instances.
 ///
@@ -73,11 +73,7 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
             .log_file_directory
             .clone()
             .or_else(|| base.spec.log_file_directory.clone()),
-        ttl_after_finished: overlay
-            .spec
-            .ttl_after_finished
-            .clone()
-            .or_else(|| base.spec.ttl_after_finished.clone()),
+        cleanup: Cleanup::merge(base.spec.cleanup.as_ref(), overlay.spec.cleanup.as_ref()),
 
         // Product image: overlay takes precedence
         spark_image: overlay.spec.spark_image.clone(),
@@ -493,16 +489,21 @@ mod tests {
     }
 
     #[rstest]
-    #[case::overlay_wins("1h", "0s", "0s")]
-    #[case::base_only("1h", "null", "1h")]
-    #[case::overlay_only("null", "never", "never")]
-    #[case::default("null", "null", "10m")]
-    fn test_deep_merge_ttl_after_finished(
-        #[case] base_ttl: &str,
-        #[case] overlay_ttl: &str,
-        #[case] expected_ttl: &str,
+    #[case::overlay_wins("{afterSucceeded: 1h}", "{afterSucceeded: 0s}", ("0s", "10m"))]
+    #[case::fields_merged(
+        "{afterSucceeded: 1h, afterFailed: 24h}",
+        "{afterFailed: never}",
+        ("1h", "never")
+    )]
+    #[case::base_only("{afterFailed: 24h}", "null", ("10m", "1d"))]
+    #[case::overlay_only("null", "{afterSucceeded: 0s}", ("0s", "10m"))]
+    #[case::default("null", "null", ("10m", "10m"))]
+    fn test_deep_merge_cleanup(
+        #[case] base_cleanup: &str,
+        #[case] overlay_cleanup: &str,
+        #[case] expected: (&str, &str),
     ) {
-        let app = |name: &str, ttl: &str| {
+        let app = |name: &str, cleanup: &str| {
             yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(&formatdoc! {"
                 ---
                 apiVersion: spark.stackable.tech/v1alpha1
@@ -514,14 +515,21 @@ mod tests {
                   mainApplicationFile: {name}.py
                   sparkImage:
                     productVersion: \"4.1.0\"
-                  ttlAfterFinished: {ttl}
+                  cleanup: {cleanup}
             "})
             .unwrap()
         };
 
-        let merged = deep_merge(&app("base", base_ttl), &app("overlay", overlay_ttl));
+        let merged =
+            deep_merge(&app("base", base_cleanup), &app("overlay", overlay_cleanup)).cleanup();
 
-        assert_eq!(merged.ttl_after_finished().to_string(), expected_ttl);
+        assert_eq!(
+            (
+                merged.after_succeeded().to_string().as_str(),
+                merged.after_failed().to_string().as_str()
+            ),
+            expected
+        );
     }
 
     #[test]

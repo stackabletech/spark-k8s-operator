@@ -10,6 +10,40 @@ As the operator creates the necessary resources, the status of the application t
 NOTE: The operator never reconciles an application once it has been created.
 To resubmit an application, a new SparkApplication resource must be created.
 
+== Clean-up of finished applications
+
+Once the driver Pod finished, the operator keeps it for a while, so that its logs can still be read, and deletes it afterwards.
+The time to live is set with `spec.cleanup`, separately for a driver Pod that succeeded and one that failed:
+
+* `afterSucceeded`: the time to live if the driver Pod succeeded. The default is `10m`.
+* `afterFailed`: the time to live if the driver Pod failed. The default is `24h`.
+
+`0s` deletes the driver Pod as soon as it finished.
+
+[source,yaml]
+----
+spec:
+  cleanup:
+    afterSucceeded: 0s
+    afterFailed: 3d
+----
+
+The time to live counts from when the last container of the driver Pod terminated.
+Whether an application counts as failed depends on the phase of the driver Pod.
+`cleanup` can also come from a xref:usage-guide/app_templates.adoc[SparkApplicationTemplate], field by field.
+The times to live are fixed when the operator submits the application and are shown in `status.cleanup` of the SparkApplication.
+
+The executors are owned by the driver Pod and are deleted with it, if Spark has not already deleted them.
+Executors that are still Pending when the driver finished are deleted right away, because they can never connect to the driver.
+The phase of the application is kept in the status of the SparkApplication after the driver Pod was deleted.
+
+The spark-submit Job is kept for `afterFailed` after it finished, because its logs are the only ones if the submission fails before a driver Pod exists.
+The ServiceAccount, RoleBinding and ConfigMaps the operator created are kept until the SparkApplication is deleted.
+
+NOTE: If `spark.kubernetes.driver.pod.name` is set, the operator deletes the driver Pod as soon as it finished, so that the next submission or retry can create a driver Pod with the same name.
+
+NOTE: A driver Pod whose SparkApplication was deleted with `kubectl delete --cascade=orphan` is left alone and not deleted by the operator, also if a SparkApplication with the same name is created again.
+
 == Monitoring
 
 [NOTE]

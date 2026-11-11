@@ -38,6 +38,7 @@ pub async fn update_status(
     let status = v1alpha1::SparkApplicationStatus {
         phase: "Unknown".to_string(),
         resolved_template_ref: validated.cluster_config.resolved_template_refs.clone(),
+        cleanup: Some(spark_application.cleanup()),
     };
 
     client

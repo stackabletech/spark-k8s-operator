@@ -14,9 +14,10 @@ rules:
     verbs:
       - get
   # The pod-driver controller watches Spark driver pods
-  # (labelled spark-role=driver) to track SparkApplication completion. It also
-  # deletes driver pods once the application reaches a terminal phase (Succeeded
-  # or Failed).
+  # (labelled spark-role=driver) to track SparkApplication completion. It
+  # deletes driver pods once their time to live after a terminal phase (Succeeded
+  # or Failed) expired, and lists and deletes executor pods that are still Pending
+  # when their driver finished.
   - apiGroups:
       - ""
     resources:

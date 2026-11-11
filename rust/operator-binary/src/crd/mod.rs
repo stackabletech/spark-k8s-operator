@@ -50,6 +50,7 @@ use stackable_operator::{
 use crate::{
     config::jvm::construct_extra_java_options,
     crd::{
+        cleanup::Cleanup,
         job_dependencies::JobDependencies,
         roles::{
             RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
@@ -60,6 +61,7 @@ use crate::{
 };
 
 pub mod affinity;
+pub mod cleanup;
 pub mod constants;
 pub mod history;
 pub mod job_dependencies;
@@ -209,6 +211,12 @@ pub mod versioned {
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<ConfigMapName>,
+
+        /// How long the spark-submit Job, the driver Pod and the objects the operator created for
+        /// the application are kept after the driver finished, separately for a succeeded and a
+        /// failed driver.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub cleanup: Option<Cleanup>,
 
         /// The job builds a spark-submit command, complete with arguments and referenced dependencies
         /// such as templates, and passes it on to Spark.
@@ -1049,6 +1057,10 @@ impl v1alpha1::SparkApplication {
             .and_then(|config| config.retry_on_failure_count)
             .unwrap_or(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT);
         effective_retry_on_failure_count as i32
+    }
+
+    pub fn cleanup(&self) -> Cleanup {
+        self.spec.cleanup.clone().unwrap_or_default()
     }
 }
 

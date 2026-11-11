@@ -33,6 +33,28 @@ spec:
                 items:
                   type: string
                 type: array
+              cleanup:
+                description: |-
+                  How long the spark-submit Job, the driver Pod and the objects the operator created for
+                  the application are kept after the driver finished, separately for a succeeded and a
+                  failed driver.
+                nullable: true
+                properties:
+                  afterFailed:
+                    description: |-
+                      Time to live after the driver Pod failed. A duration such as `10m` (default), `0s` to
+                      delete the objects right away, or `never` to keep them until the SparkApplication is
+                      deleted.
+                    nullable: true
+                    type: string
+                  afterSucceeded:
+                    description: |-
+                      Time to live after the driver Pod succeeded. A duration such as `10m` (default), `0s` to
+                      delete the objects right away, or `never` to keep them until the SparkApplication is
+                      deleted.
+                    nullable: true
+                    type: string
+                type: object
               deps:
                 default:
                   excludePackages: []
@@ -4865,6 +4887,28 @@ spec:
                 items:
                   type: string
                 type: array
+              cleanup:
+                description: |-
+                  How long the spark-submit Job, the driver Pod and the objects the operator created for
+                  the application are kept after the driver finished, separately for a succeeded and a
+                  failed driver.
+                nullable: true
+                properties:
+                  afterFailed:
+                    description: |-
+                      Time to live after the driver Pod failed. A duration such as `10m` (default), `0s` to
+                      delete the objects right away, or `never` to keep them until the SparkApplication is
+                      deleted.
+                    nullable: true
+                    type: string
+                  afterSucceeded:
+                    description: |-
+                      Time to live after the driver Pod succeeded. A duration such as `10m` (default), `0s` to
+                      delete the objects right away, or `never` to keep them until the SparkApplication is
+                      deleted.
+                    nullable: true
+                    type: string
+                type: object
               deps:
                 default:
                   excludePackages: []

@@ -74,6 +74,11 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
             .clone()
             .or_else(|| base.spec.log_file_directory.clone()),
 
+        ttl_after_finished: overlay
+            .spec
+            .ttl_after_finished
+            .or(base.spec.ttl_after_finished),
+
         // Product image: overlay takes precedence
         spark_image: overlay.spec.spark_image.clone(),
 

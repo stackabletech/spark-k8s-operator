@@ -2332,6 +2332,14 @@ spec:
                     - LatestPatch
                     type: string
                 type: object
+              ttlAfterFinished:
+                description: |-
+                  How long a finished (`Succeeded` or `Failed`) driver Pod is kept before the operator
+                  deletes it, so that its logs and status can be inspected. The duration is counted from
+                  the time the driver container terminated. If not set, the driver Pod is deleted as soon
+                  as the application finishes.
+                nullable: true
+                type: string
               vectorAggregatorConfigMapName:
                 description: |-
                   Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).
@@ -7164,6 +7172,14 @@ spec:
                     - LatestPatch
                     type: string
                 type: object
+              ttlAfterFinished:
+                description: |-
+                  How long a finished (`Succeeded` or `Failed`) driver Pod is kept before the operator
+                  deletes it, so that its logs and status can be inspected. The duration is counted from
+                  the time the driver container terminated. If not set, the driver Pod is deleted as soon
+                  as the application finishes.
+                nullable: true
+                type: string
               vectorAggregatorConfigMapName:
                 description: |-
                   Name of the Vector aggregator [discovery ConfigMap](https://docs.stackable.tech/home/nightly/concepts/service_discovery).

@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
 - Add support for Spark 4.x and HBase connectors ([#797]).
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
   the Vector aggregator ([#802]).
+- Add `spec.ttlAfterFinished` to keep finished driver Pods for a configurable time, so that their
+  logs can be inspected. Without it, driver Pods are still deleted right after the application
+  finishes.
 
 ### Changed
 

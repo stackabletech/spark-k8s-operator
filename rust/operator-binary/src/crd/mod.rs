@@ -272,6 +272,13 @@ pub mod versioned {
         /// See the [OpenLineage usage guide](DOCS_BASE_URL_PLACEHOLDER/spark-k8s/usage-guide/openlineage).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub lineage: Option<SparkLineageConfig>,
+
+        /// How long a finished (`Succeeded` or `Failed`) driver Pod is kept before the operator
+        /// deletes it, so that its logs and status can be inspected. The duration is counted from
+        /// the time the driver container terminated. If not set, the driver Pod is deleted as soon
+        /// as the application finishes.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub ttl_after_finished: Option<Duration>,
     }
 
     /// OpenLineage configuration of a `SparkApplication`: the shared OpenLineage config, plus

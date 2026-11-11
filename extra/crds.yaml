@@ -33,6 +33,24 @@ spec:
                 items:
                   type: string
                 type: array
+              cleanup:
+                description: |-
+                  How long the driver Pod is kept after it finished, separately for a succeeded and a
+                  failed driver.
+                nullable: true
+                properties:
+                  afterFailed:
+                    description: |-
+                      Time to live after the driver Pod failed. Defaults to `24h`, `0s` deletes it right away.
+                      Also the time to live of the spark-submit Job, whose logs are the only ones if the
+                      submission fails before a driver Pod exists.
+                    nullable: true
+                    type: string
+                  afterSucceeded:
+                    description: Time to live after the driver Pod succeeded. Defaults to `10m`, `0s` deletes it right away.
+                    nullable: true
+                    type: string
+                type: object
               deps:
                 default:
                   excludePackages: []
@@ -2358,6 +2376,24 @@ spec:
           status:
             nullable: true
             properties:
+              cleanup:
+                description: |-
+                  The `cleanup` TTLs that apply to this application, after merging templates and
+                  filling in defaults. Set when the application is submitted.
+                nullable: true
+                properties:
+                  afterFailed:
+                    description: |-
+                      Time to live after the driver Pod failed. Defaults to `24h`, `0s` deletes it right away.
+                      Also the time to live of the spark-submit Job, whose logs are the only ones if the
+                      submission fails before a driver Pod exists.
+                    nullable: true
+                    type: string
+                  afterSucceeded:
+                    description: Time to live after the driver Pod succeeded. Defaults to `10m`, `0s` deletes it right away.
+                    nullable: true
+                    type: string
+                type: object
               phase:
                 type: string
               resolvedTemplateRef:
@@ -4865,6 +4901,24 @@ spec:
                 items:
                   type: string
                 type: array
+              cleanup:
+                description: |-
+                  How long the driver Pod is kept after it finished, separately for a succeeded and a
+                  failed driver.
+                nullable: true
+                properties:
+                  afterFailed:
+                    description: |-
+                      Time to live after the driver Pod failed. Defaults to `24h`, `0s` deletes it right away.
+                      Also the time to live of the spark-submit Job, whose logs are the only ones if the
+                      submission fails before a driver Pod exists.
+                    nullable: true
+                    type: string
+                  afterSucceeded:
+                    description: Time to live after the driver Pod succeeded. Defaults to `10m`, `0s` deletes it right away.
+                    nullable: true
+                    type: string
+                type: object
               deps:
                 default:
                   excludePackages: []

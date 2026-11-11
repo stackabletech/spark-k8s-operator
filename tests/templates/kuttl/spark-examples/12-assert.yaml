@@ -1,0 +1,10 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 300
+commands:
+  # The driver Pod is deleted once `cleanup.afterSucceeded` elapsed, the application keeps its phase.
+  - script: |
+      set -eu
+      test -z "$(kubectl -n "$NAMESPACE" get pods -l spark-role=driver -o name)"
+      test "$(kubectl -n "$NAMESPACE" get sparkapplication spark-examples -o jsonpath='{.status.phase}')" = Succeeded

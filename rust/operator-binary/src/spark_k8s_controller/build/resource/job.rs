@@ -29,11 +29,11 @@ use crate::{
     },
 };
 
-// JVM settings of the spark-submit job.
 /// How long the spark-submit Job is kept after it finished, successful or not. A Job has a single
 /// TTL for both outcomes, so it does not follow `spec.cleanup`, which is about the driver Pod.
 const SUBMIT_JOB_TTL_SECONDS: i32 = 600;
 
+// JVM settings of the spark-submit job.
 constant!(SPARK_SUBMIT_OPTS: EnvVarName = "SPARK_SUBMIT_OPTS");
 // The Spark configuration directory of the spark-submit job.
 constant!(SPARK_CONF_DIR: EnvVarName = "SPARK_CONF_DIR");

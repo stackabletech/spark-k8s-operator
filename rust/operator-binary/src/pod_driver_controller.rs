@@ -127,7 +127,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
 
     let app_phase = app.status.as_ref().map(|status| status.phase.as_str());
     if app_phase != Some(pod_phase.as_str())
-        && mirrors_phase(&client, &namespace, app_name, pod, pod_phase, app_phase).await?
+        && mirrors_phase(&client, &namespace, app_name, pod, pod_phase).await?
     {
         tracing::info!("Update spark application [{app_name}] status to [{pod_phase}]");
         update_phase(&client, &app, pod_phase)
@@ -177,15 +177,18 @@ enum Decision {
 ///
 /// A driver without a finish time never ran a container, so there are no logs to keep.
 fn decide(
-    phase: &str,
+    pod_phase: &str,
     finished_at: Option<Timestamp>,
     cleanup: &Cleanup,
     now: Timestamp,
 ) -> Decision {
-    let ttl = match phase {
-        "Succeeded" => cleanup.after_succeeded(),
-        "Failed" => cleanup.after_failed(),
-        _ => return Decision::NotFinished,
+    if !is_terminal(pod_phase) {
+        return Decision::NotFinished;
+    }
+    let ttl = if pod_phase == "Succeeded" {
+        cleanup.after_succeeded()
+    } else {
+        cleanup.after_failed()
     };
     let Some(finished_at) = finished_at else {
         return Decision::DeleteNow;
@@ -230,18 +233,17 @@ fn is_terminal(phase: &str) -> bool {
 ///
 /// A finished driver is kept for its TTL, so when a retried submission creates a new driver, the
 /// previous one is still around and reconciled again, for example when its TTL expires. It must not
-/// overwrite the outcome of the new driver. A finished driver therefore only replaces a final
-/// application phase if it is the newest driver. Non-final phases and phases that replace a
-/// non-final one always pass: a retry moves the application from `Failed` back to `Running`.
+/// overwrite the phase of the new driver, whether that one is still running or already finished.
+/// A finished driver therefore only writes its phase if it is the newest driver. Non-final phases
+/// always pass: a retry moves the application from `Failed` back to `Running`.
 async fn mirrors_phase(
     client: &Client,
     namespace: &str,
     app_name: &str,
     pod: &Pod,
     pod_phase: &str,
-    app_phase: Option<&str>,
 ) -> Result<bool> {
-    if !is_terminal(pod_phase) || !app_phase.is_some_and(is_terminal) {
+    if !is_terminal(pod_phase) {
         return Ok(true);
     }
     let drivers = Api::<Pod>::namespaced(client.as_kube_client(), namespace)
@@ -453,25 +455,32 @@ mod tests {
         }
     }
 
-    #[rstest]
-    #[case::only_driver("a", true)]
-    #[case::older_attempt("b", false)]
-    #[case::latest_attempt("c", true)]
-    fn only_the_newest_driver_is_current(#[case] name: &str, #[case] expected: bool) {
-        let drivers = [
-            driver("b", "2026-11-12T12:00:00Z"),
-            driver("c", "2026-11-12T12:05:00Z"),
-        ];
-        let pod = driver(name, "2026-11-12T12:00:00Z");
-        // "a" is alone, the others are compared to both attempts
-        let pods = if name == "a" {
-            vec![pod.clone()]
-        } else {
-            drivers.to_vec()
-        };
-        let pod = pods.iter().find(|p| p.name_any() == name).unwrap_or(&pod);
+    const FIRST: &str = "2026-11-12T12:00:00Z";
+    const RETRY: &str = "2026-11-12T12:05:00Z";
 
-        assert_eq!(is_newest(pod, &pods), expected);
+    #[rstest]
+    #[case::only_driver(driver("a", FIRST), vec![driver("a", FIRST)], true)]
+    #[case::older_attempt(
+        driver("a", FIRST),
+        vec![driver("a", FIRST), driver("b", RETRY)],
+        false
+    )]
+    #[case::latest_attempt(
+        driver("b", RETRY),
+        vec![driver("a", FIRST), driver("b", RETRY)],
+        true
+    )]
+    #[case::same_second_tie_broken_by_name(
+        driver("a", FIRST),
+        vec![driver("a", FIRST), driver("b", FIRST)],
+        false
+    )]
+    fn only_the_newest_driver_is_current(
+        #[case] pod: Pod,
+        #[case] pods: Vec<Pod>,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(is_newest(&pod, &pods), expected);
     }
 
     #[rstest]

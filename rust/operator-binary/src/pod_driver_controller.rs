@@ -291,14 +291,30 @@ async fn delete_pending_executors(client: &Client, namespace: &str, driver: &Pod
     Ok(())
 }
 
+/// Deletes `pod`. A Pod that is already gone counts as deleted: Spark removes its own executors,
+/// so they can vanish between listing and deleting them.
 async fn delete_pod(client: &Client, pod: &Pod) -> Result<()> {
-    client
-        .delete(pod)
-        .await
-        .context(DeletePodSnafu {
+    match client.delete(pod).await {
+        Ok(_) => Ok(()),
+        Err(error) if is_not_found(&error) => {
+            tracing::debug!("Pod {:?} is already deleted", pod.name_any());
+            Ok(())
+        }
+        Err(source) => Err(Error::DeletePod {
+            source,
             pod_name: pod.name_any(),
-        })
-        .map(drop)
+        }),
+    }
+}
+
+fn is_not_found(error: &stackable_operator::client::Error) -> bool {
+    matches!(
+        error,
+        stackable_operator::client::Error::DeleteResource {
+            source: stackable_operator::kube::Error::Api(response),
+            ..
+        } if response.code == 404
+    )
 }
 
 #[cfg(test)]
@@ -456,5 +472,22 @@ mod tests {
         let pod = pods.iter().find(|p| p.name_any() == name).unwrap_or(&pod);
 
         assert_eq!(is_newest(pod, &pods), expected);
+    }
+
+    #[rstest]
+    #[case::not_found(404, true)]
+    #[case::conflict(409, false)]
+    #[case::forbidden(403, false)]
+    fn only_a_404_means_the_pod_is_already_deleted(#[case] code: u16, #[case] expected: bool) {
+        let error = stackable_operator::client::Error::DeleteResource {
+            source: stackable_operator::kube::Error::Api(
+                stackable_operator::kube::core::Status::failure("failed", "Reason")
+                    .with_code(code)
+                    .into(),
+            ),
+            resource_name: "executor".to_owned(),
+        };
+
+        assert_eq!(is_not_found(&error), expected);
     }
 }

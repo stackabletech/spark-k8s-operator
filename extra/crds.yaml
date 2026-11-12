@@ -2373,6 +2373,25 @@ spec:
           status:
             nullable: true
             properties:
+              driverPod:
+                description: |-
+                  The driver Pod whose phase `phase` shows.
+
+                  A driver older than this one never writes its phase: after a retry, the previous
+                  driver is kept for its `cleanup` TTL and must not overwrite the outcome of the newer
+                  one, also after the newer one was deleted.
+                nullable: true
+                properties:
+                  creationTimestamp:
+                    description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                    format: date-time
+                    type: string
+                  name:
+                    type: string
+                required:
+                - creationTimestamp
+                - name
+                type: object
               effectiveCleanup:
                 description: |-
                   The `cleanup` TTLs that apply to this application, after merging templates and

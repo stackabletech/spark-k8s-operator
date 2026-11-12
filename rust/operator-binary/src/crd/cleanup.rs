@@ -32,6 +32,14 @@ impl Cleanup {
             .unwrap_or(Duration::from_hours_unchecked(24))
     }
 
+    /// Both TTLs `0s`: the driver Pod is deleted as soon as it finished.
+    pub fn immediate() -> Self {
+        Self {
+            after_succeeded: Some(Duration::from_secs(0)),
+            after_failed: Some(Duration::from_secs(0)),
+        }
+    }
+
     /// Both TTLs with the defaults filled in, as recorded in the status.
     pub fn resolved(&self) -> Self {
         Self {

@@ -1071,6 +1071,19 @@ impl v1alpha1::SparkApplication {
     pub fn cleanup(&self) -> Cleanup {
         self.spec.cleanup.clone().unwrap_or_default().resolved()
     }
+
+    /// The TTLs that apply to the driver Pod, as recorded in the status.
+    ///
+    /// A driver whose name is fixed with `spark.kubernetes.driver.pod.name` is deleted as soon as
+    /// it finished, whatever `cleanup` says: the next submission or retry would otherwise fail
+    /// because a Pod with that name still exists.
+    pub fn effective_cleanup(&self) -> Cleanup {
+        if self.spec.spark_conf.contains_key(SPARK_DRIVER_POD_NAME) {
+            Cleanup::immediate()
+        } else {
+            self.cleanup()
+        }
+    }
 }
 
 /// CPU Limits can be defined as integer, decimal, or unitised values (see
@@ -2640,5 +2653,46 @@ spec:
             "#})
             .expect("Failed to parse SparkApplicationSpec YAML")
         }
+    }
+
+    #[rstest]
+    #[case::configured("{}", "{afterSucceeded: 1h, afterFailed: 2d}", ("1h", "2d"))]
+    #[case::defaults("{}", "null", ("10m", "1d"))]
+    #[case::fixed_driver_name(
+        "{spark.kubernetes.driver.pod.name: my-driver}",
+        "{afterSucceeded: 1h, afterFailed: 2d}",
+        ("0s", "0s")
+    )]
+    fn effective_cleanup_deletes_a_driver_with_a_fixed_name_at_once(
+        #[case] spark_conf: &str,
+        #[case] cleanup: &str,
+        #[case] expected: (&str, &str),
+    ) {
+        let app: v1alpha1::SparkApplication = yaml_serde::from_str(&format!(
+            "
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 4.1.0
+              sparkConf: {spark_conf}
+              cleanup: {cleanup}
+            "
+        ))
+        .expect("invalid test SparkApplication YAML");
+
+        let effective = app.effective_cleanup();
+
+        assert_eq!(
+            (
+                effective.after_succeeded().to_string().as_str(),
+                effective.after_failed().to_string().as_str()
+            ),
+            expected
+        );
     }
 }

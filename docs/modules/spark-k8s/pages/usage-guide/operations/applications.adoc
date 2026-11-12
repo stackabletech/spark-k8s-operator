@@ -37,7 +37,7 @@ The executors are owned by the driver Pod and are deleted with it, if Spark has 
 Executors that are still Pending when the driver finished are deleted right away, because they can never connect to the driver.
 The phase of the application is kept in the status of the SparkApplication after the driver Pod was deleted.
 
-The spark-submit Job is kept for `afterFailed` after it finished, because its logs are the only ones if the submission fails before a driver Pod exists.
+The spark-submit Job is kept for 10 minutes after it finished, independent of `spec.cleanup`.
 The ServiceAccount, RoleBinding and ConfigMaps the operator created are kept until the SparkApplication is deleted.
 
 NOTE: If `spark.kubernetes.driver.pod.name` is set, the operator deletes the driver Pod as soon as it finished, whatever `spec.cleanup` says, so that the next submission or retry can create a driver Pod with the same name.

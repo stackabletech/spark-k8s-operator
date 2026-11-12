@@ -15,8 +15,6 @@ pub struct Cleanup {
     pub after_succeeded: Option<Duration>,
 
     /// Time to live after the driver Pod failed. Defaults to `24h`, `0s` deletes it right away.
-    /// Also the time to live of the spark-submit Job, whose logs are the only ones if the
-    /// submission fails before a driver Pod exists.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub after_failed: Option<Duration>,
 }

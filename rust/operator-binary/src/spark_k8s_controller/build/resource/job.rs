@@ -18,7 +18,7 @@ use crate::{
     crd::{
         constants::*,
         roles::{SparkApplicationRole, SparkContainer, SubmitConfig},
-        tlscerts, v1alpha1,
+        tlscerts,
     },
     spark_k8s_controller::{
         build::{
@@ -30,6 +30,10 @@ use crate::{
 };
 
 // JVM settings of the spark-submit job.
+/// How long the spark-submit Job is kept after it finished, successful or not. A Job has a single
+/// TTL for both outcomes, so it does not follow `spec.cleanup`, which is about the driver Pod.
+const SUBMIT_JOB_TTL_SECONDS: i32 = 600;
+
 constant!(SPARK_SUBMIT_OPTS: EnvVarName = "SPARK_SUBMIT_OPTS");
 // The Spark configuration directory of the spark-submit job.
 constant!(SPARK_CONF_DIR: EnvVarName = "SPARK_CONF_DIR");
@@ -184,7 +188,7 @@ pub(crate) fn spark_job(
         .build(),
         spec: Some(JobSpec {
             template: pod,
-            ttl_seconds_after_finished: Some(submit_job_ttl_seconds(spark_application)),
+            ttl_seconds_after_finished: Some(SUBMIT_JOB_TTL_SECONDS),
             backoff_limit: Some(spark_application.retry_on_failure_count()),
             ..Default::default()
         }),
@@ -194,16 +198,9 @@ pub(crate) fn spark_job(
     Ok(job)
 }
 
-/// The spark-submit Job is kept as long as a failed driver, because its logs are the only ones if
-/// the submission fails before a driver Pod exists.
-fn submit_job_ttl_seconds(spark_application: &v1alpha1::SparkApplication) -> i32 {
-    i32::try_from(spark_application.cleanup().after_failed().as_secs()).unwrap_or(i32::MAX)
-}
-
 #[cfg(test)]
 mod tests {
-    use indoc::{formatdoc, indoc};
-    use rstest::rstest;
+    use indoc::indoc;
     use stackable_operator::{
         cli::OperatorEnvironmentOptions,
         k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
@@ -309,28 +306,5 @@ mod tests {
         // The override must replace the operator-set value, not duplicate it.
         assert_eq!(matching.len(), 1);
         assert_eq!(matching[0].value.as_deref(), Some("/custom/conf"));
-    }
-
-    #[rstest]
-    #[case::default("{}", 86400)]
-    #[case::failed_ttl("{afterSucceeded: 0s, afterFailed: 1h}", 3600)]
-    #[case::immediately("{afterFailed: 0s}", 0)]
-    fn submit_job_is_kept_as_long_as_a_failed_driver(#[case] cleanup: &str, #[case] expected: i32) {
-        let spark_application: v1alpha1::SparkApplication =
-            stackable_operator::utils::yaml_from_str_singleton_map(&formatdoc! {"
-                apiVersion: spark.stackable.tech/v1alpha1
-                kind: SparkApplication
-                metadata:
-                  name: spark-example
-                spec:
-                  mode: cluster
-                  mainApplicationFile: test.py
-                  sparkImage:
-                    productVersion: 1.2.3
-                  cleanup: {cleanup}
-            "})
-            .expect("invalid test SparkApplication YAML");
-
-        assert_eq!(submit_job_ttl_seconds(&spark_application), expected);
     }
 }

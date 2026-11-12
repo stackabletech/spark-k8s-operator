@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 - New `spec.cleanup` field controlling how long a finished driver Pod is kept, separately for a
   succeeded (`cleanup.afterSucceeded`, default `10m`) and a failed (`cleanup.afterFailed`, default
   `24h`) driver. `0s` deletes it right away. The resolved values are shown in `status.cleanup`
-  ([#798]).
+  ([#808]).
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
   the Vector aggregator ([#802]).
 
@@ -60,7 +60,7 @@ All notable changes to this project will be documented in this file.
 - BREAKING (behaviour): Finished driver Pods are no longer deleted immediately but kept for
   `spec.cleanup.afterSucceeded` (default `10m`) or `spec.cleanup.afterFailed` (default `24h`). Set
   both to `0s` to delete them right away as before. The spark-submit Job is kept for
-  `spec.cleanup.afterFailed` instead of a fixed 10 minutes ([#798]).
+  `spec.cleanup.afterFailed` instead of a fixed 10 minutes ([#808]).
 
 ### Removed
 
@@ -130,7 +130,7 @@ All notable changes to this project will be documented in this file.
 [#795]: https://github.com/stackabletech/spark-k8s-operator/pull/795
 [#796]: https://github.com/stackabletech/spark-k8s-operator/pull/796
 [#797]: https://github.com/stackabletech/spark-k8s-operator/pull/797
-[#798]: https://github.com/stackabletech/spark-k8s-operator/pull/798
+[#808]: https://github.com/stackabletech/spark-k8s-operator/pull/808
 [#802]: https://github.com/stackabletech/spark-k8s-operator/pull/802
 
 ## [26.7.0] - 2026-07-21

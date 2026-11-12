@@ -60,19 +60,20 @@ pub async fn update_status(
 /// Sets the `phase` of the [`v1alpha1::SparkApplication`], leaving the rest of its status as is.
 ///
 /// Used by the pod-driver controller, which has no validated application to patch the initial
-/// status from, to mirror the phase of the driver.
+/// status from, to mirror the phase of the driver. Only `phase` is applied, so the pod-driver
+/// controller owns only that field and cannot write back a stale copy of the fields the
+/// SparkApplication controller computes.
 pub async fn update_phase(
     client: &Client,
     spark_application: &v1alpha1::SparkApplication,
     phase: &str,
 ) -> Result<()> {
-    let status = v1alpha1::SparkApplicationStatus {
-        phase: phase.to_string(),
-        ..spark_application.status.clone().unwrap_or_default()
-    };
-
     client
-        .apply_patch_status(POD_DRIVER_CONTROLLER_NAME, spark_application, &status)
+        .apply_patch_status(
+            POD_DRIVER_CONTROLLER_NAME,
+            spark_application,
+            &serde_json::json!({ "phase": phase }),
+        )
         .await
         .with_context(|_| ApplySparkApplicationStatusSnafu {
             name: spark_application.name_any(),

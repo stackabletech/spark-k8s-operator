@@ -188,10 +188,6 @@ pub mod versioned {
 
         /// The `cleanup` TTLs that apply to this application, after merging templates and
         /// filling in defaults. Set when the application is submitted.
-        ///
-        /// The driver controller reads the TTLs from here. It only sees the raw application and
-        /// would have to fetch the templates on every Pod event to merge them itself, and a later
-        /// change to a template would then change the TTL of a running application.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub effective_cleanup: Option<Cleanup>,
 

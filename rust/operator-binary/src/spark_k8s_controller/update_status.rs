@@ -33,6 +33,11 @@ const INITIAL_PHASE: &str = "Unknown";
 /// reconcile runs, ensuring the Job is not created again after being recycled by Kubernetes.
 /// The phase itself is maintained by the pod-driver controller from here on.
 ///
+/// The status also records the `cleanup` TTLs as `effectiveCleanup`, and the pod-driver
+/// controller reads them from there. It only sees the raw application and would have to fetch
+/// the templates on every Pod event to merge them itself, and a later change to a template would
+/// then change the TTL of a running application.
+///
 /// Takes [`SparkResources<Applied>`] purely as proof of ordering: nothing is read from it, but
 /// requiring it means this patch can only happen after the apply step.
 pub async fn update_status(

@@ -4,7 +4,7 @@ kind: TestAssert
 timeout: 30
 commands:
   # The application has finished (see 10-assert.yaml), but the driver Pod is kept for
-  # `cleanup.afterSucceeded`, still owned by the application. The Job is kept for `afterFailed`.
+  # `cleanup.afterSucceeded`, still owned by the application. The Job is kept for 10 minutes.
   - script: |
       set -eu
       kubectl -n "$NAMESPACE" get pods -l spark-role=driver,app.kubernetes.io/instance=spark-examples -o json \
@@ -13,4 +13,4 @@ commands:
             and [.metadata.ownerReferences[] | {kind, name}] == [{"kind": "SparkApplication", "name": "spark-examples"}])'
       kubectl -n "$NAMESPACE" get sparkapplication spark-examples -o json \
         | jq -e '.status.effectiveCleanup == {"afterSucceeded": "1m", "afterFailed": "1h"}'
-      kubectl -n "$NAMESPACE" get job spark-examples -o json | jq -e '.spec.ttlSecondsAfterFinished == 3600'
+      kubectl -n "$NAMESPACE" get job spark-examples -o json | jq -e '.spec.ttlSecondsAfterFinished == 600'

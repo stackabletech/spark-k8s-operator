@@ -31,7 +31,7 @@ spec:
 The time to live counts from when the last container of the driver Pod terminated.
 Whether an application counts as failed depends on the phase of the driver Pod.
 `cleanup` can also come from a xref:usage-guide/app_templates.adoc[SparkApplicationTemplate], field by field.
-The times to live are fixed when the operator submits the application and are shown in `status.cleanup` of the SparkApplication.
+The times to live are fixed when the operator submits the application and are shown in `status.effectiveCleanup` of the SparkApplication.
 
 The executors are owned by the driver Pod and are deleted with it, if Spark has not already deleted them.
 Executors that are still Pending when the driver finished are deleted right away, because they can never connect to the driver.

@@ -140,7 +140,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
         finished_at(pod),
         &app.status
             .as_ref()
-            .and_then(|status| status.cleanup.clone())
+            .and_then(|status| status.effective_cleanup.clone())
             .unwrap_or_default(),
         app.spec.spark_conf.contains_key(SPARK_DRIVER_POD_NAME),
         Timestamp::now(),

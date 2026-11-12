@@ -5,7 +5,10 @@ use stackable_operator::{client::Client, kube::ResourceExt};
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    crd::{constants::SPARK_CONTROLLER_NAME, v1alpha1},
+    crd::{
+        constants::{POD_DRIVER_CONTROLLER_NAME, SPARK_CONTROLLER_NAME},
+        v1alpha1,
+    },
     spark_k8s_controller::{Applied, SparkResources, validate::ValidatedSparkApplication},
 };
 
@@ -20,6 +23,9 @@ pub enum Error {
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// The phase of an application whose driver was not observed yet.
+const INITIAL_PHASE: &str = "Unknown";
 
 /// Patches the initial status onto the [`v1alpha1::SparkApplication`] immediately after the Job
 /// was applied (fix for #457): a non-empty status makes `k8s_job_has_been_created` skip later
@@ -36,13 +42,37 @@ pub async fn update_status(
     let spark_application = &validated.spark_application;
 
     let status = v1alpha1::SparkApplicationStatus {
-        phase: "Unknown".to_string(),
+        phase: INITIAL_PHASE.to_string(),
         resolved_template_ref: validated.cluster_config.resolved_template_refs.clone(),
         cleanup: Some(spark_application.cleanup()),
     };
 
     client
         .apply_patch_status(SPARK_CONTROLLER_NAME, spark_application, &status)
+        .await
+        .with_context(|_| ApplySparkApplicationStatusSnafu {
+            name: spark_application.name_any(),
+        })?;
+
+    Ok(())
+}
+
+/// Sets the `phase` of the [`v1alpha1::SparkApplication`], leaving the rest of its status as is.
+///
+/// Used by the pod-driver controller, which has no validated application to patch the initial
+/// status from, to mirror the phase of the driver.
+pub async fn update_phase(
+    client: &Client,
+    spark_application: &v1alpha1::SparkApplication,
+    phase: &str,
+) -> Result<()> {
+    let status = v1alpha1::SparkApplicationStatus {
+        phase: phase.to_string(),
+        ..spark_application.status.clone().unwrap_or_default()
+    };
+
+    client
+        .apply_patch_status(POD_DRIVER_CONTROLLER_NAME, spark_application, &status)
         .await
         .with_context(|_| ApplySparkApplicationStatusSnafu {
             name: spark_application.name_any(),

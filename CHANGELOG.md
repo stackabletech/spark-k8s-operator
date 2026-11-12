@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 - Add support for Spark 4.x and HBase connectors ([#797]).
 - New `spec.cleanup` field controlling how long a finished driver Pod is kept, separately for a
   succeeded (`cleanup.afterSucceeded`, default `10m`) and a failed (`cleanup.afterFailed`, default
-  `24h`) driver. `0s` deletes it right away. The resolved values are shown in `status.cleanup`
+  `24h`) driver. `0s` deletes it right away. The resolved values are shown in `status.effectiveCleanup`
   ([#808]).
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
   the Vector aggregator ([#802]).
@@ -59,8 +59,7 @@ All notable changes to this project will be documented in this file.
 - The operator Deployment runs with a restricted security context and a read-only root filesystem, so it can be deployed into namespaces that enforce the `restricted` Pod Security Standard ([#795]).
 - BREAKING (behaviour): Finished driver Pods are no longer deleted immediately but kept for
   `spec.cleanup.afterSucceeded` (default `10m`) or `spec.cleanup.afterFailed` (default `24h`). Set
-  both to `0s` to delete them right away as before. The spark-submit Job is kept for
-  `spec.cleanup.afterFailed` instead of a fixed 10 minutes ([#808]).
+  both to `0s` to delete them right away as before ([#808]).
 
 ### Removed
 

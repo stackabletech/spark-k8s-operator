@@ -12,5 +12,5 @@ commands:
             .status.phase == "Succeeded"
             and [.metadata.ownerReferences[] | {kind, name}] == [{"kind": "SparkApplication", "name": "spark-examples"}])'
       kubectl -n "$NAMESPACE" get sparkapplication spark-examples -o json \
-        | jq -e '.status.cleanup == {"afterSucceeded": "1m", "afterFailed": "1h"}'
+        | jq -e '.status.effectiveCleanup == {"afterSucceeded": "1m", "afterFailed": "1h"}'
       kubectl -n "$NAMESPACE" get job spark-examples -o json | jq -e '.spec.ttlSecondsAfterFinished == 3600'

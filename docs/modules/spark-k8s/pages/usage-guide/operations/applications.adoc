@@ -40,7 +40,8 @@ The phase of the application is kept in the status of the SparkApplication after
 The spark-submit Job is kept for `afterFailed` after it finished, because its logs are the only ones if the submission fails before a driver Pod exists.
 The ServiceAccount, RoleBinding and ConfigMaps the operator created are kept until the SparkApplication is deleted.
 
-NOTE: If `spark.kubernetes.driver.pod.name` is set, the operator deletes the driver Pod as soon as it finished, so that the next submission or retry can create a driver Pod with the same name.
+NOTE: If `spark.kubernetes.driver.pod.name` is set, the operator deletes the driver Pod as soon as it finished, whatever `spec.cleanup` says, so that the next submission or retry can create a driver Pod with the same name.
+`status.effectiveCleanup` then shows `0s` for both.
 
 NOTE: A driver Pod whose SparkApplication was deleted with `kubectl delete --cascade=orphan` is left alone and not deleted by the operator, also if a SparkApplication with the same name is created again.
 

@@ -16,7 +16,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    crd::{cleanup::Cleanup, constants::SPARK_DRIVER_POD_NAME, v1alpha1},
+    crd::{cleanup::Cleanup, v1alpha1},
     spark_k8s_controller::update_status::{self, update_phase},
 };
 
@@ -142,7 +142,6 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
             .as_ref()
             .and_then(|status| status.effective_cleanup.clone())
             .unwrap_or_default(),
-        app.spec.spark_conf.contains_key(SPARK_DRIVER_POD_NAME),
         Timestamp::now(),
     );
     tracing::info!("Driver pod {pod_name:?} has phase {pod_phase:?}, decision: {decision:?}");
@@ -176,14 +175,11 @@ enum Decision {
 
 /// Decides what happens to a driver with `phase` that finished at `finished_at`.
 ///
-/// A driver whose name is fixed by `spark.kubernetes.driver.pod.name` is deleted right away, so
-/// that the next submission or retry can create a driver with the same name. A driver without a
-/// finish time never ran a container, so there are no logs to keep.
+/// A driver without a finish time never ran a container, so there are no logs to keep.
 fn decide(
     phase: &str,
     finished_at: Option<Timestamp>,
     cleanup: &Cleanup,
-    fixed_name: bool,
     now: Timestamp,
 ) -> Decision {
     let ttl = match phase {
@@ -191,7 +187,7 @@ fn decide(
         "Failed" => cleanup.after_failed(),
         _ => return Decision::NotFinished,
     };
-    let (Some(finished_at), false) = (finished_at, fixed_name) else {
+    let Some(finished_at) = finished_at else {
         return Decision::DeleteNow;
     };
     let elapsed =
@@ -336,22 +332,20 @@ mod tests {
     }
 
     #[rstest]
-    #[case::pending("Pending", "10m", "10m", false, "12:05", Decision::NotFinished)]
-    #[case::running("Running", "0s", "0s", true, "12:05", Decision::NotFinished)]
-    #[case::unknown("Unknown", "0s", "0s", false, "12:05", Decision::NotFinished)]
-    #[case::succeeded_waits("Succeeded", "10m", "1h", false, "12:04", secs(360))]
-    #[case::failed_waits("Failed", "10m", "1h", false, "12:04", secs(3360))]
-    #[case::succeeded_expired("Succeeded", "10m", "1h", false, "12:10", Decision::DeleteNow)]
-    #[case::long_expired("Failed", "10m", "1h", false, "14:00", Decision::DeleteNow)]
-    #[case::failed_not_expired("Failed", "10m", "1h", false, "12:10", secs(3000))]
-    #[case::zero("Succeeded", "0s", "1h", false, "12:00", Decision::DeleteNow)]
-    #[case::fixed_name("Succeeded", "1h", "1h", true, "12:01", Decision::DeleteNow)]
-    #[case::clock_skew("Succeeded", "10m", "1h", false, "11:59", secs(600))]
+    #[case::pending("Pending", "10m", "10m", "12:05", Decision::NotFinished)]
+    #[case::running("Running", "0s", "0s", "12:05", Decision::NotFinished)]
+    #[case::unknown("Unknown", "0s", "0s", "12:05", Decision::NotFinished)]
+    #[case::succeeded_waits("Succeeded", "10m", "1h", "12:04", secs(360))]
+    #[case::failed_waits("Failed", "10m", "1h", "12:04", secs(3360))]
+    #[case::succeeded_expired("Succeeded", "10m", "1h", "12:10", Decision::DeleteNow)]
+    #[case::long_expired("Failed", "10m", "1h", "14:00", Decision::DeleteNow)]
+    #[case::failed_not_expired("Failed", "10m", "1h", "12:10", secs(3000))]
+    #[case::zero("Succeeded", "0s", "1h", "12:00", Decision::DeleteNow)]
+    #[case::clock_skew("Succeeded", "10m", "1h", "11:59", secs(600))]
     fn decision_follows_the_outcome_and_the_finish_time(
         #[case] phase: &str,
         #[case] after_succeeded: &str,
         #[case] after_failed: &str,
-        #[case] fixed_name: bool,
         #[case] now: &str,
         #[case] expected: Decision,
     ) {
@@ -359,7 +353,6 @@ mod tests {
             phase,
             Some(at(FINISHED_AT)),
             &cleanup(after_succeeded, after_failed),
-            fixed_name,
             at(&format!("2026-11-12T{now}:00Z")),
         );
 
@@ -368,13 +361,7 @@ mod tests {
 
     #[test]
     fn unknown_finish_time_counts_as_expired() {
-        let decision = decide(
-            "Succeeded",
-            None,
-            &Cleanup::default(),
-            false,
-            at(FINISHED_AT),
-        );
+        let decision = decide("Succeeded", None, &Cleanup::default(), at(FINISHED_AT));
 
         assert_eq!(decision, Decision::DeleteNow);
     }
@@ -385,7 +372,6 @@ mod tests {
             "Failed",
             Some(at(FINISHED_AT)),
             &Cleanup::default(),
-            false,
             at("2026-11-12T13:00:00Z"),
         );
 

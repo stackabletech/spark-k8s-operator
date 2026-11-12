@@ -30,7 +30,7 @@ use stackable_operator::{
     crd::{openlineage, s3},
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
-        apimachinery::pkg::api::resource::Quantity,
+        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::Time},
     },
     kube::{CustomResource, ResourceExt},
     memory::{BinaryMultiple, MemoryQuantity},
@@ -143,6 +143,22 @@ pub type SparkApplicationDriverRoleType =
 pub type SparkApplicationExecutorRoleType =
     RoleGroup<RoleConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
 
+/// A driver Pod, identified by name and ordered by creation.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriverPod {
+    pub name: String,
+    pub creation_timestamp: Time,
+}
+
+impl DriverPod {
+    /// Whether this driver was created before `other`. Drivers created in the same second are
+    /// ordered by name.
+    pub fn is_older_than(&self, other: &DriverPod) -> bool {
+        (self.creation_timestamp.0, &self.name) < (other.creation_timestamp.0, &other.name)
+    }
+}
+
 #[versioned(
     version(name = "v1alpha1"),
     crates(
@@ -178,6 +194,14 @@ pub mod versioned {
         /// change to a template would then change the TTL of a running application.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub effective_cleanup: Option<Cleanup>,
+
+        /// The driver Pod whose phase `phase` shows.
+        ///
+        /// A driver older than this one never writes its phase: after a retry, the previous
+        /// driver is kept for its `cleanup` TTL and must not overwrite the outcome of the newer
+        /// one, also after the newer one was deleted.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub driver_pod: Option<DriverPod>,
     }
 
     /// A Spark application run on Kubernetes by the Stackable operator for Apache Spark.

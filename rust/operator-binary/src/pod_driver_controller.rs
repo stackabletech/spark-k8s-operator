@@ -16,7 +16,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    crd::{cleanup::Cleanup, v1alpha1},
+    crd::{DriverPod, cleanup::Cleanup, v1alpha1},
     spark_k8s_controller::update_status::{self, update_phase},
 };
 
@@ -40,6 +40,9 @@ pub enum Error {
     #[snafu(display("Status phase not found for pod [{pod_name}]"))]
     PodStatusPhaseNotFound { pod_name: String },
 
+    #[snafu(display("creation timestamp not found for pod {pod_name:?}"))]
+    PodCreationTimestampNotFound { pod_name: String },
+
     #[snafu(display("failed to get SparkApplication {name:?}"))]
     GetSparkApplication {
         source: stackable_operator::client::Error,
@@ -49,12 +52,6 @@ pub enum Error {
     #[snafu(display("Pod object is invalid"))]
     InvalidPod {
         source: error_boundary::InvalidObject,
-    },
-
-    #[snafu(display("failed to list the driver pods of application {app:?}"))]
-    ListDrivers {
-        source: stackable_operator::kube::Error,
-        app: String,
     },
 
     #[snafu(display("failed to list the Pending executors of driver pod {driver:?}"))]
@@ -109,6 +106,14 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
         },
     )?;
     let namespace = pod.namespace().context(NamespaceNotFoundSnafu)?;
+    let driver_pod = DriverPod {
+        name: pod_name.clone(),
+        creation_timestamp: pod.metadata.creation_timestamp.clone().context(
+            PodCreationTimestampNotFoundSnafu {
+                pod_name: pod_name.clone(),
+            },
+        )?,
+    };
 
     let Some(app) = client
         .get_opt::<v1alpha1::SparkApplication>(app_name, &namespace)
@@ -125,12 +130,9 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
         return Ok(Action::await_change());
     }
 
-    let app_phase = app.status.as_ref().map(|status| status.phase.as_str());
-    if app_phase != Some(pod_phase.as_str())
-        && mirrors_phase(&client, &namespace, app_name, pod, pod_phase).await?
-    {
+    if should_mirror_phase(app.status.as_ref(), pod_phase, &driver_pod) {
         tracing::info!("Update spark application [{app_name}] status to [{pod_phase}]");
-        update_phase(&client, &app, pod_phase)
+        update_phase(&client, &app, pod_phase, &driver_pod)
             .await
             .context(UpdateStatusSnafu)?;
     }
@@ -141,7 +143,7 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
         &app.status
             .as_ref()
             .and_then(|status| status.effective_cleanup.clone())
-            .unwrap_or_default(),
+            .unwrap_or_else(|| app.effective_cleanup()),
         Timestamp::now(),
     );
     tracing::info!("Driver pod {pod_name:?} has phase {pod_phase:?}, decision: {decision:?}");
@@ -229,41 +231,25 @@ fn is_terminal(phase: &str) -> bool {
     matches!(phase, "Succeeded" | "Failed")
 }
 
-/// Whether the phase of `pod` may be written to the SparkApplication status.
+/// Whether `pod_phase` of `driver_pod` has to be written to the SparkApplication `status`.
 ///
-/// A finished driver is kept for its TTL, so when a retried submission creates a new driver, the
-/// previous one is still around and reconciled again, for example when its TTL expires. It must not
-/// overwrite the phase of the new driver, whether that one is still running or already finished.
-/// A finished driver therefore only writes its phase if it is the newest driver. Non-final phases
-/// always pass: a retry moves the application from `Failed` back to `Running`.
-async fn mirrors_phase(
-    client: &Client,
-    namespace: &str,
-    app_name: &str,
-    pod: &Pod,
+/// A finished driver is kept for its TTL, so after a retried submission the previous driver is
+/// still around and is reconciled again, for example when its TTL expires. By then the newer
+/// driver may already be deleted, so the status records which driver it shows, and an older
+/// driver never writes over it. A newer driver always does: a retry moves the application from
+/// `Failed` back to `Pending`.
+fn should_mirror_phase(
+    status: Option<&v1alpha1::SparkApplicationStatus>,
     pod_phase: &str,
-) -> Result<bool> {
-    if !is_terminal(pod_phase) {
-        return Ok(true);
-    }
-    let drivers = Api::<Pod>::namespaced(client.as_kube_client(), namespace)
-        .list(&ListParams::default().labels(&format!(
-            "{LABEL_NAME_INSTANCE}={app_name},{LABEL_SPARK_ROLE}=driver"
-        )))
-        .await
-        .context(ListDriversSnafu { app: app_name })?;
-    Ok(is_newest(pod, &drivers.items))
-}
-
-/// Whether no pod in `pods` was created after `pod`. Ties are broken by name.
-fn is_newest(pod: &Pod, pods: &[Pod]) -> bool {
-    let age = |pod: &Pod| {
-        (
-            pod.metadata.creation_timestamp.as_ref().map(|time| time.0),
-            pod.name_any(),
-        )
+    driver_pod: &DriverPod,
+) -> bool {
+    let Some(status) = status else {
+        return true;
     };
-    pods.iter().all(|other| age(other) <= age(pod))
+    let shown_driver = status.driver_pod.as_ref();
+    let is_up_to_date = status.phase == pod_phase && shown_driver == Some(driver_pod);
+    let is_superseded = shown_driver.is_some_and(|shown| driver_pod.is_older_than(shown));
+    !is_up_to_date && !is_superseded
 }
 
 async fn delete_pending_executors(client: &Client, namespace: &str, driver: &Pod) -> Result<()> {
@@ -327,7 +313,7 @@ mod tests {
             ContainerState, ContainerStateRunning, ContainerStateTerminated, ContainerStatus,
             PodStatus,
         },
-        apimachinery::pkg::apis::meta::v1::{ObjectMeta, Time},
+        apimachinery::pkg::apis::meta::v1::Time,
     };
 
     use super::*;
@@ -444,14 +430,18 @@ mod tests {
         assert_eq!(finished_at(&pod), expected.map(at));
     }
 
-    fn driver(name: &str, created: &str) -> Pod {
-        Pod {
-            metadata: ObjectMeta {
-                name: Some(name.to_owned()),
-                creation_timestamp: Some(Time(at(created))),
-                ..ObjectMeta::default()
-            },
-            ..Pod::default()
+    fn driver(name: &str, created: &str) -> DriverPod {
+        DriverPod {
+            name: name.to_owned(),
+            creation_timestamp: Time(at(created)),
+        }
+    }
+
+    fn status(phase: &str, shown_driver: Option<DriverPod>) -> v1alpha1::SparkApplicationStatus {
+        v1alpha1::SparkApplicationStatus {
+            phase: phase.to_owned(),
+            driver_pod: shown_driver,
+            ..v1alpha1::SparkApplicationStatus::default()
         }
     }
 
@@ -459,28 +449,54 @@ mod tests {
     const RETRY: &str = "2026-11-12T12:05:00Z";
 
     #[rstest]
-    #[case::only_driver(driver("a", FIRST), vec![driver("a", FIRST)], true)]
-    #[case::older_attempt(
+    #[case::no_status(None, "Pending", driver("a", FIRST), true)]
+    #[case::submitted(Some(status("Unknown", None)), "Pending", driver("a", FIRST), true)]
+    #[case::status_without_driver_recorded(
+        Some(status("Running", None)),
+        "Running",
         driver("a", FIRST),
-        vec![driver("a", FIRST), driver("b", RETRY)],
-        false
-    )]
-    #[case::latest_attempt(
-        driver("b", RETRY),
-        vec![driver("a", FIRST), driver("b", RETRY)],
         true
     )]
-    #[case::same_second_tie_broken_by_name(
+    #[case::same_driver_new_phase(
+        Some(status("Running", Some(driver("a", FIRST)))),
+        "Failed",
         driver("a", FIRST),
-        vec![driver("a", FIRST), driver("b", FIRST)],
+        true
+    )]
+    #[case::same_driver_same_phase(
+        Some(status("Failed", Some(driver("a", FIRST)))),
+        "Failed",
+        driver("a", FIRST),
         false
     )]
-    fn only_the_newest_driver_is_current(
-        #[case] pod: Pod,
-        #[case] pods: Vec<Pod>,
+    #[case::retry_overwrites_older_outcome(
+        Some(status("Failed", Some(driver("a", FIRST)))),
+        "Pending",
+        driver("b", RETRY),
+        true
+    )]
+    #[case::older_attempt_never_overwrites_retry(
+        Some(status("Succeeded", Some(driver("b", RETRY)))),
+        "Failed",
+        driver("a", FIRST),
+        false
+    )]
+    #[case::same_second_tie_broken_by_name(
+        Some(status("Running", Some(driver("b", FIRST)))),
+        "Failed",
+        driver("a", FIRST),
+        false
+    )]
+    fn only_the_newest_driver_writes_its_phase(
+        #[case] status: Option<v1alpha1::SparkApplicationStatus>,
+        #[case] pod_phase: &str,
+        #[case] driver_pod: DriverPod,
         #[case] expected: bool,
     ) {
-        assert_eq!(is_newest(&pod, &pods), expected);
+        assert_eq!(
+            should_mirror_phase(status.as_ref(), pod_phase, &driver_pod),
+            expected
+        );
     }
 
     #[rstest]

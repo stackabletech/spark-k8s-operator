@@ -6,6 +6,7 @@ use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
     crd::{
+        DriverPod,
         constants::{POD_DRIVER_CONTROLLER_NAME, SPARK_CONTROLLER_NAME},
         v1alpha1,
     },
@@ -45,6 +46,7 @@ pub async fn update_status(
         phase: INITIAL_PHASE.to_string(),
         resolved_template_ref: validated.cluster_config.resolved_template_refs.clone(),
         effective_cleanup: Some(spark_application.effective_cleanup()),
+        driver_pod: None,
     };
 
     client
@@ -57,22 +59,24 @@ pub async fn update_status(
     Ok(())
 }
 
-/// Sets the `phase` of the [`v1alpha1::SparkApplication`], leaving the rest of its status as is.
+/// Sets the `phase` of the [`v1alpha1::SparkApplication`] and the `driverPod` it comes from,
+/// leaving the rest of its status as is.
 ///
 /// Used by the pod-driver controller, which has no validated application to patch the initial
-/// status from, to mirror the phase of the driver. Only `phase` is applied, so the pod-driver
-/// controller owns only that field and cannot write back a stale copy of the fields the
+/// status from, to mirror the phase of the driver. Only these two fields are applied, so the
+/// pod-driver controller owns only them and cannot write back a stale copy of the fields the
 /// SparkApplication controller computes.
 pub async fn update_phase(
     client: &Client,
     spark_application: &v1alpha1::SparkApplication,
     phase: &str,
+    driver_pod: &DriverPod,
 ) -> Result<()> {
     client
         .apply_patch_status(
             POD_DRIVER_CONTROLLER_NAME,
             spark_application,
-            &serde_json::json!({ "phase": phase }),
+            &serde_json::json!({ "phase": phase, "driverPod": driver_pod }),
         )
         .await
         .with_context(|_| ApplySparkApplicationStatusSnafu {

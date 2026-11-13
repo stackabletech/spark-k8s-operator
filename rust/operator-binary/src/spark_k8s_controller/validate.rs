@@ -5,8 +5,9 @@
 
 use std::{borrow::Cow, str::FromStr};
 
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
+    attributed_string_type,
     cli::OperatorEnvironmentOptions,
     commons::{
         product_image_selection::{self, ResolvedProductImage},
@@ -18,10 +19,10 @@ use stackable_operator::{
     kube::Resource,
     v2::{
         HasName, HasUid, NameIsValidLabelValue,
-        controller_utils::{get_cluster_name, get_namespace, get_uid},
+        controller_utils::{get_namespace, get_uid},
         types::{
             kubernetes::{NamespaceName, Uid},
-            operator::{ClusterName, ControllerName, OperatorName, ProductName, ProductVersion},
+            operator::{ControllerName, OperatorName, ProductName, ProductVersion},
         },
     },
 };
@@ -44,9 +45,12 @@ pub enum Error {
         source: product_image_selection::Error,
     },
 
-    #[snafu(display("failed to resolve cluster name"))]
-    ResolveClusterName {
-        source: stackable_operator::v2::controller_utils::Error,
+    #[snafu(display("failed to get the spark application name"))]
+    GetSparkApplicationName {},
+
+    #[snafu(display("failed to parse the spark application name"))]
+    ParseSparkApplicationName {
+        source: stackable_operator::v2::macros::attributed_string_type::Error,
     },
 
     #[snafu(display("failed to resolve namespace"))]
@@ -72,12 +76,23 @@ constant!(pub(crate) OPERATOR_NAME: OperatorName = SPARK_OPERATOR_NAME);
 // The controller name as a type-safe label value.
 constant!(pub(crate) CONTROLLER_NAME: ControllerName = SPARK_CONTROLLER_NAME);
 
+attributed_string_type! {
+    SparkApplicationName,
+    "The name of a SparkApplication",
+    "my-spark-application",
+    // SparkApplication names were limited to 63 characters before the switch to `ClusterName`
+    // (40 characters), see https://github.com/stackabletech/spark-k8s-operator/issues/775.
+    (max_length = 63),
+    is_rfc_1035_label_name,
+    is_valid_label_value
+}
+
 /// Inputs the rest of `reconcile` needs after dereferencing.
 pub struct ValidatedSparkApplication {
     /// Metadata mirroring the source [`v1alpha1::SparkApplication`] (name, namespace and UID), so
     /// this struct can be used as the owner of generated objects via its [`Resource`] impl.
     metadata: ObjectMeta,
-    pub name: ClusterName,
+    pub name: SparkApplicationName,
     pub namespace: NamespaceName,
     pub uid: Uid,
     /// The product version as a valid label value, used for the recommended
@@ -180,8 +195,13 @@ pub fn validate(
     let product_version = ProductVersion::from_str(&resolved_product_image.app_version_label_value)
         .expect("the app version label value is a valid product version");
 
-    let name =
-        get_cluster_name(&dereferenced.spark_application).context(ResolveClusterNameSnafu)?;
+    let raw_name = dereferenced
+        .spark_application
+        .metadata
+        .name
+        .as_deref()
+        .context(GetSparkApplicationNameSnafu)?;
+    let name = SparkApplicationName::from_str(raw_name).context(ParseSparkApplicationNameSnafu)?;
     let namespace =
         get_namespace(&dereferenced.spark_application).context(ResolveNamespaceSnafu)?;
     let uid = get_uid(&dereferenced.spark_application).context(ResolveUidSnafu)?;

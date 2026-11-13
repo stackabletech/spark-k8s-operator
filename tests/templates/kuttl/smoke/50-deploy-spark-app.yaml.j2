@@ -2,7 +2,7 @@
 apiVersion: spark.stackable.tech/v1alpha1
 kind: SparkApplication
 metadata:
-  name: spark-pi-s3-1
+  name: spark-pi-s3-1-with-a-long-name-to-test-the-maximum-length-of-63
 spec:
 {% if lookup('env', 'VECTOR_AGGREGATOR') %}
   vectorAggregatorConfigMapName: vector-aggregator-discovery

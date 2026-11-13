@@ -12,7 +12,7 @@ use stackable_operator::{
 
 use crate::{
     crd::constants::*,
-    spark_k8s_controller::{build::recommended_labels_for_cluster_resources, validate},
+    spark_k8s_controller::{build::recommended_labels_for_application_resources, validate},
 };
 
 /// For a given SparkApplication, we create a ServiceAccount with a RoleBinding to the ClusterRole
@@ -57,6 +57,6 @@ fn cluster_resource_object_meta(
         .namespace(validated.namespace.clone())
         .name(name)
         .ownerreference(ownerreference_from_resource(validated, None, Some(true)))
-        .with_labels(recommended_labels_for_cluster_resources(validated))
+        .with_labels(recommended_labels_for_application_resources(validated))
         .build()
 }

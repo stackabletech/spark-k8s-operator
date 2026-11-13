@@ -29,7 +29,7 @@ use stackable_operator::{
             vector_container,
         },
         role_group_utils::ResourceNames,
-        types::operator::RoleGroupName,
+        types::operator::{ClusterName, RoleGroupName},
     },
 };
 
@@ -50,6 +50,15 @@ use crate::{
 // after the actual JVM process has finished; the operator uses it to give Vector time to gather
 // the logs and to shut it down afterwards.
 constant!(STACKABLE_POST_HOOK: EnvVarName = "_STACKABLE_POST_HOOK");
+
+// Copy of the private constant
+// `stackable_operator::v2::product_logging::framework::ENV_VAR_NAME_CLUSTER_NAME`
+constant!(ENV_VAR_NAME_VECTOR_CLUSTER_NAME: EnvVarName = "CLUSTER_NAME");
+
+// Only satisfies `ResourceNames` when building the Vector container. A `ClusterName` is limited to
+// 40 characters, but a SparkApplication name to 63, so `CLUSTER_NAME` is overridden with the
+// application name via `ENV_VAR_NAME_VECTOR_CLUSTER_NAME`.
+constant!(VECTOR_PLACEHOLDER_CLUSTER_NAME: ClusterName = "spark");
 
 #[derive(Snafu, Debug)]
 pub enum Error {
@@ -372,12 +381,12 @@ pub(crate) fn pod_template(
             .context(ValidateLoggingConfigSnafu)?,
             vector_aggregator_config_map_name,
         };
-        // These resource names are constructed SOLELY to provide the Vector sidecar with its
-        // `CLUSTER_NAME`/`ROLE_NAME`/`ROLE_GROUP_NAME` log-metadata env vars. They do NOT affect
-        // resource naming. A SparkApplication has no Stackable role groups, so the role group name
-        // is a placeholder; the role name reflects the pod's Spark role (driver/executor).
+
+        // `ResourceNames` is only used for the `CLUSTER_NAME`, `ROLE_NAME` and `ROLE_GROUP_NAME`
+        // env vars of the Vector container; it does not affect any resource names. A
+        // SparkApplication has no role groups, so the role group name is a placeholder.
         let vector_resource_names = ResourceNames {
-            cluster_name: validated.name.clone(),
+            cluster_name: VECTOR_PLACEHOLDER_CLUSTER_NAME.clone(),
             role_name: role.role_name(),
             role_group_name: RoleGroupName::from_str("default")
                 .expect("\"default\" is a valid role group name"),
@@ -389,7 +398,8 @@ pub(crate) fn pod_template(
             &vector_resource_names,
             &VOLUME_MOUNT_NAME_CONFIG,
             &VOLUME_MOUNT_NAME_LOG,
-            EnvVarSet::new(),
+            // Overrides the placeholder cluster name set by `vector_container`.
+            EnvVarSet::new().with_value(&ENV_VAR_NAME_VECTOR_CLUSTER_NAME, validated.name.as_ref()),
         ));
     }
 
@@ -608,6 +618,73 @@ mod tests {
         // The override must replace the operator-set value, not duplicate it.
         assert_eq!(matching.len(), 1);
         assert_eq!(matching[0].value.as_deref(), Some("/custom/log/dir"));
+    }
+
+    /// SparkApplication names may be longer than a `ClusterName` (40 characters), so the Vector
+    /// container is built with a placeholder cluster name and `CLUSTER_NAME` is overridden with
+    /// the application name. This fails if operator-rs renames the env var, which would otherwise
+    /// silently leave the placeholder in place.
+    #[test]
+    fn vector_cluster_name_is_the_full_application_name() {
+        let application_name = "a-spark-application-with-a-name-that-is-longer-than-forty-chars";
+        assert_eq!(63, application_name.len());
+
+        let yaml = format!(
+            indoc! {r#"
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: {application_name}
+                  namespace: default
+                  uid: 12345678-1234-1234-1234-123456789012
+                spec:
+                  mode: cluster
+                  mainApplicationFile: test.py
+                  sparkImage:
+                    productVersion: 1.2.3
+                  vectorAggregatorConfigMapName: vector-aggregator-discovery
+                  driver:
+                    config:
+                      logging:
+                        enableVectorAgent: true
+            "#},
+            application_name = application_name
+        );
+        let validated = validated_from_yaml(&yaml, None);
+        let driver_config = validated
+            .spark_application
+            .driver_config()
+            .expect("the driver config resolves");
+        let env = validated
+            .spark_application
+            .env(&None, &None, None)
+            .expect("the base environment can be built");
+
+        let template = pod_template(
+            &validated,
+            SparkApplicationRole::Driver,
+            &driver_config,
+            &[],
+            &env,
+            &test_service_account(),
+        )
+        .expect("the driver pod template can be built");
+
+        let cluster_names: Vec<Option<String>> = template
+            .spec
+            .expect("the pod template has a spec")
+            .containers
+            .into_iter()
+            .find(|container| container.name == "vector")
+            .expect("the vector container exists")
+            .env
+            .expect("the vector container has env vars")
+            .into_iter()
+            .filter(|env_var| env_var.name == "CLUSTER_NAME")
+            .map(|env_var| env_var.value)
+            .collect();
+
+        assert_eq!(vec![Some(application_name.to_string())], cluster_names);
     }
 
     /// Runs the real validate step against the given SparkApplication YAML, optionally with a

@@ -147,7 +147,10 @@ pub type SparkApplicationExecutorRoleType =
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DriverPod {
+    /// Name of the driver pod for this application.
+    /// This can change if the application job is restarted (usually due to an error).
     pub name: String,
+    /// Creation timestamp for the application's driver pod.
     pub creation_timestamp: Time,
 }
 

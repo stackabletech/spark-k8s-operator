@@ -16,6 +16,10 @@ spec:
 {% endif %}
     pullPolicy: IfNotPresent
   mode: cluster
+  # Keep the finished driver Pod for a while, see 11-assert.yaml and 12-assert.yaml
+  cleanup:
+    afterSucceeded: 1m
+    afterFailed: 1h
   mainClass: org.apache.spark.examples.SparkALS
   mainApplicationFile: "local:///stackable/spark/examples/jars/spark-examples.jar"
   job:

@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
   that their Pods are automatically rolled when a mounted ConfigMap or Secret changes ([#754]).
 - Add `/ready` endpoint to the operator Deployment, which reports the CRD installation status ([#779]).
 - Add support for Spark 4.x and HBase connectors ([#797]).
+- New `spec.cleanup` field controlling how long a finished driver Pod is kept, separately for a
+  succeeded (`cleanup.afterSucceeded`, default `10m`) and a failed (`cleanup.afterFailed`, default
+  `24h`) driver. `0s` deletes it right away. The resolved values are shown in `status.effectiveCleanup`
+  ([#808]).
 - The logs of the `containerdebug` process are now collected by the Vector agent and forwarded to
   the Vector aggregator ([#802]).
 
@@ -53,6 +57,9 @@ All notable changes to this project will be documented in this file.
 - Deprecate support for Spark `4.1.2` ([#790]).
 - ClusterRoles for Spark driver and Spark Connect now allow managing `networkpolicies`, which Spark 4.2 creates for executors by default ([#790]).
 - The operator Deployment runs with a restricted security context and a read-only root filesystem, so it can be deployed into namespaces that enforce the `restricted` Pod Security Standard ([#795]).
+- BREAKING (behaviour): Finished driver Pods are no longer deleted immediately but kept for
+  `spec.cleanup.afterSucceeded` (default `10m`) or `spec.cleanup.afterFailed` (default `24h`). Set
+  both to `0s` to delete them right away as before ([#808]).
 
 ### Removed
 
@@ -122,6 +129,7 @@ All notable changes to this project will be documented in this file.
 [#795]: https://github.com/stackabletech/spark-k8s-operator/pull/795
 [#796]: https://github.com/stackabletech/spark-k8s-operator/pull/796
 [#797]: https://github.com/stackabletech/spark-k8s-operator/pull/797
+[#808]: https://github.com/stackabletech/spark-k8s-operator/pull/808
 [#802]: https://github.com/stackabletech/spark-k8s-operator/pull/802
 
 ## [26.7.0] - 2026-07-21

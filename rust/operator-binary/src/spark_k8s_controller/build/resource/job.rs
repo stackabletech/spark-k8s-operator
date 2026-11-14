@@ -29,6 +29,10 @@ use crate::{
     },
 };
 
+/// How long the spark-submit Job is kept after it finished, successful or not. A Job has a single
+/// TTL for both outcomes, so it does not follow `spec.cleanup`, which is about the driver Pod.
+const SUBMIT_JOB_TTL_SECONDS: i32 = 600;
+
 // JVM settings of the spark-submit job.
 constant!(SPARK_SUBMIT_OPTS: EnvVarName = "SPARK_SUBMIT_OPTS");
 // The Spark configuration directory of the spark-submit job.
@@ -184,7 +188,7 @@ pub(crate) fn spark_job(
         .build(),
         spec: Some(JobSpec {
             template: pod,
-            ttl_seconds_after_finished: Some(600),
+            ttl_seconds_after_finished: Some(SUBMIT_JOB_TTL_SECONDS),
             backoff_limit: Some(spark_application.retry_on_failure_count()),
             ..Default::default()
         }),

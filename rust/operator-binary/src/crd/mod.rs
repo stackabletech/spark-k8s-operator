@@ -194,11 +194,12 @@ pub mod versioned {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub effective_cleanup: Option<Cleanup>,
 
-        /// The driver Pod whose phase `phase` shows.
-        ///
-        /// A driver older than this one never writes its phase: after a retry, the previous
-        /// driver is kept for its `cleanup` TTL and must not overwrite the outcome of the newer
-        /// one, also after the newer one was deleted.
+        /// The current driver pod of the application.
+        /// The application status is derived from this pod's `phase`.
+        /// Older driver pods may exist if the application is restarted, but these
+        /// pods do not influence the application's status anymore.
+        /// They are only kept around according to the `spec.cleanup.afterFailure`
+        /// and eventually deleted.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub driver_pod: Option<DriverPod>,
     }

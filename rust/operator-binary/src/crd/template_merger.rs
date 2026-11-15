@@ -495,19 +495,19 @@ mod tests {
     }
 
     #[rstest]
-    #[case::overlay_wins("{afterSucceeded: 1h}", "{afterSucceeded: 0s}", ("0s", "1d"))]
+    #[case::overlay_wins("{afterSucceeded: 1h}", "{afterSucceeded: 0s}", Some((Some("0s"), None)))]
     #[case::fields_merged(
         "{afterSucceeded: 1h, afterFailed: 2d}",
         "{afterFailed: 5m}",
-        ("1h", "5m")
+        Some((Some("1h"), Some("5m")))
     )]
-    #[case::base_only("{afterFailed: 2d}", "null", ("10m", "2d"))]
-    #[case::overlay_only("null", "{afterSucceeded: 0s}", ("0s", "1d"))]
-    #[case::defaults("null", "null", ("10m", "1d"))]
+    #[case::base_only("{afterFailed: 2d}", "null", Some((None, Some("2d"))))]
+    #[case::overlay_only("null", "{afterSucceeded: 0s}", Some((Some("0s"), None)))]
+    #[case::neither("null", "null", None)]
     fn test_deep_merge_cleanup(
         #[case] base_cleanup: &str,
         #[case] overlay_cleanup: &str,
-        #[case] expected: (&str, &str),
+        #[case] expected: Option<(Option<&str>, Option<&str>)>,
     ) {
         let app = |name: &str, cleanup: &str| {
             yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(&formatdoc! {"
@@ -526,14 +526,20 @@ mod tests {
             .unwrap()
         };
 
-        let merged =
-            deep_merge(&app("base", base_cleanup), &app("overlay", overlay_cleanup)).cleanup();
+        let merged = deep_merge(&app("base", base_cleanup), &app("overlay", overlay_cleanup))
+            .spec
+            .cleanup
+            .map(|cleanup| {
+                (
+                    cleanup.after_succeeded.map(|ttl| ttl.to_string()),
+                    cleanup.after_failed.map(|ttl| ttl.to_string()),
+                )
+            });
 
         assert_eq!(
-            (
-                merged.after_succeeded().to_string().as_str(),
-                merged.after_failed().to_string().as_str()
-            ),
+            merged
+                .as_ref()
+                .map(|(succeeded, failed)| (succeeded.as_deref(), failed.as_deref())),
             expected
         );
     }

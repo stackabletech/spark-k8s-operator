@@ -50,7 +50,7 @@ use stackable_operator::{
 use crate::{
     config::jvm::construct_extra_java_options,
     crd::{
-        cleanup::Cleanup,
+        cleanup::{Cleanup, ResolvedCleanup},
         job_dependencies::JobDependencies,
         roles::{
             RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
@@ -192,7 +192,7 @@ pub mod versioned {
         /// The `cleanup` TTLs that apply to this application, after merging templates and
         /// filling in defaults. Set when the application is submitted.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub effective_cleanup: Option<Cleanup>,
+        pub effective_cleanup: Option<ResolvedCleanup>,
 
         /// The current driver pod of the application.
         /// The application status is derived from this pod's `phase`.
@@ -247,6 +247,10 @@ pub mod versioned {
 
         /// How long the driver Pod is kept after it finished, separately for a succeeded and a
         /// failed driver.
+        ///
+        /// If `spark.kubernetes.driver.pod.name` is set in `sparkConf`, the driver pod is always
+        /// deleted as soon as it finished. `cleanup` must then be unset or set both
+        /// `afterSucceeded` and `afterFailed` to `0s`, otherwise the application is rejected.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub cleanup: Option<Cleanup>,
 
@@ -1089,24 +1093,6 @@ impl v1alpha1::SparkApplication {
             .and_then(|config| config.retry_on_failure_count)
             .unwrap_or(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT);
         effective_retry_on_failure_count as i32
-    }
-
-    /// The `cleanup` TTLs with the defaults filled in.
-    pub fn cleanup(&self) -> Cleanup {
-        self.spec.cleanup.clone().unwrap_or_default().resolved()
-    }
-
-    /// The TTLs that apply to the driver Pod, as recorded in the status.
-    ///
-    /// A driver whose name is fixed with `spark.kubernetes.driver.pod.name` is deleted as soon as
-    /// it finished, whatever `cleanup` says: the next submission or retry would otherwise fail
-    /// because a Pod with that name still exists.
-    pub fn effective_cleanup(&self) -> Cleanup {
-        if self.spec.spark_conf.contains_key(SPARK_DRIVER_POD_NAME) {
-            Cleanup::immediate()
-        } else {
-            self.cleanup()
-        }
     }
 }
 
@@ -2677,46 +2663,5 @@ spec:
             "#})
             .expect("Failed to parse SparkApplicationSpec YAML")
         }
-    }
-
-    #[rstest]
-    #[case::configured("{}", "{afterSucceeded: 1h, afterFailed: 2d}", ("1h", "2d"))]
-    #[case::defaults("{}", "null", ("10m", "1d"))]
-    #[case::fixed_driver_name(
-        "{spark.kubernetes.driver.pod.name: my-driver}",
-        "{afterSucceeded: 1h, afterFailed: 2d}",
-        ("0s", "0s")
-    )]
-    fn effective_cleanup_deletes_a_driver_with_a_fixed_name_at_once(
-        #[case] spark_conf: &str,
-        #[case] cleanup: &str,
-        #[case] expected: (&str, &str),
-    ) {
-        let app: v1alpha1::SparkApplication = yaml_serde::from_str(&format!(
-            "
-            apiVersion: spark.stackable.tech/v1alpha1
-            kind: SparkApplication
-            metadata:
-              name: spark-example
-            spec:
-              mode: cluster
-              mainApplicationFile: test.py
-              sparkImage:
-                productVersion: 4.1.0
-              sparkConf: {spark_conf}
-              cleanup: {cleanup}
-            "
-        ))
-        .expect("invalid test SparkApplication YAML");
-
-        let effective = app.effective_cleanup();
-
-        assert_eq!(
-            (
-                effective.after_succeeded().to_string().as_str(),
-                effective.after_failed().to_string().as_str()
-            ),
-            expected
-        );
     }
 }

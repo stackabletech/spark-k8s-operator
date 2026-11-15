@@ -29,8 +29,10 @@ use stackable_operator::{
 
 use crate::{
     crd::{
+        cleanup::{Cleanup, DEFAULT_AFTER_FAILED, DEFAULT_AFTER_SUCCEEDED, ResolvedCleanup},
         constants::{
-            APP_NAME, CONTAINER_IMAGE_BASE_NAME, SPARK_CONTROLLER_NAME, SPARK_OPERATOR_NAME,
+            APP_NAME, CONTAINER_IMAGE_BASE_NAME, SPARK_CONTROLLER_NAME, SPARK_DRIVER_POD_NAME,
+            SPARK_OPERATOR_NAME,
         },
         logdir::ResolvedLogDir,
         v1alpha1,
@@ -65,6 +67,13 @@ pub enum Error {
 
     #[snafu(display("S3 TLS with verification disabled is not supported ({context})"))]
     S3TlsNoVerificationNotSupported { context: String },
+
+    #[snafu(display(
+        "a fixed driver Pod name ({SPARK_DRIVER_POD_NAME}) requires the driver Pod to be deleted \
+         immediately, so cleanup (after merging templates) must be unset or set both TTLs to 0s, \
+         got {cleanup:?}"
+    ))]
+    FixedDriverPodNameWithDelayedCleanup { cleanup: Cleanup },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -110,6 +119,8 @@ pub struct ValidatedSparkApplication {
     pub spark_application: v1alpha1::SparkApplication,
     pub resolved_product_image: ResolvedProductImage,
     pub cluster_config: ValidatedClusterConfig,
+    /// The driver Pod TTLs, resolved from the merged application.
+    pub cleanup: ResolvedCleanup,
 }
 
 /// Cluster-wide settings resolved during validation and dereferencing, so the resource builders
@@ -207,6 +218,8 @@ pub fn validate(
     let uid = get_uid(&dereferenced.spark_application).context(ResolveUidSnafu)?;
     let metadata = dereferenced.spark_application.meta().clone();
 
+    let cleanup = validate_cleanup(&dereferenced.spark_application)?;
+
     Ok(ValidatedSparkApplication {
         metadata,
         name,
@@ -221,6 +234,7 @@ pub fn validate(
             open_lineage_connection: dereferenced.open_lineage_connection,
             log_dir: dereferenced.log_dir,
         },
+        cleanup,
     })
 }
 
@@ -236,9 +250,49 @@ fn reject_tls_no_verification(conn: &s3::v1alpha1::ConnectionSpec, context: &str
     Ok(())
 }
 
+/// Resolves the driver Pod TTLs of the given application, which must already have its templates
+/// merged (see [`DereferencedSparkApplication`]).
+///
+/// A driver Pod with a fixed name must be deleted as soon as it finished, otherwise the next
+/// submission or retry fails because a Pod with that name still exists.
+/// Reject an explicit `cleanup` that asks for something else instead of silently ignoring it.
+fn validate_cleanup(merged_application: &v1alpha1::SparkApplication) -> Result<ResolvedCleanup> {
+    let spec = &merged_application.spec;
+    if let Some(cleanup) = &spec.cleanup
+        && spec.spark_conf.contains_key(SPARK_DRIVER_POD_NAME)
+        && !cleanup.is_immediate()
+    {
+        return FixedDriverPodNameWithDelayedCleanupSnafu {
+            cleanup: cleanup.clone(),
+        }
+        .fail();
+    }
+    Ok(resolved_cleanup(spec))
+}
+
+/// Resolves the TTLs from exactly the given spec, filling in defaults.
+///
+/// Templates are not merged here. Pass the spec of a merged application (see
+/// `DereferencedSparkApplication`) to get the TTLs that actually apply to it.
+///
+/// A driver whose name is fixed with `spark.kubernetes.driver.pod.name` is deleted as soon as
+/// it finished, whatever `cleanup` says: the next submission or retry would otherwise fail
+/// because a Pod with that name still exists.
+fn resolved_cleanup(spec: &v1alpha1::SparkApplicationSpec) -> ResolvedCleanup {
+    if spec.spark_conf.contains_key(SPARK_DRIVER_POD_NAME) {
+        return ResolvedCleanup::IMMEDIATE;
+    }
+    let cleanup = spec.cleanup.clone().unwrap_or_default();
+    ResolvedCleanup {
+        after_succeeded: cleanup.after_succeeded.unwrap_or(DEFAULT_AFTER_SUCCEEDED),
+        after_failed: cleanup.after_failed.unwrap_or(DEFAULT_AFTER_FAILED),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use indoc::indoc;
+    use indoc::{formatdoc, indoc};
+    use rstest::rstest;
     use stackable_operator::cli::OperatorEnvironmentOptions;
 
     use super::*;
@@ -314,5 +368,74 @@ mod tests {
             validated.spark_application.metadata.name.as_deref(),
             Some("spark-example")
         );
+    }
+
+    #[rstest]
+    #[case::no_driver_name_no_cleanup("{}", "null", Some(("10m", "1d")))]
+    #[case::no_driver_name_with_cleanup(
+        "{}",
+        "{afterSucceeded: 1h, afterFailed: 2d}",
+        Some(("1h", "2d"))
+    )]
+    #[case::driver_name_no_cleanup(
+        "{spark.kubernetes.driver.pod.name: my-driver}",
+        "null",
+        Some(("0s", "0s"))
+    )]
+    #[case::driver_name_immediate_cleanup(
+        "{spark.kubernetes.driver.pod.name: my-driver}",
+        "{afterSucceeded: 0s, afterFailed: 0s}",
+        Some(("0s", "0s"))
+    )]
+    #[case::driver_name_delayed_cleanup(
+        "{spark.kubernetes.driver.pod.name: my-driver}",
+        "{afterSucceeded: 1h, afterFailed: 2d}",
+        None
+    )]
+    #[case::driver_name_partially_immediate_cleanup(
+        "{spark.kubernetes.driver.pod.name: my-driver}",
+        "{afterSucceeded: 0s}",
+        None
+    )]
+    #[case::driver_name_empty_cleanup("{spark.kubernetes.driver.pod.name: my-driver}", "{}", None)]
+    fn validate_cleanup_requires_immediate_cleanup_for_a_fixed_driver_name(
+        #[case] spark_conf: &str,
+        #[case] cleanup: &str,
+        #[case] expected: Option<(&str, &str)>,
+    ) {
+        let spark_application: v1alpha1::SparkApplication =
+            stackable_operator::utils::yaml_from_str_singleton_map(&formatdoc! {"
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: spark-example
+                spec:
+                  mode: cluster
+                  mainApplicationFile: test.py
+                  sparkImage:
+                    productVersion: 1.2.3
+                  sparkConf: {spark_conf}
+                  cleanup: {cleanup}
+            "})
+            .expect("invalid test SparkApplication YAML");
+
+        let result = validate_cleanup(&spark_application);
+
+        match expected {
+            Some(expected) => {
+                let resolved = result.expect("the application should be valid");
+                assert_eq!(
+                    (
+                        resolved.after_succeeded.to_string().as_str(),
+                        resolved.after_failed.to_string().as_str()
+                    ),
+                    expected
+                );
+            }
+            None => assert!(matches!(
+                result,
+                Err(Error::FixedDriverPodNameWithDelayedCleanup { .. })
+            )),
+        }
     }
 }

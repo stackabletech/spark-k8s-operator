@@ -16,7 +16,7 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    crd::{DriverPod, cleanup::Cleanup, v1alpha1},
+    crd::{DriverPod, cleanup::ResolvedCleanup, v1alpha1},
     spark_k8s_controller::update_status::{self, update_phase},
 };
 
@@ -137,15 +137,23 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
             .context(UpdateStatusSnafu)?;
     }
 
-    let decision = decide(
-        pod_phase,
-        finished_at(pod),
-        &app.status
-            .as_ref()
-            .and_then(|status| status.effective_cleanup.clone())
-            .unwrap_or_else(|| app.effective_cleanup()),
-        Timestamp::now(),
-    );
+    let cleanup = match app
+        .status
+        .as_ref()
+        .and_then(|status| status.effective_cleanup.clone())
+    {
+        Some(cleanup) => cleanup,
+        None => {
+            // TODO: remove this after 26.11.0 release
+            // The status is not written yet: the application was submitted by an older operator
+            // version so preserve the behavior by immediately deleting the pod when finished.
+            tracing::info!(
+                "SparkApplication {app_name:?} has no effectiveCleanup in its status, deleting immediately"
+            );
+            ResolvedCleanup::IMMEDIATE
+        }
+    };
+    let decision = decide(pod_phase, finished_at(pod), &cleanup, Timestamp::now());
     tracing::info!("Driver pod {pod_name:?} has phase {pod_phase:?}, decision: {decision:?}");
 
     match decision {
@@ -181,16 +189,16 @@ enum Decision {
 fn decide(
     pod_phase: &str,
     finished_at: Option<Timestamp>,
-    cleanup: &Cleanup,
+    cleanup: &ResolvedCleanup,
     now: Timestamp,
 ) -> Decision {
     if !is_terminal(pod_phase) {
         return Decision::NotFinished;
     }
     let ttl = if pod_phase == "Succeeded" {
-        cleanup.after_succeeded()
+        cleanup.after_succeeded
     } else {
-        cleanup.after_failed()
+        cleanup.after_failed
     };
     let Some(finished_at) = finished_at else {
         return Decision::DeleteNow;
@@ -324,10 +332,10 @@ mod tests {
         time.parse().expect("the timestamp is valid")
     }
 
-    fn cleanup(after_succeeded: &str, after_failed: &str) -> Cleanup {
-        Cleanup {
-            after_succeeded: Some(after_succeeded.parse().expect("the TTL is valid")),
-            after_failed: Some(after_failed.parse().expect("the TTL is valid")),
+    fn cleanup(after_succeeded: &str, after_failed: &str) -> ResolvedCleanup {
+        ResolvedCleanup {
+            after_succeeded: after_succeeded.parse().expect("the TTL should be valid"),
+            after_failed: after_failed.parse().expect("the TTL should be valid"),
         }
     }
 
@@ -365,21 +373,9 @@ mod tests {
 
     #[test]
     fn unknown_finish_time_counts_as_expired() {
-        let decision = decide("Succeeded", None, &Cleanup::default(), at(FINISHED_AT));
+        let decision = decide("Succeeded", None, &cleanup("10m", "1d"), at(FINISHED_AT));
 
         assert_eq!(decision, Decision::DeleteNow);
-    }
-
-    #[test]
-    fn defaults_keep_a_failed_driver_for_a_day() {
-        let decision = decide(
-            "Failed",
-            Some(at(FINISHED_AT)),
-            &Cleanup::default(),
-            at("2026-11-12T13:00:00Z"),
-        );
-
-        assert_eq!(decision, secs(23 * 3600));
     }
 
     fn container(finished_at: Option<&str>) -> ContainerStatus {

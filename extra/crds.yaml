@@ -37,6 +37,10 @@ spec:
                 description: |-
                   How long the driver Pod is kept after it finished, separately for a succeeded and a
                   failed driver.
+
+                  If `spark.kubernetes.driver.pod.name` is set in `sparkConf`, the driver pod is always
+                  deleted as soon as it finished. `cleanup` must then be unset or set both
+                  `afterSucceeded` and `afterFailed` to `0s`, otherwise the application is rejected.
                 nullable: true
                 properties:
                   afterFailed:
@@ -2403,13 +2407,14 @@ spec:
                 nullable: true
                 properties:
                   afterFailed:
-                    description: Time to live after the driver Pod failed. Defaults to `24h`, `0s` deletes it right away.
-                    nullable: true
+                    description: Time to live after the driver Pod failed.
                     type: string
                   afterSucceeded:
-                    description: Time to live after the driver Pod succeeded. Defaults to `10m`, `0s` deletes it right away.
-                    nullable: true
+                    description: Time to live after the driver Pod succeeded.
                     type: string
+                required:
+                - afterFailed
+                - afterSucceeded
                 type: object
               phase:
                 type: string
@@ -4922,6 +4927,10 @@ spec:
                 description: |-
                   How long the driver Pod is kept after it finished, separately for a succeeded and a
                   failed driver.
+
+                  If `spark.kubernetes.driver.pod.name` is set in `sparkConf`, the driver pod is always
+                  deleted as soon as it finished. `cleanup` must then be unset or set both
+                  `afterSucceeded` and `afterFailed` to `0s`, otherwise the application is rejected.
                 nullable: true
                 properties:
                   afterFailed:

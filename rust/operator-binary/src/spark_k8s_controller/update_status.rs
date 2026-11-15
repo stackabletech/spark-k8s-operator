@@ -50,7 +50,7 @@ pub async fn update_status(
     let status = v1alpha1::SparkApplicationStatus {
         phase: INITIAL_PHASE.to_string(),
         resolved_template_ref: validated.cluster_config.resolved_template_refs.clone(),
-        effective_cleanup: Some(spark_application.effective_cleanup()),
+        effective_cleanup: Some(validated.cleanup.clone()),
         driver_pod: None,
     };
 

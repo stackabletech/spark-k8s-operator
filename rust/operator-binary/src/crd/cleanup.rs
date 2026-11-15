@@ -6,6 +6,9 @@ use stackable_operator::{
     shared::time::Duration,
 };
 
+pub const DEFAULT_AFTER_SUCCEEDED: Duration = Duration::from_minutes_unchecked(10);
+pub const DEFAULT_AFTER_FAILED: Duration = Duration::from_hours_unchecked(24);
+
 /// How long the driver Pod is kept after it finished, before the operator deletes it.
 #[derive(Clone, Debug, Default, Deserialize, JsonSchema, Merge, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -20,29 +23,28 @@ pub struct Cleanup {
 }
 
 impl Cleanup {
-    pub fn after_succeeded(&self) -> Duration {
-        self.after_succeeded
-            .unwrap_or(Duration::from_minutes_unchecked(10))
+    /// Whether both TTLs are explicitly set to `0s`.
+    pub fn is_immediate(&self) -> bool {
+        let zero = Some(Duration::from_secs(0));
+        self.after_succeeded == zero && self.after_failed == zero
     }
+}
 
-    pub fn after_failed(&self) -> Duration {
-        self.after_failed
-            .unwrap_or(Duration::from_hours_unchecked(24))
-    }
+/// The TTLs that apply to the driver Pod, with defaults filled in.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedCleanup {
+    /// Time to live after the driver Pod succeeded.
+    pub after_succeeded: Duration,
 
+    /// Time to live after the driver Pod failed.
+    pub after_failed: Duration,
+}
+
+impl ResolvedCleanup {
     /// Both TTLs `0s`: the driver Pod is deleted as soon as it finished.
-    pub fn immediate() -> Self {
-        Self {
-            after_succeeded: Some(Duration::from_secs(0)),
-            after_failed: Some(Duration::from_secs(0)),
-        }
-    }
-
-    /// Both TTLs with the defaults filled in, as recorded in the status.
-    pub fn resolved(&self) -> Self {
-        Self {
-            after_succeeded: Some(self.after_succeeded()),
-            after_failed: Some(self.after_failed()),
-        }
-    }
+    pub const IMMEDIATE: Self = Self {
+        after_succeeded: Duration::from_secs(0),
+        after_failed: Duration::from_secs(0),
+    };
 }

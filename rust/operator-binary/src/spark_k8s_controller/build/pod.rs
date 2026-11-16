@@ -442,6 +442,8 @@ mod tests {
     fn test_constants() {
         // Test that dereferencing the constants does not panic.
         let _ = *STACKABLE_POST_HOOK;
+        let _ = *ENV_VAR_NAME_VECTOR_CLUSTER_NAME;
+        let _ = *VECTOR_PLACEHOLDER_CLUSTER_NAME;
     }
 
     #[rstest]
@@ -622,8 +624,7 @@ mod tests {
 
     /// SparkApplication names may be longer than a `ClusterName` (40 characters), so the Vector
     /// container is built with a placeholder cluster name and `CLUSTER_NAME` is overridden with
-    /// the application name. This fails if operator-rs renames the env var, which would otherwise
-    /// silently leave the placeholder in place.
+    /// the application name.
     #[test]
     fn vector_cluster_name_is_the_full_application_name() {
         let application_name = "a-spark-application-with-a-name-that-is-longer-than-forty-chars";

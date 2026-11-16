@@ -37,6 +37,11 @@ The executors are owned by the driver Pod and are deleted with it, if Spark has 
 Executors that are still Pending when the driver finished are deleted right away, because they can never connect to the driver.
 The phase of the application is kept in the status of the SparkApplication after the driver Pod was deleted.
 
+NOTE: Spark makes the driver Pod the owner of PersistentVolumeClaims it creates on demand (`claimName: OnDemand`), so they can live as long as the driver Pod.
+If the driver exits normally, Spark deletes them itself, except the driver's own PVC, which is only released once the driver Pod is deleted.
+If the driver crashes, the executor PVCs are kept as well.
+Kept PVCs count against storage ResourceQuotas, so consider a shorter `afterFailed` when using on-demand PVCs.
+
 The spark-submit Job is kept for 10 minutes after it finished, independent of `spec.cleanup`.
 The ServiceAccount, RoleBinding and ConfigMaps the operator created are kept until the SparkApplication is deleted.
 

@@ -2383,7 +2383,7 @@ spec:
                   The application status is derived from this pod's `phase`.
                   Older driver pods may exist if the application is restarted, but these
                   pods do not influence the application's status anymore.
-                  They are only kept around according to the `spec.cleanup.afterFailure`
+                  They are only kept around according to the `spec.cleanup.afterFailed`
                   and eventually deleted.
                 nullable: true
                 properties:

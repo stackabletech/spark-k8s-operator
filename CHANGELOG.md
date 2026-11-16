@@ -94,7 +94,7 @@ All notable changes to this project will be documented in this file.
   `CONTAINERDEBUG_LOG_DIRECTORY`, which containerdebug stopped reading in its version 0.2.0 when it
   moved to `stackable-telemetry`; the directory is now set via `FILE_LOG_DIRECTORY`. The file is
   rotated hourly and at most two files are kept, because rotation is opt-in ([#802]).
-- SparkApplication names can be up to 63 characters long again. A recent release restricted them
+- SparkApplication names can be up to 63 characters long again. SDP 26.7.0 restricted them
   to 40 characters, so applications with longer names failed validation ([#809]).
 
 [#721]: https://github.com/stackabletech/spark-k8s-operator/pull/721

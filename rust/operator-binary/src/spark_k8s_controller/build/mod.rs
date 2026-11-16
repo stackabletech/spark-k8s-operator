@@ -8,8 +8,11 @@ use snafu::{ResultExt, Snafu};
 use stackable_operator::{
     builder::meta::ObjectMetaBuilder,
     constant,
-    kvp::Labels,
-    v2::{builder::meta::ownerreference_from_resource, kvp::label, types::operator::RoleName},
+    kvp::{Label, Labels},
+    v2::{
+        NameIsValidLabelValue, builder::meta::ownerreference_from_resource, kvp::label,
+        types::operator::RoleName,
+    },
 };
 
 use crate::{
@@ -183,16 +186,16 @@ pub(crate) fn object_meta(
 
 /// Recommended labels for resources shared by the whole SparkApplication, like the RBAC
 /// resources.
-pub(crate) fn recommended_labels_for_cluster_resources(
+pub(crate) fn recommended_labels_for_application_resources(
     validated: &ValidatedSparkApplication,
 ) -> Labels {
-    label::recommended_labels_for_cluster_resources(
-        &validated.name,
-        &PRODUCT_NAME,
-        &validated.product_version,
-        &OPERATOR_NAME,
-        &CONTROLLER_NAME,
-    )
+    Labels::from_iter([
+        label_app_kubernetes_io_instance(validated),
+        label::label_app_kubernetes_io_name(&PRODUCT_NAME),
+        label::label_app_kubernetes_io_version(&validated.product_version),
+        label::label_app_kubernetes_io_managed_by(&OPERATOR_NAME, &CONTROLLER_NAME),
+        label::label_stackable_tech_vendor(),
+    ])
 }
 
 /// Recommended labels for resources fulfilling the given component within the SparkApplication.
@@ -203,14 +206,23 @@ pub(crate) fn recommended_labels_for_component_resources(
     validated: &ValidatedSparkApplication,
     component_name: &RoleName,
 ) -> Labels {
-    label::recommended_labels_for_role_resources(
-        &validated.name,
-        &PRODUCT_NAME,
-        &validated.product_version,
-        &OPERATOR_NAME,
-        &CONTROLLER_NAME,
-        component_name,
-    )
+    Labels::from_iter([
+        label_app_kubernetes_io_instance(validated),
+        label::label_app_kubernetes_io_name(&PRODUCT_NAME),
+        label::label_app_kubernetes_io_version(&validated.product_version),
+        label::label_app_kubernetes_io_component(component_name),
+        label::label_app_kubernetes_io_managed_by(&OPERATOR_NAME, &CONTROLLER_NAME),
+        label::label_stackable_tech_vendor(),
+    ])
+}
+
+/// The `app.kubernetes.io/instance` label with the SparkApplication name as value.
+///
+/// [`label::label_app_kubernetes_io_instance`] cannot be used because it requires a `ClusterName`,
+/// which is limited to 40 characters.
+fn label_app_kubernetes_io_instance(validated: &ValidatedSparkApplication) -> Label {
+    Label::instance(&validated.name.to_label_value())
+        .expect("the value implements NameIsValidLabelValue and is therefore a valid label value")
 }
 
 #[cfg(test)]

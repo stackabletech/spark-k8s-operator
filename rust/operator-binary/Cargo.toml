@@ -8,6 +8,12 @@ edition.workspace = true
 repository.workspace = true
 publish = false
 
+[features]
+# The macro attributed_string_type is used in this operator. It produces test
+# code if the feature "test-support" is set. This feature is defined here to
+# suppress a Clippy warning.
+test-support = []
+
 [dependencies]
 stackable-operator.workspace = true
 

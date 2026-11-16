@@ -11161,7 +11161,9 @@ rec {
             features = [ "webhook" "test-support" ];
           }
         ];
-
+        features = {
+        };
+        resolvedDefaultFeatures = [ "test-support" ];
       };
       "stackable-telemetry" = rec {
         crateName = "stackable-telemetry";

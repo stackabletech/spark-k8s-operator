@@ -14,7 +14,7 @@ timeout: 60
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: spark-pi-s3-1-driver-pod-template
+  name: spark-pi-s3-1-with-a-long-name-to-test-the-maximum-length-of-63-driver-pod-template
 data:
   log4j2.properties: |-
     appenders = FILE, CONSOLE
@@ -381,7 +381,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: spark-pi-s3-1-executor-pod-template
+  name: spark-pi-s3-1-with-a-long-name-to-test-the-maximum-length-of-63-executor-pod-template
 data:
   log4j2.properties: |-
     appenders = FILE, CONSOLE
@@ -748,7 +748,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: spark-pi-s3-1-submit-job
+  name: spark-pi-s3-1-with-a-long-name-to-test-the-maximum-length-of-63-submit-job
 data:
   security.properties: |
     networkaddress.cache.negative.ttl=0

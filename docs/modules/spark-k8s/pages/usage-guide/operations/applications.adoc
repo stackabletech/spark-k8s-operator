@@ -29,6 +29,7 @@ spec:
 ----
 
 The time to live counts from when the last container of the driver Pod terminated.
+If Kubernetes lost track of a container (`ContainerStatusUnknown`, for example after a node restart), it counts from when the driver Pod stopped being ready.
 Whether an application counts as failed depends on the phase of the driver Pod.
 `cleanup` can also come from a xref:usage-guide/app_templates.adoc[SparkApplicationTemplate], field by field.
 The times to live are fixed when the operator submits the application and are shown in `status.effectiveCleanup` of the SparkApplication.

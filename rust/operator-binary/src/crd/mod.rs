@@ -198,7 +198,7 @@ pub mod versioned {
         /// The application status is derived from this pod's `phase`.
         /// Older driver pods may exist if the application is restarted, but these
         /// pods do not influence the application's status anymore.
-        /// They are only kept around according to the `spec.cleanup.afterFailed`
+        /// They are only kept around according to `effectiveCleanup`
         /// and eventually deleted.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub driver_pod: Option<DriverPod>,

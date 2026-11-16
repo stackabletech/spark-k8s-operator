@@ -131,8 +131,8 @@ All notable changes to this project will be documented in this file.
 [#795]: https://github.com/stackabletech/spark-k8s-operator/pull/795
 [#796]: https://github.com/stackabletech/spark-k8s-operator/pull/796
 [#797]: https://github.com/stackabletech/spark-k8s-operator/pull/797
-[#808]: https://github.com/stackabletech/spark-k8s-operator/pull/808
 [#802]: https://github.com/stackabletech/spark-k8s-operator/pull/802
+[#808]: https://github.com/stackabletech/spark-k8s-operator/pull/808
 [#809]: https://github.com/stackabletech/spark-k8s-operator/pull/809
 
 ## [26.7.0] - 2026-07-21

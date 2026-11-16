@@ -16,13 +16,16 @@ use stackable_operator::{
 use strum::{EnumDiscriminants, IntoStaticStr};
 
 use crate::{
-    crd::{DriverPod, cleanup::ResolvedCleanup, v1alpha1},
+    crd::{
+        DriverPod,
+        cleanup::ResolvedCleanup,
+        constants::{LABEL_SPARK_APP_SELECTOR, LABEL_SPARK_ROLE},
+        v1alpha1,
+    },
     spark_k8s_controller::update_status::{self, update_phase},
 };
 
 const LABEL_NAME_INSTANCE: &str = "app.kubernetes.io/instance";
-const LABEL_SPARK_APP_SELECTOR: &str = "spark-app-selector";
-const LABEL_SPARK_ROLE: &str = "spark-role";
 
 #[derive(Snafu, Debug, EnumDiscriminants)]
 #[strum_discriminants(derive(IntoStaticStr))]
@@ -147,9 +150,11 @@ pub async fn reconcile(pod: Arc<DeserializeGuard<Pod>>, client: Arc<Client>) -> 
             // TODO: remove this after 26.11.0 release
             // The status is not written yet: the application was submitted by an older operator
             // version so preserve the behavior by immediately deleting the pod when finished.
-            tracing::info!(
-                "SparkApplication {app_name:?} has no effectiveCleanup in its status, deleting immediately"
-            );
+            if is_terminal(pod_phase) {
+                tracing::info!(
+                    "SparkApplication {app_name:?} has no effectiveCleanup in its status, deleting the finished driver pod {pod_name:?} immediately"
+                );
+            }
             ResolvedCleanup::IMMEDIATE
         }
     };
@@ -185,7 +190,7 @@ enum Decision {
 
 /// Decides what happens to a driver with `phase` that finished at `finished_at`.
 ///
-/// A driver without a finish time never ran a container, so there are no logs to keep.
+/// A driver without a finish time never ran, so there is nothing to keep.
 fn decide(
     pod_phase: &str,
     finished_at: Option<Timestamp>,
@@ -211,10 +216,12 @@ fn decide(
     }
 }
 
-/// When the last container of the driver, init containers included, terminated.
+/// When the driver finished: its last container termination or when it stopped being ready.
+///
+/// `Ready` covers containers lost as `ContainerStatusUnknown`, which have no finish time.
 fn finished_at(pod: &Pod) -> Option<Timestamp> {
     let status = pod.status.as_ref()?;
-    status
+    let containers_finished = status
         .init_container_statuses
         .iter()
         .chain(status.container_statuses.iter())
@@ -230,8 +237,14 @@ fn finished_at(pod: &Pod) -> Option<Timestamp> {
                     .as_ref()?
                     .0,
             )
-        })
-        .max()
+        });
+    let not_ready_since = status
+        .conditions
+        .iter()
+        .flatten()
+        .filter(|condition| condition.type_ == "Ready" && condition.status == "False")
+        .filter_map(|condition| Some(condition.last_transition_time.as_ref()?.0));
+    containers_finished.chain(not_ready_since).max()
 }
 
 /// Whether `pod_phase` is final, so the driver will not run again.
@@ -319,7 +332,7 @@ mod tests {
     use stackable_operator::k8s_openapi::{
         api::core::v1::{
             ContainerState, ContainerStateRunning, ContainerStateTerminated, ContainerStatus,
-            PodStatus,
+            PodCondition, PodStatus,
         },
         apimachinery::pkg::apis::meta::v1::Time,
     };
@@ -397,27 +410,82 @@ mod tests {
         }
     }
 
+    /// A container the kubelet lost track of (`ContainerStatusUnknown`).
+    fn lost_container() -> ContainerStatus {
+        ContainerStatus {
+            state: Some(ContainerState {
+                terminated: Some(ContainerStateTerminated {
+                    exit_code: 137,
+                    reason: Some("ContainerStatusUnknown".to_owned()),
+                    ..ContainerStateTerminated::default()
+                }),
+                ..ContainerState::default()
+            }),
+            ..ContainerStatus::default()
+        }
+    }
+
+    fn condition(type_: &str, status: &str, since: &str) -> PodCondition {
+        PodCondition {
+            type_: type_.to_owned(),
+            status: status.to_owned(),
+            last_transition_time: Some(Time(at(since))),
+            ..PodCondition::default()
+        }
+    }
+
     #[rstest]
     #[case::last_container(
         vec![container(Some("2026-11-11T12:00:00Z"))],
         vec![container(Some("2026-11-11T12:00:20Z")), container(Some("2026-11-11T12:00:10Z"))],
+        vec![],
         Some("2026-11-11T12:00:20Z")
     )]
     #[case::failed_init_container(
         vec![container(Some("2026-11-11T12:00:05Z"))],
         vec![],
+        vec![],
         Some("2026-11-11T12:00:05Z")
     )]
-    #[case::none_terminated(vec![], vec![container(None)], None)]
-    fn finish_time_is_the_last_terminated_container(
+    #[case::none_terminated(vec![], vec![container(None)], vec![], None)]
+    #[case::container_finished_after_not_ready(
+        vec![],
+        vec![container(Some("2026-11-11T12:00:20Z"))],
+        vec![condition("Ready", "False", "2026-11-11T12:00:19Z")],
+        Some("2026-11-11T12:00:20Z")
+    )]
+    #[case::lost_container_after_init_container(
+        vec![container(Some("2026-11-11T12:00:05Z"))],
+        vec![lost_container()],
+        vec![
+            condition("Ready", "False", "2026-11-12T18:00:00Z"),
+            condition("Initialized", "True", "2026-11-11T12:00:05Z"),
+        ],
+        Some("2026-11-12T18:00:00Z")
+    )]
+    #[case::lost_container_without_init_container(
+        vec![],
+        vec![lost_container()],
+        vec![condition("Ready", "False", "2026-11-12T18:00:00Z")],
+        Some("2026-11-12T18:00:00Z")
+    )]
+    #[case::ready_does_not_count(
+        vec![],
+        vec![container(None)],
+        vec![condition("Ready", "True", "2026-11-11T12:00:10Z")],
+        None
+    )]
+    fn finish_time_is_the_last_terminated_container_or_when_the_driver_stopped_being_ready(
         #[case] init_containers: Vec<ContainerStatus>,
         #[case] containers: Vec<ContainerStatus>,
+        #[case] conditions: Vec<PodCondition>,
         #[case] expected: Option<&str>,
     ) {
         let pod = Pod {
             status: Some(PodStatus {
                 init_container_statuses: Some(init_containers),
                 container_statuses: Some(containers),
+                conditions: Some(conditions),
                 ..PodStatus::default()
             }),
             ..Pod::default()

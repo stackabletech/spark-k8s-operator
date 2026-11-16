@@ -94,6 +94,11 @@ pub const SPARK_CONTROLLER_NAME: &str = "sparkapplication";
 pub const SPARK_FULL_CONTROLLER_NAME: &str =
     concatcp!(SPARK_CONTROLLER_NAME, '.', SPARK_OPERATOR_NAME);
 
+/// Spark Pod label, `driver` or `executor`.
+pub const LABEL_SPARK_ROLE: &str = "spark-role";
+/// Spark Pod label identifying the application run.
+pub const LABEL_SPARK_APP_SELECTOR: &str = "spark-app-selector";
+
 pub const POD_DRIVER_CONTROLLER_NAME: &str = "pod-driver";
 pub const POD_DRIVER_FULL_CONTROLLER_NAME: &str =
     concatcp!(POD_DRIVER_CONTROLLER_NAME, '.', SPARK_OPERATOR_NAME);

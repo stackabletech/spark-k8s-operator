@@ -30,7 +30,7 @@ use stackable_operator::{
     crd::{openlineage, s3},
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
-        apimachinery::pkg::api::resource::Quantity,
+        apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::Time},
     },
     kube::{CustomResource, ResourceExt},
     memory::{BinaryMultiple, MemoryQuantity},
@@ -50,6 +50,7 @@ use stackable_operator::{
 use crate::{
     config::jvm::construct_extra_java_options,
     crd::{
+        cleanup::{Cleanup, ResolvedCleanup},
         job_dependencies::JobDependencies,
         roles::{
             RoleConfig, RoleConfigFragment, SparkApplicationRole, SparkContainer, SparkMode,
@@ -60,6 +61,7 @@ use crate::{
 };
 
 pub mod affinity;
+pub mod cleanup;
 pub mod constants;
 pub mod history;
 pub mod job_dependencies;
@@ -141,6 +143,25 @@ pub type SparkApplicationDriverRoleType =
 pub type SparkApplicationExecutorRoleType =
     RoleGroup<RoleConfigFragment, JavaCommonConfig, v1alpha1::ConfigOverrides>;
 
+/// A driver Pod, identified by name and ordered by creation.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriverPod {
+    /// Name of the driver pod for this application.
+    /// This can change if the application job is restarted (usually due to an error).
+    pub name: String,
+    /// Creation timestamp for the application's driver pod.
+    pub creation_timestamp: Time,
+}
+
+impl DriverPod {
+    /// Whether this driver was created before `other`. Drivers created in the same second are
+    /// ordered by name.
+    pub fn is_older_than(&self, other: &DriverPod) -> bool {
+        (self.creation_timestamp.0, &self.name) < (other.creation_timestamp.0, &other.name)
+    }
+}
+
 #[versioned(
     version(name = "v1alpha1"),
     crates(
@@ -160,13 +181,27 @@ pub mod versioned {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub uid: Option<String>,
     }
-    #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, JsonSchema)]
+    #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, JsonSchema)]
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[serde(rename_all = "camelCase")]
     pub struct SparkApplicationStatus {
         pub phase: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         pub resolved_template_ref: Vec<ResolvedSparkApplicationTemplate>,
+
+        /// The `cleanup` TTLs that apply to this application, after merging templates and
+        /// filling in defaults. Set when the application is submitted.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub effective_cleanup: Option<ResolvedCleanup>,
+
+        /// The current driver pod of the application.
+        /// The application status is derived from this pod's `phase`.
+        /// Older driver pods may exist if the application is restarted, but these
+        /// pods do not influence the application's status anymore.
+        /// They are only kept around according to `effectiveCleanup`
+        /// and eventually deleted.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub driver_pod: Option<DriverPod>,
     }
 
     /// A Spark application run on Kubernetes by the Stackable operator for Apache Spark.
@@ -209,6 +244,15 @@ pub mod versioned {
         /// to learn how to configure log aggregation with Vector.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub vector_aggregator_config_map_name: Option<ConfigMapName>,
+
+        /// How long the driver Pod is kept after it finished, separately for a succeeded and a
+        /// failed driver.
+        ///
+        /// If `spark.kubernetes.driver.pod.name` is set in `sparkConf`, the driver pod is always
+        /// deleted as soon as it finished. `cleanup` must then be unset or set both
+        /// `afterSucceeded` and `afterFailed` to `0s`, otherwise the application is rejected.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub cleanup: Option<Cleanup>,
 
         /// The job builds a spark-submit command, complete with arguments and referenced dependencies
         /// such as templates, and passes it on to Spark.

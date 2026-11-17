@@ -1,7 +1,16 @@
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 900
+timeout: 30
 commands:
-  # Test that there is no spark driver pod left hanging
-  - script: test -z "$(kubectl -n $NAMESPACE get pods -o name | grep -E 'driver$')"
+  # The application has finished (see 10-assert.yaml), but the driver Pod is kept for
+  # `cleanup.afterSucceeded`, still owned by the application. The Job is kept for 10 minutes.
+  - script: |
+      set -eu
+      kubectl -n "$NAMESPACE" get pods -l spark-role=driver,app.kubernetes.io/instance=spark-examples -o json \
+        | jq -e '.items | length == 1 and all(.[];
+            .status.phase == "Succeeded"
+            and [.metadata.ownerReferences[] | {kind, name}] == [{"kind": "SparkApplication", "name": "spark-examples"}])'
+      kubectl -n "$NAMESPACE" get sparkapplication spark-examples -o json \
+        | jq -e '.status.effectiveCleanup == {"afterSucceeded": "1m", "afterFailed": "1h"}'
+      kubectl -n "$NAMESPACE" get job spark-examples -o json | jq -e '.spec.ttlSecondsAfterFinished == 600'

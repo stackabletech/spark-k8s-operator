@@ -73,6 +73,13 @@ pub fn deep_merge(base: &SparkApplication, overlay: &SparkApplication) -> SparkA
             .log_file_directory
             .clone()
             .or_else(|| base.spec.log_file_directory.clone()),
+        cleanup: match (overlay.spec.cleanup.clone(), &base.spec.cleanup) {
+            (Some(mut overlay), Some(base)) => {
+                overlay.merge(base);
+                Some(overlay)
+            }
+            (overlay, base) => overlay.or_else(|| base.clone()),
+        },
 
         // Product image: overlay takes precedence
         spark_image: overlay.spec.spark_image.clone(),
@@ -281,7 +288,8 @@ fn merge_deps(
 
 #[cfg(test)]
 mod tests {
-    use indoc::indoc;
+    use indoc::{formatdoc, indoc};
+    use rstest::rstest;
     use stackable_operator::k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 
     use super::*;
@@ -483,6 +491,56 @@ mod tests {
                 .config
                 .retry_on_failure_count,
             Some(2u16)
+        );
+    }
+
+    #[rstest]
+    #[case::overlay_wins("{afterSucceeded: 1h}", "{afterSucceeded: 0s}", Some((Some("0s"), None)))]
+    #[case::fields_merged(
+        "{afterSucceeded: 1h, afterFailed: 2d}",
+        "{afterFailed: 5m}",
+        Some((Some("1h"), Some("5m")))
+    )]
+    #[case::base_only("{afterFailed: 2d}", "null", Some((None, Some("2d"))))]
+    #[case::overlay_only("null", "{afterSucceeded: 0s}", Some((Some("0s"), None)))]
+    #[case::neither("null", "null", None)]
+    fn test_deep_merge_cleanup(
+        #[case] base_cleanup: &str,
+        #[case] overlay_cleanup: &str,
+        #[case] expected: Option<(Option<&str>, Option<&str>)>,
+    ) {
+        let app = |name: &str, cleanup: &str| {
+            yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(&formatdoc! {"
+                ---
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: {name}
+                spec:
+                  mode: cluster
+                  mainApplicationFile: {name}.py
+                  sparkImage:
+                    productVersion: \"4.1.0\"
+                  cleanup: {cleanup}
+            "})
+            .unwrap()
+        };
+
+        let merged = deep_merge(&app("base", base_cleanup), &app("overlay", overlay_cleanup))
+            .spec
+            .cleanup
+            .map(|cleanup| {
+                (
+                    cleanup.after_succeeded.map(|ttl| ttl.to_string()),
+                    cleanup.after_failed.map(|ttl| ttl.to_string()),
+                )
+            });
+
+        assert_eq!(
+            merged
+                .as_ref()
+                .map(|(succeeded, failed)| (succeeded.as_deref(), failed.as_deref())),
+            expected
         );
     }
 

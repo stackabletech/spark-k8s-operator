@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [26.11.0-rc1] - 2026-11-19
+
 ### Added
 
 - Add support for emitting [OpenLineage](https://openlineage.io/) events from `SparkApplications` via `spec.lineage` ([#726]).

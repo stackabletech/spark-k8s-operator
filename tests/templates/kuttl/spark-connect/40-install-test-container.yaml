@@ -52,7 +52,7 @@ metadata:
 spec:
   containers:
     - name: tools
-      image: oci.stackable.tech/sdp/testing-tools:0.3.0-stackable26.11.0
+      image: oci.stackable.tech/sdp/testing-tools:0.4.0-stackable26.11.0
       stdin: true
       tty: true
       resources:

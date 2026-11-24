@@ -31,7 +31,7 @@ docker run \
 --env KUBECONFIG=/home/stackable/.kube/config \
 --env KUBERNETES_CLUSTER_DOMAIN=mycluster.local \
 --mount type=bind,source="$HOME/.kube/config",target="/home/stackable/.kube/config" \
-oci.stackable.tech/sdp/spark-k8s-operator:0.0.0-dev
+oci.stackable.tech/sdp/spark-k8s-operator:26.11.0
 ----
 
 == WATCH_NAMESPACE
@@ -60,5 +60,5 @@ docker run \
 --env KUBECONFIG=/home/stackable/.kube/config \
 --env WATCH_NAMESPACE=test \
 --mount type=bind,source="$HOME/.kube/config",target="/home/stackable/.kube/config" \
-oci.stackable.tech/sdp/spark-k8s-operator:0.0.0-dev
+oci.stackable.tech/sdp/spark-k8s-operator:26.11.0
 ----

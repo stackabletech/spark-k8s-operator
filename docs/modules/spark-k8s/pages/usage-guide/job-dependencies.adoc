@@ -29,7 +29,7 @@ Below is an example of a custom image that includes a JDBC driver:
 
 [source, Dockerfile]
 ----
-FROM oci.stackable.tech/sdp/spark-k8s:4.2.0-stackable0.0.0-dev # <1>
+FROM oci.stackable.tech/sdp/spark-k8s:4.2.0-stackable26.11.0 # <1>
 
 RUN curl --fail -o /stackable/spark/jars/postgresql-42.6.0.jar "https://jdbc.postgresql.org/download/postgresql-42.6.0.jar" # <2>
 ----

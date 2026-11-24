@@ -140,7 +140,7 @@ spec:
       spec:
         initContainers:
           - name: kinit
-            image: oci.stackable.tech/sdp/spark-k8s:4.2.0-stackable0.0.0-dev
+            image: oci.stackable.tech/sdp/spark-k8s:4.2.0-stackable26.11.0
             command: ["/bin/bash", "-euo", "pipefail", "-c"]
             args:
               - kinit -kt /stackable/kerberos/keytab spark-connect/spark-connect.example.svc.cluster.local@EXAMPLE.COM

@@ -84,7 +84,7 @@ spec:
 {% if test_scenario['values']['spark-connect'].find(",") > 0 %}
             image: "{{ test_scenario['values']['spark-connect'].split(',')[1] }}"
 {% else %}
-            image: oci.stackable.tech/sdp/spark-k8s:{{ test_scenario['values']['spark-connect'] }}-stackable0.0.0-dev
+            image: oci.stackable.tech/sdp/spark-k8s:{{ test_scenario['values']['spark-connect'] }}-stackable26.11.0
 {% endif %}
             command: ["/bin/bash", "-euo", "pipefail", "-c"]
             args:

@@ -115,7 +115,7 @@ spec:
           # Extract the Spark Connect version and use it for the client.
           # Using a separate dimension for the client doesn't work because beku would generate tests with
           # version mismatches between client and server.
-          image: oci.stackable.tech/stackable/spark-connect-client:{{ spark_connect_client_version }}-stackable0.0.0-dev
+          image: oci.stackable.tech/stackable/spark-connect-client:{{ spark_connect_client_version }}-stackable26.11.0
           imagePullPolicy: IfNotPresent
           command:
             [

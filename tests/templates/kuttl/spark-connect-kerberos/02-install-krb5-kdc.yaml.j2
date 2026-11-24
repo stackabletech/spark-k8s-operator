@@ -15,7 +15,7 @@ spec:
       serviceAccountName: integration-tests-sa
       initContainers:
         - name: init
-          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable0.0.0-dev
+          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable26.11.0
           args:
             - sh
             - -euo
@@ -36,7 +36,7 @@ spec:
               name: data
       containers:
         - name: kdc
-          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable0.0.0-dev
+          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable26.11.0
           args:
             - krb5kdc
             - -n
@@ -54,7 +54,7 @@ spec:
             runAsUser: 0
 {% endif %}
         - name: kadmind
-          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable0.0.0-dev
+          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable26.11.0
           args:
             - kadmind
             - -nofork
@@ -72,7 +72,7 @@ spec:
             runAsUser: 0
 {% endif %}
         - name: client
-          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable0.0.0-dev
+          image: oci.stackable.tech/sdp/krb5:{{ test_scenario['values']['krb5'] }}-stackable26.11.0
           tty: true
           stdin: true
           env:

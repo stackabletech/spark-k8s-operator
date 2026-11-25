@@ -14,6 +14,7 @@ use stackable_operator::{
     },
     config::fragment,
     constant,
+    crd::containerdebug::{self, ValidatedContainerdebugConfig},
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
     product_logging::spec::Logging,
@@ -87,6 +88,12 @@ pub enum Error {
         role_group: String,
     },
 
+    #[snafu(display("invalid containerdebug configuration for role group {role_group}"))]
+    InvalidContainerdebugConfig {
+        source: containerdebug::Error,
+        role_group: String,
+    },
+
     #[snafu(display("failed to validate the logging configuration"))]
     ValidateLoggingConfig {
         source: stackable_operator::v2::product_logging::framework::Error,
@@ -147,6 +154,7 @@ pub type HistoryRoleGroupConfig =
 /// steps used to recompute from the raw CRD on every reconcile.
 pub struct ValidatedHistoryRoleGroup {
     pub config: HistoryRoleGroupConfig,
+    pub containerdebug: ValidatedContainerdebugConfig,
     pub logging: ValidatedLogging,
 }
 
@@ -318,6 +326,15 @@ pub fn validate(
             role_group: rg_name.clone(),
         })?;
 
+        let containerdebug = merged
+            .config
+            .config
+            .containerdebug
+            .validate()
+            .with_context(|_| InvalidContainerdebugConfigSnafu {
+                role_group: rg_name.clone(),
+            })?;
+
         let logging = validate_logging(
             &merged.config.config.logging,
             &vector_aggregator_config_map_name,
@@ -339,7 +356,11 @@ pub fn validate(
 
         role_groups.insert(
             role_group_name,
-            ValidatedHistoryRoleGroup { config, logging },
+            ValidatedHistoryRoleGroup {
+                config,
+                containerdebug,
+                logging,
+            },
         );
     }
 
@@ -372,11 +393,34 @@ pub fn validate(
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+    use stackable_operator::{
+        crd::containerdebug::DEFAULT_INTERVAL, utils::yaml_from_str_singleton_map,
+    };
+
     use super::*;
     use crate::{
         history::controller::build::test_support::minimal_validated_cluster,
         test_support::app_version_label,
     };
+
+    /// Runs the validate step against the given `SparkHistoryServer` YAML with a custom log
+    /// directory.
+    fn validate_yaml(yaml: &str) -> Result<ValidatedSparkHistoryServer> {
+        let shs: v1alpha1::SparkHistoryServer =
+            yaml_from_str_singleton_map(yaml).expect("invalid test SparkHistoryServer YAML");
+        validate(
+            &shs,
+            DereferencedSparkHistoryServer {
+                log_dir: ResolvedLogDir::Custom("file:///stackable/spark/logs".to_string()),
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+    }
 
     #[test]
     fn test_constants() {
@@ -457,5 +501,86 @@ mod tests {
         assert_eq!(role_group.config.replicas, Some(1));
         assert!(!role_group.logging.enable_vector_agent);
         assert_eq!(role_group.logging.vector_container, None);
+    }
+
+    /// A role `config` that does not mention `containerdebug` still gets the default, so the
+    /// `containerdebug` field of the CRD must be optional.
+    #[test]
+    fn containerdebug_defaults_when_not_configured() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkHistoryServer
+            metadata:
+              name: my-history
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              image:
+                productVersion: 3.5.8
+              logFileDirectory:
+                customLogDirectory: file:///stackable/spark/logs
+              nodes:
+                config:
+                  requestedSecretLifetime: 2d
+                roleGroups:
+                  default:
+                    replicas: 1
+            "#};
+
+        let validated = match validate_yaml(yaml) {
+            Ok(validated) => validated,
+            Err(error) => panic!("the SparkHistoryServer is valid, but: {error:?}"),
+        };
+        let role_group_name: RoleGroupName = "default".parse().expect("valid role group name");
+
+        assert_eq!(
+            validated.role_groups[&role_group_name].containerdebug,
+            ValidatedContainerdebugConfig::Enabled {
+                interval: DEFAULT_INTERVAL
+            }
+        );
+    }
+
+    /// An invalid `containerdebug` config fails the validation, naming the role group.
+    #[test]
+    fn zero_containerdebug_interval_fails_validation() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkHistoryServer
+            metadata:
+              name: my-history
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              image:
+                productVersion: 3.5.8
+              logFileDirectory:
+                customLogDirectory: file:///stackable/spark/logs
+              nodes:
+                config:
+                  containerdebug:
+                    interval: 0s
+                roleGroups:
+                  default:
+                    replicas: 1
+            "#};
+
+        let Err(error) = validate_yaml(yaml) else {
+            panic!("a zero containerdebug interval must fail the validation");
+        };
+        let chain: Vec<String> =
+            std::iter::successors(Some(&error as &dyn std::error::Error), |error| {
+                error.source()
+            })
+            .map(ToString::to_string)
+            .collect();
+
+        assert_eq!(
+            chain,
+            [
+                "invalid containerdebug configuration for role group default",
+                "the containerdebug interval must not be zero",
+            ]
+        );
     }
 }

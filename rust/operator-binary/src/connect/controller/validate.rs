@@ -10,6 +10,7 @@ use stackable_operator::{
     cli::OperatorEnvironmentOptions,
     commons::product_image_selection::{self, ResolvedProductImage},
     constant,
+    crd::containerdebug::{self, ValidatedContainerdebugConfig},
     k8s_openapi::{api::core::v1::PodTemplateSpec, apimachinery::pkg::apis::meta::v1::ObjectMeta},
     kube::Resource,
     product_logging::spec::Logging,
@@ -49,6 +50,9 @@ pub enum Error {
 
     #[snafu(display("failed to resolve executor config"))]
     ExecutorConfig { source: crd::Error },
+
+    #[snafu(display("invalid containerdebug configuration for the server"))]
+    InvalidServerContainerdebugConfig { source: containerdebug::Error },
 
     #[snafu(display("failed to resolve cluster name"))]
     ResolveClusterName {
@@ -138,6 +142,7 @@ pub struct ValidatedSparkConnectServer {
     pub server_config: v1alpha1::ServerConfig,
     pub server_overrides: ValidatedOverrides,
     pub server_logging: ValidatedLogging,
+    pub server_containerdebug: ValidatedContainerdebugConfig,
     pub executor_config: v1alpha1::ExecutorConfig,
     pub executor_overrides: ValidatedOverrides,
     pub executor_logging: ValidatedLogging,
@@ -243,6 +248,13 @@ pub fn validate(
     let server_config = scs.server_config().context(ServerConfigSnafu)?;
     let executor_config = scs.executor_config().context(ExecutorConfigSnafu)?;
 
+    // Only the server runs `containerdebug`; the executor Pods are created by Spark from a Pod
+    // template that does not start it.
+    let server_containerdebug = server_config
+        .containerdebug
+        .validate()
+        .context(InvalidServerContainerdebugConfigSnafu)?;
+
     // Capture the user overrides up-front so the resource builders never read the raw spec.
     let server_overrides = scs
         .spec
@@ -297,6 +309,7 @@ pub fn validate(
         server_config,
         server_overrides,
         server_logging,
+        server_containerdebug,
         executor_config,
         executor_overrides,
         executor_logging,
@@ -305,11 +318,34 @@ pub fn validate(
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+    use stackable_operator::{
+        crd::containerdebug::DEFAULT_INTERVAL, shared::time::Duration,
+        utils::yaml_from_str_singleton_map,
+    };
+
     use super::*;
     use crate::{
         connect::controller::build::test_support::minimal_validated_cluster,
         test_support::app_version_label,
     };
+
+    /// Runs the validate step against the given S3-free `SparkConnectServer` YAML.
+    fn validate_yaml(yaml: &str) -> Result<ValidatedSparkConnectServer> {
+        let scs: v1alpha1::SparkConnectServer =
+            yaml_from_str_singleton_map(yaml).expect("invalid test SparkConnectServer YAML");
+        validate(
+            &scs,
+            DereferencedSparkConnectServer {
+                resolved_s3: ResolvedS3::none(),
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+    }
 
     #[test]
     fn test_constants() {
@@ -360,5 +396,85 @@ mod tests {
             assert!(!logging.enable_vector_agent);
             assert_eq!(logging.vector_container, None);
         }
+    }
+
+    /// A server `config` that does not mention `containerdebug` still gets the default, so the
+    /// `containerdebug` field of the CRD must be optional.
+    ///
+    /// `spec.server` flattens an `Option` of the server config, and serde turns a failed
+    /// deserialization of a flattened `Option` into `None`. A server config that failed to
+    /// deserialize would therefore silently fall back to the defaults, which include the
+    /// `containerdebug` default. The user-set `requestedSecretLifetime` proves that the config was
+    /// deserialized.
+    #[test]
+    fn containerdebug_defaults_when_not_configured() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkConnectServer
+            metadata:
+              name: my-connect
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              image:
+                productVersion: 4.1.2
+              server:
+                config:
+                  requestedSecretLifetime: 2d
+            "#};
+
+        let validated = match validate_yaml(yaml) {
+            Ok(validated) => validated,
+            Err(error) => panic!("the SparkConnectServer is valid, but: {error:?}"),
+        };
+
+        assert_eq!(
+            validated.server_config.requested_secret_lifetime,
+            Some(Duration::from_days_unchecked(2))
+        );
+        assert_eq!(
+            validated.server_containerdebug,
+            ValidatedContainerdebugConfig::Enabled {
+                interval: DEFAULT_INTERVAL
+            }
+        );
+    }
+
+    /// An invalid `containerdebug` config fails the validation, naming the server.
+    #[test]
+    fn zero_containerdebug_interval_fails_validation() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkConnectServer
+            metadata:
+              name: my-connect
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              image:
+                productVersion: 4.1.2
+              server:
+                config:
+                  containerdebug:
+                    interval: 0s
+            "#};
+
+        let Err(error) = validate_yaml(yaml) else {
+            panic!("a zero containerdebug interval must fail the validation");
+        };
+        let chain: Vec<String> =
+            std::iter::successors(Some(&error as &dyn std::error::Error), |error| {
+                error.source()
+            })
+            .map(ToString::to_string)
+            .collect();
+
+        assert_eq!(
+            chain,
+            [
+                "invalid containerdebug configuration for the server",
+                "the containerdebug interval must not be zero",
+            ]
+        );
     }
 }

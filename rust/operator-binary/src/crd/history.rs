@@ -13,7 +13,10 @@ use stackable_operator::{
     },
     config::{fragment::Fragment, merge::Merge},
     constant,
-    crd::s3,
+    crd::{
+        containerdebug::{default_containerdebug_config, v1alpha1::ContainerdebugConfig},
+        s3,
+    },
     deep_merger::ObjectOverrides,
     k8s_openapi::apimachinery::pkg::api::resource::Quantity,
     kube::CustomResource,
@@ -246,7 +249,7 @@ impl SparkHistoryServerContainer {
     }
 }
 
-#[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
+#[derive(Clone, Debug, JsonSchema, PartialEq, Fragment)]
 #[fragment_attrs(
     derive(
         Clone,
@@ -269,6 +272,8 @@ pub struct HistoryConfig {
     pub logging: Logging<SparkHistoryServerContainer>,
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+    #[fragment_attrs(serde(default))]
+    pub containerdebug: ContainerdebugConfig,
 
     /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
     /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
@@ -296,6 +301,7 @@ impl HistoryConfig {
             },
             logging: product_logging::spec::default_logging(),
             affinity: history_affinity(cluster_name),
+            containerdebug: default_containerdebug_config(),
             requested_secret_lifetime: Some(Self::DEFAULT_HISTORY_SECRET_LIFETIME),
         }
     }

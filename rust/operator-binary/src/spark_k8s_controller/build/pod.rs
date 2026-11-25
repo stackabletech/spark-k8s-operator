@@ -275,10 +275,21 @@ pub(crate) fn pod_template(
 
     let mut env = env.clone();
 
-    let pre_hook = env
-        .get(&STACKABLE_PRE_HOOK)
-        .and_then(|env_var| env_var.value.clone())
-        .unwrap_or_default();
+    // The hook is built from scratch, so it replaces a `_STACKABLE_PRE_HOOK` from `spec.env`. The
+    // log directory is created here, because `FILE_LOG_MAX_FILES` makes the telemetry library
+    // prune old log files before it creates the first one, which complains about the directory
+    // not existing yet.
+    let mut pre_hook = format!(
+        "mkdir --parents \"${file_log_directory}\" || true",
+        file_log_directory = FILE_LOG_DIRECTORY.as_ref()
+    );
+    if let Some(containerdebug_command) = validated
+        .containerdebug
+        .for_role(&role)
+        .background_command(VOLUME_MOUNT_PATH_LOG)
+    {
+        pre_hook = append_to_hook(&pre_hook, &containerdebug_command);
+    }
     // SPARK_ENV_LOADED keeps Spark from sourcing spark-env.sh again and overwriting the values.
     env = env.with_value(
         &STACKABLE_PRE_HOOK,
@@ -428,8 +439,9 @@ mod tests {
                 CaCert, Tls, TlsClientDetails, TlsServerVerification, TlsVerification,
             },
         },
-        crd::s3,
+        crd::{containerdebug::ValidatedContainerdebugConfig, s3},
         k8s_openapi::{api::core::v1::EnvVar, apimachinery::pkg::apis::meta::v1::ObjectMeta},
+        shared::time::Duration,
     };
 
     use super::*;
@@ -861,5 +873,92 @@ mod tests {
             .collect();
 
         assert_eq!(mount_names, vec![STACKABLE_TRUST_STORE_NAME, "s3-ca"]);
+    }
+
+    /// The driver and executor Pod templates start `containerdebug` from the validated config of
+    /// their own role. The hook is built from scratch, so a `_STACKABLE_PRE_HOOK` from `spec.env`
+    /// is replaced. The command itself is owned (and tested) by operator-rs, so only the wiring
+    /// and the joining of the hook are checked here.
+    #[test]
+    fn pod_templates_start_containerdebug_from_the_config_of_their_role() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              env:
+                - name: _STACKABLE_PRE_HOOK
+                  value: echo from-spec-env
+              driver:
+                config:
+                  containerdebug:
+                    enabled: false
+              executor:
+                config:
+                  containerdebug:
+                    interval: 10m
+        "#};
+        let validated = validated_from_yaml(yaml, None);
+        let env = validated
+            .spark_application
+            .env(&None, &None, None)
+            .expect("the base environment can be built");
+
+        let pre_hook = |role: SparkApplicationRole, config: RoleConfig| {
+            pod_template(
+                &validated,
+                role,
+                &config,
+                &[],
+                &env,
+                &test_service_account(),
+            )
+            .expect("the pod template can be built")
+            .spec
+            .expect("the pod template has a spec")
+            .containers
+            .into_iter()
+            .find(|container| container.name == "spark")
+            .expect("the spark container exists")
+            .env
+            .expect("the spark container has env vars")
+            .into_iter()
+            .find(|env_var| env_var.name == STACKABLE_PRE_HOOK.as_ref())
+            .and_then(|env_var| env_var.value)
+            .expect("the spark container has a pre hook")
+        };
+        let driver_config = validated
+            .spark_application
+            .driver_config()
+            .expect("the driver config resolves");
+        let executor_config = validated
+            .spark_application
+            .executor_config()
+            .expect("the executor config resolves");
+        let containerdebug_command = ValidatedContainerdebugConfig::Enabled {
+            interval: Duration::from_minutes_unchecked(10),
+        }
+        .background_command(VOLUME_MOUNT_PATH_LOG)
+        .expect("an enabled containerdebug has a command");
+
+        assert_eq!(
+            pre_hook(SparkApplicationRole::Driver, driver_config),
+            "mkdir --parents \"$FILE_LOG_DIRECTORY\" || true; \
+             . /stackable/spark/conf/spark-env.sh; export SPARK_ENV_LOADED=1"
+        );
+        assert_eq!(
+            pre_hook(SparkApplicationRole::Executor, executor_config),
+            format!(
+                "mkdir --parents \"$FILE_LOG_DIRECTORY\" || true; {containerdebug_command} \
+                 . /stackable/spark/conf/spark-env.sh; export SPARK_ENV_LOADED=1"
+            )
+        );
     }
 }

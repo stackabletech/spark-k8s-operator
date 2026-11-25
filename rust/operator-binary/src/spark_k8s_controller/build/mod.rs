@@ -124,6 +124,7 @@ pub fn build(validated: &ValidatedSparkApplication) -> Result<SparkResources<Pre
             logdir,
             resolved_product_image,
             opt_open_lineage_conn,
+            &validated.containerdebug.submit,
         )
         .context(BuildCommandSnafu)?;
 

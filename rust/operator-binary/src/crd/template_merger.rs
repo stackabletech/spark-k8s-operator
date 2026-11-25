@@ -1796,4 +1796,64 @@ mod tests {
             "the executor jvm arguments of the template should be applied before the ones of the spark application"
         );
     }
+
+    /// The `containerdebug` config of a role is merged field by field, so a template can turn
+    /// it off while the application sets the interval.
+    #[test]
+    fn test_merge_template_containerdebug_into_spark_application() {
+        let template = yaml_serde::from_str::<
+            crate::crd::template_spec::v1alpha1::SparkApplicationTemplate,
+        >(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplicationTemplate
+            metadata:
+              name: template-without-containerdebug
+            spec:
+              mode: cluster
+              mainApplicationFile: local:///template.jar
+              sparkImage:
+                productVersion: "3.5.8"
+              executor:
+                config:
+                  containerdebug:
+                    enabled: false
+        "#})
+        .unwrap();
+
+        let spark_app = yaml_serde::from_str::<crate::crd::v1alpha1::SparkApplication>(indoc! {r#"
+            ---
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: my-spark-app
+            spec:
+              mode: cluster
+              mainApplicationFile: local:///app.jar
+              sparkImage:
+                productVersion: "3.5.8"
+              executor:
+                config:
+                  containerdebug:
+                    interval: 10m
+        "#})
+        .unwrap();
+
+        let app_from_template = crate::crd::v1alpha1::SparkApplication::from(template);
+        let merged = deep_merge(&app_from_template, &spark_app);
+
+        let containerdebug = merged
+            .executor_config()
+            .expect("the executor config resolves")
+            .containerdebug;
+        assert!(
+            !containerdebug.enabled,
+            "the executor containerdebug should be turned off by the template"
+        );
+        assert_eq!(
+            containerdebug.interval,
+            stackable_operator::shared::time::Duration::from_minutes_unchecked(10),
+            "the executor containerdebug interval of the spark application should be kept"
+        );
+    }
 }

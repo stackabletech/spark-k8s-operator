@@ -102,7 +102,7 @@ pub(crate) fn build(
 
     let listener = server::build_listener(validated);
 
-    let args = server::command_args(user_args);
+    let args = server::command_args(user_args, &validated.server_containerdebug);
     let stateful_set =
         server::build_stateful_set(validated, &server_config_map, &listener.name_any(), args)
             .context(BuildServerStatefulSetSnafu)?;
@@ -271,10 +271,16 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use rstest::*;
-    use stackable_operator::commons::product_image_selection::PullPolicy;
+    use stackable_operator::{
+        commons::product_image_selection::PullPolicy,
+        crd::containerdebug::ValidatedContainerdebugConfig, shared::time::Duration,
+    };
 
     use super::*;
-    use crate::{connect::common::object_name, crd::constants::SPARK_DEFAULTS_FILE_NAME};
+    use crate::{
+        connect::{common::object_name, crd::SparkConnectContainer},
+        crd::constants::{SPARK_DEFAULTS_FILE_NAME, VOLUME_MOUNT_PATH_LOG},
+    };
 
     const PULL_POLICY_PROPERTY: &str = "spark.kubernetes.container.image.pullPolicy";
 
@@ -317,5 +323,44 @@ mod tests {
                 .any(|line| line == format!("{PULL_POLICY_PROPERTY}={expected}")),
             "expected {PULL_POLICY_PROPERTY}={expected} in\n {spark_defaults}"
         )
+    }
+
+    /// The server container starts `containerdebug` from the validated server config. The
+    /// command itself is owned (and tested) by operator-rs, so only the wiring is checked here.
+    #[rstest]
+    #[case::enabled(ValidatedContainerdebugConfig::Enabled {
+        interval: Duration::from_minutes_unchecked(10)
+    })]
+    #[case::disabled(ValidatedContainerdebugConfig::Disabled)]
+    fn server_container_starts_containerdebug_from_config(
+        #[case] containerdebug: ValidatedContainerdebugConfig,
+    ) {
+        let expected = containerdebug.background_command(VOLUME_MOUNT_PATH_LOG);
+        let mut validated = test_support::minimal_validated_cluster();
+        validated.server_containerdebug = containerdebug;
+
+        let resources = build(&validated, &[]).expect("the resources can be built");
+        let args = resources
+            .stateful_sets
+            .into_iter()
+            .next()
+            .and_then(|stateful_set| stateful_set.spec)
+            .and_then(|spec| spec.template.spec)
+            .expect("the StatefulSet has a pod spec")
+            .containers
+            .into_iter()
+            .find(|container| container.name == SparkConnectContainer::Spark.name().to_string())
+            .expect("the spark container exists")
+            .args
+            .expect("the spark container has args")
+            .join("\n");
+
+        assert_eq!(
+            args.lines()
+                .map(str::trim)
+                .find(|line| line.starts_with("containerdebug ")),
+            expected.as_deref(),
+            "args: {args}"
+        );
     }
 }

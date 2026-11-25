@@ -9,6 +9,7 @@ use stackable_operator::{
     },
     constant,
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
+    crd::containerdebug::ValidatedContainerdebugConfig,
     k8s_openapi::{
         DeepMerge,
         api::apps::v1::{StatefulSet, StatefulSetSpec},
@@ -201,7 +202,7 @@ pub(crate) fn build_stateful_set(
             "pipefail".to_string(),
             "-c".to_string(),
         ])
-        .args(command_args(log_dir))
+        .args(command_args(log_dir, &rg.containerdebug))
         .add_container_port("http", HISTORY_UI_PORT.into())
         .add_container_port("metrics", METRICS_PORT.into())
         .add_env_vars(merged_env)
@@ -279,7 +280,10 @@ pub(crate) fn build_stateful_set(
     })
 }
 
-fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
+fn command_args(
+    logdir: &ResolvedLogDir,
+    containerdebug: &ValidatedContainerdebugConfig,
+) -> Vec<String> {
     let mut command = vec![];
 
     if let Some(secret_dir) = logdir.credentials_mount_path() {
@@ -299,12 +303,12 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
         command.push(tlscerts::import_truststore(secret_name));
     }
 
+    command.push(format!(
+        "mkdir --parents \"${file_log_directory}\" || true",
+        file_log_directory = FILE_LOG_DIRECTORY.as_ref()
+    ));
+    command.extend(containerdebug.background_command(VOLUME_MOUNT_PATH_LOG));
     command.extend(vec![
-        format!(
-            "mkdir --parents \"${file_log_directory}\" || true",
-            file_log_directory = FILE_LOG_DIRECTORY.as_ref()
-        ),
-        format!("containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"),
         format!("/stackable/spark/sbin/start-history-server.sh --properties-file {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME}"),
     ]);
     vec![command.join("\n")]
@@ -312,10 +316,12 @@ fn command_args(logdir: &ResolvedLogDir) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use stackable_operator::{
         commons::{secret_class::SecretClassVolume, tls_verification::TlsClientDetails},
         crd::s3,
         k8s_openapi::api::core::v1::EnvVar,
+        shared::time::Duration,
     };
 
     use super::*;
@@ -405,9 +411,64 @@ mod tests {
             prefix: "prefix".to_string(),
         });
 
-        let script = command_args(&log_dir).join("\n");
+        let script = command_args(&log_dir, &ValidatedContainerdebugConfig::Disabled).join("\n");
 
         assert_not_traced(&script, "AWS_ACCESS_KEY_ID=");
         assert_not_traced(&script, "AWS_SECRET_ACCESS_KEY=");
+    }
+
+    /// The spark-history container starts `containerdebug` from the role group's validated
+    /// config. The command itself is owned (and tested) by operator-rs, so only the wiring is
+    /// checked here.
+    #[rstest]
+    #[case::enabled(ValidatedContainerdebugConfig::Enabled {
+        interval: Duration::from_minutes_unchecked(10)
+    })]
+    #[case::disabled(ValidatedContainerdebugConfig::Disabled)]
+    fn spark_history_container_starts_containerdebug_from_config(
+        #[case] containerdebug: ValidatedContainerdebugConfig,
+    ) {
+        let expected = containerdebug.background_command(VOLUME_MOUNT_PATH_LOG);
+        let mut validated = minimal_validated_cluster();
+        let role_group_name: RoleGroupName = "default".parse().expect("valid role group name");
+
+        validated
+            .role_groups
+            .get_mut(&role_group_name)
+            .expect("the default role group exists")
+            .containerdebug = containerdebug;
+
+        let rg = validated
+            .role_groups
+            .get(&role_group_name)
+            .expect("the default role group exists");
+        let stateful_set = build_stateful_set(
+            &validated,
+            &role_group_name,
+            rg,
+            &validated.cluster_config.log_dir,
+        )
+        .expect("the StatefulSet can be built");
+
+        let args = stateful_set
+            .spec
+            .expect("the StatefulSet has a spec")
+            .template
+            .spec
+            .expect("the StatefulSet has a pod spec")
+            .containers
+            .into_iter()
+            .find(|container| container.name == "spark-history")
+            .expect("the spark-history container exists")
+            .args
+            .expect("the spark-history container has args")
+            .join("\n");
+        assert_eq!(
+            args.lines()
+                .map(str::trim)
+                .find(|line| line.starts_with("containerdebug ")),
+            expected.as_deref(),
+            "args: {args}"
+        );
     }
 }

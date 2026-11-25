@@ -19,7 +19,10 @@ use stackable_operator::{
     },
     config_overrides::KeyValueConfigOverrides,
     constant,
-    crd::s3,
+    crd::{
+        containerdebug::{default_containerdebug_config, v1alpha1::ContainerdebugConfig},
+        s3,
+    },
     deep_merger::ObjectOverrides,
     k8s_openapi::{api::core::v1::PodAntiAffinity, apimachinery::pkg::api::resource::Quantity},
     kube::{CustomResource, ResourceExt},
@@ -158,7 +161,7 @@ pub mod versioned {
         pub listener_class: ListenerClassName,
     }
 
-    #[derive(Clone, Debug, Default, JsonSchema, PartialEq, Fragment)]
+    #[derive(Clone, Debug, JsonSchema, PartialEq, Fragment)]
     #[fragment_attrs(
         derive(
             Clone,
@@ -178,6 +181,9 @@ pub mod versioned {
 
         #[fragment_attrs(serde(default))]
         pub logging: Logging<SparkConnectContainer>,
+
+        #[fragment_attrs(serde(default))]
+        pub containerdebug: ContainerdebugConfig,
 
         /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
         /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
@@ -305,6 +311,7 @@ impl v1alpha1::ServerConfig {
                 storage: ConnectStorageConfigFragment {},
             },
             logging: product_logging::spec::default_logging(),
+            containerdebug: default_containerdebug_config(),
             requested_secret_lifetime: Some(Self::DEFAULT_CONNECT_SECRET_LIFETIME),
         }
     }

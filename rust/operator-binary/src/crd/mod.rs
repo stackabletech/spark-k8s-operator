@@ -27,7 +27,7 @@ use stackable_operator::{
         merge::Merge,
     },
     constant,
-    crd::{openlineage, s3},
+    crd::{containerdebug::ValidatedContainerdebugConfig, openlineage, s3},
     k8s_openapi::{
         api::core::v1::{EmptyDirVolumeSource, EnvVar, PodTemplateSpec, Volume, VolumeMount},
         apimachinery::pkg::{api::resource::Quantity, apis::meta::v1::Time},
@@ -127,7 +127,7 @@ pub enum Error {
 
 // `_STACKABLE_PRE_HOOK` is evaluated by the entrypoint script (run-spark.sh) in the Spark images
 // before the actual JVM process is started; the operator uses it to run `containerdebug` in the
-// background of every `spark` container.
+// background of the `spark` container of the driver and executor Pods.
 constant!(pub STACKABLE_PRE_HOOK: EnvVarName = "_STACKABLE_PRE_HOOK");
 constant!(PYTHONPATH: EnvVarName = "PYTHONPATH");
 // The environment variable holding the trust store password; its value is the
@@ -659,6 +659,7 @@ impl v1alpha1::SparkApplication {
         log_dir: &Option<ResolvedLogDir>,
         spark_image: &ResolvedProductImage,
         open_lineage_conn: Option<&openlineage::ResolvedOpenLineageConnection>,
+        containerdebug: &ValidatedContainerdebugConfig,
     ) -> Result<Vec<String>, Error> {
         // mandatory properties
         let mode = &self.spec.mode;
@@ -912,23 +913,22 @@ impl v1alpha1::SparkApplication {
 
         submit_cmd.extend(self.spec.args.clone());
 
-        Ok(vec![
-            // The log directory is created here, because `FILE_LOG_MAX_FILES` makes the telemetry
-            // library prune old log files before it creates the first one, which complains about
-            // the directory not existing yet.
-            format!(
-                "mkdir --parents \"${file_log_directory}\" || true",
-                file_log_directory = FILE_LOG_DIRECTORY.as_ref()
-            ),
-            format!(
-                "containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &"
-            ),
+        // The log directory is created here, because `FILE_LOG_MAX_FILES` makes the telemetry
+        // library prune old log files before it creates the first one, which complains about the
+        // directory not existing yet.
+        let mut command = vec![format!(
+            "mkdir --parents \"${file_log_directory}\" || true",
+            file_log_directory = FILE_LOG_DIRECTORY.as_ref()
+        )];
+        command.extend(containerdebug.background_command(VOLUME_MOUNT_PATH_LOG));
+        command.extend([
             build_truststore_commands,
             // xtrace prints expanded credentials, `--verbose` prints the config redacted
             "set +x".to_string(),
             "echo 'Running \"spark-submit [...]\", which is not shown as it can contain credentials'".to_string(),
             submit_cmd.join(" "),
-        ])
+        ]);
+        Ok(command)
     }
 
     /// The base environment for the submit, driver and executor containers: the user-defined
@@ -954,31 +954,21 @@ impl v1alpha1::SparkApplication {
                 .context(ParseSparkEnvVarNameSnafu)?;
         }
 
-        // These env variables enable the `containerdebug` process in driver and executor pods.
-        // More precisely, this process runs in the background of every `spark` container.
+        // These env variables configure the `containerdebug` process, which runs in the background
+        // of the `spark` container of the submit, driver and executor Pods. It is started per role,
+        // by the submit command and by the `_STACKABLE_PRE_HOOK` of the driver and executor Pod
+        // templates.
         // - `FILE_LOG_DIRECTORY` - is the location where tracing information from the process is
         // written. It must be exactly one level below the log directory, because the Vector agent
         // derives the container name from that path segment. The rotation is opt-in, so without
         // the other two variables the file would grow unbounded.
-        // - `_STACKABLE_PRE_HOOK` - is evaluated by the entrypoint script (run-spark.sh) in the Spark images
-        // before the actual JVM process is started. The result of this evaluation is that the
-        // `containerdebug` process is executed in the background. The log directory is created
-        // there, because `FILE_LOG_MAX_FILES` makes the telemetry library prune old log files
-        // before it creates the first one, which complains about the directory not existing yet.
         env = env
             .with_value(
                 &FILE_LOG_DIRECTORY,
                 concatcp!(VOLUME_MOUNT_PATH_LOG, "/containerdebug"),
             )
             .with_value(&FILE_LOG_ROTATION_PERIOD, "hourly")
-            .with_value(&FILE_LOG_MAX_FILES, "2")
-            .with_value(
-                &STACKABLE_PRE_HOOK,
-                format!(
-                    "mkdir --parents \"${file_log_directory}\" || true; containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &",
-                    file_log_directory = FILE_LOG_DIRECTORY.as_ref()
-                ),
-            );
+            .with_value(&FILE_LOG_MAX_FILES, "2");
 
         if self.requirements().is_some() {
             env = env.with_value(
@@ -1288,12 +1278,60 @@ mod tests {
             secret_class::SecretClassVolume,
             tls_verification::TlsClientDetails,
         },
+        crd::containerdebug::{DEFAULT_INTERVAL, v1alpha1::ContainerdebugConfig},
         product_logging::spec::Logging,
         versioned::test_utils::RoundtripTestData,
     };
 
     use super::*;
     use crate::{crd::roles::SparkStorageConfig, test_support::assert_not_traced};
+
+    /// The submit container starts `containerdebug` from the validated config of the submit
+    /// role. The command itself is owned (and tested) by operator-rs, so only the wiring is
+    /// checked here.
+    #[rstest]
+    #[case::enabled(ValidatedContainerdebugConfig::Enabled {
+        interval: Duration::from_minutes_unchecked(10)
+    })]
+    #[case::disabled(ValidatedContainerdebugConfig::Disabled)]
+    fn submit_command_starts_containerdebug_from_config(
+        #[case] containerdebug: ValidatedContainerdebugConfig,
+    ) {
+        let expected = containerdebug.background_command(VOLUME_MOUNT_PATH_LOG);
+        let spark_application: v1alpha1::SparkApplication =
+            stackable_operator::utils::yaml_from_str_singleton_map(indoc! {r#"
+                apiVersion: spark.stackable.tech/v1alpha1
+                kind: SparkApplication
+                metadata:
+                  name: spark-example
+                  namespace: default
+                spec:
+                  mode: cluster
+                  mainApplicationFile: test.py
+                  sparkImage:
+                    productVersion: 3.5.8
+            "#})
+            .expect("invalid test SparkApplication YAML");
+
+        let command = spark_application
+            .build_command(
+                &None,
+                &None,
+                &test_product_image(&spark_application, "3.5.8"),
+                None,
+                &containerdebug,
+            )
+            .expect("the submit command can be built");
+
+        assert_eq!(
+            command
+                .iter()
+                .find(|line| line.starts_with("containerdebug "))
+                .cloned(),
+            expected,
+            "command: {command:?}"
+        );
+    }
 
     #[test]
     fn test_constants() {
@@ -1719,6 +1757,10 @@ spec:
             },
             volume_mounts: Default::default(),
             affinity: StackableAffinity::default(),
+            containerdebug: ContainerdebugConfig {
+                enabled: true,
+                interval: DEFAULT_INTERVAL,
+            },
             requested_secret_lifetime: Some(Duration::from_days_unchecked(1)),
         };
 
@@ -1764,6 +1806,10 @@ spec:
             },
             volume_mounts: Default::default(),
             affinity: StackableAffinity::default(),
+            containerdebug: ContainerdebugConfig {
+                enabled: true,
+                interval: DEFAULT_INTERVAL,
+            },
             requested_secret_lifetime: Some(Duration::from_days_unchecked(1)),
         };
 
@@ -1877,6 +1923,7 @@ spec:
                 &None,
                 &test_product_image(&spark_application, product_version),
                 open_lineage_conn.as_ref(),
+                &ValidatedContainerdebugConfig::Disabled,
             )
             .unwrap()
             .join(" ")
@@ -2036,6 +2083,7 @@ spec:
                 &None,
                 &test_product_image(&spark_application, "3.5.8"),
                 Some(&connection),
+                &ValidatedContainerdebugConfig::Disabled,
             )
             .unwrap()
             .join(" ");
@@ -2444,7 +2492,13 @@ spec:
         });
 
         let script = spark_application
-            .build_command(&s3conn, &None, &resolved_product_image, None)
+            .build_command(
+                &s3conn,
+                &None,
+                &resolved_product_image,
+                None,
+                &ValidatedContainerdebugConfig::Disabled,
+            )
             .expect("the submit command can be built")
             .join("\n");
 
@@ -2496,7 +2550,13 @@ spec:
             .expect("the product image resolves");
 
         let command = spark_application
-            .build_command(&None, &None, &resolved_product_image, None)
+            .build_command(
+                &None,
+                &None,
+                &resolved_product_image,
+                None,
+                &ValidatedContainerdebugConfig::Disabled,
+            )
             .expect("the submit command can be built")
             .join(" ");
 

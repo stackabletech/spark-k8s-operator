@@ -3,7 +3,7 @@
 //! Synchronously validates the [`super::dereference::DereferencedSparkApplication`] and
 //! resolves the product image. Does not touch the Kubernetes API.
 
-use std::{borrow::Cow, str::FromStr};
+use std::{borrow::Cow, ops::Deref, str::FromStr};
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use stackable_operator::{
@@ -14,7 +14,10 @@ use stackable_operator::{
         tls_verification::TlsVerification,
     },
     constant,
-    crd::{openlineage, s3},
+    crd::{
+        containerdebug::{self, ValidatedContainerdebugConfig, v1alpha1::ContainerdebugConfig},
+        openlineage, s3,
+    },
     k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta,
     kube::Resource,
     v2::{
@@ -22,7 +25,7 @@ use stackable_operator::{
         controller_utils::{get_namespace, get_uid},
         types::{
             kubernetes::{NamespaceName, Uid},
-            operator::{ControllerName, OperatorName, ProductName, ProductVersion},
+            operator::{ControllerName, OperatorName, ProductName, ProductVersion, RoleName},
         },
     },
 };
@@ -35,6 +38,7 @@ use crate::{
             SPARK_OPERATOR_NAME,
         },
         logdir::ResolvedLogDir,
+        roles::SparkApplicationRole,
         v1alpha1,
     },
     spark_k8s_controller::dereference::DereferencedSparkApplication,
@@ -74,6 +78,18 @@ pub enum Error {
          got {cleanup:?}"
     ))]
     FixedDriverPodNameWithDelayedCleanup { cleanup: Cleanup },
+
+    #[snafu(display("failed to resolve the config of role {role}"))]
+    ResolveRoleConfig {
+        source: crate::crd::Error,
+        role: RoleName,
+    },
+
+    #[snafu(display("invalid containerdebug configuration for role {role}"))]
+    InvalidContainerdebugConfig {
+        source: containerdebug::Error,
+        role: RoleName,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -121,6 +137,26 @@ pub struct ValidatedSparkApplication {
     pub cluster_config: ValidatedClusterConfig,
     /// The driver Pod TTLs, resolved from the merged application.
     pub cleanup: ResolvedCleanup,
+    /// The `containerdebug` configuration of each role, resolved from the merged application.
+    pub containerdebug: ValidatedContainerdebug,
+}
+
+/// The validated `containerdebug` configuration of each role.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ValidatedContainerdebug {
+    pub submit: ValidatedContainerdebugConfig,
+    pub driver: ValidatedContainerdebugConfig,
+    pub executor: ValidatedContainerdebugConfig,
+}
+
+impl ValidatedContainerdebug {
+    pub fn for_role(&self, role: &SparkApplicationRole) -> &ValidatedContainerdebugConfig {
+        match role {
+            SparkApplicationRole::Submit => &self.submit,
+            SparkApplicationRole::Driver => &self.driver,
+            SparkApplicationRole::Executor => &self.executor,
+        }
+    }
 }
 
 /// Cluster-wide settings resolved during validation and dereferencing, so the resource builders
@@ -219,6 +255,7 @@ pub fn validate(
     let metadata = dereferenced.spark_application.meta().clone();
 
     let cleanup = validate_cleanup(&dereferenced.spark_application)?;
+    let containerdebug = validate_containerdebug(&dereferenced.spark_application)?;
 
     Ok(ValidatedSparkApplication {
         metadata,
@@ -235,6 +272,7 @@ pub fn validate(
             log_dir: dereferenced.log_dir,
         },
         cleanup,
+        containerdebug,
     })
 }
 
@@ -270,6 +308,58 @@ fn validate_cleanup(merged_application: &v1alpha1::SparkApplication) -> Result<R
     Ok(resolved_cleanup(spec))
 }
 
+/// Resolves and validates the `containerdebug` configuration of each role of the given
+/// application, which must already have its templates merged (see
+/// [`DereferencedSparkApplication`]).
+fn validate_containerdebug(
+    merged_application: &v1alpha1::SparkApplication,
+) -> Result<ValidatedContainerdebug> {
+    let submit_config =
+        merged_application
+            .submit_config()
+            .with_context(|_| ResolveRoleConfigSnafu {
+                role: SparkApplicationRole::Submit.deref().clone(),
+            })?;
+    let driver_config =
+        merged_application
+            .driver_config()
+            .with_context(|_| ResolveRoleConfigSnafu {
+                role: SparkApplicationRole::Driver.deref().clone(),
+            })?;
+    let executor_config =
+        merged_application
+            .executor_config()
+            .with_context(|_| ResolveRoleConfigSnafu {
+                role: SparkApplicationRole::Executor.deref().clone(),
+            })?;
+
+    Ok(ValidatedContainerdebug {
+        submit: validate_role_containerdebug(
+            SparkApplicationRole::Submit,
+            &submit_config.containerdebug,
+        )?,
+        driver: validate_role_containerdebug(
+            SparkApplicationRole::Driver,
+            &driver_config.containerdebug,
+        )?,
+        executor: validate_role_containerdebug(
+            SparkApplicationRole::Executor,
+            &executor_config.containerdebug,
+        )?,
+    })
+}
+
+fn validate_role_containerdebug(
+    role: SparkApplicationRole,
+    containerdebug: &ContainerdebugConfig,
+) -> Result<ValidatedContainerdebugConfig> {
+    containerdebug
+        .validate()
+        .with_context(|_| InvalidContainerdebugConfigSnafu {
+            role: role.deref().clone(),
+        })
+}
+
 /// Resolves the TTLs from exactly the given spec, filling in defaults.
 ///
 /// Templates are not merged here. Pass the spec of a merged application (see
@@ -293,10 +383,35 @@ fn resolved_cleanup(spec: &v1alpha1::SparkApplicationSpec) -> ResolvedCleanup {
 mod tests {
     use indoc::{formatdoc, indoc};
     use rstest::rstest;
-    use stackable_operator::cli::OperatorEnvironmentOptions;
+    use stackable_operator::{
+        cli::OperatorEnvironmentOptions, crd::containerdebug::DEFAULT_INTERVAL,
+        shared::time::Duration,
+    };
 
     use super::*;
     use crate::test_support::app_version_label;
+
+    /// Runs the validate step against the given `SparkApplication` YAML without templates or
+    /// external connections.
+    fn validate_yaml(yaml: &str) -> Result<ValidatedSparkApplication> {
+        let spark_application: v1alpha1::SparkApplication =
+            stackable_operator::utils::yaml_from_str_singleton_map(yaml)
+                .expect("invalid test SparkApplication YAML");
+        validate(
+            DereferencedSparkApplication {
+                spark_application,
+                resolved_template_refs: Vec::new(),
+                s3_connection: None,
+                log_dir: None,
+                open_lineage_connection: None,
+            },
+            &OperatorEnvironmentOptions {
+                operator_namespace: "stackable-operators".to_string(),
+                operator_service_name: "spark-k8s-operator".to_string(),
+                image_repository: "oci.example.org/sdp".to_string(),
+            },
+        )
+    }
 
     #[test]
     fn test_constants() {
@@ -437,5 +552,134 @@ mod tests {
                 Err(Error::FixedDriverPodNameWithDelayedCleanup { .. })
             )),
         }
+    }
+
+    /// A role `config` that does not mention `containerdebug` still gets the default, so the
+    /// `containerdebug` field of the CRD must be optional in every role.
+    #[test]
+    fn containerdebug_defaults_when_not_configured() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              job:
+                config:
+                  retryOnFailureCount: 1
+              driver:
+                config:
+                  requestedSecretLifetime: 2d
+              executor:
+                config:
+                  requestedSecretLifetime: 2d
+        "#};
+
+        let validated = match validate_yaml(yaml) {
+            Ok(validated) => validated,
+            Err(error) => panic!("the SparkApplication is valid, but: {error:?}"),
+        };
+
+        let default = ValidatedContainerdebugConfig::Enabled {
+            interval: DEFAULT_INTERVAL,
+        };
+        assert_eq!(
+            validated.containerdebug,
+            ValidatedContainerdebug {
+                submit: default.clone(),
+                driver: default.clone(),
+                executor: default,
+            }
+        );
+    }
+
+    /// Every role gets its own `containerdebug` config, so a mix-up between the roles shows.
+    #[test]
+    fn containerdebug_is_validated_per_role() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              job:
+                config:
+                  containerdebug:
+                    enabled: false
+              driver:
+                config:
+                  containerdebug:
+                    interval: 30s
+        "#};
+
+        let validated = match validate_yaml(yaml) {
+            Ok(validated) => validated,
+            Err(error) => panic!("the SparkApplication is valid, but: {error:?}"),
+        };
+
+        assert_eq!(
+            validated.containerdebug,
+            ValidatedContainerdebug {
+                submit: ValidatedContainerdebugConfig::Disabled,
+                driver: ValidatedContainerdebugConfig::Enabled {
+                    interval: Duration::from_secs(30),
+                },
+                executor: ValidatedContainerdebugConfig::Enabled {
+                    interval: DEFAULT_INTERVAL,
+                },
+            }
+        );
+    }
+
+    /// An invalid `containerdebug` config fails the validation, naming the role.
+    #[test]
+    fn zero_containerdebug_interval_fails_validation() {
+        let yaml = indoc! {r#"
+            apiVersion: spark.stackable.tech/v1alpha1
+            kind: SparkApplication
+            metadata:
+              name: spark-example
+              namespace: default
+              uid: 12345678-1234-1234-1234-123456789012
+            spec:
+              mode: cluster
+              mainApplicationFile: test.py
+              sparkImage:
+                productVersion: 1.2.3
+              executor:
+                config:
+                  containerdebug:
+                    interval: 0s
+        "#};
+
+        let Err(error) = validate_yaml(yaml) else {
+            panic!("a zero containerdebug interval must fail the validation");
+        };
+        let chain: Vec<String> =
+            std::iter::successors(Some(&error as &dyn std::error::Error), |error| {
+                error.source()
+            })
+            .map(ToString::to_string)
+            .collect();
+
+        assert_eq!(
+            chain,
+            [
+                "invalid containerdebug configuration for role executor",
+                "the containerdebug interval must not be zero",
+            ]
+        );
     }
 }

@@ -18,7 +18,7 @@ use stackable_operator::{
         },
     },
     constants::RESTART_CONTROLLER_ENABLED_LABEL,
-    crd::listener,
+    crd::{containerdebug::ValidatedContainerdebugConfig, listener},
     k8s_openapi::{
         DeepMerge,
         api::{
@@ -365,10 +365,13 @@ pub(crate) fn build_stateful_set(
 }
 
 #[allow(clippy::result_large_err)]
-pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
+pub(crate) fn command_args(
+    user_args: &[String],
+    containerdebug: &ValidatedContainerdebugConfig,
+) -> Vec<String> {
     let mut command = formatdoc! { "
     mkdir --parents \"${file_log_directory}\" || true
-    containerdebug --output={VOLUME_MOUNT_PATH_LOG}/containerdebug-state.json --loop &
+    {containerdebug_command}
 
     cp {VOLUME_MOUNT_PATH_CONFIG}/{SPARK_DEFAULTS_FILE_NAME} /tmp/spark.properties
     config-utils template /tmp/spark.properties
@@ -377,7 +380,10 @@ pub(crate) fn command_args(user_args: &[String]) -> Vec<String> {
     --deploy-mode client \\
     --master k8s://https://${{KUBERNETES_SERVICE_HOST}}:${{KUBERNETES_SERVICE_PORT_HTTPS}} \\
     --properties-file /tmp/spark.properties",
-    file_log_directory = FILE_LOG_DIRECTORY.as_ref()};
+    file_log_directory = FILE_LOG_DIRECTORY.as_ref(),
+    containerdebug_command = containerdebug
+        .background_command(VOLUME_MOUNT_PATH_LOG)
+        .unwrap_or_default()};
 
     // Append user-provided command line arguments as continuation lines.
     for user_arg in user_args {

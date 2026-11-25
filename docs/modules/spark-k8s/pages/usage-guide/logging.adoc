@@ -18,6 +18,12 @@ Overriding `FILE_LOG_DIRECTORY` with `envOverrides` therefore changes how these 
 The agent only collects files one level below `/stackable/log`, so a sibling directory such as `/stackable/log/spark` relabels the events instead of dropping them, while any deeper or shallower path stops the aggregation.
 A path outside `/stackable/log` also leaves the size-capped log volume.
 
+The `containerdebug` process can be configured or turned off as described in xref:concepts:observability/containerdebug.adoc#configuration[]: per role and role group for the history server, in `spec.server.config` for the Spark Connect server, and per role (`job`, `driver` and `executor`) for SparkApplications and SparkApplicationTemplates.
+
+NOTE: The Spark Connect executors do not run `containerdebug`.
+
+NOTE: In the `client` mode of a SparkApplication, the driver runs in the `spark-submit` Pod, so its `containerdebug` process is configured with the `job` role.
+
 == History server
 
 The following snippet shows how to configure log aggregation for the history server:
@@ -34,6 +40,8 @@ spec:
     roleGroups:
       default:
         config:
+          containerdebug:
+            enabled: false
           logging:
             enableVectorAgent: true # <2>
             containers:

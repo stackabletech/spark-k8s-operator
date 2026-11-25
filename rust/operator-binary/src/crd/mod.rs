@@ -920,8 +920,6 @@ impl v1alpha1::SparkApplication {
             "mkdir --parents \"${file_log_directory}\" || true",
             file_log_directory = FILE_LOG_DIRECTORY.as_ref()
         )];
-        // The submit container runs this script directly instead of the image entrypoint, so the
-        // `_STACKABLE_PRE_HOOK` of the driver and executor Pods does not apply here.
         command.extend(containerdebug.background_command(VOLUME_MOUNT_PATH_LOG));
         command.extend([
             build_truststore_commands,

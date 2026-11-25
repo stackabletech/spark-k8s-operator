@@ -29,7 +29,10 @@ use stackable_operator::{
         merge::{Atomic, Merge},
     },
     constant,
-    crd::{openlineage, s3},
+    crd::{
+        containerdebug::{default_containerdebug_config, v1alpha1::ContainerdebugConfig},
+        openlineage, s3,
+    },
     k8s_openapi::{api::core::v1::VolumeMount, apimachinery::pkg::api::resource::Quantity},
     product_logging::{self, spec::Logging},
     schemars::{self, JsonSchema},
@@ -145,7 +148,7 @@ pub enum SparkMode {
     Client,
 }
 
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[derive(Clone, Debug, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
         Clone,
@@ -171,6 +174,9 @@ pub struct RoleConfig {
 
     #[fragment_attrs(serde(default))]
     pub affinity: StackableAffinity,
+
+    #[fragment_attrs(serde(default))]
+    pub containerdebug: ContainerdebugConfig,
 
     /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
     /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
@@ -198,6 +204,7 @@ impl RoleConfig {
             logging: product_logging::spec::default_logging(),
             volume_mounts: Some(VolumeMounts::default()),
             affinity: Default::default(),
+            containerdebug: default_containerdebug_config(),
             requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
         }
     }
@@ -220,7 +227,7 @@ impl RoleConfig {
     }
 }
 
-#[derive(Clone, Debug, Default, Fragment, JsonSchema, PartialEq)]
+#[derive(Clone, Debug, Fragment, JsonSchema, PartialEq)]
 #[fragment_attrs(
     derive(
         Clone,
@@ -243,6 +250,9 @@ pub struct SubmitConfig {
 
     #[fragment_attrs(serde(default, flatten))]
     pub volume_mounts: Option<VolumeMounts>,
+
+    #[fragment_attrs(serde(default))]
+    pub containerdebug: ContainerdebugConfig,
 
     /// Request secret (currently only autoTls certificates) lifetime from the secret operator, e.g. `7d`, or `30d`.
     /// This can be shortened by the `maxCertificateLifetime` setting on the SecretClass issuing the TLS certificate.
@@ -273,6 +283,7 @@ impl SubmitConfig {
             },
             affinity: Default::default(),
             volume_mounts: Some(VolumeMounts::default()),
+            containerdebug: default_containerdebug_config(),
             requested_secret_lifetime: Some(Self::DEFAULT_SECRET_LIFETIME),
             retry_on_failure_count: Some(DEFAULT_SUBMIT_JOB_RETRY_ON_FAILURE_COUNT),
         }
